@@ -1,0 +1,45 @@
+{
+  "//": "zh-CN 术语表。rules 是机械规则:audit.mjs 对命中的值报 FAIL,apply.mjs --glossary 把 forbidden 词替换为 zh。style 仅作文档,人工精修与 kit 编写时遵循。",
+  "rules": [
+    {
+      "//": "Agent 一律为「智能体」。经全量扫描,现有 zh 值中「代理」无一例是网络代理等其它含义,故全局生效。",
+      "id": "agent",
+      "zh": "智能体",
+      "forbidden": ["代理"],
+      "scope": { "ns": "*" }
+    },
+    {
+      "//": "LLM 计量一律写 Token;鉴权 token 仅存在于 config:connection.*,译「令牌」,排除在外。",
+      "id": "llm-token",
+      "zh": "Token",
+      "forbidden": ["令牌"],
+      "scope": { "ns": "*" },
+      "exclude": { "keyPattern": "^config:connection\\." }
+    },
+    {
+      "//": "Explorer 是资源管理器,不是浏览器。只看 explorer 相关 key;spawn.browser / openInBrowser 等真浏览器场景不在作用域。",
+      "id": "explorer",
+      "zh": "资源管理器",
+      "forbidden": ["浏览器"],
+      "scope": { "keyPattern": "[Ee]xplorer" }
+    },
+    {
+      "//": "确认按钮用「确定」。仅此一键;不收窄作用域会误伤「更好的」等含「好的」子串的文案。",
+      "id": "ok-button",
+      "zh": "确定",
+      "forbidden": ["好的"],
+      "scope": { "keys": ["common:buttons.ok"] }
+    }
+  ],
+  "style": [
+    "全角标点(，。！？：；()「」),省略号用 …;英文术语与数字前后保留自然间距(如「输入 Token」「{{count}} 个智能体」)",
+    "占位符 {{name}} / {{count}} 原样保留,不改名、不加空格",
+    "按钮用词:确定 / 取消 / 保存 / 关闭 / 新建 / 删除;确认弹窗用「确定要……吗?」句式",
+    "代码、命令、变量名、示例路径(/path/to/folder、.env、npm run build)不翻译",
+    "按键名保留英文:Alt / Shift / Ctrl / Cmd / ⌥ / ⌘,组合键写「按 Alt 加右键」,不把 Alt 译作「替代」",
+    "品牌与技术标识保留英文:Tide Commander、Claude、Codex、Chrome、Bash、Git、Spotlight、2D / 3D、Token(计量)",
+    "主题词:智能体(不写「代理」)、子智能体、主管 / 下属、资源管理器(Explorer)、会话、技能、触发器、工作流、插件、定时任务、区域 / 分区(A 与 Z 同现时 Area=区域、Zone=分区)",
+    "en 的 spawn 一律译「创建」,deploy 一律译「部署」,一一对应,不混用",
+    "鉴权 token 仅 config:connection.* 译「令牌」;LLM 计量一律写「Token」"
+  ]
+}

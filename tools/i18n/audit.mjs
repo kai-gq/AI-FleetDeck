@@ -39,7 +39,7 @@ const DEFAULT_NS_ORDER = ['common', 'tools', 'config', 'errors', 'notifications'
 function parseArgs(argv) {
   const o = {
     lang: 'zh-CN', base: 'en', ns: [], wiring: false, exportKit: null, polish: false,
-    json: false, strict: false, limit: 40, reportInfo: false, glossary: null, allowlist: null,
+    json: false, strict: false, limit: 40, reportInfo: false, glossary: null, noGlossary: false, allowlist: null,
     root: DEFAULT_ROOT, help: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -56,6 +56,7 @@ function parseArgs(argv) {
     else if (a === '--limit') o.limit = Number(next());
     else if (a === '--report-info') o.reportInfo = true;
     else if (a === '--glossary') o.glossary = next();
+    else if (a === '--no-glossary') o.noGlossary = true;
     else if (a === '--allowlist') o.allowlist = next();
     else if (a === '--root') o.root = path.resolve(next());
     else if (a === '--help' || a === '-h') o.help = true;
@@ -67,7 +68,7 @@ function parseArgs(argv) {
 const HELP = `i18n locale audit
 usage: node tools/i18n/audit.mjs [--lang zh-CN] [--base en] [--ns a,b] [--wiring]
        [--export-kit <dir>] [--polish] [--json] [--strict] [--limit N] [--report-info]
-       [--glossary <path>] [--allowlist <path>] [--root <path>]
+       [--glossary <path>] [--no-glossary] [--allowlist <path>] [--root <path>]
 exit codes: 0 clean · 1 findings · 2 parse/config error`;
 
 // ---------------------------------------------------------------- JSON parser with duplicate detection
@@ -326,7 +327,7 @@ function main() {
   }
 
   const allowlist = loadAllowlist(opts.allowlist || path.join(SCRIPT_DIR, 'allowlist.json'));
-  const glossary = loadGlossary(opts.glossary || path.join(SCRIPT_DIR, 'glossary.json'));
+  const glossary = opts.noGlossary ? { rules: [], style: [] } : loadGlossary(opts.glossary || path.join(SCRIPT_DIR, 'glossary.json'));
 
   const findings = [];
   const add = (level, check, ns, key, detail) => findings.push({ level, check, ns, key, detail });
