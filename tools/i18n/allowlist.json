@@ -40,6 +40,7 @@
     "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
     "re:^terminal:spawn\\.",
     "re:^terminal:testResults\\.",
+    "re:^terminal:outputLine\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

@@ -435,8 +435,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           type="button"
           className="plugin-guake-widget__dismiss"
           onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
-          aria-label={`Quitar widget ${pluginOutput.title || pluginOutput.pluginId}`}
-          title="Quitar widget"
+          aria-label={`${t('terminal:outputLine.removeWidget', { defaultValue: 'Remove widget' })} ${pluginOutput.title || pluginOutput.pluginId}`}
+          title={t('terminal:outputLine.removeWidget', { defaultValue: 'Remove widget' })}
         >
           <Icon name="close" size={11} />
         </button>
@@ -445,8 +445,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           type="button"
           className="plugin-guake-widget__dismiss plugin-guake-widget__dismiss--bottom"
           onClick={() => store.dismissPluginOutput(agentId, pluginOutput.instanceId)}
-          aria-label={`Quitar widget ${pluginOutput.title || pluginOutput.pluginId}`}
-          title="Quitar widget"
+          aria-label={`${t('terminal:outputLine.removeWidget', { defaultValue: 'Remove widget' })} ${pluginOutput.title || pluginOutput.pluginId}`}
+          title={t('terminal:outputLine.removeWidget', { defaultValue: 'Remove widget' })}
         >
           <Icon name="close" size={11} />
         </button>
@@ -480,7 +480,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       <div
         className={`output-line output-session-continuation ${sessionExpanded ? 'expanded' : ''}`}
         onClick={() => setSessionExpanded(!sessionExpanded)}
-        title="Click to expand/collapse"
+        title={t('terminal:history.clickToExpandCollapse', { defaultValue: 'Click to expand/collapse' })}
       >
         <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
         <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
@@ -688,7 +688,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <>
             <span className="output-role output-role-chip output-role-user-chip">{t('common:labels.you')}</span>
             {output.pendingEcho && (
-              <span className="output-pending-echo" title="Sending…">
+              <span className="output-pending-echo" title={t('terminal:outputLine.sending', { defaultValue: 'Sending…' })}>
                 <Icon name="hourglass" size={10} />
               </span>
             )}
@@ -807,7 +807,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-todo-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <TodoWriteInput content={todoContent} priorTodos={priorTodos} />
@@ -825,7 +825,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-ask-question-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <AskQuestionInput content={askQuestionContent} pendingPromptId={matchingPendingPrompt?.id} />
@@ -843,7 +843,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-plan-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <ExitPlanModeInput content={exitPlanContent} pendingPromptId={matchingPendingPrompt?.id} onViewMarkdown={onViewMarkdown} />
@@ -860,7 +860,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-task-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <TaskCreateInput content={taskCreateContent} />
@@ -891,7 +891,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-task-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           {snapshot.length > 0
@@ -936,7 +936,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-list-files-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <ListFilesInput
@@ -968,7 +968,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-task-wait-inline ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
           <TaskOutputWaitInput content={waitContent} />
@@ -986,9 +986,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         ? (prompt.length > 120 ? prompt.slice(0, 117) + '...' : prompt)
         : undefined;
 
-      const collabLabel = toolName === 'spawn_agent' ? 'Spawn Agent'
-        : toolName === 'send_input' ? 'Send Input'
-        : 'Wait';
+      const collabLabel = toolName === 'spawn_agent' ? t('tools:display.toolNames.spawnAgent')
+        : toolName === 'send_input' ? t('tools:display.toolNames.sendInput')
+        : t('tools:display.toolNames.wait');
 
       if (toolName === 'wait') {
         const cellId = collabInput?.cell_id ?? collabInput?.cellId;
@@ -1005,7 +1005,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       return (
         <div className={`output-line output-tool-use output-collab-tool output-collab-${toolName} ${isStreaming ? 'output-streaming' : ''}`}>
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name collab-tool-name">{collabLabel}</span>
           {receiverIds && receiverIds.length > 0 && (
@@ -1045,7 +1045,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               }}
             >
               <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
               <span className="output-tool-param view-image-path" title={imageTarget.path}>{imagePreview.name}</span>
@@ -1155,7 +1155,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             }}
           >
             <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <WithMissingFiles paths={visibleFilePaths.filter((path) => path.startsWith('/'))} enabled={!isStreaming} baseDir={agentCwd}>
@@ -1202,9 +1202,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           )}
           {execDetailExpanded && (
             <div className="codex-exec-detail">
-              <div className="codex-exec-detail-label">Command details</div>
+              <div className="codex-exec-detail-label">{t('terminal:outputLine.commandDetails', { defaultValue: 'Command details' })}</div>
               <pre>{execScript}</pre>
-              {execLinkedOutput && <><div className="codex-exec-detail-label">Result</div><pre>{execLinkedOutput}</pre></>}
+              {execLinkedOutput && <><div className="codex-exec-detail-label">{t('terminal:outputLine.result', { defaultValue: 'Result' })}</div><pre>{execLinkedOutput}</pre></>}
             </div>
           )}
           {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
@@ -1502,7 +1502,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           {...toolPreviewHandlers(isPreviewable ? buildPreviewTarget : null)}
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
           <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
 
@@ -1538,7 +1538,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               >
                 <span className="bash-notify-chip">
                   <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
-                  <span className="bash-notify-label">notify</span>
+                  <span className="bash-notify-label">{t('terminal:outputLine.chipNotify', { defaultValue: 'notify' })}</span>
                 </span>
                 {bashNotificationCommand.title && (
                   <span className="bash-notify-title">{bashNotificationCommand.title}</span>
@@ -1554,7 +1554,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 title={bashTaskLabelCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
+                <span className="bash-task-label-chip"><Icon name="task" size={12} /> {t('terminal:outputLine.chipTask', { defaultValue: 'task' })}</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : bashReportTaskCommand ? (
@@ -1565,7 +1565,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 style={{ cursor: 'pointer' }}
               >
                 <span className={`bash-report-task-chip ${bashReportTaskCommand.status === 'failed' ? 'status-failed' : 'status-completed'}`}>
-                  <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> report
+                  <Icon name={bashReportTaskCommand.status === 'failed' ? 'failure' : 'success'} size={12} /> {t('terminal:outputLine.chipReport', { defaultValue: 'report' })}
                 </span>
                 {bashReportTaskCommand.summary && (
                   <span className="bash-report-task-summary">{bashReportTaskCommand.summary}</span>
@@ -1589,7 +1589,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 {bashSearchCommand.shellPrefix && (
                   <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
                 )}
-                <span className="bash-search-chip">search</span>
+                <span className="bash-search-chip">{t('terminal:outputLine.chipSearch', { defaultValue: 'search' })}</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
             ) : bashCurlParsed ? (
@@ -2049,7 +2049,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               <button
                 className="history-speak-btn"
                 onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
-                title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+                title={speaking ? t('terminal:history.stopSpeaking', { defaultValue: 'Stop speaking' }) : t('terminal:history.speakSpanish', { defaultValue: 'Speak (Spanish)' })}
               >
                 <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
               </button>
@@ -2058,7 +2058,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               <button
                 className="history-view-md-btn"
                 onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
-                title="View as Markdown"
+                title={t('terminal:history.viewAsMarkdown', { defaultValue: 'View as Markdown' })}
               >
                 <Icon name="file-text" size={14} />
               </button>
@@ -2068,7 +2068,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
                 onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
                 disabled={pdfStatus === 'working'}
-                title="Export as PDF"
+                title={t('terminal:outputLine.exportPdf', { defaultValue: 'Export as PDF' })}
               >
                 <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
               </button>
@@ -2076,7 +2076,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
-              title="Copy as rich text"
+              title={t('terminal:outputLine.copyRichText', { defaultValue: 'Copy as rich text' })}
             >
               <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
             </button>
@@ -2188,7 +2188,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <button
               className="history-speak-btn"
               onClick={(e) => { e.stopPropagation(); toggleTTS(text); }}
-              title={speaking ? 'Stop speaking' : 'Speak (Spanish)'}
+              title={speaking ? t('terminal:history.stopSpeaking', { defaultValue: 'Stop speaking' }) : t('terminal:history.speakSpanish', { defaultValue: 'Speak (Spanish)' })}
             >
               <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
@@ -2197,7 +2197,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(payloadToolOutput || text); }}
-              title="View as Markdown"
+              title={t('terminal:history.viewAsMarkdown', { defaultValue: 'View as Markdown' })}
             >
               <Icon name="file-text" size={14} />
             </button>
@@ -2207,7 +2207,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
               onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
               disabled={pdfStatus === 'working'}
-              title="Export as PDF"
+              title={t('terminal:outputLine.exportPdf', { defaultValue: 'Export as PDF' })}
             >
               <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
             </button>
@@ -2215,7 +2215,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <button
             className="history-view-md-btn"
             onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
-            title="Copy as rich text"
+            title={t('terminal:outputLine.copyRichText', { defaultValue: 'Copy as rich text' })}
           >
             <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
           </button>

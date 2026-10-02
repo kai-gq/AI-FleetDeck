@@ -2696,5 +2696,18 @@
     "errors": "{{n}} 错误",
     "skipped": "{{n}} 跳过",
     "more": "+{{n}} 项"
+  },
+  "outputLine": {
+    "agentBadge": "智能体：{{name}}",
+    "sending": "正在发送…",
+    "commandDetails": "命令详情",
+    "result": "结果",
+    "exportPdf": "导出为 PDF",
+    "copyRichText": "复制为富文本",
+    "removeWidget": "移除小组件",
+    "chipNotify": "通知",
+    "chipTask": "任务",
+    "chipReport": "报告",
+    "chipSearch": "搜索"
   }
 }
