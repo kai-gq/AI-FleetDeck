@@ -55,6 +55,7 @@
     "re:^config:monitoringModal\\.",
     "re:^config:bulkManage\\.",
     "re:^config:workflowPanel\\.",
-    "re:^config:workflowEditor\\."
+    "re:^config:workflowEditor\\.",
+    "re:^config:triggerPanel\\."
   ]
 }

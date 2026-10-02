@@ -1276,5 +1276,198 @@
     "initialState": "起始状态",
     "color": "颜色",
     "versionSummary": "版本：{{version}} | 状态：{{states}} | 转移：{{transitions}}"
+  },
+  "triggerPanel": {
+    "type": {
+      "all": "全部",
+      "webhook": "Webhook",
+      "bitbucket": "Bitbucket",
+      "cron": "定时",
+      "slack": "Slack",
+      "email": "邮件",
+      "jira": "Jira",
+      "whatsapp": "WhatsApp"
+    },
+    "bitbucketEvent": {
+      "created": "PR 已创建",
+      "updated": "PR 已更新",
+      "approved": "PR 已批准",
+      "unapproved": "PR 已取消批准",
+      "merged": "PR 已合并",
+      "declined": "PR 已拒绝",
+      "commentCreated": "PR 评论已创建"
+    },
+    "title": "触发器",
+    "editTrigger": "编辑触发器",
+    "newTrigger": "新建触发器",
+    "addTrigger": "+ 新建触发器",
+    "filterAria": "按类型过滤触发器",
+    "emptyList": "还没有配置触发器。新建一个即可开始。",
+    "emptyFiltered": "还没有配置{{type}}触发器。",
+    "badge": {
+      "recurring": "循环",
+      "onceCompleted": "单次 · 已完成",
+      "onceMissed": "单次 · 已错过",
+      "oncePending": "单次 · 待执行"
+    },
+    "disable": "停用",
+    "enable": "启用",
+    "testFire": "测试触发",
+    "meta": {
+      "agent": "智能体：{{name}}",
+      "fires": "触发次数：{{num}}",
+      "last": "最近：{{time}}",
+      "error": "错误：{{msg}}"
+    },
+    "namePlaceholder": "我的触发器",
+    "descriptionPlaceholder": "可选描述",
+    "selectAgent": "选择智能体…",
+    "promptTemplate": "提示词模板",
+    "promptPlaceholder": "发送给智能体的消息。使用 {{variable}} 进行插值。",
+    "saveFailed": "保存触发器失败",
+    "saveError": "保存失败",
+    "invalidJsonPayload": "JSON 负载无效",
+    "testMatchFailed": "测试匹配失败",
+    "copyFailed": "复制到剪贴板失败",
+    "saveToRevealUrl": "保存触发器后即可查看其 Webhook URL。",
+    "update": "更新",
+    "webhook": {
+      "section": "Webhook 配置",
+      "method": "请求方法",
+      "secret": "密钥（HMAC）",
+      "secretPlaceholder": "可选 HMAC 密钥",
+      "extractFields": "提取字段（逗号分隔的 JSON 路径）",
+      "url": "Webhook URL"
+    },
+    "bitbucket": {
+      "section": "Bitbucket 配置",
+      "workspace": "工作区",
+      "repoSlug": "仓库 slug",
+      "events": "事件",
+      "secret": "HMAC 密钥",
+      "secretPlaceholder": "用于校验 Bitbucket 签名的共享密钥",
+      "secretHint": "把同一个密钥粘贴到 Bitbucket 的 Webhook 配置中。",
+      "urlHint": "在 Bitbucket 中：仓库设置 → Webhooks → Add webhook，然后粘贴此 URL 和上面的密钥。"
+    },
+    "cron": {
+      "section": "Cron 配置",
+      "repeats": "重复",
+      "repeatsDesc": "按 Cron 计划触发",
+      "runOnce": "单次运行",
+      "runOnceDesc": "在指定时间只触发一次",
+      "completed": "已完成",
+      "firedAt": "触发于 {{time}}",
+      "missed": "已错过",
+      "missedAt": "在 {{time}} 标记为已错过（runAt 时刻服务端未运行）",
+      "runAt": "运行时间",
+      "runAtHint": "按浏览器的本地时区解释",
+      "expression": "表达式",
+      "timezone": "时区",
+      "nextFires": "下次触发："
+    },
+    "slack": {
+      "section": "Slack 配置",
+      "instance": "实例",
+      "anyInstance": "任意实例",
+      "instanceNotFound": " （未找到）",
+      "threadTs": "Thread 时间戳",
+      "threadTsPlaceholder": "仅匹配该线程内的回复",
+      "channelId": "Channel ID（旧版单频道）",
+      "channelIdPlaceholder": "C0123ABCD（留空 = 任意）",
+      "allowlist": "频道白名单（逗号分隔的 ID）",
+      "excludeChannels": "排除的频道 ID（逗号分隔）",
+      "messagePattern": "消息匹配模式（正则）",
+      "userFilter": "用户过滤（逗号分隔的 ID）",
+      "excludeUsers": "排除的用户 ID（逗号分隔）",
+      "dmOnly": "仅私信",
+      "excludeDms": "排除私信",
+      "includeOwn": "包含自己发送的消息"
+    },
+    "email": {
+      "section": "邮件配置",
+      "fromFilter": "From 过滤（逗号分隔的地址）",
+      "subjectPattern": "主题匹配模式（正则）",
+      "threadId": "会话 ID",
+      "threadIdPlaceholder": "只监听指定会话",
+      "requireApprovals": "触发前需要审批",
+      "approvalsNeeded": "所需审批数",
+      "approvers": "审批人（逗号分隔）",
+      "approvalKeywords": "审批关键词（逗号分隔）"
+    },
+    "jira": {
+      "section": "Jira 配置",
+      "projectKey": "项目 Key",
+      "issueType": "问题类型",
+      "events": "事件（逗号分隔）",
+      "jqlFilter": "JQL 过滤条件",
+      "secret": "HMAC / 共享密钥",
+      "secretPlaceholder": "必填 —— 未签名的投递会被拒绝"
+    },
+    "whatsapp": {
+      "section": "WhatsApp 配置",
+      "fromFilter": "From 过滤（逗号分隔的 JID 子串）",
+      "direction": "方向",
+      "any": "任意",
+      "inbound": "入站",
+      "outbound": "出站",
+      "bodyPattern": "正文匹配模式（正则）",
+      "sessionId": "会话 ID",
+      "sessionIdPlaceholder": "限定到某个 Baileys 会话",
+      "groupOnly": "仅群组",
+      "includeStatuses": "包含状态消息"
+    },
+    "matchMode": {
+      "section": "匹配模式",
+      "structural": {
+        "label": "结构化",
+        "desc": "基于字段的匹配（快速、免费）"
+      },
+      "llm": {
+        "label": "LLM",
+        "desc": "通过 LLM 的语义匹配（灵活，消耗 Token）"
+      },
+      "hybrid": {
+        "label": "混合",
+        "desc": "结构化预过滤 + LLM（推荐）"
+      }
+    },
+    "llm": {
+      "matchPrompt": "LLM 匹配提示词",
+      "matchPromptPlaceholder": "这条消息是否请求发布部署？",
+      "modelHaiku": "Haiku（快、便宜）",
+      "modelSonnet": "Sonnet（均衡）",
+      "modelOpus": "Opus（强大）",
+      "minConfidence": "最低置信度"
+    },
+    "extractionMode": {
+      "section": "提取模式",
+      "structural": "结构化",
+      "llm": "LLM",
+      "instructions": "提取指令",
+      "instructionsPlaceholder": "提取：发布版本、受影响的系统、紧急程度",
+      "variableNames": "变量名（逗号分隔）"
+    },
+    "test": {
+      "section": "测试匹配",
+      "samplePayload": "示例事件负载（JSON）",
+      "testing": "测试中…",
+      "testMatch": "测试匹配",
+      "wouldFire": "会触发",
+      "wouldNotFire": "不会触发",
+      "structural": "结构化：{{result}}",
+      "match": "匹配",
+      "noMatch": "不匹配",
+      "llm": "LLM：{{result}}",
+      "confidence": "置信度：{{value}}%",
+      "reason": "原因：{{reason}}",
+      "llmMeta": "模型：{{model}} | Token：{{num}} | 延迟：{{ms}}ms",
+      "extractedVariables": "提取的变量："
+    },
+    "history": {
+      "section": "最近的触发记录",
+      "llmEntry": "LLM：{{result}}（{{value}}%）- {{reason}}",
+      "match": "匹配",
+      "noMatch": "不匹配"
+    }
   }
 }

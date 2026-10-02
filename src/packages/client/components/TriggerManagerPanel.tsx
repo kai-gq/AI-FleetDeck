@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAgents } from '../store';
 import { apiUrl, authFetch } from '../utils/storage';
 import type {
@@ -31,36 +32,38 @@ const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
 
 type TypeFilter = 'all' | TriggerType;
 
-const TYPE_TAB_DEFS: { value: TypeFilter; label: string; icon: string }[] = [
-  { value: 'all',       label: 'All',       icon: '◎' },
-  { value: 'webhook',   label: 'Webhook',   icon: '🪝' },
-  { value: 'bitbucket', label: 'Bitbucket', icon: '🪣' },
-  { value: 'cron',      label: 'Cron',      icon: '⏰' },
-  { value: 'slack',     label: 'Slack',     icon: '💬' },
-  { value: 'email',     label: 'Email',     icon: '✉️' },
-  { value: 'jira',      label: 'Jira',      icon: '🎫' },
-  { value: 'whatsapp',  label: 'WhatsApp',  icon: '📱' },
+// `key` values are looked up with the English `label` as defaultValue, so
+// the en output stays byte-identical while zh-CN gets a translation.
+const TYPE_TAB_DEFS: { value: TypeFilter; label: string; icon: string; key: string }[] = [
+  { value: 'all',       label: 'All',       icon: '◎', key: 'config:triggerPanel.type.all' },
+  { value: 'webhook',   label: 'Webhook',   icon: '🪝', key: 'config:triggerPanel.type.webhook' },
+  { value: 'bitbucket', label: 'Bitbucket', icon: '🪣', key: 'config:triggerPanel.type.bitbucket' },
+  { value: 'cron',      label: 'Cron',      icon: '⏰', key: 'config:triggerPanel.type.cron' },
+  { value: 'slack',     label: 'Slack',     icon: '💬', key: 'config:triggerPanel.type.slack' },
+  { value: 'email',     label: 'Email',     icon: '✉️', key: 'config:triggerPanel.type.email' },
+  { value: 'jira',      label: 'Jira',      icon: '🎫', key: 'config:triggerPanel.type.jira' },
+  { value: 'whatsapp',  label: 'WhatsApp',  icon: '📱', key: 'config:triggerPanel.type.whatsapp' },
 ];
 
-const BITBUCKET_EVENT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'pullrequest:created', label: 'PR created' },
-  { value: 'pullrequest:updated', label: 'PR updated' },
-  { value: 'pullrequest:approved', label: 'PR approved' },
-  { value: 'pullrequest:unapproved', label: 'PR unapproved' },
-  { value: 'pullrequest:fulfilled', label: 'PR merged' },
-  { value: 'pullrequest:rejected', label: 'PR declined' },
-  { value: 'pullrequest:comment_created', label: 'PR comment created' },
+const BITBUCKET_EVENT_OPTIONS: { value: string; label: string; key: string }[] = [
+  { value: 'pullrequest:created', label: 'PR created', key: 'config:triggerPanel.bitbucketEvent.created' },
+  { value: 'pullrequest:updated', label: 'PR updated', key: 'config:triggerPanel.bitbucketEvent.updated' },
+  { value: 'pullrequest:approved', label: 'PR approved', key: 'config:triggerPanel.bitbucketEvent.approved' },
+  { value: 'pullrequest:unapproved', label: 'PR unapproved', key: 'config:triggerPanel.bitbucketEvent.unapproved' },
+  { value: 'pullrequest:fulfilled', label: 'PR merged', key: 'config:triggerPanel.bitbucketEvent.merged' },
+  { value: 'pullrequest:rejected', label: 'PR declined', key: 'config:triggerPanel.bitbucketEvent.declined' },
+  { value: 'pullrequest:comment_created', label: 'PR comment created', key: 'config:triggerPanel.bitbucketEvent.commentCreated' },
 ];
 
-const MATCH_MODES: { value: MatchMode; label: string; desc: string }[] = [
-  { value: 'structural', label: 'Structural', desc: 'Field-based matching (fast, free)' },
-  { value: 'llm', label: 'LLM', desc: 'Semantic matching via LLM (flexible, costs tokens)' },
-  { value: 'hybrid', label: 'Hybrid', desc: 'Structural pre-filter + LLM (recommended)' },
+const MATCH_MODES: { value: MatchMode; label: string; labelKey: string; desc: string; descKey: string }[] = [
+  { value: 'structural', label: 'Structural', labelKey: 'config:triggerPanel.matchMode.structural.label', desc: 'Field-based matching (fast, free)', descKey: 'config:triggerPanel.matchMode.structural.desc' },
+  { value: 'llm', label: 'LLM', labelKey: 'config:triggerPanel.matchMode.llm.label', desc: 'Semantic matching via LLM (flexible, costs tokens)', descKey: 'config:triggerPanel.matchMode.llm.desc' },
+  { value: 'hybrid', label: 'Hybrid', labelKey: 'config:triggerPanel.matchMode.hybrid.label', desc: 'Structural pre-filter + LLM (recommended)', descKey: 'config:triggerPanel.matchMode.hybrid.desc' },
 ];
 
-const EXTRACTION_MODES: { value: ExtractionMode; label: string }[] = [
-  { value: 'structural', label: 'Structural' },
-  { value: 'llm', label: 'LLM' },
+const EXTRACTION_MODES: { value: ExtractionMode; label: string; key: string }[] = [
+  { value: 'structural', label: 'Structural', key: 'config:triggerPanel.extractionMode.structural' },
+  { value: 'llm', label: 'LLM', key: 'config:triggerPanel.extractionMode.llm' },
 ];
 
 // Convert an ISO datetime string (UTC) to the value format expected by
@@ -87,7 +90,20 @@ const emptyTrigger = (): Partial<Trigger> => ({
 });
 
 export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProps) {
+  const { t } = useTranslation(['config', 'common']);
   const agents = useAgents();
+
+  // Localized label for a trigger-type tab/value (labels live in TYPE_TAB_DEFS).
+  const typeLabel = (value: TypeFilter) => {
+    const def = TYPE_TAB_DEFS.find(d => d.value === value);
+    return def ? t(def.key, { defaultValue: def.label }) : value;
+  };
+  // Localized label for a match mode (e.g. the badge on a trigger card).
+  const matchModeLabel = (value: MatchMode) => {
+    const def = MATCH_MODES.find(m => m.value === value);
+    return def ? t(def.labelKey, { defaultValue: def.label }) : value;
+  };
+
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [view, setView] = useState<PanelView>('list');
   const [editingTrigger, setEditingTrigger] = useState<Partial<Trigger>>(emptyTrigger());
@@ -187,7 +203,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to save trigger');
+        throw new Error(data.error || t('config:triggerPanel.saveFailed', { defaultValue: 'Failed to save trigger' }));
       }
 
       await loadTriggers();
@@ -195,11 +211,11 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
       setEditingTrigger(emptyTrigger());
       setIsEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('config:triggerPanel.saveError', { defaultValue: 'Save failed' }));
     } finally {
       setLoading(false);
     }
-  }, [editingTrigger, isEditing, loadTriggers]);
+  }, [editingTrigger, isEditing, loadTriggers, t]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -251,7 +267,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         payload = JSON.parse(testPayload);
       } catch {
         setTestResult({ structuralMatch: undefined, extractedVariables: {}, wouldFire: false });
-        setError('Invalid JSON payload');
+        setError(t('config:triggerPanel.invalidJsonPayload', { defaultValue: 'Invalid JSON payload' }));
         return;
       }
 
@@ -267,14 +283,14 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         setError(null);
       } else {
         const data = await res.json();
-        setError(data.error || 'Test match failed');
+        setError(data.error || t('config:triggerPanel.testMatchFailed', { defaultValue: 'Test match failed' }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Test match failed');
+      setError(err instanceof Error ? err.message : t('config:triggerPanel.testMatchFailed', { defaultValue: 'Test match failed' }));
     } finally {
       setTesting(false);
     }
-  }, [editingTrigger.id, testPayload]);
+  }, [editingTrigger.id, testPayload, t]);
 
   const handleValidateCron = useCallback(async (expression: string) => {
     try {
@@ -367,9 +383,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         setCopiedKey(key);
         setTimeout(() => setCopiedKey(prev => (prev === key ? null : prev)), 1500);
       },
-      () => setError('Failed to copy to clipboard'),
+      () => setError(t('config:triggerPanel.copyFailed', { defaultValue: 'Failed to copy to clipboard' })),
     );
-  }, []);
+  }, [t]);
 
   if (!isOpen) return null;
 
@@ -381,15 +397,19 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         {/* Header */}
         <div style={styles.header}>
           <h2 style={styles.title}>
-            {view === 'list' ? 'Triggers' : (isEditing ? 'Edit Trigger' : 'New Trigger')}
+            {view === 'list'
+              ? t('config:triggerPanel.title', { defaultValue: 'Triggers' })
+              : isEditing
+                ? t('config:triggerPanel.editTrigger', { defaultValue: 'Edit Trigger' })
+                : t('config:triggerPanel.newTrigger', { defaultValue: 'New Trigger' })}
           </h2>
           <div style={styles.headerActions}>
             {view === 'list' && (
-              <button style={styles.addBtn} onClick={() => openEditor()}>+ New Trigger</button>
+              <button style={styles.addBtn} onClick={() => openEditor()}>{t('config:triggerPanel.addTrigger', { defaultValue: '+ New Trigger' })}</button>
             )}
             {view === 'edit' && (
               <button style={styles.backBtn} onClick={() => { setView('list'); setTestResult(null); setError(null); }}>
-                Back
+                {t('common:buttons.back')}
               </button>
             )}
             <button style={styles.closeBtn} onClick={onClose}>X</button>
@@ -401,10 +421,11 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
         {/* List View */}
         {view === 'list' && (
           <div style={styles.content}>
-            <div style={styles.tabBar} role="tablist" aria-label="Filter triggers by type">
+            <div style={styles.tabBar} role="tablist" aria-label={t('config:triggerPanel.filterAria', { defaultValue: 'Filter triggers by type' })}>
               {TYPE_TAB_DEFS.map(tab => {
                 const count = typeCounts[tab.value];
                 const active = selectedType === tab.value;
+                const label = typeLabel(tab.value);
                 return (
                   <button
                     key={tab.value}
@@ -412,20 +433,20 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     aria-selected={active}
                     onClick={() => setSelectedType(tab.value)}
                     style={{ ...styles.tab, ...(active ? styles.tabActive : {}) }}
-                    title={`${tab.label} (${count})`}
+                    title={`${label} (${count})`}
                   >
                     <span style={styles.tabIcon}>{tab.icon}</span>
-                    <span style={styles.tabLabel}>{tab.label}</span>
+                    <span style={styles.tabLabel}>{label}</span>
                     <span style={{ ...styles.tabBadge, ...(active ? styles.tabBadgeActive : {}) }}>{count}</span>
                   </button>
                 );
               })}
             </div>
             {triggers.length === 0 ? (
-              <div style={styles.empty}>No triggers configured. Create one to get started.</div>
+              <div style={styles.empty}>{t('config:triggerPanel.emptyList', { defaultValue: 'No triggers configured. Create one to get started.' })}</div>
             ) : filteredTriggers.length === 0 ? (
               <div style={styles.empty}>
-                No {selectedType} triggers configured yet.
+                {t('config:triggerPanel.emptyFiltered', { defaultValue: 'No {{type}} triggers configured yet.', type: typeLabel(selectedType) })}
               </div>
             ) : (
               filteredTriggers.map(trigger => (
@@ -439,23 +460,23 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 >
                   <div style={styles.cardHeader}>
                     <div style={styles.cardTitle}>
-                      <span style={styles.typeTag}>{trigger.type}</span>
+                      <span style={styles.typeTag}>{typeLabel(trigger.type)}</span>
                       <span>{trigger.name}</span>
                       {trigger.type === 'cron' && (() => {
                         const cfg = (trigger as any).config || {};
                         if (!cfg.runOnce) {
-                          return <span style={styles.matchTag}>Recurring</span>;
+                          return <span style={styles.matchTag}>{t('config:triggerPanel.badge.recurring', { defaultValue: 'Recurring' })}</span>;
                         }
                         if (cfg.completedAt) {
-                          return <span style={{ ...styles.matchTag, color: '#a6e3a1' }}>Once · completed</span>;
+                          return <span style={{ ...styles.matchTag, color: '#a6e3a1' }}>{t('config:triggerPanel.badge.onceCompleted', { defaultValue: 'Once · completed' })}</span>;
                         }
                         if (cfg.missedAt) {
-                          return <span style={{ ...styles.matchTag, color: '#f38ba8' }}>Once · missed</span>;
+                          return <span style={{ ...styles.matchTag, color: '#f38ba8' }}>{t('config:triggerPanel.badge.onceMissed', { defaultValue: 'Once · missed' })}</span>;
                         }
-                        return <span style={{ ...styles.matchTag, color: '#f9e2af' }}>Once · pending</span>;
+                        return <span style={{ ...styles.matchTag, color: '#f9e2af' }}>{t('config:triggerPanel.badge.oncePending', { defaultValue: 'Once · pending' })}</span>;
                       })()}
                       {trigger.matchMode !== 'structural' && (
-                        <span style={styles.matchTag}>{trigger.matchMode}</span>
+                        <span style={styles.matchTag}>{matchModeLabel(trigger.matchMode)}</span>
                       )}
                     </div>
                     <div style={styles.cardActions}>
@@ -463,30 +484,32 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         style={styles.smallBtn}
                         onClick={e => { e.stopPropagation(); handleToggleEnabled(trigger); }}
                       >
-                        {trigger.enabled ? 'Disable' : 'Enable'}
+                        {trigger.enabled
+                          ? t('config:triggerPanel.disable', { defaultValue: 'Disable' })
+                          : t('config:triggerPanel.enable', { defaultValue: 'Enable' })}
                       </button>
                       <button
                         style={styles.smallBtn}
                         onClick={e => { e.stopPropagation(); handleTestFire(trigger.id); }}
                       >
-                        Test Fire
+                        {t('config:triggerPanel.testFire', { defaultValue: 'Test Fire' })}
                       </button>
                       <button
                         style={{ ...styles.smallBtn, color: '#e74c3c' }}
                         onClick={e => { e.stopPropagation(); handleDelete(trigger.id); }}
                       >
-                        Delete
+                        {t('common:buttons.delete')}
                       </button>
                     </div>
                   </div>
                   <div style={styles.cardMeta}>
-                    <span>Agent: {agents.get(trigger.agentId)?.name || trigger.agentId}</span>
-                    <span>Fires: {trigger.fireCount}</span>
+                    <span>{t('config:triggerPanel.meta.agent', { defaultValue: 'Agent: {{name}}', name: agents.get(trigger.agentId)?.name || trigger.agentId })}</span>
+                    <span>{t('config:triggerPanel.meta.fires', { defaultValue: 'Fires: {{num}}', num: trigger.fireCount })}</span>
                     {trigger.lastFiredAt && (
-                      <span>Last: {new Date(trigger.lastFiredAt).toLocaleString()}</span>
+                      <span>{t('config:triggerPanel.meta.last', { defaultValue: 'Last: {{time}}', time: new Date(trigger.lastFiredAt).toLocaleString() })}</span>
                     )}
                     {trigger.status === 'error' && trigger.lastError && (
-                      <span style={{ color: '#e74c3c' }}>Error: {trigger.lastError}</span>
+                      <span style={{ color: '#e74c3c' }}>{t('config:triggerPanel.meta.error', { defaultValue: 'Error: {{msg}}', msg: trigger.lastError })}</span>
                     )}
                   </div>
                 </div>
@@ -501,28 +524,28 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
             <div style={styles.form}>
               {/* Basic Fields */}
               <div style={styles.field}>
-                <label style={styles.label}>Name</label>
+                <label style={styles.label}>{t('common:labels.name')}</label>
                 <input
                   style={styles.input}
                   value={editingTrigger.name || ''}
                   onChange={e => updateField('name', e.target.value)}
-                  placeholder="My Trigger"
+                  placeholder={t('config:triggerPanel.namePlaceholder', { defaultValue: 'My Trigger' })}
                 />
               </div>
 
               <div style={styles.field}>
-                <label style={styles.label}>Description</label>
+                <label style={styles.label}>{t('common:labels.description')}</label>
                 <input
                   style={styles.input}
                   value={editingTrigger.description || ''}
                   onChange={e => updateField('description', e.target.value)}
-                  placeholder="Optional description"
+                  placeholder={t('config:triggerPanel.descriptionPlaceholder', { defaultValue: 'Optional description' })}
                 />
               </div>
 
               <div style={styles.row}>
                 <div style={styles.field}>
-                  <label style={styles.label}>Type</label>
+                  <label style={styles.label}>{t('common:labels.type')}</label>
                   <select
                     style={styles.select}
                     value={editingTrigger.type || 'webhook'}
@@ -548,20 +571,20 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       }
                     }}
                   >
-                    {TRIGGER_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                    {TRIGGER_TYPES.map(def => (
+                      <option key={def.value} value={def.value}>{typeLabel(def.value)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div style={styles.field}>
-                  <label style={styles.label}>Agent</label>
+                  <label style={styles.label}>{t('common:labels.agent')}</label>
                   <select
                     style={styles.select}
                     value={editingTrigger.agentId || ''}
                     onChange={e => updateField('agentId', e.target.value)}
                   >
-                    <option value="">Select agent...</option>
+                    <option value="">{t('config:triggerPanel.selectAgent', { defaultValue: 'Select agent...' })}</option>
                     {agentsList.map(a => (
                       <option key={a.id} value={a.id}>{a.name} ({a.class})</option>
                     ))}
@@ -570,12 +593,12 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
               </div>
 
               <div style={styles.field}>
-                <label style={styles.label}>Prompt Template</label>
+                <label style={styles.label}>{t('config:triggerPanel.promptTemplate', { defaultValue: 'Prompt Template' })}</label>
                 <textarea
                   style={styles.textarea}
                   value={editingTrigger.promptTemplate || ''}
                   onChange={e => updateField('promptTemplate', e.target.value)}
-                  placeholder="Message sent to agent. Use {{variable}} for interpolation."
+                  placeholder={t('config:triggerPanel.promptPlaceholder', { defaultValue: 'Message sent to agent. Use {{variable}} for interpolation.', variable: '{{variable}}' })}
                   rows={4}
                 />
               </div>
@@ -583,10 +606,10 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
               {/* Type-Specific Config */}
               {editingTrigger.type === 'webhook' && (
                 <div style={styles.section}>
-                  <h4 style={styles.sectionTitle}>Webhook Config</h4>
+                  <h4 style={styles.sectionTitle}>{t('config:triggerPanel.webhook.section', { defaultValue: 'Webhook Config' })}</h4>
                   <div style={styles.row}>
                     <div style={styles.field}>
-                      <label style={styles.label}>Method</label>
+                      <label style={styles.label}>{t('config:triggerPanel.webhook.method', { defaultValue: 'Method' })}</label>
                       <select
                         style={styles.select}
                         value={(editingTrigger as any).config?.method || 'POST'}
@@ -597,18 +620,18 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       </select>
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>Secret (HMAC)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.webhook.secret', { defaultValue: 'Secret (HMAC)' })}</label>
                       <input
                         style={styles.input}
                         type="password"
                         value={(editingTrigger as any).config?.secret || ''}
                         onChange={e => updateConfig('secret', e.target.value || undefined)}
-                        placeholder="Optional HMAC secret"
+                        placeholder={t('config:triggerPanel.webhook.secretPlaceholder', { defaultValue: 'Optional HMAC secret' })}
                       />
                     </div>
                   </div>
                   <div style={styles.field}>
-                    <label style={styles.label}>Extract Fields (comma-separated JSON paths)</label>
+                    <label style={styles.label}>{t('config:triggerPanel.webhook.extractFields', { defaultValue: 'Extract Fields (comma-separated JSON paths)' })}</label>
                     <input
                       style={styles.input}
                       value={(editingTrigger as any).config?.extractFields?.join(', ') || ''}
@@ -618,7 +641,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                   </div>
                   {isEditing && editingTrigger.id && (
                     <div style={styles.webhookUrl}>
-                      <label style={styles.label}>Webhook URL</label>
+                      <label style={styles.label}>{t('config:triggerPanel.webhook.url', { defaultValue: 'Webhook URL' })}</label>
                       <code style={styles.code}>
                         {`${window.location.origin}/api/triggers/webhook/${editingTrigger.id}`}
                       </code>
@@ -641,10 +664,10 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 };
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>Bitbucket Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.bitbucket.section', { defaultValue: 'Bitbucket Config' })}</h4>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Workspace</label>
+                        <label style={styles.label}>{t('config:triggerPanel.bitbucket.workspace', { defaultValue: 'Workspace' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.workspace || ''}
@@ -653,7 +676,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Repository slug</label>
+                        <label style={styles.label}>{t('config:triggerPanel.bitbucket.repoSlug', { defaultValue: 'Repository slug' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.repoSlug || ''}
@@ -664,7 +687,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     </div>
 
                     <div style={styles.field}>
-                      <label style={styles.label}>Events</label>
+                      <label style={styles.label}>{t('config:triggerPanel.bitbucket.events', { defaultValue: 'Events' })}</label>
                       <div style={styles.checkboxGrid}>
                         {BITBUCKET_EVENT_OPTIONS.map(opt => {
                           const checked = selectedEvents.includes(opt.value);
@@ -675,7 +698,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                                 checked={checked}
                                 onChange={() => toggleEvent(opt.value)}
                               />
-                              <span>{opt.label}</span>
+                              <span>{t(opt.key, { defaultValue: opt.label })}</span>
                               <code style={styles.checkboxCode}>{opt.value}</code>
                             </label>
                           );
@@ -684,14 +707,14 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     </div>
 
                     <div style={styles.field}>
-                      <label style={styles.label}>HMAC secret</label>
+                      <label style={styles.label}>{t('config:triggerPanel.bitbucket.secret', { defaultValue: 'HMAC secret' })}</label>
                       <div style={styles.inlineRow}>
                         <input
                           style={{ ...styles.input, flex: 1 }}
                           type="password"
                           value={cfg.secret || ''}
                           onChange={e => updateConfig('secret', e.target.value || undefined)}
-                          placeholder="Shared secret used to validate Bitbucket signature"
+                          placeholder={t('config:triggerPanel.bitbucket.secretPlaceholder', { defaultValue: 'Shared secret used to validate Bitbucket signature' })}
                         />
                         <button
                           type="button"
@@ -699,17 +722,17 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           onClick={() => copyToClipboard(cfg.secret || '', 'bitbucket-secret')}
                           disabled={!cfg.secret}
                         >
-                          {copiedKey === 'bitbucket-secret' ? 'Copied!' : 'Copy'}
+                          {copiedKey === 'bitbucket-secret' ? t('common:status.copied') : t('common:buttons.copy')}
                         </button>
                       </div>
                       <span style={styles.llmMeta}>
-                        Paste the same secret into Bitbucket's webhook configuration.
+                        {t('config:triggerPanel.bitbucket.secretHint', { defaultValue: "Paste the same secret into Bitbucket's webhook configuration." })}
                       </span>
                     </div>
 
                     {webhookUrl && (
                       <div style={styles.webhookUrl}>
-                        <label style={styles.label}>Webhook URL</label>
+                        <label style={styles.label}>{t('config:triggerPanel.webhook.url', { defaultValue: 'Webhook URL' })}</label>
                         <div style={styles.inlineRow}>
                           <code style={{ ...styles.code, flex: 1 }}>{webhookUrl}</code>
                           <button
@@ -717,17 +740,17 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                             style={styles.smallBtn}
                             onClick={() => copyToClipboard(webhookUrl, 'bitbucket-url')}
                           >
-                            {copiedKey === 'bitbucket-url' ? 'Copied!' : 'Copy'}
+                            {copiedKey === 'bitbucket-url' ? t('common:status.copied') : t('common:buttons.copy')}
                           </button>
                         </div>
                         <span style={styles.llmMeta}>
-                          In Bitbucket: Repository settings → Webhooks → Add webhook, then paste this URL and the secret above.
+                          {t('config:triggerPanel.bitbucket.urlHint', { defaultValue: 'In Bitbucket: Repository settings → Webhooks → Add webhook, then paste this URL and the secret above.' })}
                         </span>
                       </div>
                     )}
                     {!webhookUrl && (
                       <span style={styles.llmMeta}>
-                        Save the trigger to reveal its webhook URL.
+                        {t('config:triggerPanel.saveToRevealUrl', { defaultValue: 'Save the trigger to reveal its webhook URL.' })}
                       </span>
                     )}
                   </div>
@@ -743,7 +766,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>Cron Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.cron.section', { defaultValue: 'Cron Config' })}</h4>
 
                     {/* Kind selector: Repeats vs Run once */}
                     <div style={styles.modeSelector}>
@@ -756,8 +779,8 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         onClick={() => updateConfig('runOnce', false)}
                         disabled={isCompleted}
                       >
-                        <strong>Repeats</strong>
-                        <span style={styles.modeDesc}>Fires on a cron schedule</span>
+                        <strong>{t('config:triggerPanel.cron.repeats', { defaultValue: 'Repeats' })}</strong>
+                        <span style={styles.modeDesc}>{t('config:triggerPanel.cron.repeatsDesc', { defaultValue: 'Fires on a cron schedule' })}</span>
                       </button>
                       <button
                         type="button"
@@ -768,25 +791,25 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         onClick={() => updateConfig('runOnce', true)}
                         disabled={isCompleted}
                       >
-                        <strong>Run once</strong>
-                        <span style={styles.modeDesc}>Fires exactly once at a specific time</span>
+                        <strong>{t('config:triggerPanel.cron.runOnce', { defaultValue: 'Run once' })}</strong>
+                        <span style={styles.modeDesc}>{t('config:triggerPanel.cron.runOnceDesc', { defaultValue: 'Fires exactly once at a specific time' })}</span>
                       </button>
                     </div>
 
                     {/* Status banner for completed / missed one-shots */}
                     {isCompleted && (
                       <div style={{ ...styles.testResult, borderLeft: '3px solid #a6e3a1' }}>
-                        <strong style={{ color: '#a6e3a1' }}>Completed</strong>
+                        <strong style={{ color: '#a6e3a1' }}>{t('config:triggerPanel.cron.completed', { defaultValue: 'Completed' })}</strong>
                         <span style={styles.llmMeta}>
-                          Fired at {new Date(completedAt).toLocaleString()}
+                          {t('config:triggerPanel.cron.firedAt', { defaultValue: 'Fired at {{time}}', time: new Date(completedAt).toLocaleString() })}
                         </span>
                       </div>
                     )}
                     {!isCompleted && missedAt && (
                       <div style={{ ...styles.testResult, borderLeft: '3px solid #f38ba8' }}>
-                        <strong style={{ color: '#f38ba8' }}>Missed</strong>
+                        <strong style={{ color: '#f38ba8' }}>{t('config:triggerPanel.cron.missed', { defaultValue: 'Missed' })}</strong>
                         <span style={styles.llmMeta}>
-                          Marked missed at {new Date(missedAt).toLocaleString()} (server was down at runAt)
+                          {t('config:triggerPanel.cron.missedAt', { defaultValue: 'Marked missed at {{time}} (server was down at runAt)', time: new Date(missedAt).toLocaleString() })}
                         </span>
                       </div>
                     )}
@@ -794,7 +817,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     {runOnce ? (
                       <div style={styles.row}>
                         <div style={styles.field}>
-                          <label style={styles.label}>Run at</label>
+                          <label style={styles.label}>{t('config:triggerPanel.cron.runAt', { defaultValue: 'Run at' })}</label>
                           <input
                             style={styles.input}
                             type="datetime-local"
@@ -811,13 +834,13 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                             }}
                             disabled={isCompleted}
                           />
-                          <span style={styles.llmMeta}>Interpreted in your browser's local timezone</span>
+                          <span style={styles.llmMeta}>{t('config:triggerPanel.cron.runAtHint', { defaultValue: "Interpreted in your browser's local timezone" })}</span>
                         </div>
                       </div>
                     ) : (
                       <div style={styles.row}>
                         <div style={styles.field}>
-                          <label style={styles.label}>Expression</label>
+                          <label style={styles.label}>{t('config:triggerPanel.cron.expression', { defaultValue: 'Expression' })}</label>
                           <input
                             style={styles.input}
                             value={cronConfig.expression || ''}
@@ -829,7 +852,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           />
                         </div>
                         <div style={styles.field}>
-                          <label style={styles.label}>Timezone</label>
+                          <label style={styles.label}>{t('config:triggerPanel.cron.timezone', { defaultValue: 'Timezone' })}</label>
                           <input
                             style={styles.input}
                             value={cronConfig.timezone || 'UTC'}
@@ -841,7 +864,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     )}
                     {!runOnce && cronNextFires.length > 0 && (
                       <div style={styles.nextFires}>
-                        <label style={styles.label}>Next fires:</label>
+                        <label style={styles.label}>{t('config:triggerPanel.cron.nextFires', { defaultValue: 'Next fires:' })}</label>
                         {cronNextFires.map((d, i) => (
                           <div key={i} style={styles.nextFireItem}>{new Date(d).toLocaleString()}</div>
                         ))}
@@ -855,46 +878,46 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 const cfg = (editingTrigger as any).config || {};
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>Slack Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.slack.section', { defaultValue: 'Slack Config' })}</h4>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Instance</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.instance', { defaultValue: 'Instance' })}</label>
                         <select
                           style={styles.select}
                           value={cfg.instanceId || ''}
                           onChange={e => updateConfig('instanceId', e.target.value || undefined)}
                         >
-                          <option value="">Any instance</option>
+                          <option value="">{t('config:triggerPanel.slack.anyInstance', { defaultValue: 'Any instance' })}</option>
                           {slackInstances.map(inst => (
                             <option key={inst.id} value={inst.id}>{inst.label} ({inst.id})</option>
                           ))}
                           {cfg.instanceId && !slackInstances.some(i => i.id === cfg.instanceId) && (
-                            <option value={cfg.instanceId}>{cfg.instanceId} (not found)</option>
+                            <option value={cfg.instanceId}>{cfg.instanceId}{t('config:triggerPanel.slack.instanceNotFound', { defaultValue: ' (not found)' })}</option>
                           )}
                         </select>
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Thread timestamp</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.threadTs', { defaultValue: 'Thread timestamp' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.threadTs || ''}
                           onChange={e => updateConfig('threadTs', e.target.value || undefined)}
-                          placeholder="Only replies in this thread"
+                          placeholder={t('config:triggerPanel.slack.threadTsPlaceholder', { defaultValue: 'Only replies in this thread' })}
                         />
                       </div>
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>Channel ID (legacy single channel)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.slack.channelId', { defaultValue: 'Channel ID (legacy single channel)' })}</label>
                       <input
                         style={styles.input}
                         value={cfg.channelId || ''}
                         onChange={e => updateConfig('channelId', e.target.value || undefined)}
-                        placeholder="C0123ABCD (blank = any)"
+                        placeholder={t('config:triggerPanel.slack.channelIdPlaceholder', { defaultValue: 'C0123ABCD (blank = any)' })}
                       />
                     </div>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Channel allowlist (comma-separated IDs)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.allowlist', { defaultValue: 'Channel allowlist (comma-separated IDs)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.channelIdAllowlist?.join(', ') || ''}
@@ -903,7 +926,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Exclude channel IDs (comma-separated)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.excludeChannels', { defaultValue: 'Exclude channel IDs (comma-separated)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.excludeChannelIds?.join(', ') || ''}
@@ -913,7 +936,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       </div>
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>Message pattern (regex)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.slack.messagePattern', { defaultValue: 'Message pattern (regex)' })}</label>
                       <input
                         style={styles.input}
                         value={cfg.messagePattern || ''}
@@ -923,7 +946,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     </div>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>User filter (comma-separated IDs)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.userFilter', { defaultValue: 'User filter (comma-separated IDs)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.userFilter?.join(', ') || ''}
@@ -932,7 +955,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Exclude user IDs (comma-separated)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.slack.excludeUsers', { defaultValue: 'Exclude user IDs (comma-separated)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.excludeUserIds?.join(', ') || ''}
@@ -944,15 +967,15 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     <div style={styles.checkboxGrid}>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.dmOnly} onChange={e => updateConfig('dmOnly', e.target.checked || undefined)} />
-                        <span>DMs only</span>
+                        <span>{t('config:triggerPanel.slack.dmOnly', { defaultValue: 'DMs only' })}</span>
                       </label>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.excludeDms} onChange={e => updateConfig('excludeDms', e.target.checked || undefined)} />
-                        <span>Exclude DMs</span>
+                        <span>{t('config:triggerPanel.slack.excludeDms', { defaultValue: 'Exclude DMs' })}</span>
                       </label>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.includeOwnMessages} onChange={e => updateConfig('includeOwnMessages', e.target.checked || undefined)} />
-                        <span>Include own messages</span>
+                        <span>{t('config:triggerPanel.slack.includeOwn', { defaultValue: 'Include own messages' })}</span>
                       </label>
                     </div>
                   </div>
@@ -966,9 +989,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                   updateConfig('requiredApprovals', { count: 1, approvers: [], approvalKeywords: [], ...approvals, ...patch });
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>Email Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.email.section', { defaultValue: 'Email Config' })}</h4>
                     <div style={styles.field}>
-                      <label style={styles.label}>From filter (comma-separated addresses)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.email.fromFilter', { defaultValue: 'From filter (comma-separated addresses)' })}</label>
                       <input
                         style={styles.input}
                         value={cfg.fromFilter?.join(', ') || ''}
@@ -978,7 +1001,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     </div>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Subject pattern (regex)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.email.subjectPattern', { defaultValue: 'Subject pattern (regex)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.subjectPattern || ''}
@@ -987,12 +1010,12 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Thread ID</label>
+                        <label style={styles.label}>{t('config:triggerPanel.email.threadId', { defaultValue: 'Thread ID' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.threadId || ''}
                           onChange={e => updateConfig('threadId', e.target.value || undefined)}
-                          placeholder="Only watch a specific thread"
+                          placeholder={t('config:triggerPanel.email.threadIdPlaceholder', { defaultValue: 'Only watch a specific thread' })}
                         />
                       </div>
                     </div>
@@ -1003,14 +1026,14 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           checked={!!approvals}
                           onChange={e => updateConfig('requiredApprovals', e.target.checked ? { count: 1, approvers: [], approvalKeywords: [] } : undefined)}
                         />
-                        <span>Require approvals before firing</span>
+                        <span>{t('config:triggerPanel.email.requireApprovals', { defaultValue: 'Require approvals before firing' })}</span>
                       </label>
                     </div>
                     {approvals && (
                       <>
                         <div style={styles.row}>
                           <div style={styles.field}>
-                            <label style={styles.label}>Approvals needed</label>
+                            <label style={styles.label}>{t('config:triggerPanel.email.approvalsNeeded', { defaultValue: 'Approvals needed' })}</label>
                             <input
                               style={styles.input}
                               type="number"
@@ -1020,7 +1043,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                             />
                           </div>
                           <div style={styles.field}>
-                            <label style={styles.label}>Approvers (comma-separated)</label>
+                            <label style={styles.label}>{t('config:triggerPanel.email.approvers', { defaultValue: 'Approvers (comma-separated)' })}</label>
                             <input
                               style={styles.input}
                               value={approvals.approvers?.join(', ') || ''}
@@ -1030,7 +1053,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           </div>
                         </div>
                         <div style={styles.field}>
-                          <label style={styles.label}>Approval keywords (comma-separated)</label>
+                          <label style={styles.label}>{t('config:triggerPanel.email.approvalKeywords', { defaultValue: 'Approval keywords (comma-separated)' })}</label>
                           <input
                             style={styles.input}
                             value={approvals.approvalKeywords?.join(', ') || ''}
@@ -1048,10 +1071,10 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 const cfg = (editingTrigger as any).config || {};
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>Jira Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.jira.section', { defaultValue: 'Jira Config' })}</h4>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Project key</label>
+                        <label style={styles.label}>{t('config:triggerPanel.jira.projectKey', { defaultValue: 'Project key' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.projectKey || ''}
@@ -1060,7 +1083,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Issue type</label>
+                        <label style={styles.label}>{t('config:triggerPanel.jira.issueType', { defaultValue: 'Issue type' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.issueType || ''}
@@ -1070,7 +1093,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       </div>
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>Events (comma-separated)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.jira.events', { defaultValue: 'Events (comma-separated)' })}</label>
                       <input
                         style={styles.input}
                         value={cfg.events?.join(', ') || ''}
@@ -1079,7 +1102,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       />
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>JQL filter</label>
+                      <label style={styles.label}>{t('config:triggerPanel.jira.jqlFilter', { defaultValue: 'JQL filter' })}</label>
                       <textarea
                         style={styles.textarea}
                         value={cfg.jqlFilter || ''}
@@ -1089,13 +1112,13 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       />
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>HMAC / shared secret</label>
+                      <label style={styles.label}>{t('config:triggerPanel.jira.secret', { defaultValue: 'HMAC / shared secret' })}</label>
                       <input
                         style={styles.input}
                         type="password"
                         value={cfg.secret || ''}
                         onChange={e => updateConfig('secret', e.target.value || undefined)}
-                        placeholder="Required — unsigned deliveries are rejected"
+                        placeholder={t('config:triggerPanel.jira.secretPlaceholder', { defaultValue: 'Required — unsigned deliveries are rejected' })}
                       />
                     </div>
                   </div>
@@ -1106,10 +1129,10 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 const cfg = (editingTrigger as any).config || {};
                 return (
                   <div style={styles.section}>
-                    <h4 style={styles.sectionTitle}>WhatsApp Config</h4>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.whatsapp.section', { defaultValue: 'WhatsApp Config' })}</h4>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>From filter (comma-separated JID substrings)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.whatsapp.fromFilter', { defaultValue: 'From filter (comma-separated JID substrings)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.fromFilter?.join(', ') || ''}
@@ -1118,21 +1141,21 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Direction</label>
+                        <label style={styles.label}>{t('config:triggerPanel.whatsapp.direction', { defaultValue: 'Direction' })}</label>
                         <select
                           style={styles.select}
                           value={cfg.direction || 'any'}
                           onChange={e => updateConfig('direction', e.target.value === 'any' ? undefined : e.target.value)}
                         >
-                          <option value="any">Any</option>
-                          <option value="inbound">Inbound</option>
-                          <option value="outbound">Outbound</option>
+                          <option value="any">{t('config:triggerPanel.whatsapp.any', { defaultValue: 'Any' })}</option>
+                          <option value="inbound">{t('config:triggerPanel.whatsapp.inbound', { defaultValue: 'Inbound' })}</option>
+                          <option value="outbound">{t('config:triggerPanel.whatsapp.outbound', { defaultValue: 'Outbound' })}</option>
                         </select>
                       </div>
                     </div>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Body pattern (regex)</label>
+                        <label style={styles.label}>{t('config:triggerPanel.whatsapp.bodyPattern', { defaultValue: 'Body pattern (regex)' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.bodyPattern || ''}
@@ -1141,27 +1164,27 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Session ID</label>
+                        <label style={styles.label}>{t('config:triggerPanel.whatsapp.sessionId', { defaultValue: 'Session ID' })}</label>
                         <input
                           style={styles.input}
                           value={cfg.sessionId || ''}
                           onChange={e => updateConfig('sessionId', e.target.value || undefined)}
-                          placeholder="Restrict to a Baileys session"
+                          placeholder={t('config:triggerPanel.whatsapp.sessionIdPlaceholder', { defaultValue: 'Restrict to a Baileys session' })}
                         />
                       </div>
                     </div>
                     <div style={styles.checkboxGrid}>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.groupOnly} onChange={e => updateConfig('groupOnly', e.target.checked || undefined)} />
-                        <span>Groups only</span>
+                        <span>{t('config:triggerPanel.whatsapp.groupOnly', { defaultValue: 'Groups only' })}</span>
                       </label>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.dmOnly} onChange={e => updateConfig('dmOnly', e.target.checked || undefined)} />
-                        <span>DMs only</span>
+                        <span>{t('config:triggerPanel.slack.dmOnly', { defaultValue: 'DMs only' })}</span>
                       </label>
                       <label style={styles.checkboxLabel}>
                         <input type="checkbox" checked={!!cfg.includeStatuses} onChange={e => updateConfig('includeStatuses', e.target.checked || undefined)} />
-                        <span>Include statuses</span>
+                        <span>{t('config:triggerPanel.whatsapp.includeStatuses', { defaultValue: 'Include statuses' })}</span>
                       </label>
                     </div>
                   </div>
@@ -1170,7 +1193,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
               {/* Match Mode Selector */}
               <div style={styles.section}>
-                <h4 style={styles.sectionTitle}>Match Mode</h4>
+                <h4 style={styles.sectionTitle}>{t('config:triggerPanel.matchMode.section', { defaultValue: 'Match Mode' })}</h4>
                 <div style={styles.modeSelector}>
                   {MATCH_MODES.map(mode => (
                     <button
@@ -1181,8 +1204,8 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       }}
                       onClick={() => updateField('matchMode', mode.value)}
                     >
-                      <strong>{mode.label}</strong>
-                      <span style={styles.modeDesc}>{mode.desc}</span>
+                      <strong>{t(mode.labelKey, { defaultValue: mode.label })}</strong>
+                      <span style={styles.modeDesc}>{t(mode.descKey, { defaultValue: mode.desc })}</span>
                     </button>
                   ))}
                 </div>
@@ -1190,30 +1213,30 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 {(editingTrigger.matchMode === 'llm' || editingTrigger.matchMode === 'hybrid') && (
                   <div style={styles.llmConfig}>
                     <div style={styles.field}>
-                      <label style={styles.label}>LLM Match Prompt</label>
+                      <label style={styles.label}>{t('config:triggerPanel.llm.matchPrompt', { defaultValue: 'LLM Match Prompt' })}</label>
                       <textarea
                         style={styles.textarea}
                         value={editingTrigger.llmMatch?.prompt || ''}
                         onChange={e => updateLlmMatch('prompt', e.target.value)}
-                        placeholder="Does this message request a release deployment?"
+                        placeholder={t('config:triggerPanel.llm.matchPromptPlaceholder', { defaultValue: 'Does this message request a release deployment?' })}
                         rows={3}
                       />
                     </div>
                     <div style={styles.row}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Model</label>
+                        <label style={styles.label}>{t('common:labels.model')}</label>
                         <select
                           style={styles.select}
                           value={editingTrigger.llmMatch?.model || 'haiku'}
                           onChange={e => updateLlmMatch('model', e.target.value)}
                         >
-                          <option value="haiku">Haiku (fast, cheap)</option>
-                          <option value="sonnet">Sonnet (balanced)</option>
-                          <option value="opus">Opus (powerful)</option>
+                          <option value="haiku">{t('config:triggerPanel.llm.modelHaiku', { defaultValue: 'Haiku (fast, cheap)' })}</option>
+                          <option value="sonnet">{t('config:triggerPanel.llm.modelSonnet', { defaultValue: 'Sonnet (balanced)' })}</option>
+                          <option value="opus">{t('config:triggerPanel.llm.modelOpus', { defaultValue: 'Opus (powerful)' })}</option>
                         </select>
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Min Confidence</label>
+                        <label style={styles.label}>{t('config:triggerPanel.llm.minConfidence', { defaultValue: 'Min Confidence' })}</label>
                         <input
                           style={styles.input}
                           type="number"
@@ -1231,7 +1254,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
 
               {/* Extraction Mode */}
               <div style={styles.section}>
-                <h4 style={styles.sectionTitle}>Extraction Mode</h4>
+                <h4 style={styles.sectionTitle}>{t('config:triggerPanel.extractionMode.section', { defaultValue: 'Extraction Mode' })}</h4>
                 <div style={styles.row}>
                   {EXTRACTION_MODES.map(mode => (
                     <button
@@ -1242,7 +1265,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                       }}
                       onClick={() => updateField('extractionMode', mode.value)}
                     >
-                      {mode.label}
+                      {t(mode.key, { defaultValue: mode.label })}
                     </button>
                   ))}
                 </div>
@@ -1250,17 +1273,17 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                 {editingTrigger.extractionMode === 'llm' && (
                   <div style={styles.llmConfig}>
                     <div style={styles.field}>
-                      <label style={styles.label}>Extraction Instructions</label>
+                      <label style={styles.label}>{t('config:triggerPanel.extractionMode.instructions', { defaultValue: 'Extraction Instructions' })}</label>
                       <textarea
                         style={styles.textarea}
                         value={editingTrigger.llmExtract?.prompt || ''}
                         onChange={e => updateLlmExtract('prompt', e.target.value)}
-                        placeholder="Extract: release version, affected systems, urgency"
+                        placeholder={t('config:triggerPanel.extractionMode.instructionsPlaceholder', { defaultValue: 'Extract: release version, affected systems, urgency' })}
                         rows={3}
                       />
                     </div>
                     <div style={styles.field}>
-                      <label style={styles.label}>Variable Names (comma-separated)</label>
+                      <label style={styles.label}>{t('config:triggerPanel.extractionMode.variableNames', { defaultValue: 'Variable Names (comma-separated)' })}</label>
                       <input
                         style={styles.input}
                         value={editingTrigger.llmExtract?.variables?.join(', ') || ''}
@@ -1275,9 +1298,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
               {/* Test Match */}
               {isEditing && (
                 <div style={styles.section}>
-                  <h4 style={styles.sectionTitle}>Test Match</h4>
+                  <h4 style={styles.sectionTitle}>{t('config:triggerPanel.test.section', { defaultValue: 'Test Match' })}</h4>
                   <div style={styles.field}>
-                    <label style={styles.label}>Sample Event Payload (JSON)</label>
+                    <label style={styles.label}>{t('config:triggerPanel.test.samplePayload', { defaultValue: 'Sample Event Payload (JSON)' })}</label>
                     <textarea
                       style={styles.textarea}
                       value={testPayload}
@@ -1290,7 +1313,9 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                     onClick={handleTestMatch}
                     disabled={testing}
                   >
-                    {testing ? 'Testing...' : 'Test Match'}
+                    {testing
+                      ? t('config:triggerPanel.test.testing', { defaultValue: 'Testing...' })
+                      : t('config:triggerPanel.test.testMatch', { defaultValue: 'Test Match' })}
                   </button>
 
                   {testResult && (
@@ -1299,26 +1324,31 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         ...styles.testResultHeader,
                         color: testResult.wouldFire ? '#2ecc71' : '#e74c3c',
                       }}>
-                        {testResult.wouldFire ? 'WOULD FIRE' : 'WOULD NOT FIRE'}
+                        {testResult.wouldFire
+                          ? t('config:triggerPanel.test.wouldFire', { defaultValue: 'WOULD FIRE' })
+                          : t('config:triggerPanel.test.wouldNotFire', { defaultValue: 'WOULD NOT FIRE' })}
                       </div>
                       {testResult.structuralMatch !== undefined && (
-                        <div>Structural: {testResult.structuralMatch ? 'Match' : 'No match'}</div>
+                        <div>{t('config:triggerPanel.test.structural', { defaultValue: 'Structural: {{result}}', result: testResult.structuralMatch ? t('config:triggerPanel.test.match', { defaultValue: 'Match' }) : t('config:triggerPanel.test.noMatch', { defaultValue: 'No match' }) })}</div>
                       )}
                       {testResult.llmMatch && (
                         <div style={styles.llmResult}>
-                          <div>LLM: {testResult.llmMatch.match ? 'Match' : 'No match'}</div>
-                          <div>Confidence: {(testResult.llmMatch.confidence * 100).toFixed(0)}%</div>
-                          <div>Reason: {testResult.llmMatch.reason}</div>
+                          <div>{t('config:triggerPanel.test.llm', { defaultValue: 'LLM: {{result}}', result: testResult.llmMatch.match ? t('config:triggerPanel.test.match', { defaultValue: 'Match' }) : t('config:triggerPanel.test.noMatch', { defaultValue: 'No match' }) })}</div>
+                          <div>{t('config:triggerPanel.test.confidence', { defaultValue: 'Confidence: {{value}}%', value: (testResult.llmMatch.confidence * 100).toFixed(0) })}</div>
+                          <div>{t('config:triggerPanel.test.reason', { defaultValue: 'Reason: {{reason}}', reason: testResult.llmMatch.reason })}</div>
                           <div style={styles.llmMeta}>
-                            Model: {testResult.llmMatch.model} |
-                            Tokens: {testResult.llmMatch.tokensUsed} |
-                            Latency: {testResult.llmMatch.durationMs}ms
+                            {t('config:triggerPanel.test.llmMeta', {
+                              defaultValue: 'Model: {{model}} | Tokens: {{num}} | Latency: {{ms}}ms',
+                              model: testResult.llmMatch.model,
+                              num: testResult.llmMatch.tokensUsed,
+                              ms: testResult.llmMatch.durationMs,
+                            })}
                           </div>
                         </div>
                       )}
                       {Object.keys(testResult.extractedVariables).length > 0 && (
                         <div>
-                          <div style={styles.label}>Extracted Variables:</div>
+                          <div style={styles.label}>{t('config:triggerPanel.test.extractedVariables', { defaultValue: 'Extracted Variables:' })}</div>
                           {Object.entries(testResult.extractedVariables).map(([k, v]) => (
                             <div key={k} style={styles.varRow}>
                               <code>{k}</code>: {v}
@@ -1334,7 +1364,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
               {/* Fire History */}
               {isEditing && fireHistory.length > 0 && (
                 <div style={styles.section}>
-                  <h4 style={styles.sectionTitle}>Recent Fires</h4>
+                  <h4 style={styles.sectionTitle}>{t('config:triggerPanel.history.section', { defaultValue: 'Recent Fires' })}</h4>
                   <div style={styles.historyList}>
                     {fireHistory.map((event, i) => {
                       const llmResult = event.llm_match_result
@@ -1356,7 +1386,12 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           )}
                           {llmResult && (
                             <div style={styles.llmMeta}>
-                              LLM: {llmResult.match ? 'match' : 'no match'} ({(llmResult.confidence * 100).toFixed(0)}%) - {llmResult.reason}
+                              {t('config:triggerPanel.history.llmEntry', {
+                                defaultValue: 'LLM: {{result}} ({{value}}%) - {{reason}}',
+                                result: llmResult.match ? t('config:triggerPanel.history.match', { defaultValue: 'match' }) : t('config:triggerPanel.history.noMatch', { defaultValue: 'no match' }),
+                                value: (llmResult.confidence * 100).toFixed(0),
+                                reason: llmResult.reason,
+                              })}
                             </div>
                           )}
                         </div>
@@ -1369,7 +1404,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
               {/* Save / Cancel */}
               <div style={styles.actions}>
                 <button style={styles.cancelBtn} onClick={() => { setView('list'); setError(null); }}>
-                  Cancel
+                  {t('common:buttons.cancel')}
                 </button>
                 <button
                   style={styles.saveBtn}
@@ -1387,7 +1422,11 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         || !((editingTrigger as any).config?.events?.length)))
                   }
                 >
-                  {loading ? 'Saving...' : (isEditing ? 'Update' : 'Create')}
+                  {loading
+                    ? t('common:status.saving', { defaultValue: 'Saving...' })
+                    : isEditing
+                      ? t('config:triggerPanel.update', { defaultValue: 'Update' })
+                      : t('common:buttons.create')}
                 </button>
               </div>
             </div>
