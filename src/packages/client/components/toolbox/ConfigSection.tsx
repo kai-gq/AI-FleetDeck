@@ -173,6 +173,11 @@ const SKY_KEY_MAP: Record<string, string> = {
   '': 'auto', '#4a90d9': 'dayBlue', '#0a1a2a': 'night', '#ff6b35': 'sunset',
   '#1a0a2e': 'purple', '#2d5a27': 'matrix', '#8b0000': 'blood', '#000000': 'void',
 };
+// Built-in agent class id -> existing display-name key (tools:skills.class*)
+const AGENT_CLASS_KEY_MAP: Record<string, string> = {
+  scout: 'classScout', builder: 'classBuilder', debugger: 'classDebugger',
+  architect: 'classArchitect', warrior: 'classWarrior', support: 'classSupport', boss: 'classBoss',
+};
 
 // Compact toggle switch for config rows
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
@@ -258,7 +263,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
 ];
 
 export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
-  const { t } = useTranslation(['config', 'common']);
+  const { t } = useTranslation(['config', 'common', 'tools']);
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
   const [defaultSpawnClass, setDefaultSpawnClassState] = useState(() => getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS) || 'scout');
@@ -284,8 +289,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         body: file,
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
-        throw new Error(data.error || `Upload failed (${res.status})`);
+        const data = await res.json().catch(() => ({ error: t('config:soundUpload.uploadFailed', { defaultValue: 'Upload failed ({{status}})', status: res.status }) }));
+        throw new Error(data.error || t('config:soundUpload.uploadFailed', { defaultValue: 'Upload failed ({{status}})', status: res.status }));
       }
       const map = await refreshCustomSounds();
       setCustomSoundsState({ ...map });
@@ -296,7 +301,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       // Play it back straight away so the choice is confirmed by ear.
       void previewTone(CUSTOM_TONE_ID, settings.notificationSoundVolume, kind);
     } catch (err) {
-      setSoundUploadError(err instanceof Error ? err.message : 'Upload failed');
+      setSoundUploadError(err instanceof Error ? err.message : t('config:soundUpload.uploadFailedGeneric', { defaultValue: 'Upload failed' }));
     } finally {
       setUploadingSound(null);
     }
@@ -316,7 +321,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         store.updateSettings({ [cleared.settingKey]: DEFAULT_TONES[kind] });
       }
     } catch (err) {
-      setSoundUploadError(err instanceof Error ? err.message : 'Failed to reset sound');
+      setSoundUploadError(err instanceof Error ? err.message : t('config:soundUpload.resetFailed', { defaultValue: 'Failed to reset sound' }));
     }
   };
 
@@ -550,11 +555,11 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('plugins') && (
-      <CollapsibleSection title="Plugins" storageKey="plugins" defaultOpen={true} forceOpen={isSearching && shouldShowSection('plugins')}>
+      <CollapsibleSection title={t('config:sections.plugins', { defaultValue: 'Plugins' })} storageKey="plugins" defaultOpen={true} forceOpen={isSearching && shouldShowSection('plugins')}>
         <div className="config-row config-row--plugins">
-          <span className="config-label"><HighlightText text="Install, enable, and disable trusted local UI plugins" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:plugins.description', { defaultValue: 'Install, enable, and disable trusted local UI plugins' })} query={searchQuery} /></span>
           <button className="config-button" onClick={() => onOpenPluginsModal?.()}>
-            Manage Plugins
+            {t('config:plugins.manage', { defaultValue: 'Manage Plugins' })}
           </button>
         </div>
       </CollapsibleSection>
@@ -595,20 +600,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Where the strip of recently-active and currently-working agent thumbnails sits."><HighlightText text="Agent activity dock" query={searchQuery} /></span>
+          <span className="config-label" title={t('config:general.agentDockTitle', { defaultValue: 'Where the strip of recently-active and currently-working agent thumbnails sits.' })}><HighlightText text={t('config:general.agentDock', { defaultValue: 'Agent activity dock' })} query={searchQuery} /></span>
           <select
             className="config-select"
             value={agentDockPosition}
             onChange={(e) => setAgentDockPosition(e.target.value as typeof agentDockPosition)}
           >
             {AGENT_DOCK_POSITIONS.map((position) => (
-              <option key={position} value={position}>{AGENT_DOCK_POSITION_LABELS[position]}</option>
+              <option key={position} value={position}>{t(`config:agentDock.${position}`, { defaultValue: AGENT_DOCK_POSITION_LABELS[position] })}</option>
             ))}
           </select>
         </div>
         {agentDockPosition !== 'hidden' && (
           <div className="config-row">
-            <span className="config-label" title="How many recently-active agents the dock shows alongside the ones working right now. 0 shows only working agents."><HighlightText text="Recent agents in dock" query={searchQuery} /></span>
+            <span className="config-label" title={t('config:general.recentAgentsDockTitle', { defaultValue: 'How many recently-active agents the dock shows alongside the ones working right now. 0 shows only working agents.' })}><HighlightText text={t('config:general.recentAgentsDock', { defaultValue: 'Recent agents in dock' })} query={searchQuery} /></span>
             <input
               type="number"
               className="config-input config-input-sm"
@@ -634,15 +639,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-value">{config.fpsLimit === 0 ? '∞' : config.fpsLimit}</span>
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: Reduce FPS when idle to save power"><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.powerSavingTitle', { defaultValue: 'Experimental: Reduce FPS when idle to save power' })}><HighlightText text={t('config:general.powerSaving')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.powerSaving} onChange={(checked) => store.updateSettings({ powerSaving: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Battery saver for mobile: caps scene FPS (20 active / 5 idle), freezes decorative animations and disables word-by-word streaming. Off = normal mode."><HighlightText text={t('config:general.lowPowerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.lowPowerModeTitle', { defaultValue: 'Battery saver for mobile: caps scene FPS (20 active / 5 idle), freezes decorative animations and disables word-by-word streaming. Off = normal mode.' })}><HighlightText text={t('config:general.lowPowerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.lowPowerMode === true} onChange={(checked) => store.updateSettings({ lowPowerMode: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Wrap agent processes in tmux sessions so they survive server restarts (requires tmux installed)"><HighlightText text={t('config:general.tmuxMode')} query={searchQuery} /></span>
+          <span className="config-label" title={t('config:general.tmuxModeTitle', { defaultValue: 'Wrap agent processes in tmux sessions so they survive server restarts (requires tmux installed)' })}><HighlightText text={t('config:general.tmuxMode')} query={searchQuery} /></span>
           <Toggle checked={settings.tmuxMode} onChange={async (checked) => {
             store.updateSettings({ tmuxMode: checked });
             try {
@@ -653,7 +658,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           }} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: run Claude agents as the real interactive `claude` TUI inside tmux, reconstructing the conversation from the session transcript (requires tmux). Takes effect on server restart."><HighlightText text={t('config:general.interactiveMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.interactiveModeTitle', { defaultValue: 'Experimental: run Claude agents as the real interactive `claude` TUI inside tmux, reconstructing the conversation from the session transcript (requires tmux). Takes effect on server restart.' })}><HighlightText text={t('config:general.interactiveMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.interactiveMode} onChange={async (checked) => {
             store.updateSettings({ interactiveMode: checked });
             try {
@@ -664,7 +669,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           }} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: run Codex agents through a persistent `codex app-server` so replies stream word-by-word (token deltas) instead of appearing as one block. The app-server runs detached and survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new Codex turns; no server restart needed to toggle."><HighlightText text={t('config:general.codexAppServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.codexAppServerModeTitle', { defaultValue: 'Experimental: run Codex agents through a persistent `codex app-server` so replies stream word-by-word (token deltas) instead of appearing as one block. The app-server runs detached and survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new Codex turns; no server restart needed to toggle.' })}><HighlightText text={t('config:general.codexAppServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.codexAppServerMode} onChange={async (checked) => {
             store.updateSettings({ codexAppServerMode: checked });
             try {
@@ -675,7 +680,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           }} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Experimental: run OpenCode agents through a persistent, detached `opencode serve` HTTP server so replies stream word-by-word (token deltas over SSE) instead of appearing as one block. The server survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new OpenCode turns; no server restart needed to toggle."><HighlightText text={t('config:general.opencodeServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.opencodeServerModeTitle', { defaultValue: 'Experimental: run OpenCode agents through a persistent, detached `opencode serve` HTTP server so replies stream word-by-word (token deltas over SSE) instead of appearing as one block. The server survives commander restarts — in-flight turns keep running and reconnect automatically. Applies to new OpenCode turns; no server restart needed to toggle.' })}><HighlightText text={t('config:general.opencodeServerMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.opencodeServerMode} onChange={async (checked) => {
             store.updateSettings({ opencodeServerMode: checked });
             try {
@@ -686,7 +691,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           }} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Run Pi agents through a persistent `pi --mode rpc` process per agent. Messages sent mid-turn STEER the live run (delivered after the current tool round, before the next model call) instead of queueing until the turn ends. With tmux mode enabled, live RPC turns survive Commander restarts and reconnect automatically; otherwise sessions resume on the next message. Applies to new Pi turns; no server restart needed to toggle."><HighlightText text={t('config:general.piRpcMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
+          <span className="config-label" title={t('config:general.piRpcModeTitle', { defaultValue: 'Run Pi agents through a persistent `pi --mode rpc` process per agent. Messages sent mid-turn STEER the live run (delivered after the current tool round, before the next model call) instead of queueing until the turn ends. With tmux mode enabled, live RPC turns survive Commander restarts and reconnect automatically; otherwise sessions resume on the next message. Applies to new Pi turns; no server restart needed to toggle.' })}><HighlightText text={t('config:general.piRpcMode')} query={searchQuery} /> <Icon name="bolt" size={12} /></span>
           <Toggle checked={settings.piRpcMode} onChange={async (checked) => {
             store.updateSettings({ piRpcMode: checked });
             try {
@@ -714,7 +719,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           </span>
         </div>
         <div className="config-row">
-          <span className="config-label" title="Play pleasant sounds: a chime for agent notifications, a distinctive rising cue when an agent asks you a question (repeats until answered), and a resolving cue when an agent finishes its work."><HighlightText text="Notification sounds" query={searchQuery} /></span>
+          <span className="config-label" title={t('config:general.notificationSoundsTitle', { defaultValue: 'Play pleasant sounds: a chime for agent notifications, a distinctive rising cue when an agent asks you a question (repeats until answered), and a resolving cue when an agent finishes its work.' })}><HighlightText text={t('config:general.notificationSounds', { defaultValue: 'Notification sounds' })} query={searchQuery} /></span>
           <Toggle checked={settings.notificationSoundEnabled} onChange={(checked) => {
             store.updateSettings({ notificationSoundEnabled: checked });
             if (checked) playNotificationSound(settings.notificationSoundVolume, settings.toneNotification);
@@ -722,7 +727,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         {settings.notificationSoundEnabled && (
         <div className="config-row">
-          <span className="config-label"><HighlightText text="Notification sound volume" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:general.notificationSoundVolume', { defaultValue: 'Notification sound volume' })} query={searchQuery} /></span>
           <input type="range" className="config-slider" min="0" max={MAX_NOTIFICATION_SOUND_VOLUME} step="1" value={settings.notificationSoundVolume} onChange={(e) => {
             const v = parseInt(e.target.value);
             store.updateSettings({ notificationSoundVolume: v });
@@ -733,10 +738,9 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         )}
         {settings.notificationSoundEnabled && settings.notificationSoundVolume > 0 && (
         <div className="config-group">
-          <span className="config-label"><HighlightText text="Sounds per event" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:sounds.perEvent', { defaultValue: 'Sounds per event' })} query={searchQuery} /></span>
           <div className="config-sound-hint">
-            Pick a tone for each event — or upload your own file (mp3, wav, ogg, m4a — max 5MB),
-            which is stored on the commander so every device hears it. "None" silences that event.
+            {t('config:sounds.perEventHint', { defaultValue: 'Pick a tone for each event — or upload your own file (mp3, wav, ogg, m4a — max 5MB), which is stored on the commander so every device hears it. "None" silences that event.' })}
           </div>
           {SOUND_EVENT_ROWS.map(row => {
             const hasCustom = !!customSounds[row.kind];
@@ -746,12 +750,16 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             <div className="config-sound-row" key={row.kind}>
               <div className="config-sound-info">
                 <div className="config-sound-head">
-                  <span className="config-sound-name">{row.label}</span>
+                  <span className="config-sound-name">{t(`config:sounds.${row.kind}.label`, { defaultValue: row.label })}</span>
                   <span className={`config-sound-badge${usingCustom ? ' custom' : ''}`}>
-                    {usingCustom ? 'Your file' : (getTone(toneId)?.label ?? row.sound)}
+                    {usingCustom
+                      ? t('config:sounds.customBadge', { defaultValue: 'Your file' })
+                      : getTone(toneId)
+                        ? t(`config:tones.${toneId}`, { defaultValue: getTone(toneId)!.label })
+                        : t(`config:sounds.${row.kind}.sound`, { defaultValue: row.sound })}
                   </span>
                 </div>
-                <div className="config-sound-when">{row.when}</div>
+                <div className="config-sound-when">{t(`config:sounds.${row.kind}.when`, { defaultValue: row.when })}</div>
               </div>
               <div className="config-sound-actions">
                 <select
@@ -763,21 +771,21 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
                     void previewTone(nextTone, settings.notificationSoundVolume, row.kind);
                   }}
                 >
-                  {hasCustom && <option value={CUSTOM_TONE_ID}>Your uploaded file</option>}
+                  {hasCustom && <option value={CUSTOM_TONE_ID}>{t('config:sounds.customOption', { defaultValue: 'Your uploaded file' })}</option>}
                   {NOTIFICATION_TONES.map((tone) => (
-                    <option key={tone.id} value={tone.id}>{tone.label}</option>
+                    <option key={tone.id} value={tone.id}>{t(`config:tones.${tone.id}`, { defaultValue: tone.label })}</option>
                   ))}
                 </select>
                 <button
                   className="config-btn config-btn-sm"
                   onClick={() => void previewTone(toneId, settings.notificationSoundVolume, row.kind)}
                   disabled={isToneSilent(toneId)}
-                  title={isToneSilent(toneId) ? 'This event is silenced — pick a tone to hear it' : 'Hear the sound that plays for this event'}
+                  title={isToneSilent(toneId) ? t('config:sounds.previewSilenced', { defaultValue: 'This event is silenced — pick a tone to hear it' }) : t('config:sounds.previewHint', { defaultValue: 'Hear the sound that plays for this event' })}
                 >
                   ▶
                 </button>
-                <label className="config-btn config-btn-sm config-sound-upload" title="Replace this sound with your own audio file (mp3, wav, ogg, m4a — max 5MB)">
-                  {uploadingSound === row.kind ? 'Uploading…' : 'Upload'}
+                <label className="config-btn config-btn-sm config-sound-upload" title={t('config:sounds.uploadTitle', { defaultValue: 'Replace this sound with your own audio file (mp3, wav, ogg, m4a — max 5MB)' })}>
+                  {uploadingSound === row.kind ? t('config:sounds.uploading', { defaultValue: 'Uploading…' }) : t('common:buttons.upload', { defaultValue: 'Upload' })}
                   <input
                     type="file"
                     accept="audio/*"
@@ -793,9 +801,9 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
                   <button
                     className="config-btn config-btn-sm"
                     onClick={() => void handleSoundReset(row.kind)}
-                    title="Delete your file and go back to a built-in tone"
+                    title={t('config:sounds.resetTitle', { defaultValue: 'Delete your file and go back to a built-in tone' })}
                   >
-                    Reset
+                    {t('common:buttons.reset', { defaultValue: 'Reset' })}
                   </button>
                 )}
               </div>
@@ -839,7 +847,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-group">
           <span className="config-label"><HighlightText text={t('config:general.language')} query={searchQuery} /></span>
-          <ChipSelector options={LANGUAGE_OPTIONS} value={localStorage.getItem('tide-commander-language-mode') === 'manual' ? (LANGUAGE_OPTIONS.find(o => o.value !== 'auto' && i18n.language.startsWith(o.value.split('-')[0]))?.value || 'en') : 'auto'} onChange={(lang) => {
+          <ChipSelector options={LANGUAGE_OPTIONS.map(o => o.value === 'auto' ? { ...o, label: t('config:language.auto', { defaultValue: 'Auto' }) } : o)} value={localStorage.getItem('tide-commander-language-mode') === 'manual' ? (LANGUAGE_OPTIONS.find(o => o.value !== 'auto' && i18n.language.startsWith(o.value.split('-')[0]))?.value || 'en') : 'auto'} onChange={(lang) => {
             if (lang === 'auto') {
               localStorage.setItem('tide-commander-language-mode', 'auto');
               const navLang = navigator.language;
@@ -884,16 +892,16 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('defaultClass') && (
-      <CollapsibleSection title="Default Spawn Class" storageKey="defaultClass" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultClass')}>
+      <CollapsibleSection title={t('config:sections.defaultClass', { defaultValue: 'Default Spawn Class' })} storageKey="defaultClass" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultClass')}>
         <div className="config-row config-row-stacked">
-          <span className="config-hint">Class pre-selected when the spawn modal opens. "Random" picks a different class each time.</span>
+          <span className="config-hint">{t('config:defaultClass.hint', { defaultValue: 'Class pre-selected when the spawn modal opens. "Random" picks a different class each time.' })}</span>
           <div className="agent-names-list" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
             <div
               className={`agent-name-chip${defaultSpawnClass === 'random' ? ' agent-name-chip--selected' : ''}`}
               style={{ cursor: 'pointer', userSelect: 'none' }}
               onClick={() => { setDefaultSpawnClassState('random'); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, 'random'); }}
             >
-              <span className="agent-name-text">🎲 Random</span>
+              <span className="agent-name-text">🎲 {t('config:defaultClass.random', { defaultValue: 'Random' })}</span>
             </div>
             {Object.entries(BUILT_IN_AGENT_CLASSES).map(([id, cfg]) => (
               <div
@@ -902,7 +910,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
                 style={{ cursor: 'pointer', userSelect: 'none' }}
                 onClick={() => { setDefaultSpawnClassState(id); setStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS, id); }}
               >
-                <span className="agent-name-text">{cfg.icon} {id.charAt(0).toUpperCase() + id.slice(1)}</span>
+                <span className="agent-name-text">{cfg.icon} {t(`tools:skills.${AGENT_CLASS_KEY_MAP[id]}`, { defaultValue: id.charAt(0).toUpperCase() + id.slice(1) })}</span>
               </div>
             ))}
             {customClasses.map(cls => (
@@ -921,7 +929,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('defaultSkills') && (
-      <CollapsibleSection title="Default Agent Skills" storageKey="defaultSkills" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultSkills')}>
+      <CollapsibleSection title={t('config:sections.defaultSkills', { defaultValue: 'Default Agent Skills' })} storageKey="defaultSkills" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultSkills')}>
         <DefaultAgentSkillsSection />
       </CollapsibleSection>
       )}
@@ -1005,7 +1013,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         </div>
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('common:buttons.reconnect')} query={searchQuery} /></span>
-          <button className="config-btn" onClick={() => reconnect()} title="Force reconnect to server">{t('common:buttons.reconnect')}</button>
+          <button className="config-btn" onClick={() => reconnect()} title={t('config:connection.forceReconnectTitle', { defaultValue: 'Force reconnect to server' })}>{t('common:buttons.reconnect')}</button>
         </div>
       </CollapsibleSection>
       )}
@@ -1193,64 +1201,64 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('workflows') && (
-      <CollapsibleSection title="Workflows" storageKey="workflows" defaultOpen={false} forceOpen={isSearching && shouldShowSection('workflows')}>
+      <CollapsibleSection title={t('config:sections.workflows', { defaultValue: 'Workflows' })} storageKey="workflows" defaultOpen={false} forceOpen={isSearching && shouldShowSection('workflows')}>
         <div className="config-row">
-          <span className="config-label"><HighlightText text="Create and manage automated workflow pipelines with visual state machine editor" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:workflows.description', { defaultValue: 'Create and manage automated workflow pipelines with visual state machine editor' })} query={searchQuery} /></span>
         </div>
         <div className="config-row">
           <button
             className="config-button"
             onClick={() => onOpenWorkflowEditor?.()}
           >
-            Open Workflow Editor
+            {t('config:workflows.openEditor', { defaultValue: 'Open Workflow Editor' })}
           </button>
         </div>
       </CollapsibleSection>
       )}
 
       {shouldShowSection('triggers') && (
-      <CollapsibleSection title="Triggers" storageKey="triggers" defaultOpen={false} forceOpen={isSearching && shouldShowSection('triggers')}>
+      <CollapsibleSection title={t('config:sections.triggers', { defaultValue: 'Triggers' })} storageKey="triggers" defaultOpen={false} forceOpen={isSearching && shouldShowSection('triggers')}>
         <div className="config-row">
-          <span className="config-label"><HighlightText text="Create and manage event-driven triggers that fire agents with templates" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:triggers.description', { defaultValue: 'Create and manage event-driven triggers that fire agents with templates' })} query={searchQuery} /></span>
         </div>
         <div className="config-row">
           <button
             className="config-button"
             onClick={() => onOpenTriggerManager?.()}
           >
-            Open Trigger Manager
+            {t('config:triggers.openManager', { defaultValue: 'Open Trigger Manager' })}
           </button>
         </div>
       </CollapsibleSection>
       )}
 
       {shouldShowSection('monitoring') && (
-      <CollapsibleSection title="Monitoring" storageKey="monitoring" defaultOpen={false} forceOpen={isSearching && shouldShowSection('monitoring')}>
+      <CollapsibleSection title={t('config:sections.monitoring', { defaultValue: 'Monitoring' })} storageKey="monitoring" defaultOpen={false} forceOpen={isSearching && shouldShowSection('monitoring')}>
         <div className="config-row">
-          <span className="config-label"><HighlightText text="View event logs, trigger history, workflow traces, and system stats" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:monitoring.description', { defaultValue: 'View event logs, trigger history, workflow traces, and system stats' })} query={searchQuery} /></span>
         </div>
         <div className="config-row">
           <button
             className="config-button"
             onClick={() => onOpenMonitoringModal?.()}
           >
-            Open Monitoring & Logs
+            {t('config:monitoring.openLogs', { defaultValue: 'Open Monitoring & Logs' })}
           </button>
         </div>
       </CollapsibleSection>
       )}
 
       {shouldShowSection('statistics') && (
-      <CollapsibleSection title="Statistics" storageKey="statistics" defaultOpen={false} forceOpen={isSearching && shouldShowSection('statistics')}>
+      <CollapsibleSection title={t('config:sections.statistics', { defaultValue: 'Statistics' })} storageKey="statistics" defaultOpen={false} forceOpen={isSearching && shouldShowSection('statistics')}>
         <div className="config-row">
-          <span className="config-label"><HighlightText text="View token usage charts and system-wide agent statistics" query={searchQuery} /></span>
+          <span className="config-label"><HighlightText text={t('config:statistics.description', { defaultValue: 'View token usage charts and system-wide agent statistics' })} query={searchQuery} /></span>
         </div>
         <div className="config-row">
           <button
             className="config-button"
             onClick={() => onOpenStatisticsModal?.()}
           >
-            Open Statistics
+            {t('config:statistics.open', { defaultValue: 'Open Statistics' })}
           </button>
         </div>
       </CollapsibleSection>
@@ -1259,19 +1267,19 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       {shouldShowSection('experimental') && (
       <CollapsibleSection title={t('config:sections.experimental')} storageKey="experimental" defaultOpen={false} forceOpen={isSearching && shouldShowSection('experimental')}>
         <div className="config-row">
-          <span className="config-label" title="Lightweight 2D top-down view for better performance"><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
+          <span className="config-label" title={t('config:experimental.2dViewTitle', { defaultValue: 'Lightweight 2D top-down view for better performance' })}><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
           <Toggle checked={settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Voice assistant for hands-free agent control"><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
+          <span className="config-label" title={t('config:experimental.voiceAssistantTitle', { defaultValue: 'Voice assistant for hands-free agent control' })}><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
           <Toggle checked={settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Text-to-speech for reading agent responses"><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
+          <span className="config-label" title={t('config:experimental.ttsTitle', { defaultValue: 'Text-to-speech for reading agent responses' })}><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>
           <Toggle checked={settings.experimentalTTS} onChange={(checked) => store.updateSettings({ experimentalTTS: checked })} />
         </div>
         <div className="config-row">
-          <span className="config-label" title="Duplicate system prompt for improved LLM attention coverage. Increases input token usage."><HighlightText text={t('config:experimental.echoPrompt')} query={searchQuery} /></span>
+          <span className="config-label" title={t('config:experimental.echoPromptTitle', { defaultValue: 'Duplicate system prompt for improved LLM attention coverage. Increases input token usage.' })}><HighlightText text={t('config:experimental.echoPrompt')} query={searchQuery} /></span>
           <Toggle checked={settings.experimentalEchoPrompt} onChange={async (checked) => {
             store.updateSettings({ experimentalEchoPrompt: checked });
             try {

@@ -38,6 +38,18 @@
     "re:^terminal:statistics\\.",
     "re:^terminal:gitPanel\\.",
     "re:^terminal:flatView\\.",
-    "re:^terminal:fileExplorer\\."
+    "re:^terminal:fileExplorer\\.",
+    "re:^config:soundUpload\\.",
+    "re:^config:sections\\.(plugins|defaultClass|defaultSkills|workflows|triggers|monitoring|statistics)$",
+    "re:^config:plugins\\.",
+    "re:^config:general\\.(agentDockTitle|agentDock|recentAgentsDockTitle|recentAgentsDock|powerSavingTitle|lowPowerModeTitle|tmuxModeTitle|interactiveModeTitle|codexAppServerModeTitle|opencodeServerModeTitle|piRpcModeTitle|notificationSoundsTitle|notificationSounds|notificationSoundVolume)$",
+    "re:^config:agentDock\\.",
+    "re:^config:sounds\\.",
+    "re:^config:tones\\.",
+    "re:^config:defaultClass\\.",
+    "config:language.auto",
+    "config:connection.forceReconnectTitle",
+    "re:^config:(workflows|triggers|monitoring|statistics)\\.",
+    "re:^config:experimental\\.(2dViewTitle|voiceAssistantTitle|ttsTitle|echoPromptTitle)$"
   ]
 }

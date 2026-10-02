@@ -23,7 +23,14 @@
     "about": "关于",
     "sky": "天空颜色",
     "grokAccounts": "Grok 账号",
-    "codexAccounts": "Codex 账号"
+    "codexAccounts": "Codex 账号",
+    "plugins": "插件",
+    "defaultClass": "默认创建类别",
+    "defaultSkills": "智能体默认技能",
+    "workflows": "工作流",
+    "triggers": "触发器",
+    "monitoring": "监控",
+    "statistics": "统计"
   },
   "general": {
     "history": "历史记录",
@@ -58,7 +65,21 @@
     "autoScroll": "自动滚动",
     "notifications": "通知",
     "soundEffects": "音效",
-    "vibrationIntensity": "振动强度"
+    "vibrationIntensity": "振动强度",
+    "agentDockTitle": "最近活跃与正在工作的智能体缩略图条所在的位置。",
+    "agentDock": "智能体活动栏",
+    "recentAgentsDockTitle": "活动栏在正在工作的智能体之外显示多少个最近活跃的智能体。0 表示只显示正在工作的智能体。",
+    "recentAgentsDock": "活动栏中的最近智能体",
+    "powerSavingTitle": "实验性：空闲时降低帧率以省电",
+    "lowPowerModeTitle": "移动端省电模式：限制场景帧率（活跃 20 / 空闲 5），冻结装饰动画并禁用逐词流式输出。关闭 = 正常模式。",
+    "tmuxModeTitle": "将智能体进程包裹在 tmux 会话中，使其在服务器重启后仍然存活（需要安装 tmux）",
+    "interactiveModeTitle": "实验性：在 tmux 中以真正的交互式 `claude` TUI 运行 Claude 智能体，从会话记录重建对话（需要 tmux）。服务器重启后生效。",
+    "codexAppServerModeTitle": "实验性：通过常驻的 `codex app-server` 运行 Codex 智能体，回复逐词流式输出（token 增量），而不是整块出现。app-server 以分离方式运行，在服务器重启后仍然存活——进行中的回合会继续运行并自动重连。适用于新的 Codex 回合；切换无需重启服务器。",
+    "opencodeServerModeTitle": "实验性：通过常驻、分离的 `opencode serve` HTTP 服务器运行 OpenCode 智能体，回复逐词流式输出（通过 SSE 传输 token 增量），而不是整块出现。服务器在重启后仍然存活——进行中的回合会继续运行并自动重连。适用于新的 OpenCode 回合；切换无需重启服务器。",
+    "piRpcModeTitle": "为每个智能体通过常驻的 `pi --mode rpc` 进程运行 Pi 智能体。回合中途发送的消息会引导（steer）实时运行——在当前工具轮结束后、下一次模型调用之前送达，而不是排队到回合结束。启用 tmux 模式时，实时 RPC 回合在服务器重启后仍然存活并自动重连；否则会话将在下次发消息时恢复。适用于新的 Pi 回合；切换无需重启服务器。",
+    "notificationSoundsTitle": "播放悦耳提示音：智能体通知用铃声；智能体向你提问时用独特的上升提示音（重复播放直到你回复）；智能体完成工作时用收尾提示音。",
+    "notificationSounds": "通知提示音",
+    "notificationSoundVolume": "通知提示音音量"
   },
   "vibrationValues": {
     "off": "关闭",
@@ -100,7 +121,8 @@
       "authTokenLabel": "认证令牌",
       "authTokenPlaceholder": "X-Auth-Token（可选）",
       "authTokenHint": "可选。如果你的服务器启用了鉴权则必填。"
-    }
+    },
+    "forceReconnectTitle": "强制重新连接服务器"
   },
   "scene": {
     "characterSize": "角色大小",
@@ -235,7 +257,11 @@
     "voiceAssistant": "语音助手",
     "tts": "文字转语音",
     "echoPrompt": "回显提示词",
-    "hint": "这些功能是实验性的，可能会发生变化"
+    "hint": "这些功能是实验性的，可能会发生变化",
+    "2dViewTitle": "轻量级 2D 俯视视图，性能更好",
+    "voiceAssistantTitle": "语音助手，免手动控制智能体",
+    "ttsTitle": "文本转语音，朗读智能体回复",
+    "echoPromptTitle": "复制系统提示词以提高 LLM 注意力覆盖。会增加输入 token 用量。"
   },
   "areas": {
     "title": "区域（{{count}}）",
@@ -764,5 +790,94 @@
     "notificationsDesc": "选择哪些智能体事件会被转发，以及转发给谁。",
     "history": "历史记录",
     "historyDesc": "浏览已保存的聊天记录与消息。"
+  },
+  "soundUpload": {
+    "uploadFailed": "上传失败（{{status}}）",
+    "uploadFailedGeneric": "上传失败",
+    "resetFailed": "重置声音失败"
+  },
+  "plugins": {
+    "description": "安装、启用和禁用受信任的本地界面插件",
+    "manage": "管理插件"
+  },
+  "agentDock": {
+    "overview": "概览面板",
+    "composer": "固定智能体行内",
+    "hidden": "隐藏"
+  },
+  "sounds": {
+    "perEvent": "各事件音效",
+    "perEventHint": "为每个事件选择音调——或上传你自己的文件（mp3、wav、ogg、m4a——最大 5MB），文件存储在服务器上，所有设备都能听到它。「无」会静音该事件。",
+    "question": {
+      "label": "智能体向你提问",
+      "when": "提问、待批准的方案或权限请求。开始时重复两次，之后每 10 秒一次，直到你回复（2 分钟后停止）。",
+      "sound": "两声轻击，随后上升变调"
+    },
+    "notification": {
+      "label": "智能体发送通知",
+      "when": "任何智能体通知：任务完成、错误或提醒。",
+      "sound": "柔和的双音铃声"
+    },
+    "completion": {
+      "label": "智能体完成工作",
+      "when": "智能体停止工作并进入空闲。",
+      "sound": "舒缓的下降琶音"
+    },
+    "customBadge": "你的文件",
+    "customOption": "你上传的文件",
+    "previewSilenced": "该事件已静音——选择音调即可试听",
+    "previewHint": "试听该事件播放的声音",
+    "uploadTitle": "用你自己的音频文件替换此音效（mp3、wav、ogg、m4a——最大 5MB）",
+    "uploading": "上传中…",
+    "resetTitle": "删除你的文件并恢复为内置音调"
+  },
+  "tones": {
+    "none": "无（静音）",
+    "synth-chime": "内置 · 铃声",
+    "synth-question": "内置 · 提问",
+    "synth-done": "内置 · 完成",
+    "chime": "铃声",
+    "chime-soft": "柔和铃声",
+    "chime-double": "双音铃声",
+    "bell": "铃铛",
+    "glass": "玻璃音",
+    "glass-tap": "轻敲玻璃",
+    "pluck": "拨弦",
+    "drop": "水滴",
+    "drop-soft": "轻柔水滴",
+    "question": "提问",
+    "question-soft": "柔和提问",
+    "question-bright": "明亮提问",
+    "blip": "短促提示",
+    "blip-soft": "柔和短促提示",
+    "switch": "开关",
+    "switch-soft": "柔和开关",
+    "alert": "警报",
+    "alert-low": "低沉警报",
+    "pop": "气泡",
+    "tick": "滴答"
+  },
+  "defaultClass": {
+    "hint": "创建弹窗打开时预选的类别。「随机」每次随机选择不同类别。",
+    "random": "随机"
+  },
+  "language": {
+    "auto": "自动"
+  },
+  "workflows": {
+    "description": "使用可视化状态机编辑器创建和管理自动化工作流管线",
+    "openEditor": "打开工作流编辑器"
+  },
+  "triggers": {
+    "description": "创建和管理用模板触发智能体的事件驱动触发器",
+    "openManager": "打开触发器管理器"
+  },
+  "monitoring": {
+    "description": "查看事件日志、触发器历史、工作流跟踪和系统统计",
+    "openLogs": "打开监控与日志"
+  },
+  "statistics": {
+    "description": "查看 token 用量图表和全系统智能体统计",
+    "open": "打开统计"
   }
 }
