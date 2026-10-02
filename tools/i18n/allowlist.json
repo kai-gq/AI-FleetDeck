@@ -9,7 +9,8 @@
     "config:areas.folderPlaceholder",
     "config:integrations.whatsapp.title",
     "config:webBundle.apkVersion",
-    "terminal:documentViewer.copyMarkdown"
+    "terminal:documentViewer.copyMarkdown",
+    "terminal:spawn.workingDirPlaceholder"
   ],
   "noCJK": [
     "common:labels.tokens",
