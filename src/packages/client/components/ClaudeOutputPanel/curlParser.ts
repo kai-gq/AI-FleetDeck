@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next';
+import { getI18nInstance } from '../../utils/formatting';
+
 /**
  * Tokenize a POSIX-style shell command string into argv tokens.
  * Handles single quotes (literal), double quotes (with backslash escapes for " $ ` \),
@@ -338,6 +341,12 @@ export function detectBrowserAction(parsed: ParsedCurl): BrowserAction | null {
   if (!match) return null;
   const endpoint = match[1].toLowerCase();
 
+  // Display labels go through the shared i18n singleton; the English literals
+  // are the pre-init / unit-test fallback (getI18nInstance() is null until
+  // i18n.ts finishes loading).
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
+
   const body: Record<string, unknown> =
     parsed.bodyJson && typeof parsed.bodyJson === 'object' && !Array.isArray(parsed.bodyJson)
       ? (parsed.bodyJson as Record<string, unknown>)
@@ -358,120 +367,124 @@ export function detectBrowserAction(parsed: ParsedCurl): BrowserAction | null {
 
   switch (endpoint) {
     case 'page':
-      verb = 'Read page';
+      verb = t ? t('terminal:curlCard.browserReadPage', { defaultValue: 'Read page' }) : 'Read page';
       icon = 'file-text';
       target = undefined;
       break;
     case 'dom':
       if (body.actionable === true) {
-        verb = 'Map elements';
+        verb = t ? t('terminal:curlCard.browserMapElements', { defaultValue: 'Map elements' }) : 'Map elements';
         icon = 'grid';
       } else {
-        verb = 'Read DOM';
+        verb = t ? t('terminal:curlCard.browserReadDom', { defaultValue: 'Read DOM' }) : 'Read DOM';
         icon = 'eye';
       }
       target = asStr(body.selector);
       break;
     case 'click':
-      verb = 'Click';
+      verb = t ? t('terminal:curlCard.browserClick', { defaultValue: 'Click' }) : 'Click';
       icon = 'hand-point';
       break;
     case 'hover':
-      verb = 'Hover';
+      verb = t ? t('terminal:curlCard.browserHover', { defaultValue: 'Hover' }) : 'Hover';
       icon = 'hand-point';
       break;
     case 'type':
-      verb = 'Type';
+      verb = t ? t('terminal:curlCard.browserType', { defaultValue: 'Type' }) : 'Type';
       icon = 'keyboard';
       target = asStr(body.selector) ?? asStr(body.within);
       detail = asStr(body.text) != null ? `“${asStr(body.text)}”` : undefined;
       break;
     case 'fill': {
-      verb = 'Fill form';
+      verb = t ? t('terminal:curlCard.browserFillForm', { defaultValue: 'Fill form' }) : 'Fill form';
       icon = 'list-checks';
       const fields = Array.isArray(body.fields) ? body.fields.length : 0;
-      detail = `${fields} field${fields === 1 ? '' : 's'}`;
-      if (body.submit) detail += ' + submit';
+      detail = t
+        ? t('terminal:curlCard.browserFieldCount', { defaultValue: '{{n}} field{{plural}}', n: fields, plural: fields === 1 ? '' : 's' })
+        : `${fields} field${fields === 1 ? '' : 's'}`;
+      if (body.submit) detail += t ? t('terminal:curlCard.browserSubmitSuffix', { defaultValue: ' + submit' }) : ' + submit';
       target = undefined;
       break;
     }
     case 'key':
-      verb = 'Press key';
+      verb = t ? t('terminal:curlCard.browserPressKey', { defaultValue: 'Press key' }) : 'Press key';
       icon = 'keyboard';
       detail = asStr(body.key);
       target = asStr(body.selector);
       break;
     case 'select':
-      verb = 'Select';
+      verb = t ? t('terminal:spotlight.select') : 'Select';
       icon = 'list';
       detail = asStr(body.label) ?? asStr(body.value);
       target = asStr(body.selector);
       break;
     case 'scroll':
-      verb = 'Scroll';
+      verb = t ? t('terminal:curlCard.browserScroll', { defaultValue: 'Scroll' }) : 'Scroll';
       icon = 'scroll';
       break;
     case 'navigate':
-      verb = 'Navigate';
+      verb = t ? t('terminal:spotlight.navigate') : 'Navigate';
       icon = 'arrow-right';
       target = asStr(body.url);
       break;
     case 'console':
-      verb = 'Read console';
+      verb = t ? t('terminal:curlCard.browserReadConsole', { defaultValue: 'Read console' }) : 'Read console';
       icon = 'terminal';
       detail = asStr(body.level);
       target = undefined;
       break;
     case 'network':
-      verb = 'Read network';
+      verb = t ? t('terminal:curlCard.browserReadNetwork', { defaultValue: 'Read network' }) : 'Read network';
       icon = 'wifi';
       detail = asStr(body.filter);
       target = undefined;
       break;
     case 'errors':
-      verb = 'Read errors';
+      verb = t ? t('terminal:curlCard.browserReadErrors', { defaultValue: 'Read errors' }) : 'Read errors';
       icon = 'bug';
       target = undefined;
       break;
     case 'screenshot':
-      verb = 'Screenshot';
+      verb = t ? t('terminal:curlCard.browserScreenshot', { defaultValue: 'Screenshot' }) : 'Screenshot';
       icon = 'frame';
       target = asStr(body.selector);
       break;
     case 'batch': {
-      verb = 'Batch';
+      verb = t ? t('terminal:curlCard.browserBatch', { defaultValue: 'Batch' }) : 'Batch';
       icon = 'list-bullets';
       const steps = Array.isArray(body.steps) ? body.steps.length : 0;
-      detail = `${steps} step${steps === 1 ? '' : 's'}`;
+      detail = t
+        ? t('terminal:curlCard.browserStepCount', { defaultValue: '{{n}} step{{plural}}', n: steps, plural: steps === 1 ? '' : 's' })
+        : `${steps} step${steps === 1 ? '' : 's'}`;
       target = undefined;
       break;
     }
     case 'status':
-      verb = 'Browser status';
+      verb = t ? t('terminal:curlCard.browserStatus', { defaultValue: 'Browser status' }) : 'Browser status';
       icon = 'info';
       target = undefined;
       break;
     case 'tabs':
-      verb = 'List tabs';
+      verb = t ? t('terminal:curlCard.browserListTabs', { defaultValue: 'List tabs' }) : 'List tabs';
       icon = 'list-bullets';
       target = undefined;
       break;
     case 'targets':
-      verb = 'List targets';
+      verb = t ? t('terminal:curlCard.browserListTargets', { defaultValue: 'List targets' }) : 'List targets';
       icon = 'target';
       target = undefined;
       break;
     case 'tab/open':
-      verb = 'Open tab';
+      verb = t ? t('terminal:curlCard.browserOpenTab', { defaultValue: 'Open tab' }) : 'Open tab';
       icon = 'plus';
       target = asStr(body.url);
       break;
     case 'tab/close':
-      verb = 'Close tab';
+      verb = t ? t('terminal:database.closeTab') : 'Close tab';
       icon = 'close';
       break;
     case 'tab/activate':
-      verb = 'Activate tab';
+      verb = t ? t('terminal:curlCard.browserActivateTab', { defaultValue: 'Activate tab' }) : 'Activate tab';
       icon = 'arrow-up-right';
       break;
     default:
@@ -526,13 +539,36 @@ export function detectTcApiCall(parsed: ParsedCurl): TcApiCall | null {
   const resource = (segments[1] || '').toLowerCase();
   if (!resource) return null;
   const meta = TC_API_RESOURCES[resource];
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
   return {
     method: parsed.method,
     path,
     resource,
-    label: meta?.label ?? resource,
+    label: meta ? (t ? tcApiResourceLabel(t, resource, meta.label) : meta.label) : resource,
     icon: meta?.icon ?? 'waves',
   };
+}
+
+/**
+ * Localized header label for a known TC API resource. Existing locale keys are
+ * reused where the English text matches; the rest carry their English as
+ * defaultValue. Unknown resources keep the raw path segment (caller handles).
+ */
+function tcApiResourceLabel(t: TFunction, resource: string, fallback: string): string {
+  switch (resource) {
+    case 'agents': return t('common:labels.agents');
+    case 'skills': return t('tools:skills.title');
+    case 'areas': return t('terminal:overview.areas');
+    case 'buildings': return t('terminal:spotlight.tabs.buildings');
+    case 'sessions': return t('terminal:usage.sessions');
+    case 'system': return t('common:labels.system');
+    case 'notify': return t('terminal:curlCard.tcApiNotify', { defaultValue: 'Notify' });
+    case 'http-requests': return t('terminal:curlCard.tcApiHttpRequests', { defaultValue: 'HTTP requests' });
+    case 'tests': return t('terminal:curlCard.tcApiTests', { defaultValue: 'Tests' });
+    case 'exec': return t('terminal:curlCard.tcApiExec', { defaultValue: 'Exec' });
+    default: return fallback;
+  }
 }
 
 const AGENT_MESSAGE_URL_RE = /^https?:\/\/[^/]+\/api\/agents\/([A-Za-z0-9_-]+)\/message$/;

@@ -16,7 +16,8 @@
     "common:labels.tokens",
     "tools:display.tokens",
     "config:workflowEditor.variableType.json",
-    "terminal:bolbaRecommended.aiBadge"
+    "terminal:bolbaRecommended.aiBadge",
+    "terminal:curlCard.bodyJson"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -61,6 +62,7 @@
     "re:^terminal:chatMessageCard\\.",
     "re:^terminal:delegationCard\\.",
     "re:^terminal:pm2Log\\.",
+    "re:^terminal:curlCard\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

@@ -1,4 +1,6 @@
 import React, { memo, useCallback, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { detectAgentFetch, detectAgentMessage, detectBrowserAction, detectTcApiCall, type BrowserAction, type ParsedCurl, type TcApiCall } from './curlParser';
 import { classifyTcApiOutput, readTcPluginOutput, type TcAgentRow, type TcApiListing } from './tcApiOutput';
 import { useAgent } from '../../store/selectors';
@@ -91,6 +93,7 @@ function AgentMessageCard({
   message: string;
   rawCommand?: string;
 }) {
+  const { t } = useTranslation('terminal');
   const agent = useAgent(targetAgentId);
   const viewMode = useViewMode();
   const [expanded, setExpanded] = useState(false);
@@ -136,10 +139,10 @@ function AgentMessageCard({
     <div className="curl-card curl-card--agent-message" title={rawCommand}>
       <div className="curl-agent-message-title">
         <span className="curl-agent-message-icon"><Icon name="envelope-simple" size={12} /></span>
-        <span>Sending message to agent</span>
+        <span>{t('terminal:curlCard.sendingMessageToAgent', { defaultValue: 'Sending message to agent' })}</span>
       </div>
       <div className="curl-agent-message-row">
-        <span className="curl-agent-message-label">To</span>
+        <span className="curl-agent-message-label">{t('config:whatsapp.testTo')}</span>
         <span className="curl-agent-message-name">
           {agent && <AgentIcon agent={agent} size={12} />}
           {agent ? (
@@ -147,18 +150,18 @@ function AgentMessageCard({
               className="curl-agent-message-name-text clickable-agent-name"
               role="button"
               tabIndex={0}
-              title={`Open ${agent.name}`}
+              title={t('common:mobileBottomMenu.openLastAgentNamed', { name: agent.name })}
               onClick={handleNameClick}
               onKeyDown={handleNameKeyDown}
             >
               {agent.name}
             </span>
           ) : (
-            <span className="curl-agent-message-name-text" title="Agent unavailable">
+            <span className="curl-agent-message-name-text" title={t('terminal:curlCard.agentUnavailable', { defaultValue: 'Agent unavailable' })}>
               {targetAgentId}
             </span>
           )}
-          {!agent && <CopyButton value={targetAgentId} title="Copy ID" />}
+          {!agent && <CopyButton value={targetAgentId} title={t('config:whatsapp.toast.copyFrom')} />}
         </span>
       </div>
       <div
@@ -177,7 +180,7 @@ function AgentMessageCard({
             aria-expanded={expanded}
             aria-controls={bodyId}
           >
-            <span>{expanded ? 'Show less' : 'Show more'}</span>
+            <span>{expanded ? t('common:buttons.showLess') : t('common:buttons.showMore')}</span>
             <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
           </button>
         </div>
@@ -187,16 +190,17 @@ function AgentMessageCard({
 }
 
 function AgentFetchCard({ agentId, rawCommand }: { agentId: string; rawCommand?: string }) {
+  const { t } = useTranslation('terminal');
   const agent = useAgent(agentId);
   return (
     <div className="curl-card curl-card--agent-fetch" title={rawCommand}>
       <div className="curl-agent-fetch-title">
         <span className="curl-agent-fetch-icon"><Icon name="search" size={14} /></span>
-        <span>Fetching agent details</span>
+        <span>{t('terminal:curlCard.fetchingAgentDetails', { defaultValue: 'Fetching agent details' })}</span>
       </div>
       {agent && (
         <div className="curl-agent-fetch-row">
-          <span className="curl-agent-fetch-label">Agent</span>
+          <span className="curl-agent-fetch-label">{t('common:labels.agent')}</span>
           <span className="curl-agent-fetch-name">
             <AgentIcon agent={agent} size={13} />
             <span className="curl-agent-fetch-name-text">{agent.name}</span>
@@ -207,7 +211,7 @@ function AgentFetchCard({ agentId, rawCommand }: { agentId: string; rawCommand?:
         <span className="curl-agent-fetch-label">ID</span>
         <span className="curl-agent-fetch-id-value">
           <code className="curl-agent-fetch-id">{agentId}</code>
-          <CopyButton value={agentId} title="Copy ID" />
+          <CopyButton value={agentId} title={t('config:whatsapp.toast.copyFrom')} />
         </span>
       </div>
     </div>
@@ -215,6 +219,7 @@ function AgentFetchCard({ agentId, rawCommand }: { agentId: string; rawCommand?:
 }
 
 function BrowserActionCard({ action, rawCommand }: { action: BrowserAction; rawCommand?: string }) {
+  const { t } = useTranslation('terminal');
   const [expanded, setExpanded] = useState(false);
   const toggleExpanded = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -234,23 +239,25 @@ function BrowserActionCard({ action, rawCommand }: { action: BrowserAction; rawC
         tabIndex={hasBody ? 0 : undefined}
       >
         <span className="curl-browser-icon"><Icon name={action.icon as React.ComponentProps<typeof Icon>['name']} size={14} /></span>
-        <span className="curl-browser-brand">Browser</span>
+        <span className="curl-browser-brand">{t('common:labels.browser')}</span>
         <span className="curl-browser-verb">{action.verb}</span>
         {action.target && (
           <code className="curl-browser-target" title={action.target}>{truncateMiddle(action.target, 72)}</code>
         )}
         {action.detail && <span className="curl-browser-detail">{action.detail}</span>}
         <span className="curl-browser-spacer" />
-        {action.diff && <span className="curl-browser-badge curl-browser-badge--diff">diff</span>}
-        {action.tab && <span className="curl-browser-tab" title="Target tab">{action.tab}</span>}
+        {action.diff && <span className="curl-browser-badge curl-browser-badge--diff">{t('terminal:curlCard.diff', { defaultValue: 'diff' })}</span>}
+        {action.tab && <span className="curl-browser-tab" title={t('terminal:curlCard.targetTab', { defaultValue: 'Target tab' })}>{action.tab}</span>}
         {hasBody && (
           <button
             type="button"
             className="curl-expand-btn"
             onClick={toggleExpanded}
-            aria-label={expanded ? 'Collapse details' : 'Expand details'}
+            aria-label={expanded
+              ? t('terminal:curlCard.collapseDetails', { defaultValue: 'Collapse details' })
+              : t('terminal:curlCard.expandDetails', { defaultValue: 'Expand details' })}
             aria-expanded={expanded}
-            title={expanded ? 'Collapse' : 'Details'}
+            title={expanded ? t('common:buttons.collapse') : t('common:rightPanel.tabs.details')}
           >
             <Icon name={expanded ? 'caret-down' : 'caret-right'} size={12} />
           </button>
@@ -261,7 +268,7 @@ function BrowserActionCard({ action, rawCommand }: { action: BrowserAction; rawC
           <div className="curl-body-block">
             <pre className="curl-body-pre" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             {bodyText !== undefined && bodyText.length > 0 && (
-              <CopyButton value={bodyText} title="Copy body" />
+              <CopyButton value={bodyText} title={t('terminal:curlCard.copyBody', { defaultValue: 'Copy body' })} />
             )}
           </div>
         </div>
@@ -278,6 +285,7 @@ const TC_API_TEXT_MAX_LINES = 200;
 
 /** One agent row in a TC API listing — resolves the live agent for its icon and click-to-open. */
 function TcAgentRowItem({ row }: { row: TcAgentRow }) {
+  const { t } = useTranslation('terminal');
   const agent = useAgent(row.id ?? '');
   const viewMode = useViewMode();
 
@@ -308,7 +316,7 @@ function TcAgentRowItem({ row }: { row: TcAgentRow }) {
           className="tc-api-row-name clickable-agent-name"
           role="button"
           tabIndex={0}
-          title={`Open ${agent.name}`}
+          title={t('common:mobileBottomMenu.openLastAgentNamed', { name: agent.name })}
           onClick={(e) => { e.stopPropagation(); openAgent(); }}
           onKeyDown={handleKeyDown}
         >
@@ -324,12 +332,13 @@ function TcAgentRowItem({ row }: { row: TcAgentRow }) {
   );
 }
 
-function tcApiCountLabel(listing: TcApiListing): string | undefined {
+function tcApiCountLabel(t: TFunction, listing: TcApiListing): string | undefined {
+  const plural = (n: number) => (n === 1 ? '' : 's');
   switch (listing.kind) {
-    case 'agents': return `${listing.total} agent${listing.total === 1 ? '' : 's'}`;
-    case 'skills': return `${listing.total} skill${listing.total === 1 ? '' : 's'}`;
-    case 'areas': return `${listing.total} area${listing.total === 1 ? '' : 's'}`;
-    case 'buildings': return `${listing.total} building${listing.total === 1 ? '' : 's'}`;
+    case 'agents': return t('terminal:curlCard.countAgents', { defaultValue: '{{n}} agent{{plural}}', n: listing.total, plural: plural(listing.total) });
+    case 'skills': return t('terminal:curlCard.countSkills', { defaultValue: '{{n}} skill{{plural}}', n: listing.total, plural: plural(listing.total) });
+    case 'areas': return t('terminal:curlCard.countAreas', { defaultValue: '{{n}} area{{plural}}', n: listing.total, plural: plural(listing.total) });
+    case 'buildings': return t('terminal:curlCard.countBuildings', { defaultValue: '{{n}} building{{plural}}', n: listing.total, plural: plural(listing.total) });
     default: return undefined;
   }
 }
@@ -343,6 +352,7 @@ function TcPluginOutputCard({
   output: PluginOutputEnvelope;
   rawCommand?: string;
 }) {
+  const { t } = useTranslation('terminal');
   const data = output.data && typeof output.data === 'object' && !Array.isArray(output.data)
     ? output.data as { agentId?: unknown }
     : null;
@@ -357,7 +367,7 @@ function TcPluginOutputCard({
         <span className="tc-api-brand-icon"><Icon name="waves" size={13} /></span>
         <span className="tc-api-brand">Tide Commander</span>
         <span className={`curl-method method-${call.method.toLowerCase()}`}>{call.method}</span>
-        <span className="tc-api-label"><Icon name="plug" size={12} /> Plugin result</span>
+        <span className="tc-api-label"><Icon name="plug" size={12} /> {t('terminal:curlCard.pluginResult', { defaultValue: 'Plugin result' })}</span>
         <code className="tc-api-path" title={call.path}>{truncateMiddle(call.path, 44)}</code>
       </div>
       <div className="tc-api-plugin-output">
@@ -368,6 +378,7 @@ function TcPluginOutputCard({
 }
 
 function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: string; rawCommand?: string }) {
+  const { t } = useTranslation('terminal');
   const [showAll, setShowAll] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
 
@@ -389,7 +400,7 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
   }, []);
 
   const methodClass = `curl-method method-${call.method.toLowerCase()}`;
-  const countLabel = listing ? tcApiCountLabel(listing) : undefined;
+  const countLabel = listing ? tcApiCountLabel(t, listing) : undefined;
 
   const renderRows = (): React.ReactNode => {
     if (!listing) return null;
@@ -409,7 +420,13 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
           <pre className="tc-api-text-pre">{visible.join('\n')}</pre>
           {lines.length > TC_API_TEXT_VISIBLE_LINES && (
             <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(v => !v); }}>
-              {showAll ? 'Show less' : `+${lines.length - TC_API_TEXT_VISIBLE_LINES} more lines`}
+              {showAll
+                ? t('common:buttons.showLess')
+                : t('terminal:curlCard.moreLines', {
+                    defaultValue: '+{{n}} more line{{plural}}',
+                    n: lines.length - TC_API_TEXT_VISIBLE_LINES,
+                    plural: lines.length - TC_API_TEXT_VISIBLE_LINES === 1 ? '' : 's',
+                  })}
             </button>
           )}
         </>
@@ -419,7 +436,7 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
       return (
         <div className="tc-api-result-line">
           <Icon name="check" size={11} />
-          <code title="Result">{listing.preview}</code>
+          <code title={t('terminal:curlCard.result', { defaultValue: 'Result' })}>{listing.preview}</code>
         </div>
       );
     }
@@ -436,9 +453,9 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
           <div className="tc-api-row" key={row.id ?? i}>
             <span className="tc-api-row-icon"><Icon name="sparkle" size={12} /></span>
             <span className="tc-api-row-name" title={row.description}>{row.name}</span>
-            {row.enabled === false && <span className="tc-api-status tc-api-status--off">off</span>}
+            {row.enabled === false && <span className="tc-api-status tc-api-status--off">{t('terminal:curlCard.skillOff', { defaultValue: 'off' })}</span>}
             {row.assignedCount !== undefined && (
-              <span className="tc-api-row-dim">{row.assignedCount} assigned</span>
+              <span className="tc-api-row-dim">{t('terminal:curlCard.assignedCount', { defaultValue: '{{n}} assigned', n: row.assignedCount })}</span>
             )}
             {row.description && <span className="tc-api-row-path" title={row.description}>{truncateMiddle(row.description, 48)}</span>}
           </div>
@@ -450,7 +467,7 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
             <span className="tc-api-area-dot" style={row.color ? { background: row.color } : undefined} />
             <span className="tc-api-row-name">{row.name}</span>
             {row.agentCount !== undefined && (
-              <span className="tc-api-row-dim">{row.agentCount} agent{row.agentCount === 1 ? '' : 's'}</span>
+              <span className="tc-api-row-dim">{t('terminal:curlCard.countAgents', { defaultValue: '{{n}} agent{{plural}}', n: row.agentCount, plural: row.agentCount === 1 ? '' : 's' })}</span>
             )}
           </div>
         ));
@@ -473,15 +490,15 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
         <div className="tc-api-rows">{rendered}</div>
         {hiddenCount > 0 && (
           <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(true); }}>
-            +{hiddenCount} more
+            {t('terminal:curlCard.more', { defaultValue: '+{{n}} more', n: hiddenCount })}
           </button>
         )}
         {showAll && listing.total > listing.rows.length && (
-          <div className="tc-api-truncation-note">…and {listing.total - listing.rows.length} more (see raw output)</div>
+          <div className="tc-api-truncation-note">{t('terminal:curlCard.andMoreRaw', { defaultValue: '…and {{n}} more (see raw output)', n: listing.total - listing.rows.length })}</div>
         )}
         {showAll && hiddenCount <= 0 && listing.total > TC_API_VISIBLE_ROWS && (
           <button type="button" className="tc-api-more-btn" onClick={(e) => { e.stopPropagation(); setShowAll(false); }}>
-            Show less
+            {t('common:buttons.showLess')}
           </button>
         )}
       </>
@@ -507,8 +524,12 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
             className="curl-expand-btn"
             onClick={toggleRaw}
             aria-expanded={showRaw}
-            aria-label={showRaw ? 'Hide raw output' : 'Show raw output'}
-            title={showRaw ? 'Hide raw output' : 'Raw output'}
+            aria-label={showRaw
+              ? t('terminal:curlCard.hideRawOutput', { defaultValue: 'Hide raw output' })
+              : t('terminal:curlCard.showRawOutput', { defaultValue: 'Show raw output' })}
+            title={showRaw
+              ? t('terminal:curlCard.hideRawOutput', { defaultValue: 'Hide raw output' })
+              : t('terminal:curlCard.rawOutput', { defaultValue: 'Raw output' })}
           >
             <Icon name={showRaw ? 'caret-down' : 'caret-right'} size={12} />
           </button>
@@ -523,7 +544,7 @@ function TcApiCard({ call, output, rawCommand }: { call: TcApiCall; output?: str
             ) : (
               <pre className="curl-body-pre">{output}</pre>
             )}
-            <CopyButton value={output} title="Copy output" />
+            <CopyButton value={output} title={t('tools:display.copyOutput')} />
           </div>
         </div>
       )}
@@ -567,6 +588,7 @@ export const CurlCard = memo(function CurlCard({ parsed, rawCommand, output }: C
 });
 
 const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: CurlCardProps) {
+  const { t } = useTranslation('terminal');
   const [expanded, setExpanded] = useState(false);
   const { method, url, headers, body, bodyJson, flags } = parsed;
   const headerEntries = Object.entries(headers);
@@ -597,8 +619,8 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
           type="button"
           className="curl-expand-btn"
           onClick={toggleExpanded}
-          aria-label="Expand request"
-          title="Expand"
+          aria-label={t('terminal:curlCard.expandRequest', { defaultValue: 'Expand request' })}
+          title={t('common:buttons.expand')}
         >
           <Icon name="caret-right" size={12} />
         </button>
@@ -610,14 +632,14 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
     <div className="curl-card curl-card-expanded" title={rawCommand}>
       <div className="curl-card-header">
         <span className="curl-card-icon"><Icon name="globe" size={14} /></span>
-        <span className="curl-card-title">HTTP Request</span>
+        <span className="curl-card-title">{t('terminal:curlCard.httpRequest', { defaultValue: 'HTTP Request' })}</span>
         <span className={methodClass}>{method}</span>
         <button
           type="button"
           className="curl-expand-btn curl-collapse-btn"
           onClick={toggleExpanded}
-          aria-label="Collapse request"
-          title="Collapse"
+          aria-label={t('terminal:curlCard.collapseRequest', { defaultValue: 'Collapse request' })}
+          title={t('common:buttons.collapse')}
         >
           <Icon name="caret-down" size={12} />
         </button>
@@ -627,13 +649,13 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
         <span className="curl-label">URL</span>
         <span className="curl-url-value">
           <span className="curl-url-text">{url}</span>
-          <CopyButton value={url} title="Copy URL" />
+          <CopyButton value={url} title={t('terminal:curlCard.copyUrl', { defaultValue: 'Copy URL' })} />
         </span>
       </div>
 
       {headerEntries.length > 0 && (
         <div className="curl-card-row curl-headers-row">
-          <span className="curl-label">HEADERS</span>
+          <span className="curl-label">{t('terminal:curlCard.headers', { defaultValue: 'HEADERS' })}</span>
           <div className="curl-headers-list">
             {headerEntries.map(([name, value]) => (
               <div className="curl-header-item" key={name}>
@@ -649,7 +671,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
       {body !== undefined && (
         <div className="curl-card-row curl-body-row">
           <span className="curl-label">
-            BODY{bodyJson !== undefined ? ' (JSON)' : ''}
+            {t('terminal:curlCard.body', { defaultValue: 'BODY' })}{bodyJson !== undefined ? t('terminal:curlCard.bodyJson', { defaultValue: ' (JSON)' }) : ''}
           </span>
           <div className="curl-body-block">
             {bodyHtml !== undefined ? (
@@ -661,7 +683,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
               <pre className="curl-body-pre">{body}</pre>
             )}
             {bodyText !== undefined && bodyText.length > 0 && (
-              <CopyButton value={bodyText} title="Copy body" />
+              <CopyButton value={bodyText} title={t('terminal:curlCard.copyBody', { defaultValue: 'Copy body' })} />
             )}
           </div>
         </div>
@@ -669,7 +691,7 @@ const GenericCurlCard = memo(function GenericCurlCard({ parsed, rawCommand }: Cu
 
       {flags.length > 0 && (
         <div className="curl-card-row curl-flags-row">
-          <span className="curl-label">FLAGS</span>
+          <span className="curl-label">{t('terminal:curlCard.flags', { defaultValue: 'FLAGS' })}</span>
           <span className="curl-flags-value">{flags.join(' ')}</span>
         </div>
       )}
