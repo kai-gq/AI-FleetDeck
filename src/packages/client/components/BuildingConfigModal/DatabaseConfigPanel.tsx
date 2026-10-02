@@ -58,7 +58,7 @@ export function DatabaseConfigPanel({
         ...prev,
         [connId]: detail.success
           ? { status: 'success', serverVersion: detail.serverVersion }
-          : { status: 'error', error: detail.error || 'Connection failed' },
+          : { status: 'error', error: detail.error || t('terminal:dbConfig.connectionFailed', { defaultValue: 'Connection failed' }) },
       }));
     };
     window.addEventListener('tide:db-test-result', handler);
@@ -89,7 +89,7 @@ export function DatabaseConfigPanel({
         setTestState(prev => {
           const cur = prev[conn.id];
           if (cur?.status !== 'testing') return prev;
-          return { ...prev, [conn.id]: { status: 'error', error: 'Test connection timed out after 30s' } };
+          return { ...prev, [conn.id]: { status: 'error', error: t('terminal:dbConfig.testTimeout', { defaultValue: 'Test connection timed out after 30s' }) } };
         });
       }
     }, 30000);
@@ -111,7 +111,7 @@ export function DatabaseConfigPanel({
           onClick={() => {
             const newConn: DatabaseConnection = {
               id: `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              name: `Connection ${dbConnections.length + 1}`,
+              name: t('terminal:dbConfig.connectionName', { defaultValue: 'Connection {{n}}', n: dbConnections.length + 1 }),
               engine: 'mysql',
               host: 'localhost',
               port: 3306,
@@ -178,7 +178,7 @@ export function DatabaseConfigPanel({
                 className="form-input"
                 value={conn.name}
                 onChange={(e) => updateConnection(index, { name: e.target.value })}
-                placeholder="My Database"
+                placeholder={t('terminal:dbConfig.namePlaceholder', { defaultValue: 'My Database' })}
               />
             </div>
             <div className="db-field db-field--small">
@@ -226,7 +226,7 @@ export function DatabaseConfigPanel({
                     {t('terminal:building.dbHost')}
                     {sshEnabled && (
                       <HelpTooltip
-                        text="Host as seen FROM the SSH server (often 'localhost' or 127.0.0.1)."
+                        text={t('terminal:dbConfig.helpSshHost', { defaultValue: 'Host as seen FROM the SSH server (often \'localhost\' or 127.0.0.1).' })}
                         position="top"
                         size="sm"
                       />
@@ -269,7 +269,7 @@ export function DatabaseConfigPanel({
                     className="form-input"
                     value={conn.password || ''}
                     onChange={(e) => updateConnection(index, { password: e.target.value || undefined })}
-                    placeholder="Optional"
+                    placeholder={t('terminal:dbConfig.passwordPlaceholder', { defaultValue: 'Optional' })}
                     autoComplete="off"
                   />
                 </div>
@@ -283,7 +283,7 @@ export function DatabaseConfigPanel({
                     className="form-input"
                     value={conn.database || ''}
                     onChange={(e) => updateConnection(index, { database: e.target.value || undefined })}
-                    placeholder="Optional - select after connecting"
+                    placeholder={t('terminal:dbConfig.databasePlaceholder', { defaultValue: 'Optional - select after connecting' })}
                   />
                 </div>
                 <div className="db-field db-field--small">
@@ -312,9 +312,9 @@ export function DatabaseConfigPanel({
               <div className="db-connection-row">
                 <div className="db-field db-field--grow">
                   <label>
-                    SSH Tunnel
+                    {t('terminal:dbConfig.sshTunnel', { defaultValue: 'SSH Tunnel' })}
                     <HelpTooltip
-                      text="Forward DB traffic through an SSH jump host. Required when the DB is only reachable from inside a private network."
+                      text={t('terminal:dbConfig.helpSshTunnel', { defaultValue: 'Forward DB traffic through an SSH jump host. Required when the DB is only reachable from inside a private network.' })}
                       position="top"
                       size="sm"
                     />
@@ -338,7 +338,7 @@ export function DatabaseConfigPanel({
                 <div className="db-ssh-subsection">
                   <div className="db-connection-row">
                     <div className="db-field db-field--grow">
-                      <label>SSH Host</label>
+                      <label>{t('terminal:dbConfig.sshHost', { defaultValue: 'SSH Host' })}</label>
                       <input
                         type="text"
                         className="form-input"
@@ -348,7 +348,7 @@ export function DatabaseConfigPanel({
                       />
                     </div>
                     <div className="db-field db-field--small">
-                      <label>SSH Port</label>
+                      <label>{t('terminal:dbConfig.sshPort', { defaultValue: 'SSH Port' })}</label>
                       <input
                         type="number"
                         className="form-input"
@@ -360,7 +360,7 @@ export function DatabaseConfigPanel({
 
                   <div className="db-connection-row">
                     <div className="db-field db-field--grow">
-                      <label>SSH Username</label>
+                      <label>{t('terminal:dbConfig.sshUsername', { defaultValue: 'SSH Username' })}</label>
                       <input
                         type="text"
                         className="form-input"
@@ -370,14 +370,14 @@ export function DatabaseConfigPanel({
                       />
                     </div>
                     <div className="db-field db-field--small">
-                      <label>Auth Method</label>
+                      <label>{t('terminal:dbConfig.authMethod', { defaultValue: 'Auth Method' })}</label>
                       <select
                         className="form-input form-select"
                         value={conn.ssh?.authMethod || 'password'}
                         onChange={(e) => updateSSH(index, { authMethod: e.target.value as SSHTunnelConfig['authMethod'] })}
                       >
-                        <option value="password">Password</option>
-                        <option value="privateKey">Private Key</option>
+                        <option value="password">{t('terminal:building.dbPassword')}</option>
+                        <option value="privateKey">{t('terminal:dbConfig.privateKey', { defaultValue: 'Private Key' })}</option>
                       </select>
                     </div>
                   </div>
@@ -385,13 +385,13 @@ export function DatabaseConfigPanel({
                   {(conn.ssh?.authMethod || 'password') === 'password' ? (
                     <div className="db-connection-row">
                       <div className="db-field db-field--grow">
-                        <label>SSH Password</label>
+                        <label>{t('terminal:dbConfig.sshPassword', { defaultValue: 'SSH Password' })}</label>
                         <input
                           type="password"
                           className="form-input"
                           value={conn.ssh?.password || ''}
                           onChange={(e) => updateSSH(index, { password: e.target.value || undefined })}
-                          placeholder="SSH password"
+                          placeholder={t('terminal:dbConfig.sshPasswordPlaceholder', { defaultValue: 'SSH password' })}
                           autoComplete="off"
                         />
                       </div>
@@ -401,9 +401,9 @@ export function DatabaseConfigPanel({
                       <div className="db-connection-row">
                         <div className="db-field db-field--grow">
                           <label>
-                            Private Key Path
+                            {t('terminal:dbConfig.privateKeyPath', { defaultValue: 'Private Key Path' })}
                             <HelpTooltip
-                              text="Path to a private key file on the server, e.g. ~/.ssh/id_rsa. Use this OR paste the key contents below."
+                              text={t('terminal:dbConfig.helpPrivateKeyPath', { defaultValue: 'Path to a private key file on the server, e.g. ~/.ssh/id_rsa. Use this OR paste the key contents below.' })}
                               position="top"
                               size="sm"
                             />
@@ -420,9 +420,9 @@ export function DatabaseConfigPanel({
                       <div className="db-connection-row">
                         <div className="db-field db-field--grow">
                           <label>
-                            Private Key Contents (PEM)
+                            {t('terminal:dbConfig.privateKeyContents', { defaultValue: 'Private Key Contents (PEM)' })}
                             <HelpTooltip
-                              text="Paste the full private key contents inline. Encrypted at rest."
+                              text={t('terminal:dbConfig.helpPrivateKeyContents', { defaultValue: 'Paste the full private key contents inline. Encrypted at rest.' })}
                               position="top"
                               size="sm"
                             />
@@ -439,13 +439,13 @@ export function DatabaseConfigPanel({
                       </div>
                       <div className="db-connection-row">
                         <div className="db-field db-field--grow">
-                          <label>Key Passphrase (optional)</label>
+                          <label>{t('terminal:dbConfig.keyPassphrase', { defaultValue: 'Key Passphrase (optional)' })}</label>
                           <input
                             type="password"
                             className="form-input"
                             value={conn.ssh?.passphrase || ''}
                             onChange={(e) => updateSSH(index, { passphrase: e.target.value || undefined })}
-                            placeholder="If your key is encrypted"
+                            placeholder={t('terminal:dbConfig.keyPassphrasePlaceholder', { defaultValue: 'If your key is encrypted' })}
                             autoComplete="off"
                           />
                         </div>
@@ -456,9 +456,9 @@ export function DatabaseConfigPanel({
                   <div className="db-connection-row">
                     <div className="db-field db-field--small">
                       <label>
-                        Local Port
+                        {t('terminal:dbConfig.localPort', { defaultValue: 'Local Port' })}
                         <HelpTooltip
-                          text="Optional fixed local forwarded port. Leave blank to auto-assign."
+                          text={t('terminal:dbConfig.helpLocalPort', { defaultValue: 'Optional fixed local forwarded port. Leave blank to auto-assign.' })}
                           position="top"
                           size="sm"
                         />
@@ -471,7 +471,7 @@ export function DatabaseConfigPanel({
                           const v = e.target.value.trim();
                           updateSSH(index, { localPort: v ? parseInt(v) : undefined });
                         }}
-                        placeholder="auto"
+                        placeholder={t('terminal:dbConfig.autoPlaceholder', { defaultValue: 'auto' })}
                       />
                     </div>
                   </div>
@@ -486,11 +486,11 @@ export function DatabaseConfigPanel({
                   disabled={ts.status === 'testing'}
                   onClick={() => handleTestConnection(conn)}
                 >
-                  {ts.status === 'testing' ? 'Testing…' : 'Test Connection'}
+                  {ts.status === 'testing' ? t('terminal:dbConfig.testing', { defaultValue: 'Testing…' }) : t('terminal:database.testConnection')}
                 </button>
                 {ts.status === 'success' && (
                   <span style={{ color: '#4aff9e', fontSize: 12 }}>
-                    ✓ Connected{ts.serverVersion ? ` — ${ts.serverVersion}` : ''}
+                    ✓ {t('terminal:database.connected')}{ts.serverVersion ? ` — ${ts.serverVersion}` : ''}
                   </span>
                 )}
                 {ts.status === 'error' && (

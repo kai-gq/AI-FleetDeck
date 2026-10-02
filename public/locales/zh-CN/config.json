@@ -1751,5 +1751,18 @@
     "statusSetupRequired": "需要设置",
     "configure": "配置 {{name}}",
     "manageAll": "管理所有集成"
+  },
+  "buildingConfig": {
+    "newServer": "新服务器",
+    "slashCommand": "斜杠命令",
+    "slashCommandHint": "点击该建筑会运行此本地命令，并在弹窗中打开结果。",
+    "buildingIcon": "建筑图标",
+    "customColor": "自定义颜色",
+    "folderHint": "点击此建筑可在该路径打开文件浏览器",
+    "testsFolder": "测试文件夹",
+    "testsFolderHint": "点击此建筑可浏览、搜索并运行该文件夹中的测试（Maven 模块内的任意文件夹均可）",
+    "requestsFolder": "请求文件夹",
+    "requestsFolderHint": "点击此建筑可浏览并发送该文件夹中的 .http 请求文件（IntelliJ HTTP Client 风格；支持 http-client.env.json 环境）",
+    "urlLabelPlaceholder": "标签"
   }
 }

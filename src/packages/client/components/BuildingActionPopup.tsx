@@ -264,7 +264,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                   handleOpenUrl(port, e.altKey);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
+                title={t('terminal:buildingAction.openUrlTitle', { defaultValue: 'Open {{url}} (Alt+Click for modal)', url: `http://${window.location.hostname}:${port}` })}
               >
                 :{port}
               </a>
@@ -276,7 +276,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           // the live run state instead (and nothing while idle).
           isTestsWorking && (
             <span className="building-popup-status building-popup-status--tests-working">
-              running tests
+              {t('terminal:buildingAction.runningTests', { defaultValue: 'running tests' })}
             </span>
           )
         ) : (
@@ -408,10 +408,10 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                 store.openTestsBuilding(building.id);
                 onClose();
               }}
-              title="Browse, search and run this folder's tests"
+              title={t('terminal:buildingAction.openTestsTitle', { defaultValue: 'Browse, search and run this folder\'s tests' })}
             >
               <span className="icon"><Icon name="flask" size={13} /></span>
-              Open Tests
+              {t('terminal:buildingAction.openTests', { defaultValue: 'Open Tests' })}
             </button>
           </div>
         </>
@@ -437,10 +437,10 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                 store.openHttpBuilding(building.id);
                 onClose();
               }}
-              title="Browse and fire this folder's .http requests"
+              title={t('terminal:buildingAction.openRequestsTitle', { defaultValue: 'Browse and fire this folder\'s .http requests' })}
             >
               <span className="icon"><Icon name="globe" size={13} /></span>
-              Open Requests
+              {t('terminal:buildingAction.openRequests', { defaultValue: 'Open Requests' })}
             </button>
           </div>
         </>
@@ -488,7 +488,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           <button
             className="action-btn open-url"
             onClick={(e) => handleOpenUrl(allPorts[0], e.altKey)}
-            title={`Open http://${window.location.hostname}:${allPorts[0]} (Alt+Click for modal)`}
+            title={t('terminal:buildingAction.openUrlTitle', { defaultValue: 'Open {{url}} (Alt+Click for modal)', url: `http://${window.location.hostname}:${allPorts[0]}` })}
           >
             <span className="icon">&#128279;</span>
             {t('terminal:buildingAction.openInBrowser')}
@@ -502,7 +502,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
                 key={port}
                 className="action-btn open-url port-btn"
                 onClick={(e) => handleOpenUrl(port, e.altKey)}
-                title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
+                title={t('terminal:buildingAction.openUrlTitle', { defaultValue: 'Open {{url}} (Alt+Click for modal)', url: `http://${window.location.hostname}:${port}` })}
               >
                 :{port}
               </button>

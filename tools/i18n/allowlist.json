@@ -21,7 +21,8 @@
     "terminal:curlCard.bodyJson",
     "common:appModals.deleteNamedQ2",
     "terminal:missingFile.gitHead",
-    "terminal:opencodeModelSelect.count"
+    "terminal:opencodeModelSelect.count",
+    "terminal:httpRequests.err"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -180,6 +181,16 @@
     "terminal:zoomedImage.hint",
     "re:^terminal:spotlightItem\\.(matchesInConversation|matchCount|areaTitle|idleLabel)$",
     "re:^terminal:piModelSelect\\.",
-    "re:^terminal:opencodeModelSelect\\."
+    "re:^terminal:opencodeModelSelect\\.",
+    "re:^config:buildingConfig\\.",
+    "re:^terminal:dbConfig\\.",
+    "re:^terminal:pm2Panel\\.",
+    "re:^terminal:buildingAction\\.(openUrlTitle|openTestsTitle|openRequestsTitle|runningTests|openTests|openRequests)$",
+    "re:^terminal:httpRequests\\.",
+    "re:^terminal:testsBuilding\\.",
+    "re:^terminal:testRunner\\.",
+    "re:^terminal:dbInline\\.",
+    "re:^terminal:dbSidebar\\.",
+    "re:^terminal:dbTabs\\."
   ]
 }

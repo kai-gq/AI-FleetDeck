@@ -162,7 +162,7 @@ export function BuildingConfigModal({
         setTerminalSaveSession(building.terminal?.saveSession || false);
         setTerminalArgs(building.terminal?.args || '');
       } else {
-        setName('New Server');
+        setName(t('config:buildingConfig.newServer', { defaultValue: 'New Server' }));
         setType('server');
         setStyle('server-rack');
         setColor('');
@@ -440,7 +440,7 @@ export function BuildingConfigModal({
             {type === 'slash-command' && (
               <>
                 <div className="form-section">
-                  <label className="form-label">Slash command</label>
+                  <label className="form-label">{t('config:buildingConfig.slashCommand', { defaultValue: 'Slash command' })}</label>
                   <input
                     type="text"
                     className="form-input"
@@ -449,10 +449,10 @@ export function BuildingConfigModal({
                     placeholder="/gmail unread 20"
                     required
                   />
-                  <div className="form-hint">Clicking the building runs this local command and opens its result in a modal.</div>
+                  <div className="form-hint">{t('config:buildingConfig.slashCommandHint', { defaultValue: 'Clicking the building runs this local command and opens its result in a modal.' })}</div>
                 </div>
                 <div className="form-section">
-                  <label className="form-label">Building icon</label>
+                  <label className="form-label">{t('config:buildingConfig.buildingIcon', { defaultValue: 'Building icon' })}</label>
                   <input
                     type="text"
                     className="form-input"
@@ -485,7 +485,7 @@ export function BuildingConfigModal({
                   className="building-color-picker"
                   value={color || '#2a2a3a'}
                   onChange={(e) => setColor(e.target.value)}
-                  title="Custom color"
+                  title={t('config:buildingConfig.customColor', { defaultValue: 'Custom color' })}
                 />
               </div>
             </div>
@@ -547,7 +547,7 @@ export function BuildingConfigModal({
                   directoriesOnly={true}
                 />
                 <div className="form-hint">
-                  Click this building to open the file explorer at this path
+                  {t('config:buildingConfig.folderHint', { defaultValue: 'Click this building to open the file explorer at this path' })}
                 </div>
               </div>
             )}
@@ -555,7 +555,7 @@ export function BuildingConfigModal({
             {/* Tests Folder Section (for tests type) */}
             {type === 'tests' && (
               <div className="form-section">
-                <label className="form-label">Tests Folder</label>
+                <label className="form-label">{t('config:buildingConfig.testsFolder', { defaultValue: 'Tests Folder' })}</label>
                 <FolderInput
                   value={folderPath}
                   onChange={setFolderPath}
@@ -564,8 +564,7 @@ export function BuildingConfigModal({
                   directoriesOnly={true}
                 />
                 <div className="form-hint">
-                  Click this building to browse, search and run the tests of this folder
-                  (any folder inside a Maven module works)
+                  {t('config:buildingConfig.testsFolderHint', { defaultValue: 'Click this building to browse, search and run the tests of this folder (any folder inside a Maven module works)' })}
                 </div>
               </div>
             )}
@@ -573,7 +572,7 @@ export function BuildingConfigModal({
             {/* HTTP Requests Folder Section (for http type) */}
             {type === 'http' && (
               <div className="form-section">
-                <label className="form-label">Requests Folder</label>
+                <label className="form-label">{t('config:buildingConfig.requestsFolder', { defaultValue: 'Requests Folder' })}</label>
                 <FolderInput
                   value={folderPath}
                   onChange={setFolderPath}
@@ -582,8 +581,7 @@ export function BuildingConfigModal({
                   directoriesOnly={true}
                 />
                 <div className="form-hint">
-                  Click this building to browse and fire the .http request files of this folder
-                  (IntelliJ HTTP Client style; http-client.env.json environments supported)
+                  {t('config:buildingConfig.requestsFolderHint', { defaultValue: 'Click this building to browse and fire the .http request files of this folder (IntelliJ HTTP Client style; http-client.env.json environments supported)' })}
                 </div>
               </div>
             )}
@@ -734,7 +732,7 @@ export function BuildingConfigModal({
                     className="form-input url-label"
                     value={url.label}
                     onChange={(e) => updateUrl(index, 'label', e.target.value)}
-                    placeholder="Label"
+                    placeholder={t('config:buildingConfig.urlLabelPlaceholder', { defaultValue: 'Label' })}
                   />
                   <input
                     type="text"

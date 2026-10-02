@@ -249,7 +249,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
             {dbDropdownOpen && (
               <div className="database-sidebar__dropdown">
                 {filteredDatabases.length === 0 ? (
-                  <div className="database-sidebar__dropdown-empty">No matches</div>
+                  <div className="database-sidebar__dropdown-empty">{t('terminal:fileExplorer.noMatches')}</div>
                 ) : (
                   filteredDatabases.map(db => (
                     <div
@@ -306,7 +306,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
                   setTableSearch('');
                   tableSearchRef.current?.focus();
                 }}
-                title="Clear filter"
+                title={t('terminal:dbSidebar.clearFilter', { defaultValue: 'Clear filter' })}
               >
                 &times;
               </button>
@@ -328,7 +328,7 @@ export const DatabaseSidebar: React.FC<DatabaseSidebarProps> = ({
                     <button
                       className="database-sidebar__table-expand"
                       onClick={() => toggleTableExpand(table.name)}
-                      title={isExpanded ? 'Collapse table schema' : 'Expand table schema'}
+                      title={isExpanded ? t('terminal:dbSidebar.collapseSchema', { defaultValue: 'Collapse table schema' }) : t('terminal:dbSidebar.expandSchema', { defaultValue: 'Expand table schema' })}
                     >
                       <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
                     </button>

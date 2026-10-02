@@ -10,6 +10,8 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon, type IconName } from './Icon';
 import { store, useTestRun } from '../store';
@@ -33,20 +35,43 @@ export interface TestRunnerModalProps {
   onRerun: (testFilter?: string) => void;
 }
 
-const STATUS_META: Record<TestCaseStatus | 'running', { icon: IconName; color: string; label: string }> = {
-  passed: { icon: 'success', color: '#5cb88a', label: 'Passed' },
-  failed: { icon: 'failure', color: '#d45a5a', label: 'Failed' },
-  error: { icon: 'warning-circle', color: '#d4a05a', label: 'Error' },
-  skipped: { icon: 'minus', color: '#8a8a98', label: 'Skipped' },
-  running: { icon: 'hourglass', color: '#5a8fd4', label: 'Running' },
+const STATUS_META: Record<TestCaseStatus | 'running', { icon: IconName; color: string }> = {
+  passed: { icon: 'success', color: '#5cb88a' },
+  failed: { icon: 'failure', color: '#d45a5a' },
+  error: { icon: 'warning-circle', color: '#d4a05a' },
+  skipped: { icon: 'minus', color: '#8a8a98' },
+  running: { icon: 'hourglass', color: '#5a8fd4' },
 };
 
-const RUN_STATUS_META: Record<TestRunStatus, { color: string; label: string }> = {
-  running: { color: '#5a8fd4', label: 'Running…' },
-  passed: { color: '#5cb88a', label: 'Passed' },
-  failed: { color: '#d45a5a', label: 'Failed' },
-  error: { color: '#d4a05a', label: 'Error' },
+const RUN_STATUS_META: Record<TestRunStatus, { color: string }> = {
+  running: { color: '#5a8fd4' },
+  passed: { color: '#5cb88a' },
+  failed: { color: '#d45a5a' },
+  error: { color: '#d4a05a' },
 };
+
+/** Localized labels for the per-testcase status badges. */
+function statusLabel(t: TFunction, status: TestCaseStatus | 'running'): string {
+  if (status === 'passed') return t('terminal:testRunner.statusPassed', { defaultValue: 'Passed' });
+  if (status === 'failed') return t('common:status.failed');
+  if (status === 'error') return t('terminal:overview.statusLabels.error');
+  if (status === 'skipped') return t('terminal:testRunner.statusSkipped', { defaultValue: 'Skipped' });
+  return t('terminal:testRunner.statusRunning', { defaultValue: 'Running' });
+}
+
+/** Localized labels for the per-run status badges. */
+function runStatusLabel(t: TFunction, status: TestRunStatus): string {
+  if (status === 'running') return t('terminal:testRunner.runStatusRunning', { defaultValue: 'Running…' });
+  return statusLabel(t, status);
+}
+
+/** Lowercase status word used inside sentences ("No failed tests."). */
+function statusWord(t: TFunction, status: TestCaseStatus): string {
+  if (status === 'passed') return t('terminal:testRunner.wordPassed', { defaultValue: 'passed' });
+  if (status === 'failed') return t('terminal:testRunner.wordFailed', { defaultValue: 'failed' });
+  if (status === 'error') return t('terminal:testRunner.wordError', { defaultValue: 'error' });
+  return t('terminal:testRunner.wordSkipped', { defaultValue: 'skipped' });
+}
 
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds)) return '';
@@ -134,15 +159,15 @@ function renderConsoleLines(output: string[]): React.ReactNode {
   });
 }
 
-function formatRelativeTime(ms: number): string {
+function formatRelativeTime(ms: number, t: TFunction): string {
   const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
+  if (diff < 60_000) return t('common:time.justNow');
   const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('terminal:testRunner.minutesAgo', { defaultValue: '{{n}}m ago', n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('terminal:testRunner.hoursAgo', { defaultValue: '{{n}}h ago', n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t('terminal:testRunner.daysAgo', { defaultValue: '{{n}}d ago', n: days });
 }
 
 /** Run history browser — lists persisted past runs; clicking one loads it. */
@@ -153,6 +178,7 @@ function TestRunHistoryPanel({
   currentRunId: string | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [rows, setRows] = useState<TestRunSummary[] | null>(null);
 
   useEffect(() => {
@@ -173,9 +199,9 @@ function TestRunHistoryPanel({
   return (
     <div className="trm-history">
       {rows === null ? (
-        <div className="trm-console-empty">Loading history…</div>
+        <div className="trm-console-empty">{t('terminal:testRunner.loadingHistory', { defaultValue: 'Loading history…' })}</div>
       ) : rows.length === 0 ? (
-        <div className="trm-console-empty">No past runs recorded yet.</div>
+        <div className="trm-console-empty">{t('terminal:testRunner.noPastRuns', { defaultValue: 'No past runs recorded yet.' })}</div>
       ) : (
         rows.map((r) => {
           const meta = RUN_STATUS_META[r.status];
@@ -188,7 +214,7 @@ function TestRunHistoryPanel({
               title={r.command || r.targetPath}
             >
               <span className="trm-history-status" style={{ color: meta.color }}>
-                {meta.label}
+                {runStatusLabel(t, r.status)}
               </span>
               <span className="trm-history-name">{name}</span>
               <span className="trm-history-counts">
@@ -200,7 +226,7 @@ function TestRunHistoryPanel({
                 <span className="total">/ {r.totals.tests}</span>
               </span>
               <span className="trm-history-cmd">{r.command}</span>
-              <span className="trm-history-time">{formatRelativeTime(r.finishedAt)}</span>
+              <span className="trm-history-time">{formatRelativeTime(r.finishedAt, t)}</span>
             </button>
           );
         })
@@ -210,6 +236,7 @@ function TestRunHistoryPanel({
 }
 
 export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }: TestRunnerModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const run = useTestRun(runId);
   const outputRef = useRef<HTMLDivElement>(null);
   const [rightTab, setRightTab] = useState<'console' | 'detail'>('console');
@@ -304,17 +331,17 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
             <div className="modal-header">
               <div className="trm-title">
                 <Icon name="flask" size={16} />
-                <span className="trm-title-text">Test Results</span>
+                <span className="trm-title-text">{t('terminal:testRunner.title', { defaultValue: 'Test Results' })}</span>
               </div>
               <div className="trm-header-actions">
                 <button
                   className={`trm-header-btn ${showHistory ? 'active' : ''}`}
                   onClick={() => setShowHistory((v) => !v)}
-                  title="Run history"
+                  title={t('terminal:testRunner.runHistory', { defaultValue: 'Run history' })}
                 >
-                  <Icon name="hourglass" size={13} /> History
+                  <Icon name="hourglass" size={13} /> {t('terminal:fileExplorer.gitHistory.title')}
                 </button>
-                <button className="modal-close" onClick={onClose} aria-label="Close">
+                <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
                   <Icon name="close" size={16} />
                 </button>
               </div>
@@ -323,9 +350,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
               <TestRunHistoryPanel currentRunId={null} onClose={() => setShowHistory(false)} />
             ) : (
               <div className="trm-empty-state">
-                No test run yet. Right-click a folder or a test file in the file explorer and
-                choose <strong>Run Tests</strong>. Past runs (if any) are under{' '}
-                <strong>History</strong>.
+                {t('terminal:testRunner.emptyStateLead', { defaultValue: 'No test run yet. Right-click a folder or a test file in the file explorer and choose ' })}<strong>{t('terminal:testRunner.runTests', { defaultValue: 'Run Tests' })}</strong>{t('terminal:testRunner.emptyStateTail', { defaultValue: '. Past runs (if any) are under ' })}<strong>{t('terminal:fileExplorer.gitHistory.title')}</strong>.
               </div>
             )}
           </div>
@@ -411,7 +436,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
           <div className="modal-header">
             <div className="trm-title">
               <Icon name="flask" size={16} />
-              <span className="trm-title-text">Test Results</span>
+              <span className="trm-title-text">{t('terminal:testRunner.title', { defaultValue: 'Test Results' })}</span>
               <span className="trm-target" title={run?.targetPath || displayName}>
                 {displayName}
               </span>
@@ -420,11 +445,11 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
               <button
                 className={`trm-header-btn ${showHistory ? 'active' : ''}`}
                 onClick={() => setShowHistory((v) => !v)}
-                title="Run history"
+                title={t('terminal:testRunner.runHistory', { defaultValue: 'Run history' })}
               >
-                <Icon name="hourglass" size={13} /> History
+                <Icon name="hourglass" size={13} /> {t('terminal:fileExplorer.gitHistory.title')}
               </button>
-              <button className="modal-close" onClick={onClose} aria-label="Close">
+              <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
                 <Icon name="close" size={16} />
               </button>
             </div>
@@ -438,7 +463,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
           <div className="trm-summary">
             <span className="trm-status-pill" style={{ color: runMeta.color, borderColor: runMeta.color }}>
               {isRunning && <span className="trm-spinner" />}
-              {runMeta.label}
+              {runStatusLabel(t, status)}
             </span>
 
             {totals ? (
@@ -446,15 +471,15 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                 <button
                   className={`trm-count total ${statusFilter === null ? 'active' : ''}`}
                   onClick={() => setStatusFilter(null)}
-                  title="Show all tests"
+                  title={t('terminal:testRunner.showAll', { defaultValue: 'Show all tests' })}
                 >
-                  {totals.tests} tests
+                  {t('terminal:testRunner.testsCount', { defaultValue: '{{n}} tests', n: totals.tests })}
                 </button>
                 <button
                   className={`trm-count passed ${statusFilter === 'passed' ? 'active' : ''}`}
                   onClick={() => toggleFilter('passed')}
                   disabled={totals.passed === 0}
-                  title="Show only passed"
+                  title={t('terminal:testRunner.showPassed', { defaultValue: 'Show only passed' })}
                 >
                   <Icon name="success" size={12} /> {totals.passed}
                 </button>
@@ -462,7 +487,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   className={`trm-count failed ${statusFilter === 'failed' ? 'active' : ''}`}
                   onClick={() => toggleFilter('failed')}
                   disabled={totals.failures === 0}
-                  title="Show only failed"
+                  title={t('terminal:testRunner.showFailed', { defaultValue: 'Show only failed' })}
                 >
                   <Icon name="failure" size={12} /> {totals.failures}
                 </button>
@@ -470,23 +495,23 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   className={`trm-count error ${statusFilter === 'error' ? 'active' : ''}`}
                   onClick={() => toggleFilter('error')}
                   disabled={totals.errors === 0}
-                  title="Show only errored"
+                  title={t('terminal:testRunner.showErrored', { defaultValue: 'Show only errored' })}
                 >
-                  <Icon name="warning-circle" size={12} /> {totals.errors} errors
+                  <Icon name="warning-circle" size={12} /> {t('terminal:testRunner.errorsCount', { defaultValue: '{{n}} errors', n: totals.errors })}
                 </button>
                 <button
                   className={`trm-count skipped ${statusFilter === 'skipped' ? 'active' : ''}`}
                   onClick={() => toggleFilter('skipped')}
                   disabled={totals.skipped === 0}
-                  title="Show only skipped"
+                  title={t('terminal:testRunner.showSkipped', { defaultValue: 'Show only skipped' })}
                 >
                   <Icon name="minus" size={12} /> {totals.skipped}
                 </button>
-                <span className="trm-count suites">{totals.suites} suites</span>
+                <span className="trm-count suites">{t('terminal:testRunner.suitesCount', { defaultValue: '{{n}} suites', n: totals.suites })}</span>
               </div>
             ) : (
               <div className="trm-counts">
-                <span className="trm-count total">{isRunning ? 'Running Maven…' : 'No results'}</span>
+                <span className="trm-count total">{isRunning ? t('terminal:testRunner.runningMaven', { defaultValue: 'Running Maven…' }) : t('common:status.noResults')}</span>
               </div>
             )}
 
@@ -510,10 +535,10 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
             <div className="trm-tree">
               {!result || result.suites.length === 0 ? (
                 <div className="trm-tree-empty">
-                  {isRunning ? 'Waiting for results…' : 'No test results were produced.'}
+                  {isRunning ? t('terminal:testRunner.waitingResults', { defaultValue: 'Waiting for results…' }) : t('terminal:testRunner.noResultsProduced', { defaultValue: 'No test results were produced.' })}
                 </div>
               ) : visibleSuites.length === 0 ? (
-                <div className="trm-tree-empty">No {statusFilter} tests.</div>
+                <div className="trm-tree-empty">{t('terminal:testRunner.noFilteredTests', { defaultValue: 'No {{status}} tests.', status: statusWord(t, statusFilter!) })}</div>
               ) : (
                 visibleSuites.map((suite) => {
                   // A filter drills into matching tests, so keep those suites open.
@@ -577,14 +602,14 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   className={`trm-tab ${rightTab === 'console' ? 'active' : ''}`}
                   onClick={() => setRightTab('console')}
                 >
-                  Console
+                  {t('terminal:testRunner.console', { defaultValue: 'Console' })}
                 </button>
                 <button
                   className={`trm-tab ${rightTab === 'detail' ? 'active' : ''}`}
                   onClick={() => setRightTab('detail')}
                   disabled={!selectedCase}
                 >
-                  Test Detail
+                  {t('terminal:testRunner.testDetail', { defaultValue: 'Test Detail' })}
                 </button>
               </div>
 
@@ -593,7 +618,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   {run && run.output.length > 0 ? (
                     renderConsoleLines(run.output)
                   ) : (
-                    <div className="trm-console-empty">{isRunning ? 'Starting…' : 'No output.'}</div>
+                    <div className="trm-console-empty">{isRunning ? t('terminal:testRunner.starting', { defaultValue: 'Starting…' }) : t('terminal:testRunner.noOutput', { defaultValue: 'No output.' })}</div>
                   )}
                 </div>
               ) : (
@@ -612,7 +637,7 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                       <div className="trm-detail-suite">{selectedCase.suiteName}</div>
                       {selectedCase.status === 'passed' || selectedCase.status === 'skipped' ? (
                         <div className="trm-detail-ok">
-                          {STATUS_META[selectedCase.status].label}
+                          {statusLabel(t, selectedCase.status)}
                           {selectedCase.failureMessage ? ` — ${selectedCase.failureMessage}` : ''}
                         </div>
                       ) : (
@@ -632,19 +657,19 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                       {/* Full run console, inline under the selected test's detail. */}
                       <div className="trm-detail-console-section">
                         <div className="trm-detail-console-header">
-                          <Icon name="desktop" size={13} /> Full console output
+                          <Icon name="desktop" size={13} /> {t('terminal:testRunner.fullConsole', { defaultValue: 'Full console output' })}
                         </div>
                         <div className="trm-detail-console">
                           {run && run.output.length > 0 ? (
                             renderConsoleLines(run.output)
                           ) : (
-                            <div className="trm-console-empty">No output.</div>
+                            <div className="trm-console-empty">{t('terminal:testRunner.noOutput', { defaultValue: 'No output.' })}</div>
                           )}
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="trm-console-empty">Select a test to see details.</div>
+                    <div className="trm-console-empty">{t('terminal:testRunner.selectTest', { defaultValue: 'Select a test to see details.' })}</div>
                   )}
                 </div>
               )}
@@ -656,22 +681,22 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
             <div className="trm-footer-left">
               {isRunning && (
                 <button className="btn btn-danger" onClick={() => void handleStop()} disabled={stopping}>
-                  <Icon name="stop" size={13} /> {stopping ? 'Stopping…' : 'Stop'}
+                  <Icon name="stop" size={13} /> {stopping ? t('terminal:testRunner.stopping', { defaultValue: 'Stopping…' }) : t('common:buttons.stop')}
                 </button>
               )}
             </div>
             <div className="trm-footer-right">
               <button className="btn btn-secondary" onClick={onClose}>
-                Close
+                {t('common:buttons.close')}
               </button>
               {totals && totals.failures + totals.errors > 0 && (
                 <button
                   className="btn btn-secondary"
                   onClick={() => void handleCopyFailed()}
-                  title="Copy failed & errored tests to the clipboard"
+                  title={t('terminal:testRunner.copyFailedTitle', { defaultValue: 'Copy failed & errored tests to the clipboard' })}
                 >
                   <Icon name={copiedFailed ? 'check' : 'clipboard'} size={13} />{' '}
-                  {copiedFailed ? 'Copied' : `Copy failed (${totals.failures + totals.errors})`}
+                  {copiedFailed ? t('common:status.copied') : t('terminal:testRunner.copyFailed', { defaultValue: 'Copy failed ({{n}})', n: totals.failures + totals.errors })}
                 </button>
               )}
               {/* Subset re-run builds a Maven `-Dtest=` filter — other runners
@@ -681,13 +706,13 @@ export function TestRunnerModal({ isOpen, runId, targetName, onClose, onRerun }:
                   className="btn btn-secondary"
                   onClick={() => onRerun(buildTestFilter(visibleSuites))}
                   disabled={isRunning}
-                  title={`Re-run only the ${statusFilter} tests`}
+                  title={t('terminal:testRunner.rerunOnlyTitle', { defaultValue: 'Re-run only the {{status}} tests', status: statusWord(t, statusFilter) })}
                 >
-                  <Icon name="refresh" size={13} /> Re-run {statusFilter}
+                  <Icon name="refresh" size={13} /> {t('terminal:testRunner.rerunStatus', { defaultValue: 'Re-run {{status}}', status: statusWord(t, statusFilter) })}
                 </button>
               )}
               <button className="btn btn-primary" onClick={() => onRerun()} disabled={isRunning}>
-                <Icon name="refresh" size={13} /> Re-run all
+                <Icon name="refresh" size={13} /> {t('terminal:testRunner.rerunAll', { defaultValue: 'Re-run all' })}
               </button>
             </div>
           </div>

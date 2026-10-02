@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Building } from '../../../shared/types';
 import { store, useDatabaseState, useQueryResults, useExecutingQuery } from '../../store';
 import { ResultsTable } from './ResultsTable';
@@ -22,6 +23,7 @@ interface DatabasePanelInlineProps {
 const getStorageKey = (buildingId: string) => `db-panel-${buildingId}`;
 
 export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ building }) => {
+  const { t } = useTranslation(['terminal']);
   const dbState = useDatabaseState(building.id);
   const queryResults = useQueryResults(building.id);
   const isExecuting = useExecutingQuery(building.id);
@@ -156,7 +158,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
   if (connections.length === 0) {
     return (
       <div className="db-inline">
-        <div className="db-inline__empty"><Icon name="plug" size={14} /> No connections configured</div>
+        <div className="db-inline__empty"><Icon name="plug" size={14} /> {t('terminal:building.noConnections')}</div>
       </div>
     );
   }
@@ -171,7 +173,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
             className="db-inline__select"
             value={activeConnectionId ?? ''}
             onChange={(e) => handleConnectionChange(e.target.value)}
-            title="Connection"
+            title={t('terminal:database.connection')}
           >
             {connections.map(c => (
               <option key={c.id} value={c.id}>
@@ -191,9 +193,9 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
           className="db-inline__select"
           value={activeDatabase ?? ''}
           onChange={(e) => handleDatabaseChange(e.target.value)}
-          title="Database"
+          title={t('terminal:database.databaseTitle')}
         >
-          <option value="">Select database...</option>
+          <option value="">{t('terminal:dbInline.selectDatabase', { defaultValue: 'Select database...' })}</option>
           {databases.map(db => (
             <option key={db} value={db}>{db}</option>
           ))}
@@ -205,9 +207,9 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
             className="db-inline__select db-inline__select--tables"
             value=""
             onChange={(e) => { if (e.target.value) handleTableClick(e.target.value); }}
-            title="Quick query table"
+            title={t('terminal:dbInline.quickQueryTable', { defaultValue: 'Quick query table' })}
           >
-            <option value="">Tables ({tableInfos.length})</option>
+            <option value="">{t('terminal:dbInline.tablesCount', { defaultValue: 'Tables ({{n}})', n: tableInfos.length })}</option>
             {tableInfos.map(t => (
               <option key={t.name} value={t.name}>{t.name}</option>
             ))}
@@ -219,7 +221,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
           className="db-inline__run"
           onClick={handleExecute}
           disabled={isExecuting || !activeDatabase || !query.trim()}
-          title="Execute (Ctrl+Enter)"
+          title={t('terminal:dbInline.executeTooltip', { defaultValue: 'Execute (Ctrl+Enter)' })}
         >
           <Icon name={isExecuting ? 'hourglass' : 'play'} size={14} />
         </button>
@@ -256,7 +258,7 @@ export const DatabasePanelInline: React.FC<DatabasePanelInlineProps> = ({ buildi
           />
         ) : (
           <div className="db-inline__empty">
-            {activeDatabase ? 'Run a query or select a table above' : 'Select a database to get started'}
+            {activeDatabase ? t('terminal:dbInline.hintRunQuery', { defaultValue: 'Run a query or select a table above' }) : t('terminal:dbInline.hintSelectDatabase', { defaultValue: 'Select a database to get started' })}
           </div>
         )}
       </div>

@@ -14,6 +14,8 @@
  */
 
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 // Gherkin step keywords (EN + ES) highlighted in the inline steps view.
 const GHERKIN_KEYWORD_RE = /^(Given|When|Then|And|But|Dado|Dada|Cuando|Entonces|Y|E|Pero)\b/;
@@ -70,19 +72,35 @@ import type {
 import type { TestRun } from '../store';
 import '../styles/components/tests-building-modal.scss';
 
-const STATUS_META: Record<TestCaseStatus, { icon: IconName; color: string; label: string }> = {
-  passed: { icon: 'success', color: '#5cb88a', label: 'Passed' },
-  failed: { icon: 'failure', color: '#d45a5a', label: 'Failed' },
-  error: { icon: 'warning-circle', color: '#d4a05a', label: 'Error' },
-  skipped: { icon: 'minus', color: '#8a8a98', label: 'Skipped' },
+const STATUS_META: Record<TestCaseStatus, { icon: IconName; color: string }> = {
+  passed: { icon: 'success', color: '#5cb88a' },
+  failed: { icon: 'failure', color: '#d45a5a' },
+  error: { icon: 'warning-circle', color: '#d4a05a' },
+  skipped: { icon: 'minus', color: '#8a8a98' },
 };
 
-const RUN_STATUS_META: Record<TestRunStatus, { color: string; label: string }> = {
-  running: { color: '#5a8fd4', label: 'Running…' },
-  passed: { color: '#5cb88a', label: 'Passed' },
-  failed: { color: '#d45a5a', label: 'Failed' },
-  error: { color: '#d4a05a', label: 'Error' },
+const RUN_STATUS_META: Record<TestRunStatus, { color: string }> = {
+  running: { color: '#5a8fd4' },
+  passed: { color: '#5cb88a' },
+  failed: { color: '#d45a5a' },
+  error: { color: '#d4a05a' },
 };
+
+/** Localized labels for the per-testcase status badges. */
+function testStatusLabel(t: TFunction, status: TestCaseStatus): string {
+  if (status === 'passed') return t('terminal:testsBuilding.statusPassed', { defaultValue: 'Passed' });
+  if (status === 'failed') return t('common:status.failed');
+  if (status === 'error') return t('terminal:overview.statusLabels.error');
+  return t('terminal:testsBuilding.statusSkipped', { defaultValue: 'Skipped' });
+}
+
+/** Localized labels for the per-run status badges. */
+function runStatusLabel(t: TFunction, status: TestRunStatus): string {
+  if (status === 'running') return t('terminal:testsBuilding.runStatusRunning', { defaultValue: 'Running…' });
+  if (status === 'passed') return t('terminal:testsBuilding.statusPassed', { defaultValue: 'Passed' });
+  if (status === 'failed') return t('common:status.failed');
+  return t('terminal:overview.statusLabels.error');
+}
 
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '';
@@ -93,15 +111,15 @@ function formatDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function formatRelativeTime(ms: number): string {
+function formatRelativeTime(ms: number, t: TFunction): string {
   const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
+  if (diff < 60_000) return t('common:time.justNow');
   const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('terminal:testsBuilding.minutesAgo', { defaultValue: '{{n}}m ago', n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('terminal:testsBuilding.hoursAgo', { defaultValue: '{{n}}h ago', n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t('terminal:testsBuilding.daysAgo', { defaultValue: '{{n}}d ago', n: days });
 }
 
 /** Match a scanned method to its reported testcase status. Tolerates the
@@ -179,6 +197,7 @@ const TestBrowser = memo(function TestBrowser({
   onRunClass,
   onRunMethod,
 }: TestBrowserProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Scenario rows with their steps view open (Background + steps inline).
   const [openSteps, setOpenSteps] = useState<Set<string>>(new Set());
   const toggleSteps = useCallback((key: string) => {
@@ -193,7 +212,7 @@ const TestBrowser = memo(function TestBrowser({
   const groups = useMemo(() => {
     const byPackage = new Map<string, FilteredClass[]>();
     for (const cls of classes) {
-      const key = cls.packageName || '(default package)';
+      const key = cls.packageName || t('terminal:testsBuilding.defaultPackage', { defaultValue: '(default package)' });
       const list = byPackage.get(key) ?? [];
       list.push(cls);
       byPackage.set(key, list);
@@ -202,7 +221,7 @@ const TestBrowser = memo(function TestBrowser({
   }, [classes]);
 
   if (classes.length === 0) {
-    return <div className="tbm-browser-empty">{searching ? 'No tests match your search.' : 'No tests found in this folder.'}</div>;
+    return <div className="tbm-browser-empty">{searching ? t('terminal:testsBuilding.noTestsMatch', { defaultValue: 'No tests match your search.' }) : t('terminal:testsBuilding.noTestsFound', { defaultValue: 'No tests found in this folder.' })}</div>;
   }
 
   return (
@@ -234,7 +253,7 @@ const TestBrowser = memo(function TestBrowser({
                     <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
                   </span>
                   {rowStatus ? (
-                    <span className="tbm-status-icon" style={{ color: STATUS_META[rowStatus].color }} title={STATUS_META[rowStatus].label}>
+                    <span className="tbm-status-icon" style={{ color: STATUS_META[rowStatus].color }} title={testStatusLabel(t, rowStatus)}>
                       <Icon name={STATUS_META[rowStatus].icon} size={13} />
                     </span>
                   ) : (
@@ -250,10 +269,10 @@ const TestBrowser = memo(function TestBrowser({
                     </span>
                   )}
                   {cls.runner ? (
-                    <span className="tbm-runner-chip" title="Suite/runner class — runs as a whole (no individual methods)">runner</span>
+                    <span className="tbm-runner-chip" title={t('terminal:testsBuilding.runnerChipTitle', { defaultValue: 'Suite/runner class — runs as a whole (no individual methods)' })}>{t('terminal:testsBuilding.runner', { defaultValue: 'runner' })}</span>
                   ) : cls.feature ? (
                     <>
-                      <span className="tbm-runner-chip feature" title="Gherkin feature file — scenarios run via the project's Cucumber runner">feature</span>
+                      <span className="tbm-runner-chip feature" title={t('terminal:testsBuilding.featureChipTitle', { defaultValue: 'Gherkin feature file — scenarios run via the project\'s Cucumber runner' })}>{t('terminal:testsBuilding.feature', { defaultValue: 'feature' })}</span>
                       <span className="tbm-method-count">{cls.methods.length}</span>
                     </>
                   ) : (
@@ -262,7 +281,7 @@ const TestBrowser = memo(function TestBrowser({
                   <button
                     className="tbm-play"
                     disabled={runBusy}
-                    title={runBusy ? 'A run is already in progress' : `Run ${cls.className}`}
+                    title={runBusy ? t('terminal:testsBuilding.runInProgress', { defaultValue: 'A run is already in progress' }) : t('terminal:testsBuilding.runClass', { defaultValue: 'Run {{name}}', name: cls.className })}
                     onClick={(e) => { e.stopPropagation(); onRunClass(cls); }}
                   >
                     <Icon name="play" size={11} />
@@ -295,7 +314,7 @@ const TestBrowser = memo(function TestBrowser({
                           <button
                             className="tbm-play"
                             disabled={runBusy}
-                            title={runBusy ? 'A run is already in progress' : `Run ${label}`}
+                            title={runBusy ? t('terminal:testsBuilding.runInProgress', { defaultValue: 'A run is already in progress' }) : t('terminal:testsBuilding.runLabel', { defaultValue: 'Run {{name}}', name: label })}
                             onClick={(e) => { e.stopPropagation(); onRunMethod(cls, m); }}
                           >
                             <Icon name="play" size={10} />
@@ -357,6 +376,7 @@ const RunFailures = memo(function RunFailures({ result }: { result: TestRunResul
 });
 
 function RunPanel({ run, onStop, onRerun }: { run: TestRun; onStop: () => void; onRerun: () => void }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [showConsole, setShowConsole] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -400,7 +420,7 @@ function RunPanel({ run, onStop, onRerun }: { run: TestRun; onStop: () => void; 
       <div className="tbm-run-header">
         <span className="tbm-run-status" style={{ color: meta.color, borderColor: meta.color }}>
           {isRunning && <span className="tbm-spinner" />}
-          {meta.label}
+          {runStatusLabel(t, run.status)}
         </span>
         <span className="tbm-run-elapsed"><Icon name="hourglass" size={11} /> {formatDuration(elapsed)}</span>
         <span className="tbm-run-command" title={run.command}>{run.command}</span>
@@ -408,16 +428,16 @@ function RunPanel({ run, onStop, onRerun }: { run: TestRun; onStop: () => void; 
 
       {totals ? (
         <div className="tbm-run-totals">
-          <span className="chip total">{totals.tests} tests</span>
+          <span className="chip total">{t('terminal:testsBuilding.testsChip', { defaultValue: '{{n}} tests', n: totals.tests })}</span>
           <span className="chip passed"><Icon name="success" size={11} /> {totals.passed}</span>
           {totals.failures > 0 && <span className="chip failed"><Icon name="failure" size={11} /> {totals.failures}</span>}
           {totals.errors > 0 && <span className="chip error"><Icon name="warning-circle" size={11} /> {totals.errors}</span>}
           {totals.skipped > 0 && <span className="chip skipped"><Icon name="minus" size={11} /> {totals.skipped}</span>}
-          <span className="chip suites">{totals.suites} suites</span>
+          <span className="chip suites">{t('terminal:testsBuilding.suitesChip', { defaultValue: '{{n}} suites', n: totals.suites })}</span>
         </div>
       ) : (
         <div className="tbm-run-totals">
-          <span className="chip total">{isRunning ? 'Compiling / starting…' : 'No results'}</span>
+          <span className="chip total">{isRunning ? t('terminal:testsBuilding.compiling', { defaultValue: 'Compiling / starting…' }) : t('common:status.noResults')}</span>
         </div>
       )}
 
@@ -430,35 +450,35 @@ function RunPanel({ run, onStop, onRerun }: { run: TestRun; onStop: () => void; 
           ) : (
             <div className="tbm-run-allgreen">
               <Icon name="success" size={26} />
-              <span>{isRunning ? 'All green so far…' : 'All tests passed'}</span>
+              <span>{isRunning ? t('terminal:testsBuilding.allGreenSoFar', { defaultValue: 'All green so far…' }) : t('terminal:testsBuilding.allPassed', { defaultValue: 'All tests passed' })}</span>
             </div>
           )
         ) : (
-          <div className="tbm-run-waiting">{isRunning ? 'Waiting for the first suite…' : 'No suites were produced.'}</div>
+          <div className="tbm-run-waiting">{isRunning ? t('terminal:testsBuilding.waitingFirstSuite', { defaultValue: 'Waiting for the first suite…' }) : t('terminal:testsBuilding.noSuites', { defaultValue: 'No suites were produced.' })}</div>
         )}
 
         {showConsole && (
           <div className="tbm-console" ref={consoleRef}>
-            {consoleLines && consoleLines.length > 0 ? consoleLines : <div className="tbm-run-waiting">No output yet.</div>}
+            {consoleLines && consoleLines.length > 0 ? consoleLines : <div className="tbm-run-waiting">{t('terminal:testsBuilding.noOutputYet', { defaultValue: 'No output yet.' })}</div>}
           </div>
         )}
       </div>
 
       <div className="tbm-run-actions">
         <button className="tbm-btn" onClick={() => setShowConsole((v) => !v)}>
-          <Icon name="terminal" size={12} /> {showConsole ? 'Hide console' : 'Console'}
+          <Icon name="terminal" size={12} /> {showConsole ? t('terminal:testsBuilding.hideConsole', { defaultValue: 'Hide console' }) : t('terminal:testsBuilding.console', { defaultValue: 'Console' })}
         </button>
         {isRunning ? (
           <button className="tbm-btn danger" onClick={onStop}>
-            <Icon name="stop" size={12} /> Stop
+            <Icon name="stop" size={12} /> {t('common:buttons.stop')}
           </button>
         ) : (
           <button className="tbm-btn" onClick={onRerun}>
-            <Icon name="refresh" size={12} /> Re-run
+            <Icon name="refresh" size={12} /> {t('terminal:testsBuilding.rerun', { defaultValue: 'Re-run' })}
           </button>
         )}
         <button className="tbm-btn accent" onClick={() => store.openTestResultsForRun(run.runId)}>
-          <Icon name="launch" size={12} /> Full results
+          <Icon name="launch" size={12} /> {t('terminal:testsBuilding.fullResults', { defaultValue: 'Full results' })}
         </button>
       </div>
     </div>
@@ -484,6 +504,7 @@ const TbmHistory = memo(function TbmHistory({
   reloadKey: number;
   onPick: (runId: string) => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [open, setOpen] = useState(() => getStorageBoolean(`tbm-history-open:${folderPath}`, true));
   const [rows, setRows] = useState<TestRunSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -515,16 +536,16 @@ const TbmHistory = memo(function TbmHistory({
       <button className="tbm-history-toggle" onClick={() => setOpen((v) => !v)}>
         <Icon name={open ? 'caret-down' : 'caret-right'} size={10} />
         <Icon name="hourglass" size={12} />
-        <span className="tbm-history-title">Previous runs</span>
+        <span className="tbm-history-title">{t('terminal:testsBuilding.previousRuns', { defaultValue: 'Previous runs' })}</span>
         {rows !== null && <span className="tbm-history-badge">{count}</span>}
         {loading && <span className="tbm-spinner" />}
       </button>
       {open && (
         <div className="tbm-history-list">
           {rows === null ? (
-            <div className="tbm-history-empty">Loading history…</div>
+            <div className="tbm-history-empty">{t('terminal:testsBuilding.loadingHistory', { defaultValue: 'Loading history…' })}</div>
           ) : count === 0 ? (
-            <div className="tbm-history-empty">No past runs for this folder yet.</div>
+            <div className="tbm-history-empty">{t('terminal:testsBuilding.noPastRuns', { defaultValue: 'No past runs for this folder yet.' })}</div>
           ) : (
             rows.map((r) => {
               const meta = RUN_STATUS_META[r.status];
@@ -537,7 +558,7 @@ const TbmHistory = memo(function TbmHistory({
                   title={r.command || r.targetPath}
                 >
                   <span className="tbm-history-status" style={{ color: meta.color }}>
-                    {meta.label}
+                    {runStatusLabel(t, r.status)}
                   </span>
                   <span className="tbm-history-counts">
                     <span className="passed">{r.totals.passed}✓</span>
@@ -546,7 +567,7 @@ const TbmHistory = memo(function TbmHistory({
                     <span className="total">/ {r.totals.tests}</span>
                   </span>
                   <span className="tbm-history-cmd">{r.command}</span>
-                  <span className="tbm-history-time">{formatRelativeTime(r.finishedAt)}</span>
+                  <span className="tbm-history-time">{formatRelativeTime(r.finishedAt, t)}</span>
                 </button>
               );
             })
@@ -579,6 +600,7 @@ export function TestsBrowser({
   /** Lets the host pulse its flask icon while a run is in flight. */
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const folderPath = building.folderPath ?? '';
 
   const [scan, setScan] = useState<TestScanResult | null>(null);
@@ -623,16 +645,16 @@ export function TestsBrowser({
     try {
       const ok = await store.loadTestRunFromHistory(runId);
       if (ok) setActiveRunId(runId);
-      else setRunError('That run could not be loaded (it may have been cleared).');
+      else setRunError(t('terminal:testsBuilding.runLoadFailed', { defaultValue: 'That run could not be loaded (it may have been cleared).' }));
     } catch (err: any) {
-      setRunError(err?.message || 'Failed to load the selected run.');
+      setRunError(err?.message || t('terminal:testsBuilding.loadRunFailed', { defaultValue: 'Failed to load the selected run.' }));
     }
   }, []);
 
   const doScan = useCallback(async () => {
     if (!folderPath) {
       setScanning(false);
-      setScanError('This building has no tests folder configured. Edit the building to set one.');
+      setScanError(t('terminal:testsBuilding.noFolderConfigured', { defaultValue: 'This building has no tests folder configured. Edit the building to set one.' }));
       return;
     }
     setScanning(true);
@@ -641,13 +663,13 @@ export function TestsBrowser({
       const result = await scanTests(folderPath);
       if (!result.testable) {
         setScan(null);
-        setScanError(result.error || 'No runnable test project found at this path.');
+        setScanError(result.error || t('terminal:testsBuilding.noProject', { defaultValue: 'No runnable test project found at this path.' }));
       } else {
         setScan(result);
       }
     } catch (err: any) {
       setScan(null);
-      setScanError(err?.message || 'Scan failed');
+      setScanError(err?.message || t('terminal:testsBuilding.scanFailed', { defaultValue: 'Scan failed' }));
     } finally {
       setScanning(false);
     }
@@ -657,8 +679,8 @@ export function TestsBrowser({
   useEffect(() => {
     void doScan();
     if (!autoFocusSearch) return;
-    const t = window.setTimeout(() => searchRef.current?.focus(), 150);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 150);
+    return () => window.clearTimeout(timer);
   }, [doScan, autoFocusSearch]);
 
   // Adopt the most recent run already related to this folder (e.g. still
@@ -744,7 +766,7 @@ export function TestsBrowser({
         const runId = await store.runTestsQuiet(target, testFilter);
         setActiveRunId(runId);
       } catch (err: any) {
-        setRunError(err?.message || 'Failed to start test run');
+        setRunError(err?.message || t('terminal:testsBuilding.startRunFailed', { defaultValue: 'Failed to start test run' }));
       }
     },
     [scan?.moduleRoot, folderPath],
@@ -805,30 +827,30 @@ export function TestsBrowser({
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search classes and methods…"
+            placeholder={t('terminal:testsBuilding.searchPlaceholder', { defaultValue: 'Search classes and methods…' })}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
-            <button className="tbm-search-clear" onClick={() => setSearch('')} title="Clear search">
+            <button className="tbm-search-clear" onClick={() => setSearch('')} title={t('terminal:testsBuilding.clearSearch', { defaultValue: 'Clear search' })}>
               <Icon name="close" size={11} />
             </button>
           )}
         </div>
         <span className="tbm-scan-counts">
-          {scan ? `${filteredClasses.length} classes · ${visibleMethodCount} tests` : ''}
+          {scan ? t('terminal:testsBuilding.scanCounts', { defaultValue: '{{classes}} classes · {{tests}} tests', classes: filteredClasses.length, tests: visibleMethodCount }) : ''}
         </span>
         {scan?.runnerType && <span className="tbm-runner-badge">{scan.runnerType}</span>}
-        <button className="tbm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan test sources">
-          <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
+        <button className="tbm-btn" onClick={() => void doScan()} disabled={scanning} title={t('terminal:testsBuilding.rescanTitle', { defaultValue: 'Re-scan test sources' })}>
+          <Icon name="refresh" size={12} /> {scanning ? t('terminal:testsBuilding.scanning', { defaultValue: 'Scanning…' }) : t('terminal:testsBuilding.rescan', { defaultValue: 'Rescan' })}
         </button>
         <button
           className="tbm-btn primary"
           onClick={handleRunAll}
           disabled={isRunBusy || scanning || !scan}
-          title={isRunBusy ? 'A run is already in progress' : 'Run the whole suite'}
+          title={isRunBusy ? t('terminal:testsBuilding.runInProgress', { defaultValue: 'A run is already in progress' }) : t('terminal:testsBuilding.runSuiteTitle', { defaultValue: 'Run the whole suite' })}
         >
-          <Icon name="play" size={12} /> Run all
+          <Icon name="play" size={12} /> {t('terminal:testsBuilding.runAll', { defaultValue: 'Run all' })}
         </button>
       </div>
 
@@ -839,13 +861,13 @@ export function TestsBrowser({
         <div className="tbm-left" style={{ width: `${splitLeftPct}%` }}>
           {scanning ? (
             <div className="tbm-browser-empty">
-              <span className="tbm-spinner large" /> Scanning test sources…
+              <span className="tbm-spinner large" /> {t('terminal:testsBuilding.scanningSources', { defaultValue: 'Scanning test sources…' })}
             </div>
           ) : scanError ? (
             <div className="tbm-browser-empty error">
               <Icon name="warning-circle" size={16} /> {scanError}
               <button className="tbm-btn" onClick={() => void doScan()}>
-                <Icon name="refresh" size={12} /> Retry
+                <Icon name="refresh" size={12} /> {t('common:buttons.retry')}
               </button>
             </div>
           ) : (
@@ -868,7 +890,7 @@ export function TestsBrowser({
           onMouseDown={onSplitMouseDown}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize test list"
+          aria-label={t('terminal:testsBuilding.resizeList', { defaultValue: 'Resize test list' })}
         />
 
         <div className="tbm-right">
@@ -877,8 +899,8 @@ export function TestsBrowser({
           ) : (
             <div className="tbm-run-empty">
               <Icon name="flask" size={30} />
-              <span>No run yet</span>
-              <p>Run the whole suite, or hover a class or method on the left and hit play.</p>
+              <span>{t('terminal:testsBuilding.noRunYet', { defaultValue: 'No run yet' })}</span>
+              <p>{t('terminal:testsBuilding.noRunHint', { defaultValue: 'Run the whole suite, or hover a class or method on the left and hit play.' })}</p>
             </div>
           )}
           <TbmHistory
@@ -898,6 +920,7 @@ export function TestsBrowser({
 // ============================================================================
 
 function TestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const folderPath = building.folderPath ?? '';
   const [busy, setBusy] = useState(false);
   return (
@@ -929,12 +952,12 @@ function TestsBuildingModal({ building, onClose }: { building: Building; onClose
                   dockBuilding(building.id, 'tests');
                   onClose();
                 }}
-                aria-label="Dock below the terminal input"
-                title="Minimize — dock below the terminal input"
+                aria-label={t('terminal:testsBuilding.dockBelow', { defaultValue: 'Dock below the terminal input' })}
+                title={t('terminal:testsBuilding.minimizeDock', { defaultValue: 'Minimize — dock below the terminal input' })}
               >
                 <Icon name="arrow-down" size={16} />
               </button>
-              <button className="modal-close" onClick={onClose} aria-label="Close">
+              <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
                 <Icon name="close" size={16} />
               </button>
             </div>

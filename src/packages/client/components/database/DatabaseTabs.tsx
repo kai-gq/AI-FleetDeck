@@ -51,7 +51,7 @@ export const DatabaseTabs: React.FC<DatabaseTabsProps> = ({
             className="database-tabs__tab-close"
             onClick={() => onTabClose(tab.id)}
             title={t('terminal:database.closeTab')}
-            aria-label={`Close ${tab.database} tab`}
+            aria-label={t('terminal:dbTabs.closeTabAria', { defaultValue: 'Close {{name}} tab', name: tab.database })}
           >
             &times;
           </button>

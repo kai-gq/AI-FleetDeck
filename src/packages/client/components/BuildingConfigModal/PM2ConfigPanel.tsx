@@ -151,7 +151,7 @@ export function PM2ConfigPanel({
           className="form-input"
           value={pm2InterpreterArgs}
           onChange={(e) => setPm2InterpreterArgs(e.target.value)}
-          placeholder="-jar (for Java)"
+          placeholder={t('terminal:pm2Panel.interpArgsPlaceholder', { defaultValue: '-jar (for Java)' })}
         />
       </div>
 
@@ -179,16 +179,16 @@ export function PM2ConfigPanel({
           <summary>{t('terminal:building.pm2Examples')}</summary>
           <div className="pm2-examples-content">
             <div className="pm2-example">
-              <strong>Node.js:</strong> Script: <code>npm</code>, Args: <code>run dev</code>
+              <strong>Node.js:</strong> {t('terminal:building.pm2Script')} <code>npm</code>, {t('terminal:pm2Panel.args', { defaultValue: 'Args:' })} <code>run dev</code>
             </div>
             <div className="pm2-example">
-              <strong>Symfony:</strong> Script: <code>symfony</code>, Args: <code>serve --no-daemon</code>, Interpreter: <code>None</code>
+              <strong>Symfony:</strong> {t('terminal:building.pm2Script')} <code>symfony</code>, {t('terminal:pm2Panel.args', { defaultValue: 'Args:' })} <code>serve --no-daemon</code>, {t('terminal:building.pm2Interpreter')} <code>None</code>
             </div>
             <div className="pm2-example">
-              <strong>Java JAR:</strong> Script: <code>app.jar</code>, Interpreter: <code>Java</code>, Interp. Args: <code>-jar</code>
+              <strong>Java JAR:</strong> {t('terminal:building.pm2Script')} <code>app.jar</code>, {t('terminal:building.pm2Interpreter')} <code>Java</code>, {t('terminal:building.pm2InterpArgs')} <code>-jar</code>
             </div>
             <div className="pm2-example">
-              <strong>Python:</strong> Script: <code>app.py</code>, Interpreter: <code>Python 3</code>
+              <strong>Python:</strong> {t('terminal:building.pm2Script')} <code>app.py</code>, {t('terminal:building.pm2Interpreter')} <code>Python 3</code>
             </div>
           </div>
         </details>
@@ -211,12 +211,12 @@ export function PM2ConfigPanel({
               <span className="pm2-metric-value">{formatBytes(building.pm2Status.memory || 0)}</span>
             </span>
             <span className="pm2-metric">
-              <span className="pm2-metric-label">Restarts</span>
+              <span className="pm2-metric-label">{t('terminal:pm2Panel.restarts', { defaultValue: 'Restarts' })}</span>
               <span className="pm2-metric-value">{building.pm2Status.restarts || 0}</span>
             </span>
             {building.pm2Status.uptime && (
               <span className="pm2-metric">
-                <span className="pm2-metric-label">Uptime</span>
+                <span className="pm2-metric-label">{t('common:labels.uptime')}</span>
                 <span className="pm2-metric-value">{formatUptime(building.pm2Status.uptime)}</span>
               </span>
             )}

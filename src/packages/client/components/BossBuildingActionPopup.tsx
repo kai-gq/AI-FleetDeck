@@ -209,7 +209,7 @@ export const BossBuildingActionPopup = memo(function BossBuildingActionPopup({ b
                         e.stopPropagation();
                         handleOpenUrl(port, e.altKey);
                       }}
-                      title={`Open http://${window.location.hostname}:${port} (Alt+Click for modal)`}
+                      title={t('terminal:buildingAction.openUrlTitle', { defaultValue: 'Open {{url}} (Alt+Click for modal)', url: `http://${window.location.hostname}:${port}` })}
                     >
                       :{port}
                     </a>

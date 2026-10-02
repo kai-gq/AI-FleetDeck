@@ -11,6 +11,8 @@
  */
 
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { store, useHttpBuildingId, useBuildings } from '../store';
@@ -67,25 +69,26 @@ function formatTime(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
-function formatRelativeTime(ms: number): string {
+function formatRelativeTime(ms: number, t: TFunction): string {
   const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
+  if (diff < 60_000) return t('common:time.justNow');
   const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t('terminal:httpRequests.minutesAgo', { defaultValue: '{{n}}m ago', n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('terminal:httpRequests.hoursAgo', { defaultValue: '{{n}}h ago', n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t('terminal:httpRequests.daysAgo', { defaultValue: '{{n}}d ago', n: days });
 }
 
 /** Render text with {{variables}} highlighted as chips. */
 function VarText({ text }: { text: string }) {
+  const { t } = useTranslation(['terminal']);
   const parts = useMemo(() => text.split(/(\{\{[^}]*\}\})/g), [text]);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith('{{') ? (
-          <span key={i} className="hrm-var" title="Resolved from the selected environment">
+          <span key={i} className="hrm-var" title={t('terminal:httpRequests.resolvedFromEnv', { defaultValue: 'Resolved from the selected environment' })}>
             {part}
           </span>
         ) : (
@@ -153,10 +156,11 @@ const RequestBrowser = memo(function RequestBrowser({
   onRunFile,
   onEditFile,
 }: RequestBrowserProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   if (files.length === 0) {
     return (
       <div className="hrm-browser-empty">
-        {searching ? 'No requests match your search.' : 'No .http files found in this folder.'}
+        {searching ? t('terminal:httpRequests.noRequestsMatch', { defaultValue: 'No requests match your search.' }) : t('terminal:httpRequests.noHttpFiles', { defaultValue: 'No .http files found in this folder.' })}
       </div>
     );
   }
@@ -180,7 +184,7 @@ const RequestBrowser = memo(function RequestBrowser({
               <span className="hrm-req-count">{file.requests.length}</span>
               <button
                 className="hrm-edit-btn"
-                title={`Edit ${file.relFile}`}
+                title={t('terminal:httpRequests.editFile', { defaultValue: 'Edit {{file}}', file: file.relFile })}
                 onClick={(e) => {
                   e.stopPropagation();
                   onEditFile(file.relFile);
@@ -191,7 +195,7 @@ const RequestBrowser = memo(function RequestBrowser({
               <button
                 className="hrm-play"
                 disabled={busy}
-                title={busy ? 'A request is already running' : `Run all ${file.requests.length} requests in ${file.relFile}`}
+                title={busy ? t('terminal:httpRequests.requestAlreadyRunning', { defaultValue: 'A request is already running' }) : t('terminal:httpRequests.runAllInFile', { defaultValue: 'Run all {{n}} requests in {{file}}', n: file.requests.length, file: file.relFile })}
                 onClick={(e) => {
                   e.stopPropagation();
                   onRunFile(file.relFile);
@@ -227,7 +231,7 @@ const RequestBrowser = memo(function RequestBrowser({
                     <button
                       className="hrm-play"
                       disabled={busy}
-                      title={busy ? 'A request is already running' : `Run ${req.method} ${req.url}`}
+                      title={busy ? t('terminal:httpRequests.requestAlreadyRunning', { defaultValue: 'A request is already running' }) : t('terminal:httpRequests.runRequest', { defaultValue: 'Run {{method}} {{url}}', method: req.method, url: req.url })}
                       onClick={(e) => {
                         e.stopPropagation();
                         onRun(file.relFile, req.index);
@@ -250,6 +254,7 @@ const RequestBrowser = memo(function RequestBrowser({
 // ============================================================================
 
 function ResponsePanel({ result }: { result: HttpRunResult }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [showHeaders, setShowHeaders] = useState(false);
   const [showRequest, setShowRequest] = useState(false);
   const body = useMemo(() => prettyBody(result.body, result.contentType), [result]);
@@ -269,7 +274,7 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
           </span>
         ) : (
           <span className="hrm-status-pill error">
-            <Icon name="warning-circle" size={12} /> Failed
+            <Icon name="warning-circle" size={12} /> {t('common:status.failed')}
           </span>
         )}
         <span className="hrm-response-meta">
@@ -284,13 +289,13 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
         <button
           className={`hrm-btn small ${showRequest ? 'active' : ''}`}
           onClick={() => setShowRequest((v) => !v)}
-          title="Show the request exactly as it was sent (variables resolved)"
+          title={t('terminal:httpRequests.showRequestTitle', { defaultValue: 'Show the request exactly as it was sent (variables resolved)' })}
         >
-          {showRequest ? 'Hide request' : 'Request'}
+          {showRequest ? t('terminal:httpRequests.hideRequest', { defaultValue: 'Hide request' }) : t('terminal:httpRequests.showRequest', { defaultValue: 'Request' })}
         </button>
         {result.headers && result.headers.length > 0 && (
           <button className="hrm-btn small" onClick={() => setShowHeaders((v) => !v)}>
-            {showHeaders ? 'Hide headers' : `Headers (${result.headers.length})`}
+            {showHeaders ? t('terminal:httpRequests.hideHeaders', { defaultValue: 'Hide headers' }) : t('terminal:httpRequests.headersCount', { defaultValue: 'Headers ({{n}})', n: result.headers.length })}
           </button>
         )}
         <CopyCurlButton request={result.request} />
@@ -298,7 +303,7 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
 
       {showRequest && (
         <div className="hrm-sent-request">
-          <div className="hrm-sent-request-title">Request sent</div>
+          <div className="hrm-sent-request-title">{t('terminal:httpRequests.requestSent', { defaultValue: 'Request sent' })}</div>
           <div className="hrm-request-line">
             <span className="hrm-method big" style={{ color: methodColor(result.request.method) }}>
               {result.request.method}
@@ -325,14 +330,14 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
       )}
       {result.unresolvedVariables && result.unresolvedVariables.length > 0 && (
         <div className="hrm-warn-banner">
-          <Icon name="warning-circle" size={13} /> Unresolved variables:{' '}
+          <Icon name="warning-circle" size={13} /> {t('terminal:httpRequests.unresolvedVariables', { defaultValue: 'Unresolved variables:' })}{' '}
           {result.unresolvedVariables.map((v) => (
             <span key={v} className="hrm-var">{`{{${v}}}`}</span>
           ))}
-          <span className="hrm-warn-hint">— pick an environment or define them in http-client.env.json</span>
+          <span className="hrm-warn-hint">{t('terminal:httpRequests.unresolvedHint', { defaultValue: '— pick an environment or define them in http-client.env.json' })}</span>
         </div>
       )}
-      {result.finalUrl && <div className="hrm-final-url">→ redirected to {result.finalUrl}</div>}
+      {result.finalUrl && <div className="hrm-final-url">{t('terminal:httpRequests.redirectedTo', { defaultValue: '→ redirected to {{url}}', url: result.finalUrl })}</div>}
 
       {showHeaders && result.headers && (
         <div className="hrm-headers-table">
@@ -345,7 +350,7 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
       )}
 
       {result.bodyBinary ? (
-        <div className="hrm-body-note">Binary response ({formatSize(result.sizeBytes)}) — not displayed.</div>
+        <div className="hrm-body-note">{t('terminal:httpRequests.binaryResponse', { defaultValue: 'Binary response ({{size}}) — not displayed.', size: formatSize(result.sizeBytes) })}</div>
       ) : body.text ? (
         <>
           {bodyHtml ? (
@@ -353,10 +358,10 @@ function ResponsePanel({ result }: { result: HttpRunResult }) {
           ) : (
             <pre className="hrm-response-body">{body.text}</pre>
           )}
-          {result.bodyTruncated && <div className="hrm-body-note">… response truncated at 2 MB</div>}
+          {result.bodyTruncated && <div className="hrm-body-note">{t('terminal:httpRequests.responseTruncated', { defaultValue: '… response truncated at 2 MB' })}</div>}
         </>
       ) : (
-        result.ok && <div className="hrm-body-note">Empty response body.</div>
+        result.ok && <div className="hrm-body-note">{t('terminal:httpRequests.emptyResponse', { defaultValue: 'Empty response body.' })}</div>
       )}
     </div>
   );
@@ -373,6 +378,7 @@ interface RequestDetailProps {
 }
 
 function RequestDetail({ file, request, result, running, busy, onRun, onEdit }: RequestDetailProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Prefer the resolved request of the last run for curl copies; before any
   // run, fall back to the raw request ({{vars}} left as-is).
   const curlRequest: HttpResolvedRequest = result?.request ?? {
@@ -390,15 +396,15 @@ function RequestDetail({ file, request, result, running, busy, onRun, onEdit }: 
         <span className="hrm-detail-loc">
           {file.relFile}:{request.line}
         </span>
-        <button className="hrm-btn small" onClick={onEdit} title={`Edit ${file.relFile}`}>
-          <Icon name="edit" size={11} /> Edit
+        <button className="hrm-btn small" onClick={onEdit} title={t('terminal:httpRequests.editFile', { defaultValue: 'Edit {{file}}', file: file.relFile })}>
+          <Icon name="edit" size={11} /> {t('common:buttons.edit')}
         </button>
         <CopyCurlButton
           request={curlRequest}
-          title={result ? 'Copy as curl (variables resolved from the last run)' : 'Copy as curl ({{variables}} kept as written — run once to copy resolved values)'}
+          title={result ? t('terminal:httpRequests.copyCurlResolved', { defaultValue: 'Copy as curl (variables resolved from the last run)' }) : t('terminal:httpRequests.copyCurlRaw', { defaultValue: 'Copy as curl ({{variables}} kept as written — run once to copy resolved values)' })}
         />
         <button className="hrm-btn primary" onClick={onRun} disabled={busy}>
-          {running ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} Run
+          {running ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} {t('common:buttons2.run')}
         </button>
       </div>
 
@@ -432,7 +438,7 @@ function RequestDetail({ file, request, result, running, busy, onRun, onEdit }: 
       ) : (
         <div className="hrm-response-empty">
           <Icon name="send" size={24} />
-          <span>Not sent yet</span>
+          <span>{t('terminal:httpRequests.notSentYet', { defaultValue: 'Not sent yet' })}</span>
         </div>
       )}
     </div>
@@ -455,6 +461,7 @@ interface FileEditorProps {
 }
 
 function FileEditor({ relFile, text, dirty, busy, error, onChange, onSave, onCancel }: FileEditorProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   return (
     <div className="hrm-editor">
       <div className="hrm-detail-head">
@@ -463,14 +470,14 @@ function FileEditor({ relFile, text, dirty, busy, error, onChange, onSave, onCan
         </span>
         <span className="hrm-detail-name" title={relFile}>
           {relFile}
-          {dirty && <span className="hrm-editor-dirty" title="Unsaved changes">●</span>}
+          {dirty && <span className="hrm-editor-dirty" title={t('terminal:httpRequests.unsavedChanges', { defaultValue: 'Unsaved changes' })}>●</span>}
         </span>
-        <span className="hrm-detail-loc">Ctrl+S saves · Esc closes</span>
+        <span className="hrm-detail-loc">{t('terminal:httpRequests.editorShortcuts', { defaultValue: 'Ctrl+S saves · Esc closes' })}</span>
         <button className="hrm-btn primary" onClick={onSave} disabled={busy || !dirty}>
-          {busy ? <span className="hrm-spinner" /> : <Icon name="save" size={12} />} Save
+          {busy ? <span className="hrm-spinner" /> : <Icon name="save" size={12} />} {t('common:buttons.save')}
         </button>
         <button className="hrm-btn" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t('common:buttons.cancel')}
         </button>
       </div>
       {error && (
@@ -519,6 +526,7 @@ const HrmHistory = memo(function HrmHistory({
   reloadKey: number;
   onPick: (runId: string) => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [open, setOpen] = useState(() => getStorageBoolean(`http-history-open:${folderPath}`, true));
   const [rows, setRows] = useState<HttpRunSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -544,15 +552,15 @@ const HrmHistory = memo(function HrmHistory({
     <div className="hrm-history">
       <button className="hrm-history-toggle" onClick={() => setOpen((v) => !v)}>
         <Icon name={open ? 'caret-down' : 'caret-right'} size={10} />
-        <span className="hrm-history-title">Previous requests</span>
+        <span className="hrm-history-title">{t('terminal:httpRequests.previousRequests', { defaultValue: 'Previous requests' })}</span>
         {rows !== null && <span className="hrm-history-badge">{count}</span>}
       </button>
       {open && (
         <div className="hrm-history-list">
           {loading && rows === null ? (
-            <div className="hrm-history-empty">Loading history…</div>
+            <div className="hrm-history-empty">{t('terminal:httpRequests.loadingHistory', { defaultValue: 'Loading history…' })}</div>
           ) : count === 0 ? (
-            <div className="hrm-history-empty">No requests executed for this folder yet.</div>
+            <div className="hrm-history-empty">{t('terminal:httpRequests.noHistoryYet', { defaultValue: 'No requests executed for this folder yet.' })}</div>
           ) : (
             rows!.map((r) => (
               <button key={r.runId} className="hrm-history-row" onClick={() => onPick(r.runId)}>
@@ -568,12 +576,12 @@ const HrmHistory = memo(function HrmHistory({
                   </span>
                 ) : (
                   <span className="hrm-history-code error" title={r.error}>
-                    ERR
+                    {t('terminal:httpRequests.err', { defaultValue: 'ERR' })}
                   </span>
                 )}
                 <span className="hrm-history-meta">{formatTime(r.timeMs)}</span>
                 {r.env && <span className="hrm-history-env">{r.env}</span>}
-                <span className="hrm-history-meta when">{formatRelativeTime(r.finishedAt)}</span>
+                <span className="hrm-history-meta when">{formatRelativeTime(r.finishedAt, t)}</span>
               </button>
             ))
           )}
@@ -597,27 +605,28 @@ function HistoryRunView({
   onRerun: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const req = run.result.request;
   return (
     <div className="hrm-detail">
       <div className="hrm-detail-head">
         <span className="hrm-history-chip" title={new Date(run.finishedAt).toLocaleString()}>
-          <Icon name="hourglass" size={11} /> {formatRelativeTime(run.finishedAt)}
+          <Icon name="hourglass" size={11} /> {formatRelativeTime(run.finishedAt, t)}
         </span>
         <span className="hrm-detail-name" title={run.requestName}>
           {run.requestName}
         </span>
         <span className="hrm-detail-loc">
           {run.relFile}
-          {run.env ? ` · env: ${run.env}` : ''}
+          {run.env ? t('terminal:httpRequests.envLabel', { defaultValue: ' · env: {{env}}', env: run.env }) : ''}
         </span>
-        <CopyCurlButton request={req} title="Copy this past run as a curl command (as it was sent)" />
+        <CopyCurlButton request={req} title={t('terminal:httpRequests.copyPastRun', { defaultValue: 'Copy this past run as a curl command (as it was sent)' })} />
         {canRerun && (
           <button className="hrm-btn primary" onClick={onRerun} disabled={busy}>
-            <Icon name="play" size={12} /> Run again
+            <Icon name="play" size={12} /> {t('terminal:httpRequests.runAgain', { defaultValue: 'Run again' })}
           </button>
         )}
-        <button className="hrm-btn" onClick={onClose} title="Back to the current request">
+        <button className="hrm-btn" onClick={onClose} title={t('terminal:httpRequests.backToCurrent', { defaultValue: 'Back to the current request' })}>
           <Icon name="close" size={12} />
         </button>
       </div>
@@ -668,6 +677,7 @@ export function HttpRequestsBrowser({
   /** Lets the host pulse its globe icon while a request/run is in flight. */
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const folderPath = building.folderPath ?? '';
 
   const [scan, setScan] = useState<HttpRequestsScanResult | null>(null);
@@ -718,7 +728,7 @@ export function HttpRequestsBrowser({
   const doScan = useCallback(async () => {
     if (!folderPath) {
       setScanning(false);
-      setScanError('This building has no folder configured. Edit the building to set one.');
+      setScanError(t('terminal:httpRequests.noFolderConfigured', { defaultValue: 'This building has no folder configured. Edit the building to set one.' }));
       return;
     }
     setScanning(true);
@@ -727,7 +737,7 @@ export function HttpRequestsBrowser({
       const result = await scanHttpRequests(folderPath);
       if (!result.ok) {
         setScan(null);
-        setScanError(result.error || 'Scan failed');
+        setScanError(result.error || t('terminal:httpRequests.scanFailed', { defaultValue: 'Scan failed' }));
       } else {
         setScan(result);
         // Auto-expand everything when the corpus is small — but never override
@@ -742,7 +752,7 @@ export function HttpRequestsBrowser({
       }
     } catch (err: any) {
       setScan(null);
-      setScanError(err?.message || 'Scan failed');
+      setScanError(err?.message || t('terminal:httpRequests.scanFailed', { defaultValue: 'Scan failed' }));
     } finally {
       setScanning(false);
     }
@@ -844,7 +854,7 @@ export function HttpRequestsBrowser({
         }
         return true;
       } catch (err: any) {
-        if (!closedRef.current) setRunError(err?.message || 'Failed to run request');
+        if (!closedRef.current) setRunError(err?.message || t('terminal:httpRequests.runFailed', { defaultValue: 'Failed to run request' }));
         return false;
       } finally {
         if (!closedRef.current) setRunningKey(null);
@@ -931,12 +941,12 @@ export function HttpRequestsBrowser({
         body: JSON.stringify({ parentDir: folderPath, name: 'http-client.env.json' }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Failed to create env file');
+      if (!res.ok) throw new Error(data.error || t('terminal:httpRequests.createEnvFailed', { defaultValue: 'Failed to create env file' }));
       if (closedRef.current) return;
       setEditing({ relFile: 'http-client.env.json', text: ENV_TEMPLATE, original: '' });
       setHistoryRun(null);
     } catch (err: any) {
-      if (!closedRef.current) setRunError(err?.message || 'Failed to create env file');
+      if (!closedRef.current) setRunError(err?.message || t('terminal:httpRequests.createEnvFailed', { defaultValue: 'Failed to create env file' }));
     }
   }, [folderPath, ENV_TEMPLATE]);
 
@@ -959,13 +969,13 @@ export function HttpRequestsBrowser({
       try {
         const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(`${folderPath}/${relFile}`)}`));
         const data = (await res.json().catch(() => ({}))) as { content?: string; error?: string };
-        if (!res.ok) throw new Error(data.error || 'Failed to read file');
+        if (!res.ok) throw new Error(data.error || t('terminal:httpRequests.readFileFailed', { defaultValue: 'Failed to read file' }));
         if (closedRef.current) return;
         const text = data.content ?? '';
         setEditing({ relFile, text, original: text });
         setHistoryRun(null);
       } catch (err: any) {
-        if (!closedRef.current) setRunError(err?.message || 'Failed to open file for editing');
+        if (!closedRef.current) setRunError(err?.message || t('terminal:httpRequests.openFileFailed', { defaultValue: 'Failed to open file for editing' }));
       }
     },
     [folderPath],
@@ -982,19 +992,19 @@ export function HttpRequestsBrowser({
         body: JSON.stringify({ path: `${folderPath}/${editing.relFile}`, content: editing.text }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Failed to save file');
+      if (!res.ok) throw new Error(data.error || t('terminal:httpRequests.saveFileFailed', { defaultValue: 'Failed to save file' }));
       if (closedRef.current) return;
       setEditing(null);
       await doScan(); // re-parse so names/indices/vars reflect the edit
     } catch (err: any) {
-      if (!closedRef.current) setEditorError(err?.message || 'Failed to save file');
+      if (!closedRef.current) setEditorError(err?.message || t('terminal:httpRequests.saveFileFailed', { defaultValue: 'Failed to save file' }));
     } finally {
       if (!closedRef.current) setEditorBusy(false);
     }
   }, [editing, folderPath, doScan]);
 
   const handleCancelEdit = useCallback(() => {
-    if (editing && editing.text !== editing.original && !window.confirm('Discard unsaved changes?')) return;
+    if (editing && editing.text !== editing.original && !window.confirm(t('terminal:httpRequests.discardChanges', { defaultValue: 'Discard unsaved changes?' }))) return;
     setEditing(null);
     setEditorError(null);
   }, [editing]);
@@ -1017,24 +1027,24 @@ export function HttpRequestsBrowser({
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search requests, URLs and files…"
+            placeholder={t('terminal:httpRequests.searchPlaceholder', { defaultValue: 'Search requests, URLs and files…' })}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
-            <button className="hrm-search-clear" onClick={() => setSearch('')} title="Clear search">
+            <button className="hrm-search-clear" onClick={() => setSearch('')} title={t('terminal:httpRequests.clearSearch', { defaultValue: 'Clear search' })}>
               <Icon name="close" size={11} />
             </button>
           )}
         </div>
         <span className="hrm-scan-counts">
-          {scan ? `${filteredFiles.length} files · ${requestCount} requests` : ''}
+          {scan ? t('terminal:httpRequests.scanCounts', { defaultValue: '{{files}} files · {{requests}} requests', files: filteredFiles.length, requests: requestCount }) : ''}
         </span>
         {scan && scan.environments.length > 0 && (
           <label className="hrm-env">
-            <span>Env</span>
+            <span>{t('terminal:httpRequests.env', { defaultValue: 'Env' })}</span>
             <select value={env} onChange={(e) => setEnv(e.target.value)}>
-              <option value="">(none)</option>
+              <option value="">{t('terminal:httpRequests.noneOption', { defaultValue: '(none)' })}</option>
               {scan.environments.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -1043,8 +1053,8 @@ export function HttpRequestsBrowser({
             </select>
           </label>
         )}
-        <button className="hrm-btn" onClick={() => void doScan()} disabled={scanning} title="Re-scan .http files">
-          <Icon name="refresh" size={12} /> {scanning ? 'Scanning…' : 'Rescan'}
+        <button className="hrm-btn" onClick={() => void doScan()} disabled={scanning} title={t('terminal:httpRequests.rescanTitle', { defaultValue: 'Re-scan .http files' })}>
+          <Icon name="refresh" size={12} /> {scanning ? t('terminal:httpRequests.scanning', { defaultValue: 'Scanning…' }) : t('terminal:httpRequests.rescan', { defaultValue: 'Rescan' })}
         </button>
         <button
           className="hrm-btn primary"
@@ -1052,11 +1062,13 @@ export function HttpRequestsBrowser({
           disabled={busy || scanning || !scan || requestCount === 0}
           title={
             busy
-              ? 'A run is already in progress'
-              : `Run all ${requestCount} requests${search.trim() ? ' (filtered)' : ''}, file by file`
+              ? t('terminal:httpRequests.runInProgress', { defaultValue: 'A run is already in progress' })
+              : search.trim()
+                ? t('terminal:httpRequests.runAllTitleFiltered', { defaultValue: 'Run all {{n}} requests (filtered), file by file', n: requestCount })
+                : t('terminal:httpRequests.runAllTitle', { defaultValue: 'Run all {{n}} requests, file by file', n: requestCount })
           }
         >
-          {runningAll ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} Run all
+          {runningAll ? <span className="hrm-spinner" /> : <Icon name="play" size={12} />} {t('terminal:httpRequests.runAll', { defaultValue: 'Run all' })}
         </button>
       </div>
 
@@ -1073,33 +1085,33 @@ export function HttpRequestsBrowser({
           {scan && !scanning && (
             <div className="hrm-env-files">
               <span className="hrm-env-files-label">
-                <Icon name="gear" size={11} /> Env
+                <Icon name="gear" size={11} /> {t('terminal:httpRequests.env', { defaultValue: 'Env' })}
               </span>
               {scan.envFiles.map((f) => (
-                <button key={f} className="hrm-env-file-chip" title={`Edit ${f}`} onClick={() => void handleEditFile(f)}>
+                <button key={f} className="hrm-env-file-chip" title={t('terminal:httpRequests.editFile', { defaultValue: 'Edit {{file}}', file: f })} onClick={() => void handleEditFile(f)}>
                   <Icon name="edit" size={10} /> {f.split('/').pop()}
                 </button>
               ))}
               {scan.envFiles.length === 0 && (
                 <button
                   className="hrm-env-file-chip create"
-                  title="Create http-client.env.json in this folder"
+                  title={t('terminal:httpRequests.createEnvTitle', { defaultValue: 'Create http-client.env.json in this folder' })}
                   onClick={() => void handleCreateEnvFile()}
                 >
-                  <Icon name="file-add" size={10} /> Create http-client.env.json
+                  <Icon name="file-add" size={10} /> {t('terminal:httpRequests.createEnv', { defaultValue: 'Create http-client.env.json' })}
                 </button>
               )}
             </div>
           )}
           {scanning ? (
             <div className="hrm-browser-empty">
-              <span className="hrm-spinner large" /> Scanning .http files…
+              <span className="hrm-spinner large" /> {t('terminal:httpRequests.scanningFiles', { defaultValue: 'Scanning .http files…' })}
             </div>
           ) : scanError ? (
             <div className="hrm-browser-empty error">
               <Icon name="warning-circle" size={16} /> {scanError}
               <button className="hrm-btn" onClick={() => void doScan()}>
-                <Icon name="refresh" size={12} /> Retry
+                <Icon name="refresh" size={12} /> {t('common:buttons.retry')}
               </button>
             </div>
           ) : (
@@ -1125,7 +1137,7 @@ export function HttpRequestsBrowser({
           onMouseDown={onSplitMouseDown}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize request list"
+          aria-label={t('terminal:httpRequests.resizeList', { defaultValue: 'Resize request list' })}
         />
 
         <div className="hrm-right">
@@ -1161,8 +1173,8 @@ export function HttpRequestsBrowser({
           ) : (
             <div className="hrm-response-empty">
               <Icon name="globe" size={30} />
-              <span>No request selected</span>
-              <p>Pick a request on the left, or hit its play button to fire it.</p>
+              <span>{t('terminal:httpRequests.noRequestSelected', { defaultValue: 'No request selected' })}</span>
+              <p>{t('terminal:httpRequests.pickRequest', { defaultValue: 'Pick a request on the left, or hit its play button to fire it.' })}</p>
             </div>
           )}
           <HrmHistory folderPath={folderPath} reloadKey={historyReloadKey} onPick={handlePickHistory} />
@@ -1177,6 +1189,7 @@ export function HttpRequestsBrowser({
 // ============================================================================
 
 function HttpRequestsBuildingModal({ building, onClose }: { building: Building; onClose: () => void }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const folderPath = building.folderPath ?? '';
   const [busy, setBusy] = useState(false);
   return (
@@ -1210,12 +1223,12 @@ function HttpRequestsBuildingModal({ building, onClose }: { building: Building; 
                   dockBuilding(building.id, 'http');
                   onClose();
                 }}
-                aria-label="Dock below the terminal input"
-                title="Minimize — dock below the terminal input"
+                aria-label={t('terminal:httpRequests.dockBelow', { defaultValue: 'Dock below the terminal input' })}
+                title={t('terminal:httpRequests.minimizeDock', { defaultValue: 'Minimize — dock below the terminal input' })}
               >
                 <Icon name="arrow-down" size={16} />
               </button>
-              <button className="modal-close" onClick={onClose} aria-label="Close">
+              <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
                 <Icon name="close" size={16} />
               </button>
             </div>
