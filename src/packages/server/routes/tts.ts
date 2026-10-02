@@ -6,19 +6,69 @@
 
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-// Piper voice model paths
-const PIPER_VOICES_DIR = path.join(os.homedir(), '.local/share/piper-voices');
+// Find project root (where package.json is), same idiom as app.ts
+function findProjectRoot(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (dir !== '/') {
+    if (fs.existsSync(path.join(dir, 'package.json'))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
+}
+
+// Locate the piper executable:
+// PIPER_BIN env override -> project-local tools/piper -> PATH lookup ('piper')
+function resolvePiperBin(): string {
+  if (process.env.PIPER_BIN) {
+    return process.env.PIPER_BIN;
+  }
+  const exe = process.platform === 'win32' ? 'piper.exe' : 'piper';
+  const candidates = [
+    path.join(findProjectRoot(), 'tools', 'piper', exe),
+    path.join(process.cwd(), 'tools', 'piper', exe),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return 'piper';
+}
+
+// Locate voice models:
+// PIPER_VOICES_DIR env override -> project-local tools/piper/voices
+// -> legacy ~/.local/share/piper-voices
+function resolveVoicesDir(): string {
+  if (process.env.PIPER_VOICES_DIR) {
+    return process.env.PIPER_VOICES_DIR;
+  }
+  const candidates = [
+    path.join(findProjectRoot(), 'tools', 'piper', 'voices'),
+    path.join(process.cwd(), 'tools', 'piper', 'voices'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return path.join(os.homedir(), '.local/share/piper-voices');
+}
 
 // Voice models by language
 const VOICES = {
   es: 'es_MX-claude-high',   // Latin American Spanish (Mexican female - Claude voice)
   en: 'en_US-amy-medium',    // American English (female)
+  zh: 'zh_CN-huayan-medium', // Mandarin Chinese (female)
 };
 
 // Common Spanish words for language detection
@@ -62,9 +112,18 @@ const ENGLISH_INDICATORS = [
 
 /**
  * Detect language based on word frequency
- * Returns 'es' for Spanish, 'en' for English
+ * Returns 'zh' for Chinese, 'es' for Spanish, 'en' for English
  */
-function detectLanguage(text: string): 'es' | 'en' {
+function detectLanguage(text: string): 'es' | 'en' | 'zh' {
+  // Chinese has no space-separated words: compare CJK ideograph count against
+  // Latin letters so mixed CN/EN text (paths, identifiers) still picks zh.
+  const cjkCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const latinCount = (text.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/g) || []).length;
+  if (cjkCount > 0 && cjkCount >= latinCount) {
+    logger.server.log(`[TTS] Language detection: CJK=${cjkCount}, Latin=${latinCount} -> zh`);
+    return 'zh';
+  }
+
   const words = text.toLowerCase().split(/\s+/);
 
   let spanishScore = 0;
@@ -136,21 +195,38 @@ router.post('/speak', async (req: Request, res: Response) => {
 
   logger.server.log(`[TTS] Generating audio with voice ${selectedVoice}: ${cleanedText.substring(0, 50)}...`);
 
-  const modelPath = path.join(PIPER_VOICES_DIR, `${selectedVoice}.onnx`);
+  const modelPath = path.join(resolveVoicesDir(), `${selectedVoice}.onnx`);
+
+  if (!fs.existsSync(modelPath)) {
+    logger.server.error(`[TTS] Voice model not found: ${modelPath}`);
+    res.status(500).json({ error: 'TTS voice model not installed' });
+    return;
+  }
+
+  const piperBin = resolvePiperBin();
+  logger.server.log(`[TTS] Using piper binary: ${piperBin}`);
 
   try {
-    // Generate WAV audio using piper
+    // Generate WAV audio using piper.
+    //
+    // Write to a temp file rather than stdout: piper's Windows build writes
+    // stdout in text mode, turning every 0x0a byte into 0x0d 0x0a. That
+    // shifts the PCM data and the WAV plays back as pure static.
+    const tmpFile = path.join(os.tmpdir(), `tide-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+
     const audioData = await new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
+      const cleanup = () => {
+        try {
+          fs.unlinkSync(tmpFile);
+        } catch {
+          // best effort - file may not exist if spawn failed
+        }
+      };
 
-      const piper = spawn('piper', [
+      const piper = spawn(piperBin, [
         '--model', modelPath,
-        '--output_file', '-'  // Output to stdout as WAV
-      ]);
-
-      piper.stdout.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
+        '--output_file', tmpFile
+      ], { windowsHide: true });
 
       piper.stderr.on('data', (data: Buffer) => {
         // Piper outputs progress to stderr, ignore it
@@ -161,13 +237,22 @@ router.post('/speak', async (req: Request, res: Response) => {
       });
 
       piper.on('error', (err) => {
+        cleanup();
         reject(new Error(`Piper spawn error: ${err.message}`));
       });
 
       piper.on('close', (code) => {
         if (code === 0) {
-          resolve(Buffer.concat(chunks));
+          try {
+            const wav = fs.readFileSync(tmpFile);
+            cleanup();
+            resolve(wav);
+          } catch (err) {
+            cleanup();
+            reject(err instanceof Error ? err : new Error(String(err)));
+          }
         } else {
+          cleanup();
           reject(new Error(`Piper exited with code ${code}`));
         }
       });
