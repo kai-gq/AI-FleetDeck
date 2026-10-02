@@ -4,6 +4,7 @@
  * pass/fail/skip counts, the command, and the first few failing tests.
  */
 
+import { useTranslation } from 'react-i18next';
 import { Icon, type IconName } from '../Icon';
 import type { TestRunCardData } from './testResultsParser';
 
@@ -22,25 +23,26 @@ function fmtTime(seconds: number): string {
 }
 
 export function TestResultsCard({ data }: { data: TestRunCardData }) {
+  const { t } = useTranslation(['terminal']);
   const meta = STATUS_META[data.status];
-  const t = data.totals;
-  const failedCount = t.failures + t.errors;
+  const totals = data.totals;
+  const failedCount = totals.failures + totals.errors;
   const extraFailing = failedCount - data.failing.length;
 
   return (
     <div className={`test-results-card status-${data.status}`}>
       <div className="trc-header">
         <span className="trc-status" style={{ color: meta.color }}>
-          <Icon name={meta.icon} size={13} /> {meta.label}
+          <Icon name={meta.icon} size={13} /> {t(`terminal:testResults.status.${data.status}`, { defaultValue: meta.label })}
         </span>
         <span className="trc-counts">
-          <span className="trc-count passed">{t.passed} passed</span>
-          {t.failures > 0 && <span className="trc-count failed">{t.failures} failed</span>}
-          {t.errors > 0 && <span className="trc-count error">{t.errors} errors</span>}
-          {t.skipped > 0 && <span className="trc-count skipped">{t.skipped} skipped</span>}
-          <span className="trc-count total">/ {t.tests}</span>
+          <span className="trc-count passed">{t('terminal:testResults.passed', { defaultValue: '{{n}} passed', n: totals.passed })}</span>
+          {totals.failures > 0 && <span className="trc-count failed">{t('terminal:testResults.failed', { defaultValue: '{{n}} failed', n: totals.failures })}</span>}
+          {totals.errors > 0 && <span className="trc-count error">{t('terminal:testResults.errors', { defaultValue: '{{n}} errors', n: totals.errors })}</span>}
+          {totals.skipped > 0 && <span className="trc-count skipped">{t('terminal:testResults.skipped', { defaultValue: '{{n}} skipped', n: totals.skipped })}</span>}
+          <span className="trc-count total">/ {totals.tests}</span>
         </span>
-        {fmtTime(t.time) && <span className="trc-time">{fmtTime(t.time)}</span>}
+        {fmtTime(totals.time) && <span className="trc-time">{fmtTime(totals.time)}</span>}
       </div>
 
       {data.command && <div className="trc-command">{data.command}</div>}
@@ -52,7 +54,7 @@ export function TestResultsCard({ data }: { data: TestRunCardData }) {
               <Icon name="failure" size={11} /> {f}
             </div>
           ))}
-          {extraFailing > 0 && <div className="trc-failing-more">+{extraFailing} more</div>}
+          {extraFailing > 0 && <div className="trc-failing-more">{t('terminal:testResults.more', { defaultValue: '+{{n}} more', n: extraFailing })}</div>}
         </div>
       )}
     </div>
