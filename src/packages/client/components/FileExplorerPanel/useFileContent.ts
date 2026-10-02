@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileData, FileType, UseFileContentReturn } from './types';
 import { apiUrl, authFetch, getAuthToken } from '../../utils/storage';
 import { isAudioFile, isVideoFile } from '../shared/mediaTypes';
@@ -66,6 +67,7 @@ function getFileType(extension: string): FileType {
  * Hook for managing file content loading
  */
 export function useFileContent(): UseFileContentReturn {
+  const { t } = useTranslation(['terminal']);
   const [file, setFile] = useState<FileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +89,8 @@ export function useFileContent(): UseFileContentReturn {
         const res = await authFetch(apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}`));
 
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({ error: 'Failed to load image' }));
-          setError(errorData.error || 'Failed to load image');
+          const errorData = await res.json().catch(() => ({ error: t('terminal:fileExplorer.failedToLoadImage', { defaultValue: 'Failed to load image' }) }));
+          setError(errorData.error || t('terminal:fileExplorer.failedToLoadImage', { defaultValue: 'Failed to load image' }));
           setFile(null);
           return;
         }
@@ -116,7 +118,7 @@ export function useFileContent(): UseFileContentReturn {
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
-          setError(info.error || 'Failed to load PDF info');
+          setError(info.error || t('terminal:fileExplorer.loadPdfInfoFailed', { defaultValue: 'Failed to load PDF info' }));
           setFile(null);
           return;
         }
@@ -142,7 +144,7 @@ export function useFileContent(): UseFileContentReturn {
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
-          setError(info.error || 'Failed to load media info');
+          setError(info.error || t('terminal:fileExplorer.loadMediaInfoFailed', { defaultValue: 'Failed to load media info' }));
           setFile(null);
           return;
         }
@@ -167,7 +169,7 @@ export function useFileContent(): UseFileContentReturn {
         const info = await infoRes.json();
 
         if (!infoRes.ok) {
-          setError(info.error || 'Failed to load file info');
+          setError(info.error || t('terminal:fileExplorer.loadFileInfoFailed', { defaultValue: 'Failed to load file info' }));
           setFile(null);
           return;
         }
@@ -210,7 +212,7 @@ export function useFileContent(): UseFileContentReturn {
             return;
           }
         }
-        setError(data.error || 'Failed to load file');
+        setError(data.error || t('terminal:fileExplorer.failedToLoad', { defaultValue: 'Failed to load file' }));
         setFile(null);
         return;
       }
@@ -220,13 +222,13 @@ export function useFileContent(): UseFileContentReturn {
         fileType: 'text'
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load file';
+      const message = err instanceof Error ? err.message : t('terminal:fileExplorer.failedToLoad', { defaultValue: 'Failed to load file' });
       setError(message);
       setFile(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   /**
    * Clear the current file selection

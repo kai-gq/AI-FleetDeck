@@ -19,6 +19,7 @@ import { oneDarkTheme } from '@codemirror/theme-one-dark';
 import { tideHighlightStyle } from './cm-syntax-theme';
 import type { Extension } from '@codemirror/state';
 import { getLanguageExtension } from './cm-languages';
+import { useTranslation } from 'react-i18next';
 import './EmbeddedEditor.scss';
 
 const AUTO_SAVE_DELAY = 1000; // ms after last keystroke
@@ -37,6 +38,7 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
   onSave,
   onCancel,
 }) => {
+  const { t } = useTranslation(['terminal', 'common']);
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,11 +61,11 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
       setTimeout(() => setSaveStatus(prev => prev === 'saved' ? 'idle' : prev), 1500);
     } catch (err: any) {
       setSaveStatus('error');
-      setSaveError(err.message || 'Save failed');
+      setSaveError(err.message || t('terminal:fileExplorer.editorSaveFailed', { defaultValue: 'Save failed' }));
     } finally {
       savingRef.current = false;
     }
-  }, []);
+  }, [t]);
 
   const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) {
@@ -199,17 +201,17 @@ export const EmbeddedEditor: React.FC<EmbeddedEditorProps> = ({
     <div className="embedded-editor">
       <div className="embedded-editor__toolbar">
         <div className="embedded-editor__toolbar-left">
-          {saveStatus === 'saving' && <span className="embedded-editor__status embedded-editor__status--saving">Saving...</span>}
-          {saveStatus === 'saved' && <span className="embedded-editor__status embedded-editor__status--saved">Saved</span>}
-          {saveStatus === 'error' && <span className="embedded-editor__status embedded-editor__status--error">{saveError || 'Save failed'}</span>}
+          {saveStatus === 'saving' && <span className="embedded-editor__status embedded-editor__status--saving">{t('terminal:fileExplorer.editorSaving', { defaultValue: 'Saving...' })}</span>}
+          {saveStatus === 'saved' && <span className="embedded-editor__status embedded-editor__status--saved">{t('terminal:fileExplorer.editorSaved', { defaultValue: 'Saved' })}</span>}
+          {saveStatus === 'error' && <span className="embedded-editor__status embedded-editor__status--error">{saveError || t('terminal:fileExplorer.editorSaveFailed', { defaultValue: 'Save failed' })}</span>}
         </div>
         <div className="embedded-editor__toolbar-right">
-          <span className="embedded-editor__shortcut-hint">Auto-saves &middot; Esc to close</span>
+          <span className="embedded-editor__shortcut-hint">{t('terminal:fileExplorer.editorAutoSaveHint', { defaultValue: 'Auto-saves · Esc to close' })}</span>
           <button
             className="embedded-editor__btn embedded-editor__btn--close"
             onClick={handleCancel}
           >
-            Close
+            {t('common:buttons.close')}
           </button>
         </div>
       </div>

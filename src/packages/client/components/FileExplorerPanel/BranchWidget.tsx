@@ -126,7 +126,7 @@ export const BranchWidget = memo(function BranchWidget({
     } else {
       setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.checkoutFailed') });
     }
-  }, [currentFolder, operationInProgress, checkoutBranch, onBranchChanged, loadBranches]);
+  }, [currentFolder, operationInProgress, checkoutBranch, onBranchChanged, loadBranches, t]);
 
   const handleCreateBranch = useCallback(async () => {
     if (!currentFolder || !newBranchName.trim() || operationInProgress) return;
@@ -140,31 +140,31 @@ export const BranchWidget = memo(function BranchWidget({
     } else {
       setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.createBranchFailed') });
     }
-  }, [currentFolder, newBranchName, operationInProgress, createBranch, onBranchChanged, loadBranches]);
+  }, [currentFolder, newBranchName, operationInProgress, createBranch, onBranchChanged, loadBranches, t]);
 
   const handlePull = useCallback(async () => {
     if (!currentFolder || operationInProgress) return;
     const result = await pullFromRemote(currentFolder);
     if (result.success) {
       if (result.stashConflicts && result.stashConflicts.length > 0) {
-        setStatusMessage({ type: 'error', text: `Pull succeeded but stash pop had conflicts: ${result.stashConflicts.length} file(s). Resolve manually.` });
+        setStatusMessage({ type: 'error', text: t('terminal:fileExplorer.pullStashConflicts', { defaultValue: 'Pull succeeded but stash pop had conflicts: {{count}} file(s). Resolve manually.', count: result.stashConflicts.length }) });
         onPullConflicts?.(result.stashConflicts);
         setShowDropdown(false);
       } else if (result.stashed) {
-        setStatusMessage({ type: 'success', text: 'Pull complete. Local changes were auto-stashed and restored.' });
+        setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullCompleteStashed', { defaultValue: 'Pull complete. Local changes were auto-stashed and restored.' }) });
       } else {
         setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.pullComplete') });
       }
       onBranchChanged();
       loadBranches(currentFolder);
     } else if (result.conflicts && result.conflicts.length > 0) {
-      setStatusMessage({ type: 'error', text: `Pull conflicts: ${result.conflicts.length} file(s)` });
+      setStatusMessage({ type: 'error', text: t('terminal:fileExplorer.pullConflictsCount', { defaultValue: 'Pull conflicts: {{count}} file(s)', count: result.conflicts.length }) });
       onPullConflicts?.(result.conflicts);
       setShowDropdown(false);
     } else {
       setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.pullFailed') });
     }
-  }, [currentFolder, operationInProgress, pullFromRemote, onBranchChanged, loadBranches, onPullConflicts]);
+  }, [currentFolder, operationInProgress, pullFromRemote, onBranchChanged, loadBranches, onPullConflicts, t]);
 
   const handlePush = useCallback(async () => {
     if (!currentFolder || operationInProgress) return;
@@ -174,7 +174,7 @@ export const BranchWidget = memo(function BranchWidget({
     } else {
       setStatusMessage({ type: 'error', text: result.error || t('terminal:fileExplorer.pushFailed') });
     }
-  }, [currentFolder, operationInProgress, pushToRemote]);
+  }, [currentFolder, operationInProgress, pushToRemote, t]);
 
   const [fetchInProgress, setFetchInProgress] = useState(false);
 
@@ -188,21 +188,21 @@ export const BranchWidget = memo(function BranchWidget({
         body: JSON.stringify({ path: currentFolder }),
       });
       if (res.ok) {
-        setStatusMessage({ type: 'success', text: 'Fetch complete' });
+        setStatusMessage({ type: 'success', text: t('terminal:fileExplorer.fetchComplete', { defaultValue: 'Fetch complete' }) });
         onBranchChanged();
         loadBranches(currentFolder);
       } else {
-        const data = await res.json().catch(() => ({ error: 'Fetch failed' }));
-        setStatusMessage({ type: 'error', text: data.error || 'Fetch failed' });
+        const data = await res.json().catch(() => ({ error: t('terminal:fileExplorer.fetchFailed', { defaultValue: 'Fetch failed' }) }));
+        setStatusMessage({ type: 'error', text: data.error || t('terminal:fileExplorer.fetchFailed', { defaultValue: 'Fetch failed' }) });
       }
     } catch {
-      setStatusMessage({ type: 'error', text: 'Fetch failed' });
+      setStatusMessage({ type: 'error', text: t('terminal:fileExplorer.fetchFailed', { defaultValue: 'Fetch failed' }) });
     } finally {
       setFetchInProgress(false);
     }
-  }, [currentFolder, operationInProgress, fetchInProgress, onBranchChanged, loadBranches]);
+  }, [currentFolder, operationInProgress, fetchInProgress, onBranchChanged, loadBranches, t]);
 
-  const branchName = gitStatus?.branch || 'unknown';
+  const branchName = gitStatus?.branch || t('terminal:fileExplorer.unknownBranch', { defaultValue: 'unknown' });
   const isDisabled = !!operationInProgress;
 
   const handleBranchContextMenu = useCallback((e: React.MouseEvent, branch: GitBranch) => {
@@ -254,7 +254,7 @@ export const BranchWidget = memo(function BranchWidget({
         },
       },
     ];
-  }, [contextMenu, operationInProgress, gitStatus?.mergeInProgress, branchName, onMerge, onCompare, branches, handleCheckout]);
+  }, [contextMenu, operationInProgress, gitStatus?.mergeInProgress, branchName, onMerge, onCompare, branches, handleCheckout, t]);
 
   // Filter branches
   const localBranches = useMemo(() => {
@@ -280,7 +280,7 @@ export const BranchWidget = memo(function BranchWidget({
           e.stopPropagation();
           setShowDropdown(!showDropdown);
         }}
-        title={`Branch: ${branchName}`}
+        title={t('terminal:fileExplorer.branchTitle', { defaultValue: 'Branch: {{branch}}', branch: branchName })}
       >
         <svg className="branch-widget-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
           <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm0 2.122a2.25 2.25 0 1 0-1 0v1.836A2.25 2.25 0 0 0 5.75 9.5h1.378a2.251 2.251 0 1 0 0-1H5.75a1.25 1.25 0 0 1-1.25-1.25V5.372Zm7.75 4.878a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3-8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" />
@@ -325,7 +325,7 @@ export const BranchWidget = memo(function BranchWidget({
                 </svg>
               </span>
               <span className="branch-widget-action-label">
-                {fetchInProgress ? 'Fetching...' : 'Fetch'}
+                {fetchInProgress ? t('terminal:fileExplorer.fetching', { defaultValue: 'Fetching...' }) : t('terminal:fileExplorer.fetch', { defaultValue: 'Fetch' })}
               </span>
             </div>
             <div

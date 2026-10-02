@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
 import type { GitCommit, GitHistoryFilters, GitCommitFile } from './types';
 
@@ -42,6 +43,7 @@ const EMPTY_FILTERS: GitHistoryFilters = {
 };
 
 export function useGitHistory(): UseGitHistoryReturn {
+  const { t } = useTranslation(['terminal']);
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -88,17 +90,17 @@ export function useGitHistory(): UseGitHistoryReturn {
         setTotal(data.total || 0);
         setHasMore(data.hasMore || false);
       } else {
-        setError(data.error || 'Failed to load git history');
+        setError(data.error || t('terminal:fileExplorer.fileGitHistory.error', { defaultValue: 'Failed to load git history' }));
         setCommits([]);
       }
     } catch (err) {
       console.error('[useGitHistory] loadHistory error:', err);
-      setError('Failed to load git history');
+      setError(t('terminal:fileExplorer.fileGitHistory.error', { defaultValue: 'Failed to load git history' }));
       setCommits([]);
     } finally {
       setLoading(false);
     }
-  }, [buildQueryString]);
+  }, [buildQueryString, t]);
 
   const loadMore = useCallback(async (directory: string) => {
     if (loadingMore || !hasMore) return;

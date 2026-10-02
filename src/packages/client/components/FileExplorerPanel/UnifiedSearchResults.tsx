@@ -73,6 +73,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
   onSelect,
   lineNumber,
 }: FilenameResultItemProps) {
+  const { t } = useTranslation(['terminal']);
   const iconPath = node.isDirectory ? null : getFileIcon(node);
   // Extract directory and filename from path for better display
   const pathParts = node.path.split('/');
@@ -91,7 +92,7 @@ const FilenameResultItem = memo(function FilenameResultItem({
           className="search-result-icon"
           style={{ backgroundImage: `url('${iconPath}')` }}
           role="img"
-          aria-label="file icon"
+          aria-label={t('terminal:fileExplorer.a11y.fileIcon', { defaultValue: 'file icon' })}
         />
       ) : (
         <span className="search-result-icon"><Icon name="file-text" size={14} /></span>
@@ -149,7 +150,7 @@ const ContentResultItem = memo(function ContentResultItem({
             className="content-search-icon"
             style={{ backgroundImage: `url('${iconPath}')` }}
             role="img"
-            aria-label="file icon"
+            aria-label={t('terminal:fileExplorer.a11y.fileIcon', { defaultValue: 'file icon' })}
           />
         ) : (
           <span className="content-search-icon"><Icon name="file-text" size={14} /></span>

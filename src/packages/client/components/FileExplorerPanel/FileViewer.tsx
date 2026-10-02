@@ -156,7 +156,7 @@ function FileViewerHeader({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorData = await response.json().catch(() => ({ error: t('terminal:gitPanel.unknownError', { defaultValue: 'Unknown error' }) }));
         console.error('Failed to open in editor:', errorData);
         setOpenEditorStatus('error');
         setTimeout(() => setOpenEditorStatus('idle'), 2000);
@@ -445,8 +445,8 @@ function MarkdownFileViewer({
             </pre>
           </div>
         )}
-        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
-          {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
+        <div className="file-viewer-scroll-indicator" title={t('terminal:fileExplorer.viewerLineTitle', { defaultValue: 'Line {{current}}/{{total}}', current: navigation.currentLine, total: navigation.totalLines })}>
+          {navigation.scrollPercentage === 100 ? t('terminal:fileExplorer.viewerScrollEnd', { defaultValue: 'END' }) : navigation.scrollPercentage === 0 ? t('terminal:fileExplorer.viewerScrollTop', { defaultValue: 'TOP' }) : `${navigation.scrollPercentage}%`}
         </div>
         {navigation.searchActive && (
           <SearchBar
@@ -509,7 +509,7 @@ function PlantUmlFileViewer({
 
     if (!file.content.trim()) {
       setDiagramDataUrl(null);
-      setRenderError('Diagram is empty');
+      setRenderError(t('terminal:fileExplorer.diagramEmpty', { defaultValue: 'Diagram is empty' }));
       return;
     }
 
@@ -530,18 +530,18 @@ function PlantUmlFileViewer({
         });
 
         if (!res.ok) {
-          throw new Error(`Render failed (${res.status})`);
+          throw new Error(t('terminal:fileExplorer.diagramRenderFailed', { defaultValue: 'Render failed ({{status}})', status: res.status }));
         }
 
         const svg = await res.text();
         if (!svg.includes('<svg')) {
-          throw new Error('Invalid SVG output');
+          throw new Error(t('terminal:fileExplorer.diagramInvalidSvg', { defaultValue: 'Invalid SVG output' }));
         }
 
         setDiagramDataUrl(toSvgDataUrl(svg));
       } catch (err) {
         if (controller.signal.aborted) return;
-        const message = err instanceof Error ? err.message : 'Failed to render diagram';
+        const message = err instanceof Error ? err.message : t('terminal:fileExplorer.diagramFailed', { defaultValue: 'Failed to render diagram' });
         setRenderError(message);
         setDiagramDataUrl(null);
       } finally {
@@ -553,7 +553,7 @@ function PlantUmlFileViewer({
 
     renderDiagram();
     return () => controller.abort();
-  }, [file.path, file.content, renderPlantUml]);
+  }, [file.path, file.content, renderPlantUml, t]);
 
   const headerButtons = (
     <div className="file-viewer-header-buttons">
@@ -599,8 +599,8 @@ function PlantUmlFileViewer({
             </pre>
           </div>
         )}
-        <div className="file-viewer-scroll-indicator" title={`Line ${navigation.currentLine}/${navigation.totalLines}`}>
-          {navigation.scrollPercentage === 100 ? 'END' : navigation.scrollPercentage === 0 ? 'TOP' : `${navigation.scrollPercentage}%`}
+        <div className="file-viewer-scroll-indicator" title={t('terminal:fileExplorer.viewerLineTitle', { defaultValue: 'Line {{current}}/{{total}}', current: navigation.currentLine, total: navigation.totalLines })}>
+          {navigation.scrollPercentage === 100 ? t('terminal:fileExplorer.viewerScrollEnd', { defaultValue: 'END' }) : navigation.scrollPercentage === 0 ? t('terminal:fileExplorer.viewerScrollTop', { defaultValue: 'TOP' }) : `${navigation.scrollPercentage}%`}
         </div>
         {navigation.searchActive && (
           <SearchBar
@@ -802,10 +802,10 @@ function FileViewerComponent({ file, loading, error, onRevealInTree, onFileEdite
       body: JSON.stringify({ path: file.path, content: newContent }),
     });
     if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({ error: 'Save failed' }));
-      throw new Error(errData.error || 'Save failed');
+      const errData = await resp.json().catch(() => ({ error: t('terminal:fileExplorer.editorSaveFailed', { defaultValue: 'Save failed' }) }));
+      throw new Error(errData.error || t('terminal:fileExplorer.editorSaveFailed', { defaultValue: 'Save failed' }));
     }
-  }, [file]);
+  }, [file, t]);
 
   const toggleEdit = useCallback(() => {
     setEditMode((prev) => {

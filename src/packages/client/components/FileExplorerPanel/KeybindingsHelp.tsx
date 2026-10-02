@@ -13,49 +13,60 @@ export interface KeybindingsHelpProps {
   onClose: () => void;
 }
 
+type CategoryId = 'navigation' | 'wordMotion' | 'visualMode' | 'search' | 'help';
+
 interface KeyBinding {
+  id: string;
   keys: string[];
   description: string;
-  category: 'Navigation' | 'Word Motion' | 'Visual Mode' | 'Search' | 'Help';
+  category: CategoryId;
 }
+
+const CATEGORY_LABELS: Record<CategoryId, string> = {
+  navigation: 'Navigation',
+  wordMotion: 'Word Motion',
+  visualMode: 'Visual Mode',
+  search: 'Search',
+  help: 'Help',
+};
 
 const KEYBINDINGS: KeyBinding[] = [
   // Navigation - Vertical
-  { keys: ['j', '↓'], description: 'Move cursor down one line', category: 'Navigation' },
-  { keys: ['k', '↑'], description: 'Move cursor up one line', category: 'Navigation' },
-  { keys: ['h', '←'], description: 'Move cursor left', category: 'Navigation' },
-  { keys: ['l', '→'], description: 'Move cursor right', category: 'Navigation' },
-  { keys: ['0'], description: 'Jump to start of line', category: 'Navigation' },
-  { keys: ['$'], description: 'Jump to end of line', category: 'Navigation' },
-  { keys: ['^'], description: 'First non-whitespace char', category: 'Navigation' },
-  { keys: ['d', 'Ctrl+D'], description: 'Half page down', category: 'Navigation' },
-  { keys: ['u', 'Ctrl+U'], description: 'Half page up', category: 'Navigation' },
-  { keys: ['f', 'Space'], description: 'Full page down', category: 'Navigation' },
-  { keys: ['b', 'Page Up'], description: 'Full page up', category: 'Navigation' },
-  { keys: ['g', 'Home'], description: 'Jump to top of file', category: 'Navigation' },
-  { keys: ['G', 'End'], description: 'Jump to bottom of file', category: 'Navigation' },
+  { id: 'moveDown', keys: ['j', '↓'], description: 'Move cursor down one line', category: 'navigation' },
+  { id: 'moveUp', keys: ['k', '↑'], description: 'Move cursor up one line', category: 'navigation' },
+  { id: 'moveLeft', keys: ['h', '←'], description: 'Move cursor left', category: 'navigation' },
+  { id: 'moveRight', keys: ['l', '→'], description: 'Move cursor right', category: 'navigation' },
+  { id: 'jumpToStart', keys: ['0'], description: 'Jump to start of line', category: 'navigation' },
+  { id: 'jumpToEnd', keys: ['$'], description: 'Jump to end of line', category: 'navigation' },
+  { id: 'firstNonWhitespace', keys: ['^'], description: 'First non-whitespace char', category: 'navigation' },
+  { id: 'halfPageDown', keys: ['d', 'Ctrl+D'], description: 'Half page down', category: 'navigation' },
+  { id: 'halfPageUp', keys: ['u', 'Ctrl+U'], description: 'Half page up', category: 'navigation' },
+  { id: 'fullPageDown', keys: ['f', 'Space'], description: 'Full page down', category: 'navigation' },
+  { id: 'fullPageUp', keys: ['b', 'Page Up'], description: 'Full page up', category: 'navigation' },
+  { id: 'jumpToTop', keys: ['g', 'Home'], description: 'Jump to top of file', category: 'navigation' },
+  { id: 'jumpToBottom', keys: ['G', 'End'], description: 'Jump to bottom of file', category: 'navigation' },
 
   // Word motions
-  { keys: ['w'], description: 'Next word start', category: 'Word Motion' },
-  { keys: ['e'], description: 'Next word end', category: 'Word Motion' },
-  { keys: ['b'], description: 'Previous word start', category: 'Word Motion' },
+  { id: 'nextWordStart', keys: ['w'], description: 'Next word start', category: 'wordMotion' },
+  { id: 'nextWordEnd', keys: ['e'], description: 'Next word end', category: 'wordMotion' },
+  { id: 'previousWordStart', keys: ['b'], description: 'Previous word start', category: 'wordMotion' },
 
   // Visual mode
-  { keys: ['v'], description: 'Character visual mode', category: 'Visual Mode' },
-  { keys: ['V'], description: 'Line visual mode', category: 'Visual Mode' },
-  { keys: ['y'], description: 'Yank (copy) selection', category: 'Visual Mode' },
-  { keys: ['Escape'], description: 'Exit visual mode', category: 'Visual Mode' },
+  { id: 'charVisualMode', keys: ['v'], description: 'Character visual mode', category: 'visualMode' },
+  { id: 'lineVisualMode', keys: ['V'], description: 'Line visual mode', category: 'visualMode' },
+  { id: 'yank', keys: ['y'], description: 'Yank (copy) selection', category: 'visualMode' },
+  { id: 'exitVisualMode', keys: ['Escape'], description: 'Exit visual mode', category: 'visualMode' },
 
   // Search
-  { keys: ['/'], description: 'Open search bar', category: 'Search' },
-  { keys: ['n'], description: 'Next match', category: 'Search' },
-  { keys: ['N'], description: 'Previous match', category: 'Search' },
+  { id: 'openSearch', keys: ['/'], description: 'Open search bar', category: 'search' },
+  { id: 'nextMatch', keys: ['n'], description: 'Next match', category: 'search' },
+  { id: 'previousMatch', keys: ['N'], description: 'Previous match', category: 'search' },
 
   // Help
-  { keys: ['?'], description: 'Toggle this help overlay', category: 'Help' },
-  { keys: ['Escape'], description: 'Exit cursor mode (or visual/search)', category: 'Help' },
-  { keys: ['Alt+E'], description: 'Close file viewer', category: 'Help' },
-  { keys: ['q'], description: 'Close file viewer', category: 'Help' },
+  { id: 'toggleHelp', keys: ['?'], description: 'Toggle this help overlay', category: 'help' },
+  { id: 'exitCursorMode', keys: ['Escape'], description: 'Exit cursor mode (or visual/search)', category: 'help' },
+  { id: 'closeViewerAlt', keys: ['Alt+E'], description: 'Close file viewer', category: 'help' },
+  { id: 'closeViewer', keys: ['q'], description: 'Close file viewer', category: 'help' },
 ];
 
 export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => {
@@ -106,7 +117,7 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
         <div className="keybindings-help-categories">
           {Object.entries(categorized).map(([category, bindings]) => (
             <div key={category} className="keybindings-help-category">
-              <h3 className="keybindings-help-category-title">{category}</h3>
+              <h3 className="keybindings-help-category-title">{t(`terminal:fileExplorer.helpCategory.${category}`, { defaultValue: CATEGORY_LABELS[category as CategoryId] })}</h3>
               <div className="keybindings-help-list">
                 {bindings.map((binding, idx) => (
                   <div key={idx} className="keybindings-help-item">
@@ -117,7 +128,7 @@ export const KeybindingsHelp: React.FC<KeybindingsHelpProps> = ({ onClose }) => 
                         </kbd>
                       ))}
                     </div>
-                    <div className="keybindings-help-description">{binding.description}</div>
+                    <div className="keybindings-help-description">{t(`terminal:fileExplorer.help.${binding.id}`, { defaultValue: binding.description })}</div>
                   </div>
                 ))}
               </div>

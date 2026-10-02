@@ -6,10 +6,12 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GitBranch, GitBranchOperationResult, MergeResult, UseGitBranchesReturn } from './types';
 import { apiUrl, authFetch } from '../../utils/storage';
 
 export function useGitBranches(): UseGitBranchesReturn {
+  const { t } = useTranslation(['terminal']);
   const [branches, setBranches] = useState<GitBranch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,17 +28,17 @@ export function useGitBranches(): UseGitBranchesReturn {
       if (res.ok) {
         setBranches(data.branches || []);
       } else {
-        setError(data.error || 'Failed to load branches');
+        setError(data.error || t('terminal:fileExplorer.loadBranchesFailed', { defaultValue: 'Failed to load branches' }));
         setBranches([]);
       }
     } catch (err) {
       console.error('[GitBranches] Failed to load branches:', err);
-      setError('Failed to load branches');
+      setError(t('terminal:fileExplorer.loadBranchesFailed', { defaultValue: 'Failed to load branches' }));
       setBranches([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const checkoutBranch = useCallback(async (directory: string, branch: string): Promise<GitBranchOperationResult> => {
     setOperationInProgress('checkout');
@@ -49,18 +51,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Checkout failed');
+        setError(data.error || t('terminal:fileExplorer.checkoutFailed', { defaultValue: 'Checkout failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Checkout failed:', err);
-      const result = { success: false, error: 'Checkout failed' };
+      const result = { success: false, error: t('terminal:fileExplorer.checkoutFailed', { defaultValue: 'Checkout failed' }) };
       setError(result.error);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const createBranch = useCallback(async (directory: string, name: string, startPoint?: string): Promise<GitBranchOperationResult> => {
     setOperationInProgress('create');
@@ -73,18 +75,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Failed to create branch');
+        setError(data.error || t('terminal:fileExplorer.createBranchFailed', { defaultValue: 'Failed to create branch' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Create branch failed:', err);
-      const result = { success: false, error: 'Failed to create branch' };
+      const result = { success: false, error: t('terminal:fileExplorer.createBranchFailed', { defaultValue: 'Failed to create branch' }) };
       setError(result.error);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const pullFromRemote = useCallback(async (directory: string): Promise<MergeResult> => {
     setOperationInProgress('pull');
@@ -97,18 +99,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok && !data.conflicts) {
-        setError(data.error || 'Pull failed');
+        setError(data.error || t('terminal:fileExplorer.pullFailed', { defaultValue: 'Pull failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Pull failed:', err);
-      const result: MergeResult = { success: false, error: 'Pull failed' };
+      const result: MergeResult = { success: false, error: t('terminal:fileExplorer.pullFailed', { defaultValue: 'Pull failed' }) };
       setError(result.error!);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const pushToRemote = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
     setOperationInProgress('push');
@@ -121,18 +123,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Push failed');
+        setError(data.error || t('terminal:fileExplorer.pushFailed', { defaultValue: 'Push failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Push failed:', err);
-      const result = { success: false, error: 'Push failed' };
+      const result = { success: false, error: t('terminal:fileExplorer.pushFailed', { defaultValue: 'Push failed' }) };
       setError(result.error);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const mergeBranch = useCallback(async (directory: string, branch: string): Promise<MergeResult> => {
     setOperationInProgress('merge');
@@ -145,18 +147,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok && !data.conflicts) {
-        setError(data.error || 'Merge failed');
+        setError(data.error || t('terminal:fileExplorer.toast.mergeFailedMsg', { defaultValue: 'Merge failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Merge failed:', err);
-      const result: MergeResult = { success: false, error: 'Merge failed' };
+      const result: MergeResult = { success: false, error: t('terminal:fileExplorer.toast.mergeFailedMsg', { defaultValue: 'Merge failed' }) };
       setError(result.error!);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const mergeAbort = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
     setOperationInProgress('merge-abort');
@@ -169,18 +171,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Merge abort failed');
+        setError(data.error || t('terminal:fileExplorer.mergeAbortFailed', { defaultValue: 'Merge abort failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Merge abort failed:', err);
-      const result = { success: false, error: 'Merge abort failed' };
+      const result = { success: false, error: t('terminal:fileExplorer.mergeAbortFailed', { defaultValue: 'Merge abort failed' }) };
       setError(result.error);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   const mergeContinue = useCallback(async (directory: string): Promise<GitBranchOperationResult> => {
     setOperationInProgress('merge-continue');
@@ -193,18 +195,18 @@ export function useGitBranches(): UseGitBranchesReturn {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Merge continue failed');
+        setError(data.error || t('terminal:fileExplorer.toast.mergeContinueFailed', { defaultValue: 'Merge continue failed' }));
       }
       return data;
     } catch (err) {
       console.error('[GitBranches] Merge continue failed:', err);
-      const result = { success: false, error: 'Merge continue failed' };
+      const result = { success: false, error: t('terminal:fileExplorer.toast.mergeContinueFailed', { defaultValue: 'Merge continue failed' }) };
       setError(result.error);
       return result;
     } finally {
       setOperationInProgress(null);
     }
-  }, []);
+  }, [t]);
 
   return {
     branches,

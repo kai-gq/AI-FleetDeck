@@ -6,6 +6,7 @@
  */
 
 import React, { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TreeNode, TreeNodeProps, GitFileStatusType } from './types';
 import { getFileIcon, findMatchIndices } from './fileUtils';
 import { setNativeFileDrag } from '../../utils/file-download';
@@ -113,6 +114,7 @@ function TreeNodeItemComponent({
   onContextMenu,
   searchQuery,
 }: TreeNodeProps) {
+  const { t } = useTranslation(['terminal']);
   const compactChain = useMemo(() => getCompactChain(node), [node]);
   const isExpanded = expandedPaths.has(compactChain.expansionPath);
   const isSelected = selectedPath === node.path || selectedPath === compactChain.expansionPath;
@@ -174,7 +176,7 @@ function TreeNodeItemComponent({
                   backgroundImage: `url('${isExpanded ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg` : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`}')`,
                 }}
                 role="img"
-                aria-label="folder"
+                aria-label={t('terminal:fileExplorer.a11y.folder', { defaultValue: 'folder' })}
               />
               {node.hasGitChanges && (
                 <span
@@ -193,7 +195,7 @@ function TreeNodeItemComponent({
                 backgroundImage: `url('${getFileIcon(node)}')`,
               }}
               role="img"
-              aria-label="file"
+              aria-label={t('terminal:fileExplorer.a11y.file', { defaultValue: 'file' })}
             />
           </>
         )}
