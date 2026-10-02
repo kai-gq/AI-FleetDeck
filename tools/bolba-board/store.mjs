@@ -317,9 +317,12 @@ export function openStore({ dbPath = ':memory:', counterPrefix = 'BOLBA', log } 
     if (!task) return undefined;
     let added = 0;
     for (const entry of entries) {
-      const dup = one('SELECT id FROM events WHERE task_id = ? AND ts = ? AND text = ? LIMIT 1', [id, entry.ts, entry.text]);
+      // Entries without an explicit ts (plain strings) are stamped `now`;
+      // SQLite cannot bind undefined, and the (ts, text) dedupe needs both.
+      const ts = entry.ts || formatTs(now);
+      const dup = one('SELECT id FROM events WHERE task_id = ? AND ts = ? AND text = ? LIMIT 1', [id, ts, entry.text]);
       if (dup) continue;
-      insertEvent(id, { ts: entry.ts, text: entry.text, actor, kind }, now.getTime());
+      insertEvent(id, { ts, text: entry.text, actor, kind }, now.getTime());
       added += 1;
     }
     if (added) run('UPDATE tasks SET updated_at = ? WHERE id = ?', [now.getTime(), id]);
