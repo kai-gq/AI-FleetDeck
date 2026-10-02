@@ -70,3 +70,6 @@ tools/piper/
 # bolba-board runtime data (SQLite board + Markdown mirror) and local config.
 tools/bolba-board/data/
 tools/bolba-board/config.local.json
+
+# i18n workdir (translation kits, memory) — regenerated, not source.
+tools/i18n/work/

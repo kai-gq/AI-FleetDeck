@@ -1,0 +1,10 @@
+{
+  "//": "Values that are legitimately identical to en / have no CJK. Entries are 'ns:key', or 're:<regexp>' matched against 'ns:key'. Maintained by the zh-CN localization work.",
+  "identical": [
+    "re:spawn\\.bossClassName$",
+    "re:viewMode\\.labels\\.(2d|3d)$",
+    "tools:display.toolNames.bash",
+    "config:secrets.keyPlaceholder"
+  ],
+  "noCJK": []
+}
