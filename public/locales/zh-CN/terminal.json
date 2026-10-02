@@ -2774,5 +2774,11 @@
     "pendingSudo": "请先完成当前的 sudo 授权",
     "invalidChallenge": "服务器返回了无效的 sudo 质询",
     "cancelled": "Shell 命令执行已取消"
+  },
+  "agentDebug": {
+    "copyMessage": "复制消息",
+    "refreshProcess": "刷新进程输出",
+    "copyProcess": "复制进程输出",
+    "loadProcessFailed": "加载进程输出失败"
   }
 }

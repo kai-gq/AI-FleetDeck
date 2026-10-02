@@ -274,14 +274,14 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
 
       if (!res.ok) {
         setProcessOutput(null);
-        setProcessError(data?.error || 'Failed to load process output');
+        setProcessError(data?.error || t('terminal:agentDebug.loadProcessFailed', { defaultValue: 'Failed to load process output' }));
         return;
       }
 
       setProcessOutput(data as AgentProcessOutputResponse);
     } catch (err) {
       setProcessOutput(null);
-      setProcessError(err instanceof Error ? err.message : 'Failed to load process output');
+      setProcessError(err instanceof Error ? err.message : t('terminal:agentDebug.loadProcessFailed', { defaultValue: 'Failed to load process output' }));
     } finally {
       setProcessLoading(false);
       setHasLoadedProcessOutput(true);
@@ -790,7 +790,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                       e.stopPropagation();
                       copyMessage(msg);
                     }}
-                    title="Copy message"
+                    title={t('terminal:agentDebug.copyMessage', { defaultValue: 'Copy message' })}
                   >
                     <Icon name="copy" size={12} />
                   </button>
@@ -964,7 +964,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
                 void loadProcessOutput();
               }}
               className="action-btn"
-              title="Refresh process output"
+              title={t('terminal:agentDebug.refreshProcess', { defaultValue: 'Refresh process output' })}
               disabled={processLoading}
             >
               {processLoading ? t('common:status.loading') : t('common:buttons.refresh')}
@@ -972,7 +972,7 @@ export const AgentDebugPanel: React.FC<AgentDebugPanelProps> = ({
             <button
               onClick={copyProcessOutput}
               className="action-btn"
-              title="Copy process output"
+              title={t('terminal:agentDebug.copyProcess', { defaultValue: 'Copy process output' })}
               disabled={!processOutput}
             >
               {t('terminal:debug.copyOutput')}
