@@ -106,7 +106,8 @@
     "characterSize": "角色大小",
     "scale2d": "2D 缩放",
     "scale3d": "3D 缩放",
-    "time": "时间"
+    "time": "时间",
+    "show2DTaskLabels": "显示 2D 任务标签"
   },
   "time": {
     "auto": "自动",
@@ -292,7 +293,13 @@
     "clickToAdd": "点击 + 添加建筑",
     "namePlaceholder": "我的服务器",
     "folderPath": "文件夹路径",
-    "dockerConfig": "Docker 配置"
+    "dockerConfig": "Docker 配置",
+    "terminalConfig": "终端配置",
+    "terminalShell": "Shell",
+    "terminalPort": "端口",
+    "terminalArgs": "额外 ttyd 参数",
+    "terminalControls": "终端控制",
+    "terminalSaveSession": "持久化会话（tmux）"
   },
   "tools": {
     "select": "选择",
@@ -670,5 +677,15 @@
     "bannerSyncingPct": "正在从服务器更新 UI… {{percent}}%",
     "bannerFailed": "UI 同步失败",
     "close": "关闭"
+  },
+  "whatsappHub": {
+    "title": "WhatsApp",
+    "intro": "选择要在 WhatsApp 集成中管理的内容。",
+    "config": "集成配置",
+    "configDesc": "服务器 URL、API 密钥、会话与配对。",
+    "notifications": "通知",
+    "notificationsDesc": "选择哪些智能体事件会被转发，以及转发给谁。",
+    "history": "历史记录",
+    "historyDesc": "浏览已保存的聊天记录与消息。"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "//": "Values that are legitimately identical to en / have no CJK. Entries are 'ns:key', or 're:<regexp>' matched against 'ns:key'. Maintained by the zh-CN localization work.",
+  "//": "identical/noCJK: values legitimately identical to en / without CJK. localeOnly: zh-only keys approved because the source calls t(key, { defaultValue }) (en output unchanged; audit INFO instead of WARN). Entries are 'ns:key', or 're:<regexp>' matched against 'ns:key'. Maintained by the zh-CN localization work.",
   "identical": [
     "re:spawn\\.bossClassName$",
     "re:viewMode\\.labels\\.(2d|3d)$",
@@ -15,5 +15,25 @@
   "noCJK": [
     "common:labels.tokens",
     "tools:display.tokens"
+  ],
+  "localeOnly": [
+    "re:^common:agentBar\\.",
+    "re:^common:buttons\\.(copied|copyFailed|play)$",
+    "common:floatingButtons.viewMode",
+    "re:^common:mobileBottomMenu\\.(chatActions|actions)$",
+    "re:^common:status\\.(current|saving)$",
+    "tools:skills.deleteClass",
+    "re:^config:buildings\\.terminal(Config|Shell|Port|Args|Controls|SaveSession)$",
+    "config:scene.show2DTaskLabels",
+    "re:^config:whatsappHub\\.",
+    "re:^terminal:buildingAction\\.no(Start|Stop|Restart)Command$",
+    "re:^terminal:overview\\.",
+    "re:^terminal:buildings\\.",
+    "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
+    "re:^terminal:header\\.(clearContextConfirm|moreActions|searchNoResults)$",
+    "re:^terminal:input\\.(pendingMessage|pendingMessages|removeQueuedMessage)$",
+    "re:^terminal:fileViewer\\.(downloadPdfTitle|pathInputLabel|pathInputTitle)$",
+    "re:^terminal:fileGitHistory\\.",
+    "re:^terminal:statistics\\."
   ]
 }

@@ -14,7 +14,8 @@
  *   --limit <n>          max items listed per check in human output (default 40)
  *   --report-info        list INFO findings too (default: counted only)
  *   --glossary <path>    glossary file (default tools/i18n/glossary.json, optional)
- *   --allowlist <path>   allowlist file (default tools/i18n/allowlist.json, optional)
+ *   --allowlist <path>   allowlist file (default tools/i18n/allowlist.json, optional;
+ *                        categories: identical | noCJK | localeOnly)
  *   --root <path>        repo root (default: two levels up from this script)
  *   --help
  *
@@ -191,9 +192,13 @@ function nNewlines(s) { return (String(s).match(/\n/g) || []).length; }
 // ---------------------------------------------------------------- allowlist & glossary
 
 function loadAllowlist(file) {
-  if (!file || !fs.existsSync(file)) return { identical: [], noCJK: [] };
+  if (!file || !fs.existsSync(file)) return { identical: [], noCJK: [], localeOnly: [] };
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return { identical: raw.identical || [], noCJK: raw.noCJK || [] };
+  return {
+    identical: raw.identical || [],
+    noCJK: raw.noCJK || [],
+    localeOnly: raw.localeOnly || [],
+  };
 }
 
 function listed(list, nsKey) {
@@ -412,6 +417,10 @@ function main() {
     // ---- extra (zh key not needed by en)
     for (const [k] of zhLeaves) {
       if (enLeaves.has(k)) continue;
+      if (listed(allowlist.localeOnly, `${ns}:${k}`)) {
+        add('INFO', 'localeOnly', ns, k, 'zh-only key used by t(key, { defaultValue }) in source (approved)');
+        continue;
+      }
       const { stem, suf } = splitPlural(k);
       const enHasStem = enCover.has(stem) || enLeaves.has(stem);
       if (suf === null && enHasStem) { add('INFO', 'extraCovering', ns, k, 'base key covers en plural family (fine, preferred form)'); continue; }

@@ -10,7 +10,7 @@
 | `audit.mjs` | 审计 zh-CN 与 en 的奇偶/占位符/卫生/术语;**定义唯一计数口径** |
 | `apply.mjs` | 由 en 键序 + 翻译记忆 + kit 重建 zh 文件(内存 `work/memory.json` 为权威) |
 | `glossary.json` | 术语规则(`rules` 机械强制,`style` 文档性约定) |
-| `allowlist.json` | 白名单:允许与 en 相同(`identical`)、允许无中文(`noCJK`) |
+| `allowlist.json` | 白名单:允许与 en 相同(`identical`)、允许无中文(`noCJK`)、批准 zh 独有 key(`localeOnly`,见下) |
 | `work/` | 工作区(**gitignored**):`memory.json`、`kit-*.json`、sandbox 副本 |
 
 ## audit.mjs
@@ -38,6 +38,7 @@ node tools/i18n/apply.mjs --adopt               # 把文件里的手改收编进
 - **kit 格式**:`{ "<ns>": { "<key>": "中文" | {"zh":"中文"} | null } }`;`null` = 删除该 key(如冗余复数形);复数族也可只写基础 key。
 - **复数规范**:zh 基础 key 覆盖任意 count;与基础 key 同文的 `_other/_plural` 变体会被折入基础 key(报告折叠清单);异文 `_other` 保留并告警为 conflict。
 - **stale 检测**:每条记忆存 en 值哈希;en 改了报 `stale en`,上游删 key 报 `orphaned` 并从记忆移除。
+- **zh 独有 key**:代码补丁用 `t('ns:key', { defaultValue: '英文' })` 时,key 可以不在 en —— zh 直接补一条(记忆里 `h:null` 表示 zh 独有),en 文件零改动;audit 把这类 key 归 INFO `localeOnly`,需在 `allowlist.json` 的 `localeOnly` 数组登记(批准的 key 或 `re:` 前缀),否则报 WARN `extra`。
 
 ## 标准流程
 

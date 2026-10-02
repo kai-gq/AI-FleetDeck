@@ -52,7 +52,10 @@
     "hideDetails": "隐藏详情",
     "showMore": "显示更多",
     "showLess": "收起",
-    "settings": "设置"
+    "settings": "设置",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "play": "播放"
   },
   "status": {
     "idle": "空闲",
@@ -78,7 +81,9 @@
     "modified": "已修改",
     "deleted": "已删除",
     "read": "已读取",
-    "copied": "已复制"
+    "copied": "已复制",
+    "current": "当前",
+    "saving": "保存中…"
   },
   "labels": {
     "name": "名称",
@@ -309,7 +314,20 @@
     "newArea": "新建区域",
     "unassigned": "未分配",
     "clickToOpen": "点击打开",
-    "updated": "（已更新）"
+    "updated": "（已更新）",
+    "hideBar": "隐藏顶栏",
+    "behindNpmTooltip": "当前版本落后于 npm 最新版",
+    "behindNpm": "（落后于 npm）",
+    "aheadNpmTooltip": "当前版本比 npm 最新版更新",
+    "aheadNpm": "（领先于 npm）",
+    "checkingNpm": "（正在检查 npm）",
+    "unknownNpm": "（npm 版本未知）",
+    "outdatedIndicatorTooltip": "已过时：v{{current}} → npm 最新版 v{{latest}}。点击查看发布页。",
+    "outdatedIndicatorAria": "版本已过时，最新版为 v{{latest}}",
+    "workspaces": "工作区",
+    "allWorkspaces": "全部",
+    "manageWorkspaces": "管理",
+    "newWorkspace": "新建工作区"
   },
   "onboarding": {
     "title": "欢迎使用 Tide Commander",
@@ -328,7 +346,8 @@
     "globalSearch": "全局搜索",
     "commanderView": "指挥官视图",
     "controls": "控制",
-    "manageSkills": "管理技能"
+    "manageSkills": "管理技能",
+    "viewMode": "视图模式"
   },
   "sidebar": {
     "agentsView": "智能体",
@@ -346,6 +365,8 @@
     "close": "关闭",
     "closeAgent": "关闭智能体",
     "lastAgent": "上一个智能体",
-    "openLastAgentNamed": "打开 {{name}}"
+    "openLastAgentNamed": "打开 {{name}}",
+    "chatActions": "对话操作",
+    "actions": "操作"
   }
 }

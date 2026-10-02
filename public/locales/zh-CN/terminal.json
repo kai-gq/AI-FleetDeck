@@ -49,7 +49,10 @@
     "searchResultsTitle": "搜索结果：",
     "searchResultsCount": "{{count}} 个结果",
     "searchToggleResults": "切换结果面板",
-    "searchHiddenMatch": "隐藏的匹配："
+    "searchHiddenMatch": "隐藏的匹配：",
+    "clearContextConfirm": "再次点击以确认",
+    "moreActions": "更多操作",
+    "searchNoResults": "无结果"
   },
   "queue": {
     "queued": "已排队",
@@ -82,7 +85,10 @@
     "collapseInput": "收起输入区",
     "uploading": "正在上传…",
     "uploadingFile": "文件",
-    "jumpToPrompt": "在对话中跳转到此提示词"
+    "jumpToPrompt": "在对话中跳转到此提示词",
+    "pendingMessage": "已排队 1 条消息——连接后将自动发送",
+    "pendingMessages": "已排队 {{count}} 条消息——连接后将自动发送",
+    "removeQueuedMessage": "移除已排队的消息"
   },
   "modals": {
     "context": "上下文",
@@ -290,7 +296,21 @@
       "waitingPermission": "等待授权",
       "error": "错误",
       "stopped": "已停止"
-    }
+    },
+    "editAgent": "编辑智能体",
+    "clearContext": "清除上下文",
+    "cloneAgent": "克隆智能体",
+    "forkAgent": "派生智能体（含历史）",
+    "deleteAgent": "删除智能体",
+    "newBoss": "新建主管",
+    "newArea": "新建区域",
+    "deleteArea": "删除区域",
+    "collapse": "折叠",
+    "expand": "展开",
+    "subordinateOfSelectedBoss": "汇报给所选主管",
+    "deleteAreaTitle": "删除区域",
+    "deleteAreaWithAgents": "删除区域「{{name}}」及其 {{count}} 个智能体？智能体也会被一并删除，此操作无法撤销。",
+    "deleteAreaEmpty": "删除区域「{{name}}」？该区域没有智能体。"
   },
   "debug": {
     "title": "调试面板",
@@ -644,7 +664,13 @@
     "percentFree": "{{percent}}% 可用",
     "msgsLabel": "消息 {{tokens}}k",
     "clickForContextStats": "点击查看上下文统计",
-    "compactedLabel": "上下文已压缩"
+    "compactedLabel": "上下文已压缩",
+    "emptyMessage": "空消息",
+    "clickToExpandCollapse": "点击展开或收起",
+    "stopSpeaking": "停止朗读",
+    "speakSpanish": "朗读",
+    "viewAsMarkdown": "以 Markdown 查看",
+    "openFileWithDiff": "查看 {{path}} 的 diff"
   },
   "controls": {
     "title": "控制",
@@ -1081,7 +1107,10 @@
     "unknown": "未知",
     "lastChecked": "上次检查：{{time}}",
     "noActions": "未配置操作",
-    "confirmDelete": "删除此建筑？此操作不可撤销。"
+    "confirmDelete": "删除此建筑？此操作不可撤销。",
+    "noStartCommand": "未配置启动命令",
+    "noStopCommand": "未配置停止命令",
+    "noRestartCommand": "未配置重启命令"
   },
   "restoreArchived": {
     "title": "恢复已归档区域",
@@ -1362,7 +1391,10 @@
     "restore": "恢复"
   },
   "fileViewer": {
-    "lineCount": "{{count}} 行"
+    "lineCount": "{{count}} 行",
+    "downloadPdfTitle": "将此 Markdown 下载为 PDF",
+    "pathInputLabel": "文件路径——编辑后按 Enter 打开",
+    "pathInputTitle": "编辑路径后按 Enter，打开其它文件或文件夹"
   },
   "themeSelector": {
     "selectTheme": "选择主题",
@@ -1583,5 +1615,34 @@
     "copyMarkdownTitle": "以 Markdown 复制文档",
     "footnotes": "脚注",
     "label": "文档"
+  },
+  "buildings": {
+    "title": "建筑",
+    "noArea": "智能体不在任何区域中",
+    "noBuildings": "此区域中没有建筑"
+  },
+  "fileGitHistory": {
+    "error": "加载 Git 历史失败",
+    "loading": "正在加载…",
+    "selectCommit": "选择一个提交以查看其 diff",
+    "binaryFile": "二进制文件——无法生成 diff",
+    "title": "Git 历史",
+    "empty": "未找到此文件的历史记录"
+  },
+  "statistics": {
+    "title": "统计",
+    "usageByAgent": "今日 Claude 用量",
+    "usageByAgentSubtitle": "输入 + 缓存创建 + 缓存读取 + 输出 Token，按 Claude 请求 ID 去重",
+    "refresh": "刷新用量",
+    "loading": "正在加载用量…",
+    "error": "加载用量失败：{{error}}",
+    "empty": "今天没有找到 Claude Token 用量记录。",
+    "pieLabel": "各智能体的 Claude Token 用量",
+    "total": "合计",
+    "requests": "次请求",
+    "window": "时间范围：{{since}} 至 {{until}}",
+    "dailyUsage": "各智能体每日用量",
+    "dailyUsageSubtitle": "按天统计的总 Token 用量，并为每个 Claude 智能体单独列出曲线。",
+    "dailyEmpty": "最近几天没有找到 Claude Token 用量记录。"
   }
 }

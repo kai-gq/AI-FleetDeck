@@ -202,7 +202,8 @@
     "slugPlaceholder": "从名称自动生成",
     "skillDescPlaceholder": "描述何时应使用此技能。包含触发短语如 'push code'、'deploy' 等。",
     "skillContentPlaceholder": "执行此技能的分步说明…",
-    "customToolPlaceholder": "自定义工具（例如：Bash(make:*)）"
+    "customToolPlaceholder": "自定义工具（例如：Bash(make:*)）",
+    "deleteClass": "删除类别"
   },
   "subagent": {
     "subagentTask": "子智能体任务",
