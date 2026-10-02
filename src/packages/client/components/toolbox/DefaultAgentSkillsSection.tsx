@@ -8,6 +8,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSkillsArray } from '../../store';
 import {
   useDefaultAgentSkills,
@@ -16,6 +17,7 @@ import {
 } from '../../api/default-agent-skills';
 
 export function DefaultAgentSkillsSection() {
+  const { t } = useTranslation(['tools', 'common']);
   const skills = useSkillsArray();
   const defaults = useDefaultAgentSkills();
 
@@ -70,11 +72,11 @@ export function DefaultAgentSkillsSection() {
       await updateDefaultAgentSkills(next);
     } catch (err: any) {
       setSlugs(previous); // Keep the UI honest about what the server actually has.
-      setError(err?.message || 'Failed to save default skills');
+      setError(err?.message || t('tools:defaultSkills.saveFailed', { defaultValue: 'Failed to save default skills' }));
     } finally {
       setSaving(false);
     }
-  }, [slugs]);
+  }, [slugs, t]);
 
   const toggle = useCallback((slug: string) => {
     void save(slugs.includes(slug) ? slugs.filter(s => s !== slug) : [...slugs, slug]);
@@ -86,11 +88,11 @@ export function DefaultAgentSkillsSection() {
     try {
       await resetDefaultAgentSkills();
     } catch (err: any) {
-      setError(err?.message || 'Failed to reset default skills');
+      setError(err?.message || t('tools:defaultSkills.resetFailed', { defaultValue: 'Failed to reset default skills' }));
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [t]);
 
   const selectedCount = slugs.length;
   // Slugs with no skill behind them: a deleted skill, or one from another install.
@@ -102,31 +104,29 @@ export function DefaultAgentSkillsSection() {
   return (
     <div className="config-row config-row-stacked">
       <span className="config-hint">
-        Skills pre-selected when you create an agent. You can still change them per agent, and
-        agents that already exist are not affected. Each selected skill is added to every new
-        agent's prompt, so fewer means more room for the actual work.
+        {t('tools:defaultSkills.intro', { defaultValue: "Skills pre-selected when you create an agent. You can still change them per agent, and agents that already exist are not affected. Each selected skill is added to every new agent's prompt, so fewer means more room for the actual work." })}
       </span>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
         <input
           type="text"
           className="config-input"
-          placeholder="Search skills..."
+          placeholder={t('tools:skills.searchSkills')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ flex: '1 1 160px', minWidth: 0 }}
         />
         <span className="config-hint" style={{ whiteSpace: 'nowrap' }}>
-          {selectedCount} selected
+          {t('tools:defaultSkills.selectedCount', { defaultValue: '{{n}} selected', n: selectedCount })}
         </span>
         <button
           type="button"
           className="config-button"
           onClick={() => void reset()}
           disabled={saving || !defaults.configured}
-          title={defaults.configured ? 'Go back to the skills Tide Commander ships with' : 'Already using the shipped defaults'}
+          title={defaults.configured ? t('tools:defaultSkills.resetTitleGoBack', { defaultValue: 'Go back to the skills Tide Commander ships with' }) : t('tools:defaultSkills.resetTitleAlready', { defaultValue: 'Already using the shipped defaults' })}
         >
-          Reset
+          {t('common:buttons.reset')}
         </button>
       </div>
 
@@ -138,7 +138,7 @@ export function DefaultAgentSkillsSection() {
 
       {missingSlugs.length > 0 && (
         <span className="config-hint" style={{ marginTop: '6px' }}>
-          Not installed here, ignored when spawning: {missingSlugs.join(', ')}
+          {t('tools:defaultSkills.notInstalled', { defaultValue: 'Not installed here, ignored when spawning: {{slugs}}', slugs: missingSlugs.join(', ') })}
         </span>
       )}
 
@@ -155,7 +155,7 @@ export function DefaultAgentSkillsSection() {
           </div>
         ))}
         {filteredSkills.length === 0 && (
-          <span className="config-hint">No skills match "{search}".</span>
+          <span className="config-hint">{t('tools:defaultSkills.noMatch', { defaultValue: 'No skills match "{{query}}".', query: search })}</span>
         )}
       </div>
     </div>

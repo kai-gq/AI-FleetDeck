@@ -79,7 +79,7 @@ export const AgentCard = React.memo(({
         {hasUnseen && (
           <span
             className="dash-card__unseen-badge"
-            title="New output available - click to view"
+            title={t('dashboard:agentCards.newOutputAvailable', { defaultValue: 'New output available - click to view' })}
           >
             !
           </span>

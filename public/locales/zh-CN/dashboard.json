@@ -82,5 +82,8 @@
     "stale": "久未活动（1 小时 - 1 天）",
     "veryStale": "长期未活动（> 1 天）",
     "unseen": "未读"
+  },
+  "agentCards": {
+    "newOutputAvailable": "有新输出，点击查看"
   }
 }

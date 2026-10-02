@@ -330,5 +330,15 @@
     "encryptedTitle": "提供方不会返回可解密的详细思维链文本",
     "providerSummaryEncrypted": "仅提供方摘要 · 详细推理内容已加密。",
     "providerSummaryOnly": "仅提供方摘要。"
+  },
+  "defaultSkills": {
+    "intro": "创建智能体时默认勾选的技能。你仍可针对单个智能体调整，已存在的智能体不受影响。每个勾选的技能都会加入新智能体的提示词，选得越少，留给实际任务的空间越大。",
+    "saveFailed": "保存默认技能失败",
+    "resetFailed": "重置默认技能失败",
+    "selectedCount": "已选 {{n}} 个",
+    "resetTitleGoBack": "恢复为 Tide Commander 预置的技能",
+    "resetTitleAlready": "已在使用预置默认技能",
+    "notInstalled": "本机未安装，创建时将被忽略：{{slugs}}",
+    "noMatch": "没有匹配“{{query}}”的技能。"
   }
 }

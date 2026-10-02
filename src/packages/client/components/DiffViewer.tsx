@@ -936,7 +936,7 @@ export function DiffViewer({
           )}
           {!readOnly && diffHunks.length > 0 && (
             <>
-              <Tooltip content="Previous change (Up)" position="bottom">
+              <Tooltip content={t('terminal:diffViewer.previousChangeUp', { defaultValue: 'Previous change (Up)' })} position="bottom">
                 <button
                   className="diff-nav-btn"
                   onClick={goToPrevHunk}
@@ -948,7 +948,7 @@ export function DiffViewer({
               <span className="diff-nav-counter">
                 {currentHunkIndex + 1} / {diffHunks.length}
               </span>
-              <Tooltip content="Next change (Down)" position="bottom">
+              <Tooltip content={t('terminal:diffViewer.nextChangeDown', { defaultValue: 'Next change (Down)' })} position="bottom">
                 <button
                   className="diff-nav-btn"
                   onClick={goToNextHunk}
@@ -1003,7 +1003,7 @@ export function DiffViewer({
             </button>
           </Tooltip>
           {isMarkdown && viewOnlyModified && (
-            <Tooltip content="Copy as HTML tags (for Google Docs, HTML editors)" position="bottom">
+            <Tooltip content={t('terminal:diffViewer.copyAsHtmlTags', { defaultValue: 'Copy as HTML tags (for Google Docs, HTML editors)' })} position="bottom">
               <button
                 className={`diff-copy-btn ${copyHtmlStatus}`}
                 onClick={handleCopyAsHtml}

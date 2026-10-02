@@ -11,6 +11,7 @@
 
 import { enterInsertsNewline } from '../../utils/composerEnter';
 import React, { useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AttachedFile } from './outputTypes';
 import { Icon } from '../Icon';
 
@@ -66,6 +67,7 @@ export function TerminalInput({
   compact = false,
   inputRef,
 }: TerminalInputProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -239,7 +241,7 @@ export function TerminalInput({
               <button
                 className={compact ? 'agent-panel-attachment-remove' : 'guake-attachment-remove'}
                 onClick={() => onRemoveFile(file.id)}
-                title="Remove"
+                title={t('common:buttons.remove')}
               >
                 ×
               </button>
@@ -261,7 +263,7 @@ export function TerminalInput({
           <button
             className={attachBtnClass}
             onClick={() => fileInputRef.current?.click()}
-            title="Attach file (or paste image)"
+            title={t('terminal:input.attachOrPaste')}
           >
             <Icon name="paperclip" size={14} />
           </button>
@@ -291,7 +293,7 @@ export function TerminalInput({
             className={sendBtnClass}
             onClick={onSend}
             disabled={!canSend}
-            title="Send"
+            title={t('common:buttons.send')}
           >
             <Icon name="send" size={14} />
           </button>

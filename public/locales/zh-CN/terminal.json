@@ -1416,7 +1416,10 @@
     "tooltipShowDiff": "显示差异视图",
     "tooltipViewOnlyModified": "仅查看修改内容",
     "tooltipCopyFileContent": "复制文件内容",
-    "tooltipCopyModifiedContent": "复制修改后的内容"
+    "tooltipCopyModifiedContent": "复制修改后的内容",
+    "previousChangeUp": "上一处更改（向上）",
+    "nextChangeDown": "下一处更改（向下）",
+    "copyAsHtmlTags": "复制为 HTML 标签（适用于 Google Docs、HTML 编辑器）"
   },
   "buildingAction": {
     "start": "启动",
