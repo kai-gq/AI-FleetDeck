@@ -13,8 +13,8 @@ interface STTOptions {
 }
 
 const DEFAULT_OPTIONS: STTOptions = {
-  language: 'Spanish',
-  model: 'medium',
+  language: 'Chinese',
+  model: 'turbo',
 };
 
 export function useSTT(options: STTOptions = {}) {

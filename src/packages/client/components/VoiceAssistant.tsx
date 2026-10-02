@@ -61,8 +61,8 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
   }, [tts]);
 
   const stt = useSTT({
-    language: 'Spanish',
-    model: 'medium',
+    language: 'Chinese',
+    model: 'turbo',
     onTranscription: handleTranscription,
   });
 

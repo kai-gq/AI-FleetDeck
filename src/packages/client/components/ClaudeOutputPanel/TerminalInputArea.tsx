@@ -484,8 +484,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
 
   // Speech-to-text hook - automatically send transcribed text to agent
   const { recording, transcribing, toggleRecording } = useSTT({
-    language: 'Spanish',
-    model: 'medium',
+    language: 'Chinese',
+    model: 'turbo',
     onTranscription: (text) => {
       // Send transcribed text directly to the agent
       if (text.trim() && selectedAgentId) {
