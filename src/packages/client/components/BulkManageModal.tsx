@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ModalPortal } from './shared/ModalPortal';
 import { SearchableSelect } from './shared/SearchableSelect';
 import { Icon } from './Icon';
@@ -29,12 +30,6 @@ import { convertAgentRuntime } from '../api/session-transfer';
 import '../styles/components/bulk-manage-modal.scss';
 
 type ModelProvider = 'claude' | 'codex' | 'pi';
-
-const AREA_FILTER_PINNED = [
-  { value: 'all', label: 'All Areas' },
-  { value: 'unassigned', label: 'Unassigned' },
-];
-const MOVE_AREA_PINNED = [{ value: '', label: 'Unassign area' }];
 
 /** Convert areas Map to array */
 function areasToArray(areas: Map<string, DrawingArea>): DrawingArea[] {
@@ -81,6 +76,14 @@ function getAgentArea(agent: Agent, areas: DrawingArea[]): DrawingArea | null {
 const NO_AGENTS: Agent[] = [];
 
 export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
+  const { t } = useTranslation(['config', 'common']);
+  const areaFilterPinned = useMemo(() => [
+    { value: 'all', label: t('config:bulkManage.filter.allAreas', { defaultValue: 'All Areas' }) },
+    { value: 'unassigned', label: t('config:bulkManage.filter.unassigned', { defaultValue: 'Unassigned' }) },
+  ], [t]);
+  const moveAreaPinned = useMemo(() => [
+    { value: '', label: t('config:bulkManage.moveArea.unassign', { defaultValue: 'Unassign area' }) },
+  ], [t]);
   const liveAgents = useAgentsArray();
   // Closed modal: don't feed the (agents × filters) memos below — this
   // component stays mounted inside the overview panel and re-rendered on
@@ -261,8 +264,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
     if (pendingSkillsList.length === 0) return '';
     if (pendingSkillsList.length === 1) return `"${pendingSkillsList[0].name}"`;
     if (pendingSkillsList.length <= 3) return pendingSkillsList.map(s => `"${s.name}"`).join(', ');
-    return `${pendingSkillsList.length} skills`;
-  }, [pendingSkillsList]);
+    return t('config:bulkManage.picker.manySkills', { defaultValue: '{{count}} skills', count: pendingSkillsList.length });
+  }, [pendingSkillsList, t]);
 
   // For 'remove-skill' confirm: how many (agent, skill) pairs would actually be
   // removed, i.e. selected agents the pending skills reach (directly, via class
@@ -377,7 +380,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
         }
 
         result = { succeeded, failed };
-        verb = migratingAgents.length > 0 ? 'Changed model/runtime for' : 'Changed model for';
+        verb = migratingAgents.length > 0
+          ? t('config:bulkManage.verb.changedModelRuntime', { defaultValue: 'Changed model/runtime for' })
+          : t('config:bulkManage.verb.changedModel', { defaultValue: 'Changed model for' });
       } else if (action === 'add-skill' || action === 'remove-skill') {
         const ids = Array.from(selectedIds);
         const skillIds = Array.from(pendingSkillIds);
@@ -401,56 +406,85 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
         switch (action) {
           case 'delete':
             result = await bulkDeleteAgents(ids);
-            verb = 'Deleted';
+            verb = t('config:bulkManage.verb.deleted', { defaultValue: 'Deleted' });
             if (result.failed.length === 0) setSelectedIds(new Set());
             break;
           case 'stop':
             result = await bulkStopAgents(ids);
-            verb = 'Stopped';
+            verb = t('config:bulkManage.verb.stopped', { defaultValue: 'Stopped' });
             break;
           case 'clear-context':
             result = await bulkClearContext(ids);
-            verb = 'Cleared context for';
+            verb = t('config:bulkManage.verb.clearedContext', { defaultValue: 'Cleared context for' });
             break;
           case 'move-area':
             result = await bulkMoveToArea(ids, moveAreaId || null);
-            verb = 'Moved';
+            verb = t('config:bulkManage.verb.moved', { defaultValue: 'Moved' });
             break;
         }
       }
 
       if (result) {
         if (result.failed.length > 0) {
-          setSuccess(`${verb} ${result.succeeded.length} agent(s). Failed: ${result.failed.length}`);
+          setSuccess(t('config:bulkManage.result.withFailed', {
+            defaultValue: '{{verb}} {{count}} agent(s). Failed: {{failed}}',
+            verb,
+            count: result.succeeded.length,
+            failed: result.failed.length,
+          }));
         } else {
-          setSuccess(`${verb} ${result.succeeded.length} agent(s)`);
+          setSuccess(t('config:bulkManage.result.ok', {
+            defaultValue: '{{verb}} {{count}} agent(s)',
+            verb,
+            count: result.succeeded.length,
+          }));
         }
       } else if (addResult) {
         const skillCount = addResult.results.length;
         const totalAdded = addResult.results.reduce((sum, r) => sum + r.updated.length, 0);
         const totalAlready = addResult.results.reduce((sum, r) => sum + r.alreadyHad.length, 0);
         const totalFailed = addResult.results.reduce((sum, r) => sum + r.failed.length, 0);
-        const alreadySuffix = totalAlready > 0 ? ` (${totalAlready} already assigned)` : '';
-        const failSuffix = totalFailed > 0 ? `, ${totalFailed} failed` : '';
-        setSuccess(`Added ${skillCount} skill(s): ${totalAdded} new assignment(s)${alreadySuffix}${failSuffix}`);
+        const alreadySuffix = totalAlready > 0
+          ? t('config:bulkManage.result.alreadyAssigned', { defaultValue: ' ({{count}} already assigned)', count: totalAlready })
+          : '';
+        const failSuffix = totalFailed > 0
+          ? t('config:bulkManage.result.failSuffix', { defaultValue: ', {{count}} failed', count: totalFailed })
+          : '';
+        setSuccess(t('config:bulkManage.result.skillsAdded', {
+          defaultValue: 'Added {{skills}} skill(s): {{added}} new assignment(s){{already}}{{failed}}',
+          skills: skillCount,
+          added: totalAdded,
+          already: alreadySuffix,
+          failed: failSuffix,
+        }));
         setPendingSkillIds(new Set());
       } else if (removeResult) {
         const skillCount = removeResult.results.length;
         const totalRemoved = removeResult.results.reduce((sum, r) => sum + r.updated.length, 0);
         const totalMissing = removeResult.results.reduce((sum, r) => sum + r.didNotHave.length, 0);
         const totalFailed = removeResult.results.reduce((sum, r) => sum + r.failed.length, 0);
-        const missingSuffix = totalMissing > 0 ? ` (${totalMissing} weren't assigned)` : '';
-        const failSuffix = totalFailed > 0 ? `, ${totalFailed} failed` : '';
-        setSuccess(`Removed ${skillCount} skill(s): ${totalRemoved} assignment(s) removed${missingSuffix}${failSuffix}`);
+        const missingSuffix = totalMissing > 0
+          ? t('config:bulkManage.result.notAssigned', { defaultValue: " ({{count}} weren't assigned)", count: totalMissing })
+          : '';
+        const failSuffix = totalFailed > 0
+          ? t('config:bulkManage.result.failSuffix', { defaultValue: ', {{count}} failed', count: totalFailed })
+          : '';
+        setSuccess(t('config:bulkManage.result.skillsRemoved', {
+          defaultValue: 'Removed {{skills}} skill(s): {{removed}} assignment(s) removed{{missing}}{{failed}}',
+          skills: skillCount,
+          removed: totalRemoved,
+          missing: missingSuffix,
+          failed: failSuffix,
+        }));
         setPendingSkillIds(new Set());
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
+      setError(err instanceof Error ? err.message : t('config:bulkManage.actionFailed', { defaultValue: 'Action failed' }));
     } finally {
       setActionInProgress(false);
       setConfirmAction(null);
     }
-  }, [selectedIds, moveAreaId, selectedModelAgents, sameProviderAgents, migratingAgents, modelProvider, newClaudeModel, newCodexModel, newPiModel, newEffort, targetSupportsImport, transferMode, stopActiveForTransfer, pendingSkillIds]);
+  }, [t, selectedIds, moveAreaId, selectedModelAgents, sameProviderAgents, migratingAgents, modelProvider, newClaudeModel, newCodexModel, newPiModel, newEffort, targetSupportsImport, transferMode, stopActiveForTransfer, pendingSkillIds]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -504,8 +538,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
         <div className="bulk-manage-modal" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
           {/* Header */}
           <div className="modal-header">
-            <h2>Bulk Agent Management</h2>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <h2>{t('config:bulkManage.title', { defaultValue: 'Bulk Agent Management' })}</h2>
+            <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               &#x2715;
             </button>
           </div>
@@ -518,11 +552,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onChange={e => setStatusFilter(e.target.value as StatusFilter)}
                 className="bulk-filter-select"
               >
-                <option value="all">All Status</option>
-                <option value="idle">Idle</option>
-                <option value="working">Working</option>
-                <option value="error">Error</option>
-                <option value="stopped">Stopped</option>
+                <option value="all">{t('config:bulkManage.filter.allStatus', { defaultValue: 'All Status' })}</option>
+                <option value="idle">{t('config:bulkManage.status.idle', { defaultValue: 'Idle' })}</option>
+                <option value="working">{t('config:bulkManage.status.working', { defaultValue: 'Working' })}</option>
+                <option value="error">{t('config:bulkManage.status.error', { defaultValue: 'Error' })}</option>
+                <option value="stopped">{t('config:bulkManage.status.stopped', { defaultValue: 'Stopped' })}</option>
               </select>
 
               <select
@@ -530,21 +564,21 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onChange={e => setIdleTimeFilter(e.target.value as IdleTimeFilter)}
                 className="bulk-filter-select"
               >
-                <option value="any">Any Idle Time</option>
-                <option value=">1h">&gt; 1 hour</option>
-                <option value=">6h">&gt; 6 hours</option>
-                <option value=">1d">&gt; 1 day</option>
-                <option value=">3d">&gt; 3 days</option>
-                <option value=">7d">&gt; 7 days</option>
-                <option value=">30d">&gt; 30 days</option>
+                <option value="any">{t('config:bulkManage.idleTime.any', { defaultValue: 'Any Idle Time' })}</option>
+                <option value=">1h">{t('config:bulkManage.idleTime.1h', { defaultValue: '> 1 hour' })}</option>
+                <option value=">6h">{t('config:bulkManage.idleTime.6h', { defaultValue: '> 6 hours' })}</option>
+                <option value=">1d">{t('config:bulkManage.idleTime.1d', { defaultValue: '> 1 day' })}</option>
+                <option value=">3d">{t('config:bulkManage.idleTime.3d', { defaultValue: '> 3 days' })}</option>
+                <option value=">7d">{t('config:bulkManage.idleTime.7d', { defaultValue: '> 7 days' })}</option>
+                <option value=">30d">{t('config:bulkManage.idleTime.30d', { defaultValue: '> 30 days' })}</option>
               </select>
 
               <SearchableSelect
                 value={areaFilter}
                 onChange={setAreaFilter}
-                pinnedOptions={AREA_FILTER_PINNED}
+                pinnedOptions={areaFilterPinned}
                 options={areaOptions}
-                placeholder="Search areas…"
+                placeholder={t('config:bulkManage.searchAreas', { defaultValue: 'Search areas…' })}
                 className="bulk-filter-select"
               />
 
@@ -553,7 +587,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onChange={e => setProviderFilter(e.target.value as ProviderFilter)}
                 className="bulk-filter-select"
               >
-                <option value="all">All Providers</option>
+                <option value="all">{t('config:bulkManage.filter.allProviders', { defaultValue: 'All Providers' })}</option>
                 <option value="claude">Claude</option>
                 <option value="codex">Codex</option>
                 <option value="opencode">OpenCode</option>
@@ -566,7 +600,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 onChange={e => setModelFilter(e.target.value as ModelFilter)}
                 className="bulk-filter-select"
               >
-                <option value="all">All Models</option>
+                <option value="all">{t('config:bulkManage.filter.allModels', { defaultValue: 'All Models' })}</option>
                 <option value="fable-5-1">Fable 5.1 [1M]</option>
                 <option value="fable-5-1m">Fable 5 [1M]</option>
                 <option value="fable-5">Fable 5 (200K)</option>
@@ -577,17 +611,17 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="opus-4-7-1m">Opus 4.7 [1M]</option>
                 <option value="opus-4-7">Opus 4.7 (200K)</option>
                 <option value="opus-4-6">Opus 4.6</option>
-                <option value="opus">Opus (legacy)</option>
+                <option value="opus">{t('config:bulkManage.model.opusLegacy', { defaultValue: 'Opus (legacy)' })}</option>
                 <option value="sonnet-5-5">Sonnet 5.5 [1M]</option>
                 <option value="sonnet-5-1m">Sonnet 5 [1M]</option>
                 <option value="sonnet-5">Sonnet 5 (200K)</option>
-                <option value="sonnet">Sonnet (legacy)</option>
+                <option value="sonnet">{t('config:bulkManage.model.sonnetLegacy', { defaultValue: 'Sonnet (legacy)' })}</option>
                 <option value="haiku">Haiku</option>
               </select>
 
               <input
                 type="text"
-                placeholder="Search name/class..."
+                placeholder={t('config:bulkManage.searchNameClass', { defaultValue: 'Search name/class...' })}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="bulk-filter-search"
@@ -598,11 +632,19 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           {/* Count + Select controls */}
           <div className="bulk-count-bar">
             <span className="bulk-count">
-              {filteredAgents.length} matched, {selectedIds.size} selected
+              {t('config:bulkManage.countBar', {
+                defaultValue: '{{matched}} matched, {{selected}} selected',
+                matched: filteredAgents.length,
+                selected: selectedIds.size,
+              })}
             </span>
             <div className="bulk-select-controls">
-              <button className="bulk-link-btn" onClick={selectAll}>Select all</button>
-              <button className="bulk-link-btn" onClick={selectNone}>Select none</button>
+              <button className="bulk-link-btn" onClick={selectAll}>
+                {t('config:bulkManage.selectAll', { defaultValue: 'Select all' })}
+              </button>
+              <button className="bulk-link-btn" onClick={selectNone}>
+                {t('config:bulkManage.selectNone', { defaultValue: 'Select none' })}
+              </button>
             </div>
           </div>
 
@@ -623,7 +665,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           {/* Agent list */}
           <div className="bulk-agent-list">
             {filteredAgents.length === 0 ? (
-              <div className="bulk-empty">No agents match the current filters</div>
+              <div className="bulk-empty">
+                {t('config:bulkManage.noMatch', { defaultValue: 'No agents match the current filters' })}
+              </div>
             ) : (
               <table className="bulk-table">
                 <thead>
@@ -635,12 +679,12 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                         onChange={() => selectedIds.size === filteredAgents.length ? selectNone() : selectAll()}
                       />
                     </th>
-                    <th className="col-name">Name</th>
-                    <th className="col-class">Class</th>
-                    <th className="col-status">Status</th>
-                    <th className="col-idle">Idle</th>
-                    <th className="col-area">Area</th>
-                    <th className="col-skills">Skills</th>
+                    <th className="col-name">{t('common:labels.name')}</th>
+                    <th className="col-class">{t('common:labels.class')}</th>
+                    <th className="col-status">{t('common:labels.status')}</th>
+                    <th className="col-idle">{t('config:bulkManage.table.idle', { defaultValue: 'Idle' })}</th>
+                    <th className="col-area">{t('config:bulkManage.table.area', { defaultValue: 'Area' })}</th>
+                    <th className="col-skills">{t('config:bulkManage.table.skills', { defaultValue: 'Skills' })}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -687,9 +731,16 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                                 const readOnly = chip.source !== 'direct';
                                 const tooltip =
                                   chip.source === 'wildcard'
-                                    ? `${chip.name} — applied to all agents ('*' wildcard); not removable per-agent`
+                                    ? t('config:bulkManage.skillTooltip.wildcard', {
+                                        defaultValue: "{{name}} — applied to all agents ('*' wildcard); not removable per-agent",
+                                        name: chip.name,
+                                      })
                                     : chip.source === 'class'
-                                    ? `${chip.name} — applied to all "${agent.class}" agents via class default; not removable per-agent`
+                                    ? t('config:bulkManage.skillTooltip.class', {
+                                        defaultValue: '{{name}} — applied to all "{{class}}" agents via class default; not removable per-agent',
+                                        name: chip.name,
+                                        class: agent.class,
+                                      })
                                     : chip.name;
                                 return (
                                   <span key={chip.name} className="bulk-skill-chip" title={tooltip}>
@@ -719,13 +770,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
               <div className="bulk-confirm-box" style={{ minWidth: 480, maxWidth: 640, textAlign: 'left' }}>
                 <p style={{ fontWeight: 600, marginBottom: 8 }}>
                   {skillPickerMode === 'add'
-                    ? `Add skills to ${selectedIds.size} selected agent(s)`
-                    : `Remove skills from ${selectedIds.size} selected agent(s)`}
+                    ? t('config:bulkManage.picker.addTitle', { defaultValue: 'Add skills to {{count}} selected agent(s)', count: selectedIds.size })
+                    : t('config:bulkManage.picker.removeTitle', { defaultValue: 'Remove skills from {{count}} selected agent(s)', count: selectedIds.size })}
                 </p>
                 <input
                   type="text"
                   className="bulk-filter-search"
-                  placeholder="Search skills..."
+                  placeholder={t('config:bulkManage.picker.search', { defaultValue: 'Search skills...' })}
                   value={skillSearchQuery}
                   onChange={e => setSkillSearchQuery(e.target.value)}
                   autoFocus
@@ -736,7 +787,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   style={{ padding: '4px 0', borderBottom: 'none', marginBottom: 4 }}
                 >
                   <span className="bulk-count">
-                    {pendingSkillIds.size} of {pickerSkills.length} selected
+                    {t('config:bulkManage.picker.selectedCount', {
+                      defaultValue: '{{selected}} of {{total}} selected',
+                      selected: pendingSkillIds.size,
+                      total: pickerSkills.length,
+                    })}
                   </span>
                   <div className="bulk-select-controls">
                     <button
@@ -745,7 +800,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       onClick={() => setPendingSkillIds(new Set(pickerSkills.map(s => s.id)))}
                       disabled={pickerSkills.length === 0}
                     >
-                      Select all
+                      {t('config:bulkManage.selectAll', { defaultValue: 'Select all' })}
                     </button>
                     <button
                       type="button"
@@ -753,7 +808,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       onClick={() => setPendingSkillIds(new Set())}
                       disabled={pendingSkillIds.size === 0}
                     >
-                      Select none
+                      {t('config:bulkManage.selectNone', { defaultValue: 'Select none' })}
                     </button>
                   </div>
                 </div>
@@ -770,8 +825,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   {pickerSkills.length === 0 ? (
                     <div className="bulk-empty" style={{ padding: 16 }}>
                       {skillPickerMode === 'remove'
-                        ? 'None of the selected agents have a skill matching this filter.'
-                        : 'No skills match this search.'}
+                        ? t('config:bulkManage.picker.emptyRemove', { defaultValue: 'None of the selected agents have a skill matching this filter.' })
+                        : t('config:bulkManage.picker.emptySearch', { defaultValue: 'No skills match this search.' })}
                     </div>
                   ) : (
                     pickerSkills.map(skill => {
@@ -801,7 +856,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                               {skill.name}
                               {skill.builtin && (
                                 <span style={{ fontSize: 11, color: 'var(--text-muted, #888)', marginLeft: 6 }}>
-                                  (built-in)
+                                  {t('config:bulkManage.picker.builtIn', { defaultValue: '(built-in)' })}
                                 </span>
                               )}
                             </div>
@@ -820,14 +875,14 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     onClick={closeSkillPicker}
                     disabled={actionInProgress}
                   >
-                    Cancel
+                    {t('common:buttons.cancel')}
                   </button>
                   <button
                     className="btn btn-primary"
                     onClick={confirmSkillPick}
                     disabled={pendingSkillIds.size === 0 || actionInProgress}
                   >
-                    Continue ({pendingSkillIds.size})
+                    {t('config:bulkManage.picker.continue', { defaultValue: 'Continue ({{count}})', count: pendingSkillIds.size })}
                   </button>
                 </div>
               </div>
@@ -841,7 +896,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 {confirmAction === 'change-model' ? (
                   <>
                     <p>
-                      Change model to <strong>
+                      {t('config:bulkManage.confirm.changeModelTo', { defaultValue: 'Change model to ' })}
+                      <strong>
                         {modelProvider === 'claude'
                           ? CLAUDE_MODELS[newClaudeModel].label
                           : modelProvider === 'codex'
@@ -850,25 +906,41 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       </strong>
                       {(modelProvider === 'claude' || modelProvider === 'pi') && (
                         <>
-                          {' '}at <strong>
-                            {newEffort === 'default' ? 'default effort' : `${CLAUDE_EFFORTS[newEffort].label} effort`}
+                          {t('config:bulkManage.confirm.atEffort', { defaultValue: ' at ' })}
+                          <strong>
+                            {newEffort === 'default'
+                              ? t('config:bulkManage.confirm.effortDefault', { defaultValue: 'default effort' })
+                              : t('config:bulkManage.confirm.effortLevel', { defaultValue: '{{level}} effort', level: CLAUDE_EFFORTS[newEffort].label })}
                           </strong>
                         </>
                       )}
-                      {' '}for <strong>{selectedModelAgents.length}</strong> selected agent(s)?
+                      {t('config:bulkManage.confirm.forSelected', { defaultValue: ' for ' })}
+                      <strong>{selectedModelAgents.length}</strong>
+                      {t('config:bulkManage.confirm.selectedAgentsQ', { defaultValue: ' selected agent(s)?' })}
                     </p>
                     {sameProviderAgents.length > 0 && (
                       <p style={{ color: 'var(--color-success, #4caf7d)', fontWeight: 600 }}>
-                        {sameProviderAgents.length} already use {modelProvider}: the model changes in place without restarting or clearing context.
+                        {t('config:bulkManage.confirm.sameProvider', {
+                          defaultValue: '{{count}} already use {{provider}}: the model changes in place without restarting or clearing context.',
+                          count: sameProviderAgents.length,
+                          provider: modelProvider,
+                        })}
                       </p>
                     )}
                     {migratingAgents.length > 0 && (
                       <div className="runtime-transfer-panel">
                         <div className="runtime-transfer-panel__title">
-                          <Icon name="arrow-right" size={14} /> Migrate {migratingAgents.length} agent(s) to {modelProvider}
+                          <Icon name="arrow-right" size={14} />{' '}
+                          {t('config:bulkManage.confirm.migrateTitle', {
+                            defaultValue: 'Migrate {{count}} agent(s) to {{provider}}',
+                            count: migratingAgents.length,
+                            provider: modelProvider,
+                          })}
                         </div>
                         <div className="spawn-inline-hint">
-                          Commander uses the existing per-agent migration flow. Each source session remains archived for rollback.
+                          {t('config:bulkManage.confirm.migrateHint', {
+                            defaultValue: 'Commander uses the existing per-agent migration flow. Each source session remains archived for rollback.',
+                          })}
                         </div>
                         {targetSupportsImport && (
                           <div className="runtime-transfer-mode-grid">
@@ -883,16 +955,18 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                                 className={`runtime-transfer-mode ${transferMode === mode ? 'selected' : ''}`}
                                 onClick={() => setTransferMode(mode)}
                               >
-                                <strong>{label}</strong>
-                                <span>{description}</span>
+                                <strong>{t(`config:bulkManage.transferMode.${mode}.label`, { defaultValue: label })}</strong>
+                                <span>{t(`config:bulkManage.transferMode.${mode}.description`, { defaultValue: description })}</span>
                               </button>
                             ))}
                           </div>
                         )}
                         {migratingAgentsWithoutSession.length > 0 && transferMode !== 'fresh' && (
                           <div className="model-change-notice warning">
-                            {migratingAgentsWithoutSession.length} agent(s) have no saved session and will start fresh automatically;
-                            saved sessions still use the selected migration mode.
+                            {t('config:bulkManage.confirm.noSessionWarning', {
+                              defaultValue: '{{count}} agent(s) have no saved session and will start fresh automatically; saved sessions still use the selected migration mode.',
+                              count: migratingAgentsWithoutSession.length,
+                            })}
                           </div>
                         )}
                         {activeMigratingAgents.length > 0 && (
@@ -902,7 +976,12 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                               checked={stopActiveForTransfer}
                               onChange={(event) => setStopActiveForTransfer(event.target.checked)}
                             />
-                            <span>Stop {activeMigratingAgents.length} active task(s) before taking their migration snapshots</span>
+                            <span>
+                              {t('config:bulkManage.confirm.stopActive', {
+                                defaultValue: 'Stop {{count}} active task(s) before taking their migration snapshots',
+                                count: activeMigratingAgents.length,
+                              })}
+                            </span>
                           </label>
                         )}
                       </div>
@@ -910,25 +989,34 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   </>
                 ) : confirmAction === 'add-skill' ? (
                   <p>
-                    Add <strong>{pendingSkillsList.length}</strong> skill{pendingSkillsList.length === 1 ? '' : 's'} (<strong>{pendingSkillsLabel}</strong>) to <strong>{selectedIds.size}</strong> agent(s)?
+                    {t('config:bulkManage.confirm.add.p1', { defaultValue: 'Add' })}{' '}
+                    <strong>{pendingSkillsList.length}</strong>{' '}
+                    {t('config:bulkManage.confirm.add.p2', { defaultValue: 'skill{{plural}} (', plural: pendingSkillsList.length === 1 ? '' : 's' })}<strong>{pendingSkillsLabel}</strong>{t('config:bulkManage.confirm.add.p3', { defaultValue: ') to ' })}<strong>{selectedIds.size}</strong>{' '}
+                    {t('config:bulkManage.confirm.add.p4', { defaultValue: 'agent(s)?' })}
                     <br />
                     <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
-                      Idempotent — assignments that already exist will be skipped.
+                      {t('config:bulkManage.confirm.addNote', { defaultValue: 'Idempotent — assignments that already exist will be skipped.' })}
                     </span>
                   </p>
                 ) : confirmAction === 'remove-skill' ? (
                   <p>
-                    Remove <strong>{pendingSkillsList.length}</strong> skill{pendingSkillsList.length === 1 ? '' : 's'} (<strong>{pendingSkillsLabel}</strong>) from up to <strong>{selectedIds.size}</strong> selected agent(s)?
+                    {t('config:bulkManage.confirm.remove.p1', { defaultValue: 'Remove' })}{' '}
+                    <strong>{pendingSkillsList.length}</strong>{' '}
+                    {t('config:bulkManage.confirm.remove.p2', { defaultValue: 'skill{{plural}} (', plural: pendingSkillsList.length === 1 ? '' : 's' })}<strong>{pendingSkillsLabel}</strong>{t('config:bulkManage.confirm.remove.p3', { defaultValue: ') from up to ' })}<strong>{selectedIds.size}</strong>{' '}
+                    {t('config:bulkManage.confirm.remove.p4', { defaultValue: 'selected agent(s)?' })}
                     <br />
                     <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
-                      {removeSkillAffectedPairs} assignment(s) will be removed. Skills that come from the agent's class or '*' are removed only for these agents; the class assignment stays for everyone else.
+                      {t('config:bulkManage.confirm.removeNote', {
+                        defaultValue: "{{count}} assignment(s) will be removed. Skills that come from the agent's class or '*' are removed only for these agents; the class assignment stays for everyone else.",
+                        count: removeSkillAffectedPairs,
+                      })}
                     </span>
                   </p>
                 ) : (
                   <p>
                     {confirmAction === 'delete'
-                      ? `Delete ${selectedIds.size} agent(s)? This cannot be undone.`
-                      : `Clear context for ${selectedIds.size} agent(s)? This will restart their sessions.`}
+                      ? t('config:bulkManage.confirm.deleteQ', { defaultValue: 'Delete {{count}} agent(s)? This cannot be undone.', count: selectedIds.size })
+                      : t('config:bulkManage.confirm.clearQ', { defaultValue: 'Clear context for {{count}} agent(s)? This will restart their sessions.', count: selectedIds.size })}
                   </p>
                 )}
                 <div className="bulk-confirm-actions">
@@ -937,7 +1025,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     onClick={() => setConfirmAction(null)}
                     disabled={actionInProgress}
                   >
-                    Cancel
+                    {t('common:buttons.cancel')}
                   </button>
                   <button
                     className={`btn ${confirmAction === 'add-skill' ? 'btn-primary' : 'btn-danger'}`}
@@ -952,7 +1040,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                       ((confirmAction === 'add-skill' || confirmAction === 'remove-skill') && pendingSkillIds.size === 0)
                     }
                   >
-                    {actionInProgress ? 'Working...' : 'Confirm'}
+                    {actionInProgress
+                      ? t('config:bulkManage.working', { defaultValue: 'Working...' })
+                      : t('config:bulkManage.confirmBtn', { defaultValue: 'Confirm' })}
                   </button>
                 </div>
               </div>
@@ -967,28 +1057,28 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => setConfirmAction('delete')}
               >
-                Delete Selected
+                {t('config:bulkManage.footer.delete', { defaultValue: 'Delete Selected' })}
               </button>
               <button
                 className="btn btn-secondary"
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => setConfirmAction('clear-context')}
               >
-                Clear Context
+                {t('config:bulkManage.footer.clearContext', { defaultValue: 'Clear Context' })}
               </button>
               <button
                 className="btn btn-primary"
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => openSkillPicker('add')}
               >
-                Add Skill
+                {t('config:bulkManage.footer.addSkill', { defaultValue: 'Add Skill' })}
               </button>
               <button
                 className="btn btn-secondary"
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => openSkillPicker('remove')}
               >
-                Remove Skill
+                {t('config:bulkManage.footer.removeSkill', { defaultValue: 'Remove Skill' })}
               </button>
             </div>
 
@@ -998,15 +1088,15 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => handleAction('stop')}
               >
-                Stop Selected
+                {t('config:bulkManage.footer.stop', { defaultValue: 'Stop Selected' })}
               </button>
 
               <SearchableSelect
                 value={moveAreaId}
                 onChange={setMoveAreaId}
-                pinnedOptions={MOVE_AREA_PINNED}
+                pinnedOptions={moveAreaPinned}
                 options={areaOptions}
-                placeholder="Search areas…"
+                placeholder={t('config:bulkManage.searchAreas', { defaultValue: 'Search areas…' })}
                 className="bulk-filter-select"
                 disabled={selectedIds.size === 0 || actionInProgress}
               />
@@ -1015,7 +1105,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 disabled={selectedIds.size === 0 || actionInProgress}
                 onClick={() => handleAction('move-area')}
               >
-                Move to Area
+                {t('config:bulkManage.footer.moveToArea', { defaultValue: 'Move to Area' })}
               </button>
             </div>
           </div>
@@ -1023,7 +1113,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           {/* Change Model row */}
           <div className="modal-footer bulk-footer bulk-change-model-row">
             <div className="footer-buttons-left">
-              <span className="bulk-change-model-label">Change Model:</span>
+              <span className="bulk-change-model-label">
+                {t('config:bulkManage.changeModel.label', { defaultValue: 'Change Model:' })}
+              </span>
               <select
                 value={modelProvider}
                 onChange={e => setModelProvider(e.target.value as ModelProvider)}
@@ -1079,9 +1171,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   onChange={e => setNewEffort(e.target.value as ClaudeEffort | 'default')}
                   className="bulk-filter-select"
                   disabled={actionInProgress}
-                  title="Reasoning effort level"
+                  title={t('config:bulkManage.changeModel.effortTitle', { defaultValue: 'Reasoning effort level' })}
                 >
-                  <option value="default">Default effort</option>
+                  <option value="default">
+                    {t('config:bulkManage.changeModel.defaultEffort', { defaultValue: 'Default effort' })}
+                  </option>
                   {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[]).map(level => (
                     <option key={level} value={level}>
                       {CLAUDE_EFFORTS[level].icon} {CLAUDE_EFFORTS[level].label}
@@ -1091,7 +1185,10 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
               )}
 
               <span className="bulk-change-model-count">
-                {selectedModelAgents.length} selected{migratingAgents.length > 0 ? ` · ${migratingAgents.length} migrate` : ''}
+                {t('config:bulkManage.changeModel.selectedCount', { defaultValue: '{{count}} selected', count: selectedModelAgents.length })}
+                {migratingAgents.length > 0
+                  ? t('config:bulkManage.changeModel.migrateSuffix', { defaultValue: ' · {{count}} migrate', count: migratingAgents.length })
+                  : ''}
               </span>
             </div>
             <div className="footer-buttons-right">
@@ -1100,7 +1197,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 disabled={selectedModelAgents.length === 0 || actionInProgress || (modelProvider === 'pi' && !newPiModel)}
                 onClick={() => setConfirmAction('change-model')}
               >
-                Change Model
+                {t('config:bulkManage.changeModel.button', { defaultValue: 'Change Model' })}
               </button>
             </div>
           </div>

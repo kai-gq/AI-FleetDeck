@@ -992,5 +992,142 @@
     "noInstances": "未找到工作流实例。",
     "stepCount": "{{count}} 步",
     "debugView": "调试视图"
+  },
+  "bulkManage": {
+    "title": "批量智能体管理",
+    "filter": {
+      "allStatus": "全部状态",
+      "allProviders": "全部提供商",
+      "allModels": "全部模型",
+      "allAreas": "全部区域",
+      "unassigned": "未分配"
+    },
+    "status": {
+      "idle": "空闲",
+      "working": "工作中",
+      "error": "错误",
+      "stopped": "已停止"
+    },
+    "idleTime": {
+      "any": "任意空闲时长",
+      "1h": "> 1 小时",
+      "6h": "> 6 小时",
+      "1d": "> 1 天",
+      "3d": "> 3 天",
+      "7d": "> 7 天",
+      "30d": "> 30 天"
+    },
+    "searchAreas": "搜索区域…",
+    "model": {
+      "opusLegacy": "Opus（旧版）",
+      "sonnetLegacy": "Sonnet（旧版）"
+    },
+    "searchNameClass": "搜索名称/类别…",
+    "countBar": "匹配 {{matched}} 个，已选 {{selected}} 个",
+    "selectAll": "全选",
+    "selectNone": "取消全选",
+    "noMatch": "没有符合当前筛选条件的智能体",
+    "table": {
+      "idle": "空闲",
+      "area": "区域",
+      "skills": "技能"
+    },
+    "skillTooltip": {
+      "wildcard": "{{name}}——应用于所有智能体（「*」通配符）；无法按智能体单独移除",
+      "class": "{{name}}——通过类别默认应用于所有「{{class}}」智能体；无法按智能体单独移除"
+    },
+    "picker": {
+      "addTitle": "向 {{count}} 个选中的智能体添加技能",
+      "removeTitle": "从 {{count}} 个选中的智能体移除技能",
+      "search": "搜索技能…",
+      "selectedCount": "已选 {{selected}}/{{total}}",
+      "emptyRemove": "所选智能体中没有符合此筛选条件的技能。",
+      "emptySearch": "没有符合此搜索的技能。",
+      "builtIn": "（内置）",
+      "continue": "继续（{{count}}）",
+      "manySkills": "{{count}} 个技能"
+    },
+    "confirm": {
+      "changeModelTo": "将模型更改为 ",
+      "atEffort": "，推理强度 ",
+      "effortDefault": "默认强度",
+      "effortLevel": "{{level}} 强度",
+      "forSelected": "（影响 ",
+      "selectedAgentsQ": " 个选中的智能体）？",
+      "sameProvider": "{{count}} 个已使用 {{provider}}：模型将就地切换，不会重启或清空上下文。",
+      "migrateTitle": "将 {{count}} 个智能体迁移到 {{provider}}",
+      "migrateHint": "Commander 使用现有的逐智能体迁移流程。每个源会话都将保留归档，以便回滚。",
+      "noSessionWarning": "{{count}} 个智能体没有已保存的会话，将自动全新开始；已保存的会话仍使用所选的迁移模式。",
+      "stopActive": "在创建迁移快照前停止 {{count}} 个活动任务",
+      "add": {
+        "p1": "添加",
+        "p2": "个技能（",
+        "p3": "）到 ",
+        "p4": "个智能体？"
+      },
+      "addNote": "幂等操作——已存在的分配将被跳过。",
+      "remove": {
+        "p1": "移除",
+        "p2": "个技能（",
+        "p3": "），最多影响 ",
+        "p4": "个选中的智能体？"
+      },
+      "removeNote": "将移除 {{count}} 个分配。来自智能体类别或「*」的技能仅对这些智能体移除；类别分配对其他智能体保持不变。",
+      "deleteQ": "删除 {{count}} 个智能体？此操作无法撤销。",
+      "clearQ": "清空 {{count}} 个智能体的上下文？这将重启它们的会话。"
+    },
+    "transferMode": {
+      "smart": {
+        "label": "智能上下文",
+        "description": "在目标上下文预算内导入有用的历史记录和近期轮次。"
+      },
+      "full": {
+        "label": "完整的可见对话",
+        "description": "导入可见的用户/助手轮次以及安全的工具活动。"
+      },
+      "fresh": {
+        "label": "全新开始",
+        "description": "归档源会话，不导入其对话。"
+      }
+    },
+    "working": "处理中…",
+    "confirmBtn": "确认",
+    "footer": {
+      "delete": "删除所选",
+      "clearContext": "清空上下文",
+      "addSkill": "添加技能",
+      "removeSkill": "移除技能",
+      "stop": "停止所选",
+      "moveToArea": "移动到区域"
+    },
+    "changeModel": {
+      "label": "更改模型：",
+      "effortTitle": "推理强度级别",
+      "defaultEffort": "默认强度",
+      "selectedCount": "已选 {{count}} 个",
+      "migrateSuffix": " · {{count}} 个迁移",
+      "button": "更改模型"
+    },
+    "verb": {
+      "changedModelRuntime": "已更改模型/运行时，共",
+      "changedModel": "已更改模型，共",
+      "deleted": "已删除",
+      "stopped": "已停止",
+      "clearedContext": "已清空上下文，共",
+      "moved": "已移动"
+    },
+    "result": {
+      "withFailed": "{{verb}} {{count}} 个智能体。失败：{{failed}}",
+      "ok": "{{verb}} {{count}} 个智能体",
+      "alreadyAssigned": "（{{count}} 个已存在）",
+      "notAssigned": "（{{count}} 个原本未分配）",
+      "failSuffix": "，{{count}} 个失败",
+      "skillsAdded": "已添加 {{skills}} 个技能：{{added}} 个新分配{{already}}{{failed}}",
+      "skillsRemoved": "已移除 {{skills}} 个技能：移除了 {{removed}} 个分配{{missing}}{{failed}}"
+    },
+    "actionFailed": "操作失败",
+    "moveArea": {
+      "unassign": "取消区域分配"
+    }
   }
 }
