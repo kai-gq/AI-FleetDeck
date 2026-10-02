@@ -9,12 +9,12 @@
       "scope": { "ns": "*" }
     },
     {
-      "//": "LLM 计量一律写 Token;鉴权 token 仅存在于 config:connection.*,译「令牌」,排除在外。",
+      "//": "LLM 计量一律写 Token;鉴权 token(config:connection.*、WhatsApp webhook 校验、Claude 账号 OAuth 令牌)译「令牌」,排除在外。",
       "id": "llm-token",
       "zh": "Token",
       "forbidden": ["令牌"],
       "scope": { "ns": "*" },
-      "exclude": { "keyPattern": "^(config:connection\\.|config:whatsapp\\.webhookVerifyToken$)" }
+      "exclude": { "keyPattern": "^(config:connection\\.|config:whatsapp\\.webhookVerifyToken$|terminal:credentials\\.tokenExpires$)" }
     },
     {
       "//": "Explorer 是资源管理器,不是浏览器。只看 explorer 相关 key;spawn.browser / openInBrowser 等真浏览器场景不在作用域。",
