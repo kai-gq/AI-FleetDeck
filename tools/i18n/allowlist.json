@@ -70,6 +70,7 @@
     "re:^terminal:subagentInline\\.",
     "re:^terminal:grepResults\\.",
     "re:^terminal:terminalModals\\.",
+    "re:^terminal:appShell\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

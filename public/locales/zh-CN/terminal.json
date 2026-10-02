@@ -3060,5 +3060,11 @@
     "defaultSuffix": "（默认）",
     "defaultModel": "默认",
     "providerAlt": "{{name}} 提供方"
+  },
+  "appShell": {
+    "autoOrganizeAgents": "自动整理所有智能体到各自区域",
+    "switchingWorkspace": "正在切换工作区…",
+    "sidebarView": "侧边栏视图",
+    "showAgentBar": "显示智能体栏"
   }
 }

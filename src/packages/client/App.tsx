@@ -111,7 +111,7 @@ const SelectionAwareTrackingBoard = React.memo(function SelectionAwareTrackingBo
 });
 
 function AppContent() {
-  const { t } = useTranslation(['common', 'notifications']);
+  const { t } = useTranslation(['common', 'notifications', 'terminal']);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectionBoxRef = useRef<HTMLDivElement>(null);
 
@@ -951,8 +951,8 @@ function AppContent() {
           <button
             className="fab-spawn-btn fab-spawn-organize-btn"
             disabled={isOrganizing}
-            aria-label="Auto-organize all agents in their areas"
-            title="Auto-organize all agents in their areas"
+            aria-label={t('terminal:appShell.autoOrganizeAgents', { defaultValue: 'Auto-organize all agents in their areas' })}
+            title={t('terminal:appShell.autoOrganizeAgents', { defaultValue: 'Auto-organize all agents in their areas' })}
             onClick={handleOrganizeAll}
           >
             <span className="fab-spawn-icon"><Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} /></span>
@@ -965,7 +965,7 @@ function AppContent() {
           {isWorkspaceSwitching && (
             <div className="workspace-switch-overlay">
               <div className="workspace-switch-spinner" />
-              <span className="workspace-switch-text">Switching workspace...</span>
+              <span className="workspace-switch-text">{t('terminal:appShell.switchingWorkspace', { defaultValue: 'Switching workspace...' })}</span>
             </div>
           )}
           <React.Suspense fallback={null}>
@@ -1308,11 +1308,11 @@ function AppContent() {
           <button
             className="sidebar-close-btn show-on-mobile"
             onClick={() => setSidebarOpen(false)}
-            title="Close sidebar"
+            title={t('terminal:header.closeSidebar')}
           >
             <Icon name="close" size={14} />
           </button>
-          <div className="sidebar-view-toggle" role="tablist" aria-label="Sidebar view">
+          <div className="sidebar-view-toggle" role="tablist" aria-label={t('terminal:appShell.sidebarView', { defaultValue: 'Sidebar view' })}>
             <button
               type="button"
               role="tab"
@@ -1635,8 +1635,8 @@ function AppContent() {
           <button
             className="agent-bar-show-btn"
             onClick={() => store.setAgentBarHidden(false)}
-            aria-label="Show agent bar"
-            title="Show agent bar"
+            aria-label={t('terminal:appShell.showAgentBar', { defaultValue: 'Show agent bar' })}
+            title={t('terminal:appShell.showAgentBar', { defaultValue: 'Show agent bar' })}
           >
             ▲
           </button>
