@@ -171,24 +171,26 @@ function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { outpu
   const outputIndex = allOutputs ? allOutputs.indexOf(output) : -1;
   const totalOutputs = allOutputs ? allOutputs.length : 0;
 
+  // Row labels are UI chrome (translated); values stay raw for bug-report
+  // fidelity — the JSON copy button exports the machine fields verbatim.
   const rows: Array<{ label: string; value: string; mono?: boolean }> = [
-    { label: 'UUID', value: output.uuid || '(none)', mono: true },
-    { label: 'Hash', value: debugHash, mono: true },
-    { label: 'Type', value: msgType },
-    { label: 'Source', value: source },
-    { label: 'Agent', value: agentId || '(none)', mono: true },
-    { label: 'Time', value: fullTime, mono: true },
-    { label: 'Epoch', value: String(output.timestamp), mono: true },
-    { label: 'Index', value: outputIndex >= 0 ? `${outputIndex} / ${totalOutputs}` : '(unknown)', mono: true },
-    { label: 'Text', value: `[${output.text.length} chars] ${output.text.slice(0, 120)}`, mono: true },
+    { label: t('tools:metadata.uuid', { defaultValue: 'UUID' }), value: output.uuid || t('tools:metadata.none', { defaultValue: '(none)' }), mono: true },
+    { label: t('tools:metadata.hash', { defaultValue: 'Hash' }), value: debugHash, mono: true },
+    { label: t('tools:metadata.type'), value: msgType },
+    { label: t('tools:metadata.source'), value: source },
+    { label: t('tools:metadata.agent', { defaultValue: 'Agent' }), value: agentId || t('tools:metadata.none', { defaultValue: '(none)' }), mono: true },
+    { label: t('tools:metadata.time', { defaultValue: 'Time' }), value: fullTime, mono: true },
+    { label: t('tools:metadata.epoch', { defaultValue: 'Epoch' }), value: String(output.timestamp), mono: true },
+    { label: t('tools:metadata.index', { defaultValue: 'Index' }), value: outputIndex >= 0 ? `${outputIndex} / ${totalOutputs}` : t('tools:metadata.unknown', { defaultValue: '(unknown)' }), mono: true },
+    { label: t('tools:metadata.text', { defaultValue: 'Text' }), value: `[${t('tools:metadata.chars', { defaultValue: '{{n}} chars', n: output.text.length })}] ${output.text.slice(0, 120)}`, mono: true },
   ];
 
-  if (output.isStreaming) rows.push({ label: 'State', value: 'streaming' });
-  if (output.isDelegation) rows.push({ label: 'Flag', value: 'delegation' });
-  if (output.toolName) rows.push({ label: 'Tool', value: output.toolName });
-  if (output.toolInput) rows.push({ label: 'ToolIn', value: JSON.stringify(output.toolInput).slice(0, 200), mono: true });
-  if (output.toolOutput) rows.push({ label: 'ToolOut', value: `[${output.toolOutput.length} chars] ${output.toolOutput.slice(0, 120)}`, mono: true });
-  if (output.subagentName) rows.push({ label: 'Subagent', value: output.subagentName });
+  if (output.isStreaming) rows.push({ label: t('tools:metadata.state', { defaultValue: 'State' }), value: 'streaming' });
+  if (output.isDelegation) rows.push({ label: t('tools:metadata.flag', { defaultValue: 'Flag' }), value: 'delegation' });
+  if (output.toolName) rows.push({ label: t('tools:metadata.tool', { defaultValue: 'Tool' }), value: output.toolName });
+  if (output.toolInput) rows.push({ label: t('tools:metadata.toolIn', { defaultValue: 'ToolIn' }), value: JSON.stringify(output.toolInput).slice(0, 200), mono: true });
+  if (output.toolOutput) rows.push({ label: t('tools:metadata.toolOut', { defaultValue: 'ToolOut' }), value: `[${t('tools:metadata.chars', { defaultValue: '{{n}} chars', n: output.toolOutput.length })}] ${output.toolOutput.slice(0, 120)}`, mono: true });
+  if (output.subagentName) rows.push({ label: t('tools:metadata.subagent', { defaultValue: 'Subagent' }), value: output.subagentName });
 
   return (
     <div className="msg-meta-tooltip" ref={tooltipRef}>
