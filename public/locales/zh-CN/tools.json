@@ -260,7 +260,9 @@
     "backgroundTaskFailed": "后台任务失败",
     "backgroundTaskCompleted": "后台任务已完成",
     "toolCountOne": "{{n}} 个工具",
-    "toolCountMany": "{{n}} 个工具"
+    "toolCountMany": "{{n}} 个工具",
+    "priorityTitle": "优先级：{{priority}}",
+    "suggestedTitle": "建议类别：{{classId}}"
   },
   "delegation": {
     "taskDelegated": "任务已委派",

@@ -1011,10 +1011,10 @@ export function WorkPlanBlock({ workPlan }: WorkPlanBlockProps) {
                   <div key={task.id} className={`work-plan-task priority-${task.priority}`}>
                     <div className="work-plan-task-header">
                       <span className="work-plan-task-id">{task.id}</span>
-                      <span className="work-plan-task-priority" title={`Priority: ${task.priority}`}>
+                      <span className="work-plan-task-priority" title={t('tools:bossContext.priorityTitle', { defaultValue: 'Priority: {{priority}}', priority: task.priority })}>
                         <Icon name="status-pending" size={10} weight="fill" color={priorityColor[task.priority]} />
                       </span>
-                      <span className="work-plan-task-class" title={`Suggested: ${task.suggestedClass}`}>
+                      <span className="work-plan-task-class" title={t('tools:bossContext.suggestedTitle', { defaultValue: 'Suggested: {{classId}}', classId: task.suggestedClass })}>
                         <AgentIcon classId={task.suggestedClass} size={14} /> {task.suggestedClass}
                       </span>
                     </div>
