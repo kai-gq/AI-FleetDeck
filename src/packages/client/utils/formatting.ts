@@ -17,6 +17,11 @@ export function setI18nInstance(instance: I18nType): void {
   _i18nInstance = instance;
 }
 
+/** i18n lookup for non-React modules; null until i18n.ts finishes init. */
+export function getI18nInstance(): I18nType | null {
+  return _getI18n();
+}
+
 // Format number with K/M suffix
 export function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';

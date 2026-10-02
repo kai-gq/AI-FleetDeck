@@ -16,7 +16,7 @@ export function registerExecuteSudoCommandPlugin(): void {
     pluginId: EXECUTE_SUDO_COMMAND_PLUGIN_ID,
     pluginName: 'Execute Sudo Command',
     name: '/execute-sudo-command',
-    summary: 'Solicita autorización para ejecutar un comando con sudo',
+    summary: 'Request authorization to run a command with sudo',
     handler: 'execute',
     requiresAgent: true,
   });

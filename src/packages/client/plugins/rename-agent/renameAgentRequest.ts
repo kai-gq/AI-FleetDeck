@@ -1,3 +1,5 @@
+import { getI18nInstance } from '../../utils/formatting';
+
 export const RENAME_AGENT_REQUEST_MARKER = '[RENAME_AGENT_PROPOSALS_REQUEST]';
 
 export interface RenameAgentRequestInfo {
@@ -27,7 +29,10 @@ export function parseRenameAgentRequest(text: string | null | undefined): Rename
 }
 
 export function renameAgentRequestPreview(text: string | null | undefined): string | null {
-  return parseRenameAgentRequest(text)
-    ? 'Rename Agent · Generando 3 propuestas con IA…'
-    : null;
+  if (!parseRenameAgentRequest(text)) return null;
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
+  return t
+    ? t('terminal:renameAgent.preview', { defaultValue: 'Rename Agent · Generating 3 AI name proposals…' })
+    : 'Rename Agent · Generating 3 AI name proposals…';
 }

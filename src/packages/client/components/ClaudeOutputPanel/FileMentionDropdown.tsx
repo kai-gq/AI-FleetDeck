@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 
 export interface FileMentionItem {
@@ -37,6 +38,7 @@ function fileIcon(name: string): React.ReactElement {
 }
 
 export function FileMentionDropdown({ items, selectedIndex, onSelect }: FileMentionDropdownProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
@@ -69,12 +71,12 @@ export function FileMentionDropdown({ items, selectedIndex, onSelect }: FileMent
               }
             </span>
             <span className="file-mention-dropdown__name">{item.name}</span>
-            <span className="file-mention-dropdown__path">{item.type === 'agent' ? (item.subtitle ?? 'agente') : item.path}</span>
+            <span className="file-mention-dropdown__path">{item.type === 'agent' ? (item.subtitle ?? t('common:labels.agent')) : item.path}</span>
           </li>
         ))}
       </ul>
       <div className="file-mention-dropdown__hint">
-        ↑↓ navegar · Enter seleccionar · Esc cerrar
+        {t('terminal:mentionDropdown.hint', { defaultValue: '↑↓ navigate · Enter select · Esc close' })}
       </div>
     </div>
   );

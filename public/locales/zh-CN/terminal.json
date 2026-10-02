@@ -2041,5 +2041,45 @@
     "agentNotFound": "未找到智能体",
     "terminalPanelName": "终端——{{name}}",
     "areaFallback": "区域"
+  },
+  "slashCommands": {
+    "summary": {
+      "compact": "总结对话以释放上下文",
+      "clear": "清空上下文并开启新会话",
+      "context": "上下文的占用明细",
+      "cost": "本次会话的 Token 用量与累计费用",
+      "gmail": "显示未读或全部邮件；用法：/gmail [all|unread] [1-50]",
+      "gmail-pending": "显示未读或全部邮件；用法：/gmail [all|unread] [1-50]（/gmail 的别名）",
+      "correos": "显示未读或全部邮件；用法：/gmail [all|unread] [1-50]（/gmail 的别名）",
+      "gmail-all": "显示未读或全部邮件；用法：/gmail [all|unread] [1-50]（/gmail 的别名）",
+      "todos-correos": "显示未读或全部邮件；用法：/gmail [all|unread] [1-50]（/gmail 的别名）",
+      "jira": "显示待办工单，或按关键词搜索：/jira [PROJ-123|搜索文本|pending 20]",
+      "tickets": "显示待办工单，或按关键词搜索：/jira [PROJ-123|搜索文本|pending 20]（/jira 的别名）",
+      "ticket": "显示待办工单，或按关键词搜索：/jira [PROJ-123|搜索文本|pending 20]（/jira 的别名）",
+      "jira-tickets": "显示待办工单，或按关键词搜索：/jira [PROJ-123|搜索文本|pending 20]（/jira 的别名）",
+      "execute-sudo-command": "请求授权以 sudo 执行命令",
+      "rename-agent": "让智能体根据上下文给出三个候选名，由用户挑选",
+      "usages": "显示所有已注册 LLM 提供商的每日与每周限额",
+      "tasks": "显示待办任务以及最近完成的 8 个任务",
+      "show-pending-tasks": "显示待办任务以及最近完成的 8 个任务（/tasks 的别名）",
+      "tasks-recommended": "让所选智能体用 AI 判断今天应完成哪些 Bolba 任务",
+      "recommended-tasks": "让所选智能体用 AI 判断今天应完成哪些 Bolba 任务（/tasks-recommended 的别名）",
+      "tasks-today": "让所选智能体用 AI 判断今天应完成哪些 Bolba 任务（/tasks-recommended 的别名）"
+    },
+    "pluginBadge": "插件",
+    "hint": "↑↓ 导航 · Tab/Enter 补全 · Esc 关闭"
+  },
+  "mentionDropdown": {
+    "hint": "↑↓ 导航 · Enter 选择 · Esc 关闭"
+  },
+  "slashBuilding": {
+    "title": "斜杠命令构建器",
+    "failed": "斜杠命令执行失败（{{status}}）",
+    "runAgain": "重新运行",
+    "running": "正在本地执行命令…",
+    "footer": "由 Tide Commander 在本地执行"
+  },
+  "renameAgent": {
+    "preview": "重命名智能体 · 正在用 AI 生成 3 个候选名…"
   }
 }

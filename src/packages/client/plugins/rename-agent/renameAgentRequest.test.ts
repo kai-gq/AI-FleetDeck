@@ -21,7 +21,7 @@ describe('rename agent request presentation', () => {
       currentName: 'Soporte',
       agentClass: 'voltorb',
     });
-    expect(renameAgentRequestPreview(request)).toBe('Rename Agent · Generando 3 propuestas con IA…');
+    expect(renameAgentRequestPreview(request)).toBe('Rename Agent · Generating 3 AI name proposals…');
   });
 
   it('recognizes a truncated marker for compact task labels', () => {

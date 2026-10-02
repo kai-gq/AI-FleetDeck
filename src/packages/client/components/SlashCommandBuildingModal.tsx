@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useModalStackRegistration } from '../hooks/useModalStack';
 import { PluginOutputHost } from '../plugins/PluginOutputHost';
 import type { PluginOutputEnvelope } from '../plugins/types';
@@ -12,13 +14,14 @@ export function openSlashCommandBuilding(buildingId: string): void {
   window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { buildingId } }));
 }
 
-function responseError(body: unknown, status: number): string {
+function responseError(body: unknown, status: number, t: TFunction): string {
   return body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
     ? (body as { error: string }).error
-    : `Slash command failed (${status})`;
+    : t('terminal:slashBuilding.failed', { defaultValue: 'Slash command failed ({{status}})', status: String(status) });
 }
 
 export function SlashCommandBuildingModalHost() {
+  const { t } = useTranslation('terminal');
   const buildings = useBuildings();
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [runId, setRunId] = useState(0);
@@ -68,7 +71,7 @@ export function SlashCommandBuildingModalHost() {
       signal: controller.signal,
     }).then(async (response) => {
       const body = await response.json().catch(() => null) as { output?: PluginOutputEnvelope; error?: string } | null;
-      if (!response.ok || !body?.output) throw new Error(responseError(body, response.status));
+      if (!response.ok || !body?.output) throw new Error(responseError(body, response.status, t));
       setOutput(body.output);
     }).catch((cause) => {
       if (cause instanceof DOMException && cause.name === 'AbortError') return;
@@ -77,6 +80,7 @@ export function SlashCommandBuildingModalHost() {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
+    // t is not a dependency on purpose: a language switch must not re-run the command.
   }, [building, buildingId, runId]);
 
   if (!buildingId || !building) return null;
@@ -91,28 +95,28 @@ export function SlashCommandBuildingModalHost() {
             {building.icon || <Icon name="bolt" size={18} />}
           </span>
           <div>
-            <small>Slash Command Building</small>
+            <small>{t('terminal:slashBuilding.title', { defaultValue: 'Slash Command Building' })}</small>
             <h2>{building.name}</h2>
           </div>
-          <button type="button" onClick={close} aria-label="Close"><Icon name="close" size={14} /></button>
+          <button type="button" onClick={close} aria-label={t('common:buttons.close')}><Icon name="close" size={14} /></button>
         </header>
         <div className="slash-building-modal__command">
           <span>›</span><code>{building.slashCommand?.command}</code>
           <button type="button" disabled={loading} onClick={() => {
             setOutput(null);
             setRunId((value) => value + 1);
-          }} title="Run again"><Icon name="refresh" size={11} /></button>
+          }} title={t('terminal:slashBuilding.runAgain', { defaultValue: 'Run again' })}><Icon name="refresh" size={11} /></button>
         </div>
         <div className="slash-building-modal__body">
           {loading && (
-            <div className="slash-building-modal__loading"><span className="spotlight-loading-spinner" /> Ejecutando comando local…</div>
+            <div className="slash-building-modal__loading"><span className="spotlight-loading-spinner" /> {t('terminal:slashBuilding.running', { defaultValue: 'Running command locally…' })}</div>
           )}
           {error && (
             <div className="slash-building-modal__error"><Icon name="warn" size={13} /><span>{error}</span></div>
           )}
           {output && <PluginOutputHost output={output} agentId={modalAgentId} surface="modal" />}
         </div>
-        <footer><Icon name="lock" size={10} /> Ejecutado localmente por Tide Commander</footer>
+        <footer><Icon name="lock" size={10} /> {t('terminal:slashBuilding.footer', { defaultValue: 'Executed locally by Tide Commander' })}</footer>
       </section>
     </div>
   );

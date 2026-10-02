@@ -17,7 +17,7 @@ export function registerTideUsagesPlugin(): void {
     pluginId: PLUGIN_ID,
     pluginName: 'Tide Commander',
     name: '/usages',
-    summary: 'Muestra los límites diarios y semanales de todos los proveedores LLM registrados',
+    summary: 'Show daily and weekly limits for all registered LLM providers',
     handler: 'usages',
     renderer: 'provider-usages',
   });

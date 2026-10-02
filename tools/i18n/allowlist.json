@@ -56,6 +56,10 @@
     "re:^config:bulkManage\\.",
     "re:^config:workflowPanel\\.",
     "re:^config:workflowEditor\\.",
-    "re:^config:triggerPanel\\."
+    "re:^config:triggerPanel\\.",
+    "re:^terminal:slashCommands\\.",
+    "re:^terminal:mentionDropdown\\.",
+    "re:^terminal:slashBuilding\\.",
+    "re:^terminal:renameAgent\\."
   ]
 }

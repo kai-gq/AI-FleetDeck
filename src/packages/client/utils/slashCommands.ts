@@ -33,25 +33,34 @@ const ALL_CLI_PROVIDERS: SlashCommandProvider[] = ['claude', 'codex', 'opencode'
 export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: '/compact',
-    summary: 'Resume la conversación para liberar contexto',
+    summary: 'Summarize the conversation to free up context',
     providers: ALL_CLI_PROVIDERS,
   },
   {
     name: '/clear',
-    summary: 'Borra el contexto y arranca una sesión nueva',
+    summary: 'Clear the context and start a fresh session',
     providers: ALL_CLI_PROVIDERS,
   },
   {
     name: '/context',
-    summary: 'Desglose de en qué se está gastando el contexto',
+    summary: 'Breakdown of what the context is being spent on',
     providers: ['claude'],
   },
   {
     name: '/cost',
-    summary: 'Tokens y costo acumulado de la sesión',
+    summary: 'Tokens and accumulated cost for the session',
     providers: ['claude'],
   },
 ];
+
+/**
+ * Locale key for a catalog entry's one-line summary. Translations live in the
+ * terminal namespace; anything without one (user command scripts, plugins
+ * added later) falls back to the authored summary via `defaultValue`.
+ */
+export function slashCommandSummaryKey(name: string): string {
+  return `terminal:slashCommands.summary.${name.replace(/^\//, '')}`;
+}
 
 /**
  * Commands available for a provider. Unknown/absent provider means a Claude

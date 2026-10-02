@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
-import type { SlashCommand } from '../../utils/slashCommands';
+import { slashCommandSummaryKey, type SlashCommand } from '../../utils/slashCommands';
 
 interface SlashCommandDropdownProps {
   items: SlashCommand[];
@@ -14,6 +15,7 @@ interface SlashCommandDropdownProps {
  * can tell at a glance which one is open.
  */
 export function SlashCommandDropdown({ items, selectedIndex, onSelect }: SlashCommandDropdownProps) {
+  const { t } = useTranslation('terminal');
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
@@ -42,15 +44,15 @@ export function SlashCommandDropdown({ items, selectedIndex, onSelect }: SlashCo
               <Icon name={item.source === 'plugin' ? 'plug' : 'terminal'} size={12} />
             </span>
             <span className="file-mention-dropdown__name">{item.name}</span>
-            <span className="file-mention-dropdown__path">{item.summary}</span>
+            <span className="file-mention-dropdown__path">{t(slashCommandSummaryKey(item.name), { defaultValue: item.summary })}</span>
             {item.source === 'plugin' && (
-              <span className="slash-command-dropdown__source">{item.pluginName || 'Plugin'}</span>
+              <span className="slash-command-dropdown__source">{item.pluginName || t('terminal:slashCommands.pluginBadge', { defaultValue: 'Plugin' })}</span>
             )}
           </li>
         ))}
       </ul>
       <div className="file-mention-dropdown__hint">
-        ↑↓ navegar · Tab/Enter completar · Esc cerrar
+        {t('terminal:slashCommands.hint', { defaultValue: '↑↓ navigate · Tab/Enter complete · Esc close' })}
       </div>
     </div>
   );

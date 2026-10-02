@@ -19,7 +19,7 @@ import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractEx
 } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
-import { getSlashCommandInfo } from '../../utils/slashCommands';
+import { getSlashCommandInfo, slashCommandSummaryKey } from '../../utils/slashCommands';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { createMarkdownComponents } from './MarkdownComponents';
@@ -382,7 +382,7 @@ export const HistoryLine = memo(function HistoryLine({
           <span className="output-slash-chip__icon"><Icon name="terminal" size={12} /></span>
           <span className="output-slash-chip__name">{historySlashCommand.name}</span>
         </span>
-        <span className="output-slash-summary">{historySlashCommand.summary}</span>
+        <span className="output-slash-summary">{t(slashCommandSummaryKey(historySlashCommand.name), { defaultValue: historySlashCommand.summary })}</span>
       </div>
     );
   }

@@ -17,7 +17,7 @@ export function registerGmailPendingPlugin(): void {
     pluginName: 'Gmail Inbox',
     name: '/gmail',
     aliases: ['/gmail-pending', '/correos', '/gmail-all', '/todos-correos'],
-    summary: 'Mostrar correos no leídos o todos; uso: /gmail [all|unread] [1-50]',
+    summary: 'Show unread or all emails; usage: /gmail [all|unread] [1-50]',
     handler: 'show-pending-emails',
     renderer: 'gmail-pending-list',
   });

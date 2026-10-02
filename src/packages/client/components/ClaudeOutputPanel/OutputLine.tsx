@@ -15,7 +15,7 @@ import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findEx
 } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
-import { getSlashCommandInfo } from '../../utils/slashCommands';
+import { getSlashCommandInfo, slashCommandSummaryKey } from '../../utils/slashCommands';
 import { BossContext, DelegationBlock, parseBossContext, parseDelegationBlock, DelegatedTaskHeader, parseWorkPlanBlock, WorkPlanBlock, parseInjectedInstructions, parseDelegatedTaskMessage, DelegatedTaskMessage, parseTaskReportMessage, TaskReportHeader, parseSubagentNotification, SubagentNotificationDisplay, parseTaskNotification, TaskNotificationDisplay } from './BossContext';
 import { parseWhatsAppMessage, WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import { parseEmailMessage, GmailMessageBubble } from './GmailMessageBubble';
@@ -510,9 +510,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           <span className="output-slash-chip">
             <span className="output-slash-chip__icon"><Icon name={slashCommand.source === 'plugin' ? 'plug' : 'terminal'} size={12} /></span>
             <span className="output-slash-chip__name">{slashCommand.name}</span>
-            {slashCommand.source === 'plugin' && <span className="output-slash-chip__source">{slashCommand.pluginName || 'Plugin'}</span>}
+            {slashCommand.source === 'plugin' && <span className="output-slash-chip__source">{slashCommand.pluginName || t('terminal:slashCommands.pluginBadge', { defaultValue: 'Plugin' })}</span>}
           </span>
-          <span className="output-slash-summary">{slashCommand.summary}</span>
+          <span className="output-slash-summary">{t(slashCommandSummaryKey(slashCommand.name), { defaultValue: slashCommand.summary })}</span>
         </div>
       );
     }

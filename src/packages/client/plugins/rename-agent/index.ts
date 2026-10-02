@@ -16,7 +16,7 @@ export function registerRenameAgentPlugin(): void {
     pluginId: PLUGIN_ID,
     pluginName: 'Rename Agent',
     name: '/rename-agent',
-    summary: 'Pide al agente tres nombres contextuales y deja que el usuario elija',
+    summary: 'Ask the agent for three contextual names and let the user choose',
     handler: 'propose',
     renderer: 'agent-name-proposals',
     requiresAgent: true,

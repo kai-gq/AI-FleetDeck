@@ -17,7 +17,7 @@ export function registerJiraTicketsPlugin(): void {
     pluginName: 'Jira Tickets',
     name: '/jira',
     aliases: ['/tickets', '/ticket', '/jira-tickets'],
-    summary: 'Mostrar pendientes o buscar: /jira [PROJ-123|buscar texto|pending 20]',
+    summary: 'Show pending tickets or search: /jira [PROJ-123|search text|pending 20]',
     handler: 'show-jira-tickets',
     renderer: 'jira-ticket-list',
   });
