@@ -5,6 +5,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useSyncExternalStore, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { store } from '../store';
 import { apiUrl, authFetch } from '../utils/storage';
 import type { TimelineEntry, EventStats } from '../../shared/event-types';
@@ -66,6 +68,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
+  const { t } = useTranslation(['config', 'common']);
   const [activeTab, setActiveTab] = useState<TabId>('triggers');
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,11 +161,11 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
       setEntries(allEntries);
       setError(null);
     } catch (err) {
-      setError(`Failed to load events: ${err}`);
+      setError(t('config:monitoringModal.loadEventsFailed', { defaultValue: 'Failed to load events: {{error}}', error: String(err) }));
     } finally {
       setLoading(false);
     }
-  }, [activeTab, timeRange]);
+  }, [activeTab, timeRange, t]);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -179,11 +182,11 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
       }
       setError(null);
     } catch (err) {
-      setError(`Failed to load stats: ${err}`);
+      setError(t('config:monitoringModal.loadStatsFailed', { defaultValue: 'Failed to load stats: {{error}}', error: String(err) }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -213,9 +216,9 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
         <div style={S.header}>
           <div style={S.headerTitle}>
             <Icon name="dashboard" size={16} />
-            <span>Monitoring & Logs</span>
+            <span>{t('config:monitoringModal.title', { defaultValue: 'Monitoring & Logs' })}</span>
           </div>
-          <button style={S.closeBtn} onClick={onClose} title="Close">&times;</button>
+          <button style={S.closeBtn} onClick={onClose} title={t('common:buttons.close')}>&times;</button>
         </div>
 
         {/* Tabs */}
@@ -231,7 +234,7 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
               }}
             >
               <Icon name={tab.icon} size={14} />
-              <span>{tab.label}</span>
+              <span>{t(`config:monitoringModal.tab.${tab.id}`, { defaultValue: tab.label })}</span>
             </button>
           ))}
         </div>
@@ -257,13 +260,13 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
 
             <input
               style={S.searchInput}
-              placeholder="Search events..."
+              placeholder={t('config:monitoringModal.searchEvents', { defaultValue: 'Search events...' })}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
             <button style={S.refreshBtn} onClick={fetchEvents}>
-              Refresh
+              {t('common:buttons.refresh')}
             </button>
           </div>
         )}
@@ -335,8 +338,8 @@ export function MonitoringModal({ isOpen, onClose }: MonitoringModalProps) {
         {activeTab !== 'stats' && activeTab !== 'instances' && (
           <div style={S.footer}>
             <span style={{ color: '#6c7086', fontSize: 11 }}>
-              {filtered.length} event{filtered.length !== 1 ? 's' : ''} shown
-              {search && ` (filtered from ${entries.length})`}
+              {t('config:monitoringModal.eventsShown', { defaultValue: '{{count}} event{{plural}} shown', count: filtered.length, plural: filtered.length !== 1 ? 's' : '' })}
+              {search && ` ${t('config:monitoringModal.filteredFrom', { defaultValue: '(filtered from {{total}})', total: entries.length })}`}
             </span>
           </div>
         )}
@@ -364,12 +367,13 @@ function EventListContent({
   loadingMatchers: boolean;
   onToggleExpand: (id: string, entry?: TimelineEntry) => void;
 }) {
-  if (loading) return <div style={{ color: '#a6adc8', padding: 20 }}>Loading events...</div>;
+  const { t } = useTranslation(['config']);
+  if (loading) return <div style={{ color: '#a6adc8', padding: 20 }}>{t('config:monitoringModal.loadingEvents', { defaultValue: 'Loading events...' })}</div>;
   if (error) return <div style={{ color: '#f38ba8', padding: 20 }}>{error}</div>;
   if (entries.length === 0) {
     return (
       <div style={{ color: '#6c7086', textAlign: 'center', padding: 40 }}>
-        No events found for the selected filters.
+        {t('config:monitoringModal.noEvents', { defaultValue: 'No events found for the selected filters.' })}
       </div>
     );
   }
@@ -380,7 +384,7 @@ function EventListContent({
         const key = `${entry.type}-${entry.timestamp}-${i}`;
         const isExpanded = expandedId === key;
         const color = CATEGORY_COLORS[entry.type] || '#6c7086';
-        const summary = getEntrySummary(entry);
+        const summary = getEntrySummary(entry, t);
         const time = new Date(entry.timestamp);
 
         return (
@@ -395,7 +399,7 @@ function EventListContent({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ ...S.tag, background: `${color}22`, color }}>
-                {CATEGORY_LABELS[entry.type] || entry.type}
+                {t(`config:monitoringModal.category.${entry.type}`, { defaultValue: CATEGORY_LABELS[entry.type] || entry.type })}
               </span>
               <span style={{ color: '#cdd6f4', fontSize: 12, flex: 1 }}>{summary}</span>
               <span style={{ color: '#6c7086', fontSize: 10, whiteSpace: 'nowrap' }}>
@@ -411,12 +415,14 @@ function EventListContent({
                 {matcherResults[key] && (
                   <div style={{ marginTop: 12, borderTop: '1px solid #313244', paddingTop: 12 }}>
                     <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                      {entry.type === 'trigger' ? 'Matcher Results' : 'Trigger Evaluations'}
+                      {entry.type === 'trigger'
+                        ? t('config:monitoringModal.matcherResults', { defaultValue: 'Matcher Results' })
+                        : t('config:monitoringModal.triggerEvaluations', { defaultValue: 'Trigger Evaluations' })}
                     </div>
                     {loadingMatchers ? (
-                      <div style={{ color: '#6c7086', fontSize: 12 }}>Loading matchers...</div>
+                      <div style={{ color: '#6c7086', fontSize: 12 }}>{t('config:monitoringModal.loadingMatchers', { defaultValue: 'Loading matchers...' })}</div>
                     ) : (matcherResults[key] as unknown[])?.length === 0 ? (
-                      <div style={{ color: '#6c7086', fontSize: 12 }}>No matchers evaluated</div>
+                      <div style={{ color: '#6c7086', fontSize: 12 }}>{t('config:monitoringModal.noMatchers', { defaultValue: 'No matchers evaluated' })}</div>
                     ) : (
                       (() => {
                         const matchers = matcherResults[key] as Record<string, unknown>[];
@@ -424,20 +430,20 @@ function EventListContent({
                         if (entry.type !== 'trigger') {
                           const byTrigger = new Map<string, Record<string, unknown>[]>();
                           for (const m of matchers) {
-                            const tId = String(m.trigger_id || 'unknown');
+                            const tId = String(m.trigger_id || t('config:monitoringModal.unknown', { defaultValue: 'unknown' }));
                             if (!byTrigger.has(tId)) byTrigger.set(tId, []);
                             byTrigger.get(tId)!.push(m);
                           }
                           return Array.from(byTrigger.entries()).map(([tId, ms]) => (
                             <div key={tId} style={{ marginBottom: 12 }}>
                               <div style={{ color: '#cdd6f4', fontSize: 11, fontWeight: 500, marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #45475a' }}>
-                                Trigger: {String(ms[0]?.trigger_name || tId)}
+                                {t('config:monitoringModal.triggerLabel', { defaultValue: 'Trigger: {{name}}', name: String(ms[0]?.trigger_name || tId) })}
                               </div>
                               {ms.map((m, idx) => {
                                 const matched = m.matched === 1 || m.matched === true;
                                 const matchColor = matched ? '#a6e3a1' : '#f38ba8';
                                 const confidence = (m.confidence as number | null) ?? null;
-                                const matcherName = String(m.matcher_name || 'unknown');
+                                const matcherName = String(m.matcher_name || t('config:monitoringModal.unknown', { defaultValue: 'unknown' }));
                                 const reason = m.reason ? String(m.reason) : '';
                                 return (
                                   <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
@@ -460,7 +466,7 @@ function EventListContent({
                             const reason = m.reason ? String(m.reason) : '';
                             return (
                               <div key={idx} style={{ display: 'flex', gap: 8, padding: '6px 10px', background: '#313244', borderRadius: 4, marginBottom: 4, fontSize: 11 }}>
-                                <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? <><Icon name="check" size={12} /> MATCH</> : <><Icon name="cross" size={12} /> FAIL</>}</span>
+                                <span style={{ color: matchColor, fontWeight: 600, minWidth: 50 }}>{matched ? <><Icon name="check" size={12} /> {t('config:monitoringModal.match', { defaultValue: 'MATCH' })}</> : <><Icon name="cross" size={12} /> {t('config:monitoringModal.fail', { defaultValue: 'FAIL' })}</>}</span>
                                 <span style={{ color: '#cdd6f4', flex: 1 }}>{matcherName}</span>
                                 {confidence !== null && <span style={{ color: '#a6adc8' }}>({(confidence * 100).toFixed(0)}%)</span>}
                                 {reason && <span style={{ color: '#6c7086', fontSize: 10 }}>{reason}</span>}
@@ -498,38 +504,39 @@ function StatsTabContent({
   connectedCount: number;
   onRefresh: () => void;
 }) {
-  if (loading) return <div style={{ color: '#a6adc8', padding: 20 }}>Loading stats...</div>;
+  const { t } = useTranslation(['config', 'common']);
+  if (loading) return <div style={{ color: '#a6adc8', padding: 20 }}>{t('config:monitoringModal.loadingStats', { defaultValue: 'Loading stats...' })}</div>;
   if (error) return <div style={{ color: '#f38ba8', padding: 20 }}>{error}</div>;
 
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button style={S.refreshBtn} onClick={onRefresh}>Refresh</button>
+        <button style={S.refreshBtn} onClick={onRefresh}>{t('common:buttons.refresh')}</button>
       </div>
 
       {stats && (
         <>
           <div style={S.section}>
-            <h3 style={S.sectionTitle}>Workflows</h3>
+            <h3 style={S.sectionTitle}>{t('config:monitoringModal.workflows', { defaultValue: 'Workflows' })}</h3>
             <div style={S.grid}>
-              <StatCard label="Active" value={stats.activeWorkflows} color="#89b4fa" />
-              <StatCard label="Completed" value={stats.completedWorkflows} color="#a6e3a1" />
-              <StatCard label="Failed" value={stats.failedWorkflows} color="#f38ba8" />
+              <StatCard label={t('config:monitoringModal.stat.active', { defaultValue: 'Active' })} value={stats.activeWorkflows} color="#89b4fa" />
+              <StatCard label={t('config:monitoringModal.stat.completed', { defaultValue: 'Completed' })} value={stats.completedWorkflows} color="#a6e3a1" />
+              <StatCard label={t('config:monitoringModal.stat.failed', { defaultValue: 'Failed' })} value={stats.failedWorkflows} color="#f38ba8" />
             </div>
           </div>
 
           <div style={S.section}>
-            <h3 style={S.sectionTitle}>Events (Today)</h3>
+            <h3 style={S.sectionTitle}>{t('config:monitoringModal.eventsToday', { defaultValue: 'Events (Today)' })}</h3>
             <div style={S.grid}>
-              <StatCard label="Triggers Fired" value={stats.triggersFiredToday} color="#f9e2af" />
-              <StatCard label="Slack Messages" value={stats.slackMessageCount} color="#cba6f7" />
-              <StatCard label="Emails" value={stats.emailCount} color="#fab387" />
+              <StatCard label={t('config:monitoringModal.stat.triggersFired', { defaultValue: 'Triggers Fired' })} value={stats.triggersFiredToday} color="#f9e2af" />
+              <StatCard label={t('config:monitoringModal.stat.slackMessages', { defaultValue: 'Slack Messages' })} value={stats.slackMessageCount} color="#cba6f7" />
+              <StatCard label={t('config:monitoringModal.stat.emails', { defaultValue: 'Emails' })} value={stats.emailCount} color="#fab387" />
             </div>
           </div>
 
           <div style={S.section}>
             <h3 style={S.sectionTitle}>
-              Integrations ({connectedCount}/{integrations.length} connected)
+              {t('config:monitoringModal.integrationsTitle', { defaultValue: 'Integrations ({{connected}}/{{total}} connected)', connected: connectedCount, total: integrations.length })}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {integrations.map((integration) => (
@@ -545,15 +552,15 @@ function StatsTabContent({
                     }}
                   >
                     {integration.status.error
-                      ? 'Error'
+                      ? t('config:monitoringModal.status.error', { defaultValue: 'Error' })
                       : integration.status.connected
-                        ? 'Connected'
-                        : 'Disconnected'}
+                        ? t('config:monitoringModal.status.connected', { defaultValue: 'Connected' })
+                        : t('config:monitoringModal.status.disconnected', { defaultValue: 'Disconnected' })}
                   </span>
                 </div>
               ))}
               {integrations.length === 0 && (
-                <div style={{ color: '#6c7086', fontSize: 12 }}>No integrations configured</div>
+                <div style={{ color: '#6c7086', fontSize: 12 }}>{t('config:monitoringModal.noIntegrations', { defaultValue: 'No integrations configured' })}</div>
               )}
             </div>
           </div>
@@ -562,7 +569,7 @@ function StatsTabContent({
 
       {!stats && (
         <div style={{ color: '#6c7086', textAlign: 'center', padding: 40 }}>
-          No stats available. The event store may not have any data yet.
+          {t('config:monitoringModal.noStats', { defaultValue: 'No stats available. The event store may not have any data yet.' })}
         </div>
       )}
     </div>
@@ -580,27 +587,33 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 
 // ─── Helpers ───
 
-function getEntrySummary(entry: TimelineEntry): string {
+function getEntrySummary(entry: TimelineEntry, t: TFunction): string {
   const d = entry.data as unknown as Record<string, unknown>;
   switch (entry.type) {
     case 'trigger':
-      return `Trigger "${d.triggerName || d.triggerId}" ${d.status || 'fired'}`;
+      return t('config:monitoringModal.summary.trigger', { defaultValue: 'Trigger "{{name}}" {{status}}', name: d.triggerName || d.triggerId, status: d.status || t('config:monitoringModal.summary.fired', { defaultValue: 'fired' }) });
     case 'slack':
-      return `${d.direction === 'outbound' ? 'Sent' : 'Received'} in #${d.channelName || d.channelId}: ${truncate(d.text as string, 60)}`;
+      return d.direction === 'outbound'
+        ? t('config:monitoringModal.summary.slackSent', { defaultValue: 'Sent in #{{channel}}: {{text}}', channel: d.channelName || d.channelId, text: truncate(d.text as string, 60) })
+        : t('config:monitoringModal.summary.slackReceived', { defaultValue: 'Received in #{{channel}}: {{text}}', channel: d.channelName || d.channelId, text: truncate(d.text as string, 60) });
     case 'email':
-      return `${d.direction === 'outbound' ? 'Sent to' : 'From'} ${d.direction === 'outbound' ? d.toAddresses : d.fromAddress}: ${truncate(d.subject as string, 50)}`;
+      return d.direction === 'outbound'
+        ? t('config:monitoringModal.summary.emailSentTo', { defaultValue: 'Sent to {{to}}: {{subject}}', to: d.toAddresses, subject: truncate(d.subject as string, 50) })
+        : t('config:monitoringModal.summary.emailFrom', { defaultValue: 'From {{from}}: {{subject}}', from: d.fromAddress, subject: truncate(d.subject as string, 50) });
     case 'approval':
-      return `${d.approved ? 'Approved' : 'Rejected'} by ${d.approverEmail}`;
+      return d.approved
+        ? t('config:monitoringModal.summary.approvedBy', { defaultValue: 'Approved by {{email}}', email: d.approverEmail })
+        : t('config:monitoringModal.summary.rejectedBy', { defaultValue: 'Rejected by {{email}}', email: d.approverEmail });
     case 'document':
-      return `Generated "${d.outputFilename}" from template "${d.templateName}"`;
+      return t('config:monitoringModal.summary.document', { defaultValue: 'Generated "{{file}}" from template "{{template}}"', file: d.outputFilename, template: d.templateName });
     case 'calendar':
-      return `Calendar event ${d.action}: "${d.summary}"`;
+      return t('config:monitoringModal.summary.calendar', { defaultValue: 'Calendar event {{action}}: "{{summary}}"', action: d.action, summary: d.summary });
     case 'jira':
-      return `${d.ticketKey} ${d.action}: ${truncate(d.summary as string, 50)}`;
+      return t('config:monitoringModal.summary.jira', { defaultValue: '{{key}} {{action}}: {{summary}}', key: d.ticketKey, action: d.action, summary: truncate(d.summary as string, 50) });
     case 'step':
-      return `Workflow step: ${d.toStateName} (${d.status})`;
+      return t('config:monitoringModal.summary.workflowStep', { defaultValue: 'Workflow step: {{name}} ({{status}})', name: d.toStateName, status: d.status });
     case 'variable_change':
-      return `Variable "${d.variableName}" changed by ${d.changedBy}`;
+      return t('config:monitoringModal.summary.variableChange', { defaultValue: 'Variable "{{name}}" changed by {{by}}', name: d.variableName, by: d.changedBy });
     case 'audit':
       return `[${(d.level as string || 'info').toUpperCase()}] ${d.category}: ${d.action}`;
     default:
@@ -661,6 +674,7 @@ function useWorkflowStore() {
 }
 
 function InstanceMonitorTab() {
+  const { t } = useTranslation(['config', 'common']);
   const { definitions, instances } = useWorkflowStore();
   const [statusFilter, setStatusFilter] = useState<InstanceStatusFilter>('all');
   const [defFilter, setDefFilter] = useState<string>('all');
@@ -708,40 +722,40 @@ function InstanceMonitorTab() {
     return (
       <div style={{ padding: '12px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => setDebugId(null)}>Back</button>
-          <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>Debug: {debugInstance.workflowName}</span>
+          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => setDebugId(null)}>{t('common:buttons.back')}</button>
+          <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>{t('config:monitoringModal.debugTitle', { defaultValue: 'Debug: {{name}}', name: debugInstance.workflowName })}</span>
           <span style={{ ...S.tag, background: `${statusColor}22`, color: statusColor }}>{debugInstance.status}</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, marginBottom: 16 }}>
-          <DebugCell label="ID" value={debugInstance.id} />
-          <DebugCell label="Def ID" value={debugInstance.workflowDefId} />
-          <DebugCell label="Current State" value={currentState?.name || debugInstance.currentStateId} />
-          <DebugCell label="State Type" value={currentState?.type || 'unknown'} />
-          <DebugCell label="Created" value={fmtFull(debugInstance.createdAt)} />
-          <DebugCell label="Updated" value={fmtFull(debugInstance.updatedAt)} />
-          {debugInstance.completedAt && <DebugCell label="Completed" value={fmtFull(debugInstance.completedAt)} />}
-          {debugInstance.error && <DebugCell label="Error" value={debugInstance.error} color="#f38ba8" />}
-          <DebugCell label="Steps" value={String(debugInstance.history?.length ?? 0)} />
+          <DebugCell label={t('config:monitoringModal.debug.id', { defaultValue: 'ID' })} value={debugInstance.id} />
+          <DebugCell label={t('config:monitoringModal.debug.defId', { defaultValue: 'Def ID' })} value={debugInstance.workflowDefId} />
+          <DebugCell label={t('config:monitoringModal.debug.currentState', { defaultValue: 'Current State' })} value={currentState?.name || debugInstance.currentStateId} />
+          <DebugCell label={t('config:monitoringModal.debug.stateType', { defaultValue: 'State Type' })} value={currentState?.type || t('config:monitoringModal.unknown', { defaultValue: 'unknown' })} />
+          <DebugCell label={t('config:monitoringModal.debug.created', { defaultValue: 'Created' })} value={fmtFull(debugInstance.createdAt)} />
+          <DebugCell label={t('config:monitoringModal.debug.updated', { defaultValue: 'Updated' })} value={fmtFull(debugInstance.updatedAt)} />
+          {debugInstance.completedAt && <DebugCell label={t('config:monitoringModal.debug.completed', { defaultValue: 'Completed' })} value={fmtFull(debugInstance.completedAt)} />}
+          {debugInstance.error && <DebugCell label={t('config:monitoringModal.debug.error', { defaultValue: 'Error' })} value={debugInstance.error} color="#f38ba8" />}
+          <DebugCell label={t('config:monitoringModal.debug.steps', { defaultValue: 'Steps' })} value={String(debugInstance.history?.length ?? 0)} />
         </div>
 
         {Object.keys(userVars).length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>User Variables</div>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>{t('config:monitoringModal.userVariables', { defaultValue: 'User Variables' })}</div>
             <pre style={S.detail}>{JSON.stringify(userVars, null, 2)}</pre>
           </div>
         )}
 
         {Object.keys(wiVars).length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Internal Variables (wi_*)</div>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>{t('config:monitoringModal.internalVariables', { defaultValue: 'Internal Variables (wi_*)' })}</div>
             <pre style={S.detail}>{JSON.stringify(wiVars, null, 2)}</pre>
           </div>
         )}
 
         {currentState && currentState.transitions.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Available Transitions</div>
+            <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>{t('config:monitoringModal.availableTransitions', { defaultValue: 'Available Transitions' })}</div>
             {currentState.transitions.map(t => (
               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 10px', background: '#313244', borderRadius: 4, marginBottom: 4 }}>
                 <span style={{ color: '#cdd6f4', fontSize: 12 }}>{t.name}</span>
@@ -752,7 +766,7 @@ function InstanceMonitorTab() {
         )}
 
         <div>
-          <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>Raw JSON</div>
+          <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 6 }}>{t('config:monitoringModal.rawJson', { defaultValue: 'Raw JSON' })}</div>
           <pre style={{ ...S.detail, maxHeight: 400 }}>{JSON.stringify(debugInstance, null, 2)}</pre>
         </div>
       </div>
@@ -767,7 +781,7 @@ function InstanceMonitorTab() {
     return (
       <div style={{ padding: '12px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => { setExpandedId(null); setExpandedStepIdx(null); }}>Back</button>
+          <button style={{ ...S.refreshBtn, fontSize: 12 }} onClick={() => { setExpandedId(null); setExpandedStepIdx(null); }}>{t('common:buttons.back')}</button>
           <span style={{ color: '#cdd6f4', fontSize: 13, fontWeight: 500 }}>{expandedInstance.workflowName}</span>
           <span style={{ color: '#6c7086', fontSize: 10, fontFamily: 'monospace' }}>({expandedInstance.id.slice(0, 8)})</span>
           <span style={{ ...S.tag, background: `${statusColor}22`, color: statusColor }}>{expandedInstance.status}</span>
@@ -776,17 +790,17 @@ function InstanceMonitorTab() {
         </div>
 
         <div style={{ display: 'flex', gap: 16, color: '#6c7086', fontSize: 11, marginBottom: 12 }}>
-          <span>Created: {fmtFull(expandedInstance.createdAt)}</span>
-          <span>Updated: {fmtFull(expandedInstance.updatedAt)}</span>
-          {expandedInstance.error && <span style={{ color: '#f38ba8' }}>Error: {expandedInstance.error}</span>}
+          <span>{t('config:monitoringModal.createdAt', { defaultValue: 'Created: {{time}}', time: fmtFull(expandedInstance.createdAt) })}</span>
+          <span>{t('config:monitoringModal.updatedAt', { defaultValue: 'Updated: {{time}}', time: fmtFull(expandedInstance.updatedAt) })}</span>
+          {expandedInstance.error && <span style={{ color: '#f38ba8' }}>{t('config:monitoringModal.errorLabel', { defaultValue: 'Error: {{message}}', message: expandedInstance.error })}</span>}
         </div>
 
         <div style={{ color: '#a6adc8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 8 }}>
-          Timeline ({expandedInstance.history.length} step{expandedInstance.history.length !== 1 ? 's' : ''})
+          {t('config:monitoringModal.timeline', { defaultValue: 'Timeline ({{count}} step{{plural}})', count: expandedInstance.history.length, plural: expandedInstance.history.length !== 1 ? 's' : '' })}
         </div>
 
         {expandedInstance.history.length === 0 && (
-          <div style={{ color: '#6c7086', fontSize: 12, padding: 16 }}>No steps recorded yet.</div>
+          <div style={{ color: '#6c7086', fontSize: 12, padding: 16 }}>{t('config:monitoringModal.noSteps', { defaultValue: 'No steps recorded yet.' })}</div>
         )}
 
         {expandedInstance.history.map((entry, idx) => {
@@ -811,7 +825,7 @@ function InstanceMonitorTab() {
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: stateColor, flexShrink: 0 }} />
                 <span style={{ color: '#cdd6f4', fontSize: 12, fontWeight: 500 }}>{state?.name || entry.toStateId}</span>
                 {state && <span style={{ ...S.tag, background: `${stateColor}22`, color: stateColor }}>{state.type}</span>}
-                {entry.transitionName && <span style={{ color: '#6c7086', fontSize: 10 }}>via "{entry.transitionName}"</span>}
+                {entry.transitionName && <span style={{ color: '#6c7086', fontSize: 10 }}>{t('config:monitoringModal.via', { defaultValue: 'via "{{name}}"', name: entry.transitionName })}</span>}
                 <div style={{ flex: 1 }} />
                 <span style={{ color: '#6c7086', fontSize: 10, whiteSpace: 'nowrap' }}>{fmtFull(entry.timestamp)}</span>
               </div>
@@ -820,30 +834,30 @@ function InstanceMonitorTab() {
                 <div style={{ marginTop: 8, paddingLeft: 20 }}>
                   {entry.fromStateId && (
                     <div style={{ color: '#6c7086', fontSize: 11, marginBottom: 2 }}>
-                      <span style={{ fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>From: </span>
+                      <span style={{ fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>{t('config:monitoringModal.fromLabel', { defaultValue: 'From: ' })}</span>
                       <span style={{ fontFamily: 'monospace' }}>{entry.fromStateId}</span>
                     </div>
                   )}
                   {entry.details && (
                     <div style={{ marginTop: 6 }}>
-                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Agent Reasoning / Summary</div>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>{t('config:monitoringModal.agentReasoning', { defaultValue: 'Agent Reasoning / Summary' })}</div>
                       <div style={{ padding: 10, background: '#181825', borderRadius: 6, border: '1px solid #313244', fontSize: 12, color: '#cdd6f4', lineHeight: 1.5, whiteSpace: 'pre-wrap' as const }}>{entry.details}</div>
                     </div>
                   )}
                   {state?.description && (
                     <div style={{ marginTop: 6, color: '#a6adc8', fontSize: 11 }}>
-                      <span style={{ color: '#6c7086', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>Description: </span>{state.description}
+                      <span style={{ color: '#6c7086', fontWeight: 600, fontSize: 10, textTransform: 'uppercase' as const }}>{t('config:monitoringModal.descriptionLabel', { defaultValue: 'Description: ' })}</span>{state.description}
                     </div>
                   )}
                   {entry.variables && Object.keys(entry.variables).length > 0 && (
                     <div style={{ marginTop: 6 }}>
-                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Variables at this step</div>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>{t('config:monitoringModal.variablesAtStep', { defaultValue: 'Variables at this step' })}</div>
                       <pre style={S.detail}>{JSON.stringify(entry.variables, null, 2)}</pre>
                     </div>
                   )}
                   {state?.action && (
                     <div style={{ marginTop: 6 }}>
-                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>Action ({state.action.type})</div>
+                      <div style={{ color: '#6c7086', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 4 }}>{t('config:monitoringModal.actionType', { defaultValue: 'Action ({{type}})', type: state.action.type })}</div>
                       <pre style={S.detail}>{JSON.stringify(state.action, null, 2)}</pre>
                     </div>
                   )}
@@ -866,7 +880,7 @@ function InstanceMonitorTab() {
           value={defFilter}
           onChange={(e) => setDefFilter(e.target.value)}
         >
-          <option value="all">All Workflows</option>
+          <option value="all">{t('config:monitoringModal.allWorkflows', { defaultValue: 'All Workflows' })}</option>
           {allDefs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
 
@@ -882,13 +896,13 @@ function InstanceMonitorTab() {
                 textTransform: 'capitalize' as const,
               }}
               onClick={() => setStatusFilter(sf)}
-            >{sf}</button>
+            >{t(`config:monitoringModal.statusFilter.${sf}`, { defaultValue: sf })}</button>
           ))}
         </div>
 
         <input
           style={S.searchInput}
-          placeholder="Search instances..."
+          placeholder={t('config:monitoringModal.searchInstances', { defaultValue: 'Search instances...' })}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -901,7 +915,7 @@ function InstanceMonitorTab() {
       {/* Instance List */}
       {filtered.length === 0 ? (
         <div style={{ color: '#6c7086', textAlign: 'center', padding: 40 }}>
-          No workflow instances found.
+          {t('config:monitoringModal.noInstances', { defaultValue: 'No workflow instances found.' })}
         </div>
       ) : (
         filtered.map((inst) => {
@@ -924,14 +938,14 @@ function InstanceMonitorTab() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
                   <span style={{ color: '#6c7086', fontSize: 10, fontFamily: 'monospace' }}>{inst.id.slice(0, 8)}</span>
                   {currentState && <span style={{ color: stateTypeColor, fontSize: 10 }}>@ {currentState.name}</span>}
-                  <span style={{ color: '#45475a', fontSize: 10 }}>{(inst.history?.length ?? 0)} step{(inst.history?.length ?? 0) !== 1 ? 's' : ''}</span>
+                  <span style={{ color: '#45475a', fontSize: 10 }}>{t('config:monitoringModal.stepCount', { defaultValue: '{{count}} step{{plural}}', count: inst.history?.length ?? 0, plural: (inst.history?.length ?? 0) !== 1 ? 's' : '' })}</span>
                 </div>
               </div>
               <span style={{ color: '#6c7086', fontSize: 10, whiteSpace: 'nowrap' }}>{fmtTime(inst.updatedAt)}</span>
               <button
                 style={{ background: 'transparent', border: '1px solid #45475a', borderRadius: 4, padding: '3px 6px', color: '#6c7086', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer' }}
                 onClick={(e) => { e.stopPropagation(); setDebugId(inst.id); }}
-                title="Debug view"
+                title={t('config:monitoringModal.debugView', { defaultValue: 'Debug view' })}
               >{'{..}'}</button>
             </div>
           );
