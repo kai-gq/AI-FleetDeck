@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>character-forge 预览台</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #14161c; color: #cfd3dc; font: 13px/1.5 ui-monospace, Consolas, monospace; }
+    #app { position: fixed; inset: 0; }
+    #hud {
+      position: fixed; top: 10px; left: 10px; padding: 10px 12px; max-width: 420px;
+      background: rgba(20, 22, 28, .82); border: 1px solid #333a48; border-radius: 8px; white-space: pre-wrap;
+    }
+    #hud b { color: #8fd3ff; }
+    #bar { position: fixed; bottom: 12px; left: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      background: #232838; color: #cfd3dc; border: 1px solid #3a4256; border-radius: 6px;
+      padding: 6px 10px; cursor: pointer; font: inherit;
+    }
+    button:hover { background: #2c3348; }
+    button.on { background: #2f6f4f; border-color: #3f9f6f; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud">加载中…</div>
+  <div id="bar"></div>
+  <script type="module" src="./viewer.js"></script>
+</body>
+</html>
