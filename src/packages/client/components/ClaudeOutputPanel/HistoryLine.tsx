@@ -636,9 +636,9 @@ export const HistoryLine = memo(function HistoryLine({
           )}
           {execDetailExpanded && (
             <div className="codex-exec-detail">
-              <div className="codex-exec-detail-label">Command details</div>
+              <div className="codex-exec-detail-label">{t('terminal:outputLine.commandDetails', { defaultValue: 'Command details' })}</div>
               <pre>{execScript}</pre>
-              {execLinkedOutput && <><div className="codex-exec-detail-label">Result</div><pre>{execLinkedOutput}</pre></>}
+              {execLinkedOutput && <><div className="codex-exec-detail-label">{t('terminal:outputLine.result', { defaultValue: 'Result' })}</div><pre>{execLinkedOutput}</pre></>}
             </div>
           )}
           {grepResultsModal && <GrepResultsModal results={grepResultsModal} onClose={() => setGrepResultsModal(null)} onFileClick={onFileClick} />}
@@ -1170,7 +1170,7 @@ export const HistoryLine = memo(function HistoryLine({
               >
                 <span className="bash-notify-chip">
                   <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
-                  <span className="bash-notify-label">notify</span>
+                  <span className="bash-notify-label">{t('terminal:outputLine.chipNotify', { defaultValue: 'notify' })}</span>
                 </span>
                 {bashNotificationCommand.title && (
                   <span className="bash-notify-title">{bashNotificationCommand.title}</span>
@@ -1186,7 +1186,7 @@ export const HistoryLine = memo(function HistoryLine({
                 title={bashTaskLabelCommand.commandBody}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
+                <span className="bash-task-label-chip"><Icon name="task" size={12} /> {t('terminal:outputLine.chipTask', { defaultValue: 'task' })}</span>
                 <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
               </span>
             ) : isBashTool && bashReportTaskCommand ? (
@@ -1221,7 +1221,7 @@ export const HistoryLine = memo(function HistoryLine({
                 {bashSearchCommand.shellPrefix && (
                   <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>
                 )}
-                <span className="bash-search-chip">search</span>
+                <span className="bash-search-chip">{t('terminal:outputLine.chipSearch', { defaultValue: 'search' })}</span>
                 <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
               </span>
             ) : isBashTool && bashCurlParsed ? (
@@ -1679,7 +1679,7 @@ export const HistoryLine = memo(function HistoryLine({
           >
             <span className="bash-notify-chip">
               <span className="bash-notify-icon"><Icon name="bell" size={12} /></span>
-              <span className="bash-notify-label">notify</span>
+              <span className="bash-notify-label">{t('terminal:outputLine.chipNotify', { defaultValue: 'notify' })}</span>
             </span>
             {bashNotificationCommand.title && <span className="bash-notify-title">{bashNotificationCommand.title}</span>}
             {bashNotificationCommand.message && <span className="bash-notify-message">{bashNotificationCommand.message}</span>}
@@ -1691,7 +1691,7 @@ export const HistoryLine = memo(function HistoryLine({
             title={bashTaskLabelCommand.commandBody}
             style={handleBashClick ? { cursor: 'pointer' } : undefined}
           >
-            <span className="bash-task-label-chip"><Icon name="task" size={12} /> task</span>
+            <span className="bash-task-label-chip"><Icon name="task" size={12} /> {t('terminal:outputLine.chipTask', { defaultValue: 'task' })}</span>
             <span className="bash-task-label-value">{bashTaskLabelCommand.taskLabel}</span>
           </span>
         ) : bashReportTaskCommand ? (
@@ -1722,7 +1722,7 @@ export const HistoryLine = memo(function HistoryLine({
             style={handleBashClick ? { cursor: 'pointer' } : undefined}
           >
             {bashSearchCommand.shellPrefix && <span className="bash-search-shell">{bashSearchCommand.shellPrefix}</span>}
-            <span className="bash-search-chip">search</span>
+            <span className="bash-search-chip">{t('terminal:outputLine.chipSearch', { defaultValue: 'search' })}</span>
             <span className="bash-search-term">{bashSearchCommand.searchTerm}</span>
           </span>
         ) : bashCurlParsed ? (
@@ -2102,7 +2102,7 @@ export const HistoryLine = memo(function HistoryLine({
               className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
               onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
               disabled={pdfStatus === 'working'}
-              title="Export as PDF"
+              title={t('terminal:outputLine.exportPdf', { defaultValue: 'Export as PDF' })}
             >
               <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
             </button>
@@ -2110,7 +2110,7 @@ export const HistoryLine = memo(function HistoryLine({
           <button
             className="history-view-md-btn"
             onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
-            title="Copy as rich text"
+            title={t('terminal:outputLine.copyRichText', { defaultValue: 'Copy as rich text' })}
           >
             <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
           </button>
@@ -2154,7 +2154,7 @@ export const HistoryLine = memo(function HistoryLine({
               className={`history-view-md-btn history-export-pdf-btn ${pdfStatus}`}
               onClick={(e) => { e.stopPropagation(); void handleExportPdf(); }}
               disabled={pdfStatus === 'working'}
-              title="Export as PDF"
+              title={t('terminal:outputLine.exportPdf', { defaultValue: 'Export as PDF' })}
             >
               <Icon name={pdfStatus === 'error' ? 'cross' : 'download'} size={14} />
             </button>
@@ -2162,7 +2162,7 @@ export const HistoryLine = memo(function HistoryLine({
           <button
             className="history-view-md-btn"
             onClick={(e) => { e.stopPropagation(); handleCopyRichText(); }}
-            title="Copy as rich text"
+            title={t('terminal:outputLine.copyRichText', { defaultValue: 'Copy as rich text' })}
           >
             <Icon name={copyRichStatus === 'copied' ? 'check' : copyRichStatus === 'error' ? 'cross' : 'copy'} size={14} />
           </button>
