@@ -712,7 +712,7 @@ const ChatView = React.memo(function ChatView({
         if (!cancelled) setAreaTerminalUrls((prev) => (prev[areaId] === res.url ? prev : { ...prev, [areaId]: res.url }));
       })
       .catch((err: unknown) => {
-        if (!cancelled) setAreaTerminalError(err instanceof Error ? err.message : 'Failed to start terminal');
+        if (!cancelled) setAreaTerminalError(err instanceof Error ? err.message : t('flatView.failedToStartTerminal', { defaultValue: 'Failed to start terminal' }));
       });
     return () => { cancelled = true; };
   }, [embeddedPanel]);
@@ -881,7 +881,7 @@ const ChatView = React.memo(function ChatView({
       ? 'var(--text-muted)'
       : getUsedPercentColor(weeklyUsedPercent);
   const weeklyValue = isOpenCodeFree
-    ? 'Free'
+    ? t('flatView.free', { defaultValue: 'Free' })
     : weeklyUsedPercent === null
       ? (providerUsage.loading ? '…' : '—')
       : `${Math.round(weeklyUsedPercent)}%`;
@@ -1349,19 +1349,19 @@ const ChatView = React.memo(function ChatView({
               onMouseDown={handleEmbeddedResizeStart}
               role="separator"
               aria-orientation="horizontal"
-              aria-label="Resize embedded panel"
+              aria-label={t('flatView.resizeEmbeddedPanel', { defaultValue: 'Resize embedded panel' })}
             />
             <div
               className="flat-bottom-panel"
               role="region"
-              aria-label={`${panelName} panel`}
+              aria-label={t('flatView.panelAriaLabel', { defaultValue: '{{name}} panel', name: panelName })}
               style={{ height: embeddedHeight }}
             >
               <div className="flat-bottom-panel__header">
                 <span className="flat-bottom-panel__title">
                   <Icon name={titleIcon[panelType]} size={12} />
                   <span>{panelName}</span>
-                  {terminalStarting && <span className="flat-bottom-panel__muted">(starting...)</span>}
+                  {terminalStarting && <span className="flat-bottom-panel__muted">{t('flatView.startingMuted', { defaultValue: '(starting...)' })}</span>}
                 </span>
                 <span className="flat-bottom-panel__header-actions">
                   {panelType === 'pm2-logs' && embeddedBuilding && (
@@ -1371,8 +1371,8 @@ const ChatView = React.memo(function ChatView({
                         className="guake-bottom-terminal-filter"
                         value={embeddedPm2Filter}
                         onChange={(e) => setEmbeddedPm2Filter(e.target.value)}
-                        placeholder="Filter logs"
-                        aria-label={`Filter logs for ${embeddedBuilding.name}`}
+                        placeholder={t('flatView.filterLogsPlaceholder', { defaultValue: 'Filter logs' })}
+                        aria-label={t('flatView.filterLogsFor', { defaultValue: 'Filter logs for {{name}}', name: embeddedBuilding.name })}
                         spellCheck={false}
                       />
                       <select
@@ -1383,11 +1383,11 @@ const ChatView = React.memo(function ChatView({
                           setEmbeddedPm2Retention(nextValue);
                           writeBottomPm2LogRetention(nextValue);
                         }}
-                        aria-label={`Max log retention for ${embeddedBuilding.name}`}
+                        aria-label={t('flatView.maxLogRetentionFor', { defaultValue: 'Max log retention for {{name}}', name: embeddedBuilding.name })}
                       >
                         {BOTTOM_PM2_LOG_RETENTION_OPTIONS.map((option) => (
                           <option key={option === null ? 'unlimited' : option} value={option === null ? 'unlimited' : String(option)}>
-                            {option === null ? 'Unlimited' : `${option.toLocaleString()} lines`}
+                            {option === null ? t('flatView.unlimited', { defaultValue: 'Unlimited' }) : t('flatView.linesCount', { defaultValue: '{{count}} lines', count: option.toLocaleString() })}
                           </option>
                         ))}
                       </select>
@@ -1395,7 +1395,7 @@ const ChatView = React.memo(function ChatView({
                         type="button"
                         className="flat-bottom-panel__close"
                         onClick={() => store.clearStreamingLogs(embeddedPanel.buildingId)}
-                        title="Clear logs"
+                        title={t('flatView.clearLogs', { defaultValue: 'Clear logs' })}
                       >
                         <Icon name="trash" size={12} />
                       </button>
@@ -1403,7 +1403,7 @@ const ChatView = React.memo(function ChatView({
                         type="button"
                         className="flat-bottom-panel__close"
                         onClick={() => store.sendBuildingCommand(embeddedPanel.buildingId, 'restart')}
-                        title="Restart"
+                        title={t('terminal:buildingAction.restart')}
                       >
                         <Icon name="restart" size={12} />
                       </button>
@@ -1417,8 +1417,8 @@ const ChatView = React.memo(function ChatView({
                         closeEmbeddedPanel();
                         expandBuilding(embeddedPanel.buildingId);
                       }}
-                      title="Maximize — open as modal"
-                      aria-label="Open as modal"
+                      title={t('flatView.maximizeTip', { defaultValue: 'Maximize — open as modal' })}
+                      aria-label={t('flatView.openAsModal', { defaultValue: 'Open as modal' })}
                     >
                       <Icon name="fullscreen" size={12} />
                     </button>
@@ -1427,8 +1427,8 @@ const ChatView = React.memo(function ChatView({
                     type="button"
                     className="flat-bottom-panel__close"
                     onClick={closeEmbeddedPanel}
-                    title="Close panel"
-                    aria-label="Close panel"
+                    title={t('common:rightPanel.closePanel')}
+                    aria-label={t('common:rightPanel.closePanel')}
                   >
                     <Icon name="cross" size={12} />
                   </button>
@@ -1442,7 +1442,7 @@ const ChatView = React.memo(function ChatView({
                       visible={true}
                     />
                   ) : (
-                    <div className="flat-bottom-panel__placeholder">{areaTerminalError ?? 'Starting terminal...'}</div>
+                    <div className="flat-bottom-panel__placeholder">{areaTerminalError ?? t('flatView.startingTerminal', { defaultValue: 'Starting terminal...' })}</div>
                   )
                 ) : panelType === 'pm2-logs' ? (
                   <BottomPm2LogContent
@@ -1470,17 +1470,17 @@ const ChatView = React.memo(function ChatView({
         {agent.isDetached && (
           <span
             className="flat-terminal-wrapper__detached"
-            title="Reattaching session..."
+            title={t('flatView.reattachingTip', { defaultValue: 'Reattaching session...' })}
           >
             <Icon name="refresh" size={12} />
-            <span>Reattaching</span>
+            <span>{t('flatView.reattaching', { defaultValue: 'Reattaching' })}</span>
           </span>
         )}
         {cwd && cwdShort && (
           <span
             className="flat-terminal-wrapper__cwd"
-            title={`Open in file explorer: ${cwd}`}
-            aria-label={`Open ${cwd} in file explorer`}
+            title={t('flatView.openInExplorerTip', { defaultValue: 'Open in file explorer: {{cwd}}', cwd })}
+            aria-label={t('flatView.openInExplorerAria', { defaultValue: 'Open {{cwd}} in file explorer', cwd })}
             role="button"
             tabIndex={0}
             onClick={() => store.openFileExplorer(cwd)}
@@ -1516,18 +1516,18 @@ const ChatView = React.memo(function ChatView({
                     <Icon name="git-branch" size={10} /> {branchInfo.branch}
                   </span>
                   {branchInfo.ahead > 0 && (
-                    <span className="flat-terminal-wrapper__branch-ahead" title={`${branchInfo.ahead} ahead`}>
+                    <span className="flat-terminal-wrapper__branch-ahead" title={t('flatView.branchAhead', { defaultValue: '{{count}} ahead', count: branchInfo.ahead })}>
                       <Icon name="arrow-up" size={9} />{branchInfo.ahead}
                     </span>
                   )}
                   {branchInfo.behind > 0 && (
-                    <span className="flat-terminal-wrapper__branch-behind" title={`${branchInfo.behind} behind`}>
+                    <span className="flat-terminal-wrapper__branch-behind" title={t('flatView.branchBehind', { defaultValue: '{{count}} behind', count: branchInfo.behind })}>
                       <Icon name="arrow-down" size={9} />{branchInfo.behind}
                     </span>
                   )}
                   <span
                     className={`flat-terminal-wrapper__area-fetch ${isFetching ? 'flat-terminal-wrapper__area-fetch--fetching' : ''}`}
-                    title="Git fetch"
+                    title={t('terminal:gitPanel.gitFetch')}
                     onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                   >
                     <Icon name={isFetching ? 'hourglass' : 'download'} size={12} />
@@ -1543,7 +1543,7 @@ const ChatView = React.memo(function ChatView({
           disabled={!usageProviderSupported}
           contextSummary={
             contextHasData
-              ? `Context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`
+              ? t('flatView.contextSummary', { defaultValue: 'Context: {{used}}k / {{limit}}k tokens ({{pct}}% used)', used: contextUsedK, limit: contextLimitK, pct: contextUsedPercentDisplay })
               : undefined
           }
         >
@@ -1561,17 +1561,17 @@ const ChatView = React.memo(function ChatView({
             // Native title only for harnesses without a quota endpoint.
             title={!usageProviderSupported
               ? (contextHasData
-                  ? `Context usage: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used). Click to view stats.`
-                  : 'Click to fetch context stats')
+                  ? t('flatView.contextUsageTip', { defaultValue: 'Context usage: {{used}}k / {{limit}}k tokens ({{pct}}% used). Click to view stats.', used: contextUsedK, limit: contextLimitK, pct: contextUsedPercentDisplay })
+                  : t('flatView.fetchStatsTip', { defaultValue: 'Click to fetch context stats' }))
               : undefined}
           >
             <span className="flat-terminal-wrapper__usage-bars">
               <span
                 className="flat-terminal-wrapper__usage-gauge"
-                title={`Session context: ${contextUsedK}k / ${contextLimitK}k tokens (${contextUsedPercentDisplay}% used)`}
+                title={t('flatView.sessionContextTip', { defaultValue: 'Session context: {{used}}k / {{limit}}k tokens ({{pct}}% used)', used: contextUsedK, limit: contextLimitK, pct: contextUsedPercentDisplay })}
               >
                 <span className="flat-terminal-wrapper__usage-label">
-                  Ctx <span className="flat-terminal-wrapper__usage-window">{contextWindowLabel}</span>
+                  {t('flatView.ctx', { defaultValue: 'Ctx' })} <span className="flat-terminal-wrapper__usage-window">{contextWindowLabel}</span>
                 </span>
                 <span className="flat-terminal-wrapper__context-bar">
                   <span
@@ -1586,12 +1586,12 @@ const ChatView = React.memo(function ChatView({
               <span
                 className="flat-terminal-wrapper__usage-gauge"
                 title={weeklyWindow
-                  ? `Weekly usage: ${Math.round(weeklyUsedPercent!)}% used`
+                  ? t('flatView.weeklyUsageTip', { defaultValue: 'Weekly usage: {{pct}}% used', pct: Math.round(weeklyUsedPercent!) })
                   : isOpenCodeFree
-                    ? 'OpenCode free-model capacity is dynamic; no weekly quota is published'
-                    : providerUsage.error || 'Weekly usage is unavailable for this provider/account'}
+                    ? t('flatView.opencodeFreeTip', { defaultValue: 'OpenCode free-model capacity is dynamic; no weekly quota is published' })
+                    : providerUsage.error || t('flatView.weeklyUnavailableTip', { defaultValue: 'Weekly usage is unavailable for this provider/account' })}
               >
-                <span className="flat-terminal-wrapper__usage-label">Week</span>
+                <span className="flat-terminal-wrapper__usage-label">{t('flatView.week', { defaultValue: 'Week' })}</span>
                 <span className="flat-terminal-wrapper__context-bar">
                   <span
                     className="flat-terminal-wrapper__context-bar-fill"
@@ -1604,7 +1604,7 @@ const ChatView = React.memo(function ChatView({
               </span>
             </span>
             {!contextHasData && (
-              <span className="flat-terminal-wrapper__context-warning" title="No context stats yet">
+              <span className="flat-terminal-wrapper__context-warning" title={t('flatView.noContextStats', { defaultValue: 'No context stats yet' })}>
                 <Icon name="warn" size={12} />
               </span>
             )}
@@ -1614,7 +1614,7 @@ const ChatView = React.memo(function ChatView({
         {/* Area-scoped building shortcuts — mirrors the Guake statusbar so the
             user can jump into a terminal/PM2 logs/database from any view. */}
         {areaTerminalBuildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area terminals">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaTerminals', { defaultValue: 'Area terminals' })}>
             {areaTerminalBuildings.map((tb) => {
               const isActive = embeddedPanel?.buildingId === tb.id;
               // The area default terminal is zero-config: no building to
@@ -1626,7 +1626,7 @@ const ChatView = React.memo(function ChatView({
                     key={tb.id}
                     type="button"
                     className={`flat-terminal-wrapper__building-btn flat-terminal-wrapper__building-btn--default ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
-                    title={`${isActive ? 'Hide' : 'Show'} area terminal: ${tb.name}`}
+                    title={t('flatView.toggleAreaTerminal', { defaultValue: '{{action}} area terminal: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: tb.name })}
                     onClick={() => {
                       if (isActive) closeEmbeddedPanel();
                       else toggleEmbeddedPanel('terminal', tb.id);
@@ -1641,7 +1641,9 @@ const ChatView = React.memo(function ChatView({
                   key={tb.id}
                   type="button"
                   className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''} ${!tb.hasUrl ? 'flat-terminal-wrapper__building-btn--offline' : ''}`}
-                  title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
+                  title={!tb.hasUrl
+                    ? t('flatView.toggleTerminalStarting', { defaultValue: '{{action}} terminal: {{name}} (starting...)', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: tb.name })
+                    : t('flatView.toggleTerminal', { defaultValue: '{{action}} terminal: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: tb.name })}
                   onClick={() => {
                     if (isActive) {
                       closeEmbeddedPanel();
@@ -1667,7 +1669,7 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         {areaPm2Buildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area PM2 logs">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaPm2Logs', { defaultValue: 'Area PM2 logs' })}>
             {areaPm2Buildings.map((sb) => {
               const isActive = embeddedPanel?.buildingId === sb.id;
               return (
@@ -1675,7 +1677,7 @@ const ChatView = React.memo(function ChatView({
                   key={sb.id}
                   type="button"
                   className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
-                  title={`${isActive ? 'Hide' : 'Show'} logs: ${sb.name}`}
+                  title={t('flatView.toggleLogs', { defaultValue: '{{action}} logs: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: sb.name })}
                   onClick={() => {
                     if (isActive) {
                       closeEmbeddedPanel();
@@ -1698,7 +1700,7 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         {areaDatabaseBuildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area databases">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaDatabases', { defaultValue: 'Area databases' })}>
             {areaDatabaseBuildings.map((db) => {
               const isActive = embeddedPanel?.buildingId === db.id;
               return (
@@ -1706,7 +1708,7 @@ const ChatView = React.memo(function ChatView({
                   key={db.id}
                   type="button"
                   className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
-                  title={`${isActive ? 'Hide' : 'Show'} database: ${db.name}`}
+                  title={t('flatView.toggleDatabase', { defaultValue: '{{action}} database: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: db.name })}
                   onClick={() => {
                     if (isActive) {
                       closeEmbeddedPanel();
@@ -1729,7 +1731,7 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         {areaTestsBuildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area tests">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaTests', { defaultValue: 'Area tests' })}>
             {areaTestsBuildings.map((tb) => {
               const isActive = embeddedPanel?.buildingId === tb.id;
               return (
@@ -1737,7 +1739,9 @@ const ChatView = React.memo(function ChatView({
                   key={tb.id}
                   type="button"
                   className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''} ${tb.working ? 'flat-terminal-wrapper__building-btn--tests-working' : ''}`}
-                  title={tb.working ? `Running tests: ${tb.name}` : `${isActive ? 'Hide' : 'Show'} tests: ${tb.name}`}
+                  title={tb.working
+                    ? t('flatView.runningTests', { defaultValue: 'Running tests: {{name}}', name: tb.name })
+                    : t('flatView.toggleTests', { defaultValue: '{{action}} tests: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: tb.name })}
                   onClick={() => {
                     if (isActive) {
                       closeEmbeddedPanel();
@@ -1760,14 +1764,14 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         {areaSlashCommandBuildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area slash commands">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaSlashCommands', { defaultValue: 'Area slash commands' })}>
             {areaSlashCommandBuildings.map((slashBuilding) => (
               <button
                 key={slashBuilding.id}
                 type="button"
                 className="flat-terminal-wrapper__building-btn flat-terminal-wrapper__building-btn--slash-command"
-                title={`Run ${slashBuilding.name}: ${slashBuilding.command}`}
-                aria-label={`Run ${slashBuilding.name}`}
+                title={t('flatView.runSlashCommand', { defaultValue: 'Run {{name}}: {{command}}', name: slashBuilding.name, command: slashBuilding.command })}
+                aria-label={t('flatView.runSlashCommandAria', { defaultValue: 'Run {{name}}', name: slashBuilding.name })}
                 data-building-id={slashBuilding.id}
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('tide:open-slash-command-building', {
@@ -1792,7 +1796,7 @@ const ChatView = React.memo(function ChatView({
           </span>
         )}
         {areaHttpBuildings.length > 0 && (
-          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area HTTP requests">
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label={t('flatView.areaHttpRequests', { defaultValue: 'Area HTTP requests' })}>
             {areaHttpBuildings.map((hb) => {
               const isActive = embeddedPanel?.buildingId === hb.id;
               return (
@@ -1800,7 +1804,7 @@ const ChatView = React.memo(function ChatView({
                   key={hb.id}
                   type="button"
                   className={`flat-terminal-wrapper__building-btn ${isActive ? 'flat-terminal-wrapper__building-btn--active' : ''}`}
-                  title={`${isActive ? 'Hide' : 'Show'} HTTP requests: ${hb.name}`}
+                  title={t('flatView.toggleHttpRequests', { defaultValue: '{{action}} HTTP requests: {{name}}', action: t(isActive ? 'flatView.hideAction' : 'flatView.showAction'), name: hb.name })}
                   onClick={() => {
                     if (isActive) {
                       closeEmbeddedPanel();

@@ -4,6 +4,7 @@
  * existing TerminalEmbed (xterm.js) component used by building terminals.
  */
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import TerminalEmbed from '../TerminalEmbed';
 import { startAgentTerminal, stopAgentTerminal } from '../../api/agent-terminal';
 
@@ -19,6 +20,7 @@ interface AgentClassicTerminalProps {
 const pendingStops = new Map<string, ReturnType<typeof setTimeout>>();
 
 function AgentClassicTerminal({ agentId }: AgentClassicTerminalProps) {
+  const { t } = useTranslation('terminal');
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +43,7 @@ function AgentClassicTerminal({ agentId }: AgentClassicTerminalProps) {
         if (!cancelled) setUrl(res.url);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to start terminal');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('flatView.failedToStartTerminal', { defaultValue: 'Failed to start terminal' }));
       });
 
     return () => {
@@ -71,7 +73,7 @@ function AgentClassicTerminal({ agentId }: AgentClassicTerminalProps) {
   if (!url) {
     return (
       <div className="flat-classic-terminal flat-classic-terminal--message">
-        <span>Attaching to interactive session…</span>
+        <span>{t('flatView.attachingInteractive', { defaultValue: 'Attaching to interactive session…' })}</span>
       </div>
     );
   }
