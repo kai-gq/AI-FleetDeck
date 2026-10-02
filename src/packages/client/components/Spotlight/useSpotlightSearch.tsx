@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Fuse from 'fuse.js';
 import { store, useAgents, useAreas, useBuildings, useToolExecutions, useAgentsWithUnseenOutput, useSettings } from '../../store';
 import { formatShortcut } from '../../store/shortcuts';
@@ -102,6 +103,7 @@ export function useSpotlightSearch({
   onOpenSessionFinder,
   onOpenFileDetail,
 }: UseSpotlightSearchOptions): SpotlightSearchState {
+  const { t } = useTranslation('terminal');
   // Granular selectors — only re-render when the specific slice changes
   const agents = useAgents();
   const areas = useAreas();
@@ -368,7 +370,7 @@ export function useSpotlightSearch({
       {
         id: 'cmd-spawn',
         type: 'command',
-        title: 'Spawn New Agent',
+        title: t('terminal:spotlight.cmd.spawn', { defaultValue: 'Spawn New Agent' }),
         subtitle: coarsePointer ? '' : (spawnShortcut ? formatShortcut(spawnShortcut) : 'Alt+N'),
         icon: <Icon name="plus" size={16} />,
         action: () => {
@@ -379,7 +381,7 @@ export function useSpotlightSearch({
       {
         id: 'cmd-commander',
         type: 'command',
-        title: 'Commander View',
+        title: t('terminal:spotlight.cmd.commander', { defaultValue: 'Commander View' }),
         subtitle: coarsePointer ? '' : (commanderShortcut?.key ? formatShortcut(commanderShortcut) : 'Tab'),
         icon: <Icon name="dashboard" size={16} />,
         action: () => {
@@ -390,8 +392,8 @@ export function useSpotlightSearch({
       {
         id: 'cmd-settings',
         type: 'command',
-        title: 'Settings & Tools',
-        subtitle: 'Configure Tide Commander',
+        title: t('terminal:spotlight.cmd.settings', { defaultValue: 'Settings & Tools' }),
+        subtitle: t('terminal:spotlight.cmd.settingsSubtitle', { defaultValue: 'Configure Tide Commander' }),
         icon: <Icon name="gear" size={16} />,
         action: () => {
           onCloseRef.current();
@@ -401,8 +403,8 @@ export function useSpotlightSearch({
       {
         id: 'cmd-monitoring',
         type: 'command',
-        title: 'Monitoring & Logs',
-        subtitle: 'Triggers, workflows, events',
+        title: t('terminal:spotlight.cmd.monitoring', { defaultValue: 'Monitoring & Logs' }),
+        subtitle: t('terminal:spotlight.cmd.monitoringSubtitle', { defaultValue: 'Triggers, workflows, events' }),
         icon: <Icon name="chart-line" size={16} />,
         action: () => {
           onCloseRef.current();
@@ -410,7 +412,7 @@ export function useSpotlightSearch({
         },
       },
     ];
-  }, [isOpen, shortcuts]);
+  }, [isOpen, shortcuts, t]);
 
   // Reuse the exact Settings panel index so Spotlight and the sidebar never
   // disagree about which sections a query should reveal.
@@ -422,8 +424,12 @@ export function useSpotlightSearch({
     return sections.map((section) => ({
       id: `setting-${section.id}`,
       type: 'setting' as const,
-      title: section.title,
-      subtitle: trimmedQuery ? `Settings section • ${trimmedQuery}` : 'Settings section',
+      // Reuse the existing Settings-section translations (config:sections.*);
+      // en falls back to the English index title.
+      title: t(`config:sections.${section.id}`, { defaultValue: section.title }),
+      subtitle: trimmedQuery
+        ? t('terminal:spotlight.settingsSectionQuery', { defaultValue: 'Settings section • {{query}}', query: trimmedQuery })
+        : t('terminal:spotlight.settingsSection', { defaultValue: 'Settings section' }),
       icon: <Icon name="gear" size={16} />,
       _searchText: `${section.title} ${section.keywords.join(' ')}`,
       action: () => {
@@ -433,7 +439,7 @@ export function useSpotlightSearch({
         onOpenToolboxRef.current(trimmedQuery || section.title);
       },
     }));
-  }, [isOpen, query]);
+  }, [isOpen, query, t]);
 
   // agentId -> the area it currently sits in (position-based membership, the same
   // rule the Agent Overview panel uses). One pass over the subscribed areas map
@@ -545,14 +551,18 @@ export function useSpotlightSearch({
       id: `area-${area.id}`,
       type: 'area' as const,
       title: area.name,
-      subtitle: `${area.assignedAgentIds.length} agents • ${area.directories?.length || 0} folders`,
+      subtitle: t('terminal:spotlight.areaSubtitle', {
+        defaultValue: '{{n}} agents • {{m}} folders',
+        n: area.assignedAgentIds.length,
+        m: area.directories?.length || 0,
+      }),
       icon: <Icon name="map" size={16} />,
       action: () => {
         onCloseRef.current();
         store.selectArea(area.id);
       },
     }));
-  }, [isOpen, areas]);
+  }, [isOpen, areas, t]);
 
   // ---- "Areas" tab data ----------------------------------------------------
   // Map agentId -> its agent SearchResult so each area's agent list can reuse the
@@ -648,7 +658,9 @@ export function useSpotlightSearch({
       .map((building) => {
         const statusColor = building.status === 'running' ? '#4ade80' : building.status === 'stopped' ? '#f87171' : '#facc15';
         const typeIconName: IconName = building.type === 'boss' ? 'crown' : building.type === 'database' ? 'database' : building.type === 'tests' ? 'flask' : 'desktop';
-        const typeLabel = building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : building.type === 'tests' ? 'Tests' : 'Server';
+        const typeLabel = t(`terminal:spotlight.buildingType.${building.type}`, {
+          defaultValue: building.type === 'boss' ? 'Boss' : building.type === 'database' ? 'Database' : building.type === 'tests' ? 'Tests' : 'Server',
+        });
 
         // Build subtitle with connection info for database buildings
         let subtitle = `${typeLabel} • ${building.status}`;
@@ -707,7 +719,7 @@ export function useSpotlightSearch({
           },
         };
       });
-  }, [isOpen, buildings]);
+  }, [isOpen, buildings, t]);
 
   // Build folder/git-repo results from the debounced server fetch. The list is
   // already query-filtered + ranked server-side, so it needs no Fuse instance.

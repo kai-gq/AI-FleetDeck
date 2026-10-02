@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { store } from '../../store';
 import { DiffViewer } from '../DiffViewer';
@@ -26,6 +27,7 @@ interface SpotlightFileDetailModalProps {
 }
 
 export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetailModalProps) {
+  const { t } = useTranslation('terminal');
   const [file, setFile] = useState<LoadedFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetai
           { signal: controller.signal }
         );
         const current = await currentResponse.json();
-        if (!currentResponse.ok) throw new Error(current.error || 'Unable to read file');
+        if (!currentResponse.ok) throw new Error(current.error || t('terminal:spotlightFile.readFailed', { defaultValue: 'Unable to read file' }));
 
         let originalContent: string | null = null;
         if (!current.binary) {
@@ -73,7 +75,7 @@ export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetai
         }
       } catch (err) {
         if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : 'Unable to load file');
+          setError(err instanceof Error ? err.message : t('terminal:spotlightFile.loadFailed', { defaultValue: 'Unable to load file' }));
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -82,7 +84,7 @@ export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetai
 
     void load();
     return () => controller.abort();
-  }, [detail.filePath]);
+  }, [detail.filePath, t]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -119,12 +121,16 @@ export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetai
             type="button"
             className="spotlight-file-detail-explorer"
             onClick={openInExplorer}
-            title="Open in File Explorer"
+            title={t('terminal:spotlightFile.openInExplorer', { defaultValue: 'Open in File Explorer' })}
           >
             <Icon name="folder-open" size={14} />
-            Open in File Explorer
+            {t('terminal:spotlightFile.openInExplorer', { defaultValue: 'Open in File Explorer' })}
           </button>
-          <button className="guake-git-close" onClick={onClose} title="Close (Esc)">
+          <button
+            className="guake-git-close"
+            onClick={onClose}
+            title={t('terminal:spotlightFile.closeEsc', { defaultValue: 'Close (Esc)' })}
+          >
             <Icon name="close" size={14} />
           </button>
         </div>
@@ -137,7 +143,7 @@ export function SpotlightFileDetailModal({ detail, onClose }: SpotlightFileDetai
           {error && <div className="spotlight-file-detail-message">{error}</div>}
           {file?.binary && (
             <div className="spotlight-file-detail-message">
-              Binary preview is available in the File Explorer.
+              {t('terminal:spotlightFile.binaryPreview', { defaultValue: 'Binary preview is available in the File Explorer.' })}
             </div>
           )}
           {file && !file.binary && (hasDiff ? (

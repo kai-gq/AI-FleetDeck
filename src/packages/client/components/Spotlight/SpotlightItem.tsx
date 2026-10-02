@@ -4,6 +4,7 @@
  */
 
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SearchResult } from './types';
 import type { SessionExtractKind } from '../../api/sessions';
 import { formatDuration, getTypeLabel } from './utils';
@@ -55,6 +56,8 @@ export const SpotlightItem = memo(function SpotlightItem({
   onMouseEnter,
 }: SpotlightItemProps) {
   // Determine if this result has secondary information
+  const { t } = useTranslation('terminal');
+  const typeLabel = t(`terminal:spotlight.type.${result.type}`, { defaultValue: getTypeLabel(result.type) });
   const extracts = result.matchedExtracts && result.matchedExtracts.length > 0 ? result.matchedExtracts : undefined;
   const hasSecondaryInfo =
     result.activityText ||
@@ -150,8 +153,8 @@ export const SpotlightItem = memo(function SpotlightItem({
               {result._areaName && result._areaName !== result._projectName ? ` · ${result._areaName}` : ''}
             </span>
           )}
-          <span className={`spotlight-item-type ${result.type}`} aria-label={getTypeLabel(result.type)}>
-            {getTypeLabel(result.type)}
+          <span className={`spotlight-item-type ${result.type}`} aria-label={typeLabel}>
+            {typeLabel}
           </span>
         </div>
 
@@ -202,14 +205,18 @@ export const SpotlightItem = memo(function SpotlightItem({
                 it (you / agent / tool) so the topic AND the voice read at a
                 glance. Falls back to the single matched user query/task. */}
             {extracts ? (
-              <ul className="spotlight-item-extracts" aria-label="Matching conversation extracts">
+              <ul className="spotlight-item-extracts" aria-label={t('terminal:spotlightItem.extractsAria', { defaultValue: 'Matching conversation extracts' })}>
                 {extracts.map((ex, i) => (
                   <li
                     key={i}
                     className={`spotlight-item-extract is-${ex.kind}`}
-                    title={EXTRACT_KIND_TITLE[ex.kind]}
+                    title={t(`terminal:spotlightItem.extractTitle.${ex.kind}`, { defaultValue: EXTRACT_KIND_TITLE[ex.kind] })}
                   >
-                    <span className="spotlight-extract-role" aria-hidden="true">{EXTRACT_KIND_LABEL[ex.kind]}</span>
+                    <span className="spotlight-extract-role" aria-hidden="true">
+                      {EXTRACT_KIND_LABEL[ex.kind]
+                        ? t(`terminal:spotlightItem.extractLabel.${ex.kind}`, { defaultValue: EXTRACT_KIND_LABEL[ex.kind] })
+                        : ''}
+                    </span>
                     {highlightMatch(ex.text, query)}
                   </li>
                 ))}

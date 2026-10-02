@@ -1237,7 +1237,37 @@
       "recentActivity": "最近活动",
       "sessions": "历史会话"
     },
-    "searching": "正在搜索…"
+    "searching": "正在搜索…",
+    "cmd": {
+      "spawn": "创建新智能体",
+      "commander": "指挥官视图",
+      "settings": "设置与工具",
+      "settingsSubtitle": "配置 Tide Commander",
+      "monitoring": "监控与日志",
+      "monitoringSubtitle": "触发器、工作流、事件"
+    },
+    "settingsSection": "设置分区",
+    "settingsSectionQuery": "设置分区 · {{query}}",
+    "areaSubtitle": "{{n}} 个智能体 · {{m}} 个文件夹",
+    "buildingType": {
+      "boss": "主管",
+      "database": "数据库",
+      "tests": "测试",
+      "server": "服务器"
+    },
+    "runCommand": "运行命令",
+    "completeCommand": "补全命令",
+    "type": {
+      "agent": "智能体",
+      "command": "命令",
+      "setting": "设置",
+      "area": "区域",
+      "modified-file": "已修改",
+      "building": "服务器",
+      "folder": "文件夹",
+      "file": "文件",
+      "file-content": "内容"
+    }
   },
   "diffViewer": {
     "original": "原始",
@@ -2362,5 +2392,42 @@
     "showQuoted": "查看引用内容",
     "openInGmail": "在 Gmail 中打开",
     "viewInGmail": "在 Gmail 中查看"
+  },
+  "spotlightItem": {
+    "extractsAria": "匹配的对话摘录",
+    "extractTitle": {
+      "user": "你的提示词",
+      "assistant": "智能体消息 / 推理",
+      "tool": "工具调用 / 输出",
+      "raw": "原始行"
+    },
+    "extractLabel": {
+      "user": "你",
+      "assistant": "智能体",
+      "tool": "工具"
+    }
+  },
+  "spotlightCommand": {
+    "resultAria": "{{command}} 的结果",
+    "eyebrow": "插件命令结果",
+    "removeWidget": "移除组件",
+    "orchestrated": "由插件编排",
+    "executedLocally": "由插件本地执行",
+    "proposalsByAgent": "由所选智能体生成建议",
+    "llmNotInvoked": "未调用 LLM",
+    "mode": "插件命令模式",
+    "modeHint": "在本地运行，不会向 AI 智能体发送提示词",
+    "noMatch": "没有匹配的插件命令",
+    "typePrefix": "输入 ",
+    "typeSuffix": " 查看已启用的插件命令。",
+    "aliasOf": "{{name}} 的别名",
+    "running": "正在运行命令"
+  },
+  "spotlightFile": {
+    "openInExplorer": "在资源管理器中打开",
+    "closeEsc": "关闭（Esc）",
+    "readFailed": "无法读取文件",
+    "loadFailed": "无法加载文件",
+    "binaryPreview": "二进制文件预览请在资源管理器中查看。"
   }
 }

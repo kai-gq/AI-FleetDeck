@@ -16,10 +16,14 @@ export const SpotlightFooter = memo(function SpotlightFooter({ commandMode = fal
           <kbd>↑</kbd><kbd>↓</kbd> <kbd>Alt+N</kbd><kbd>Alt+P</kbd> {t('terminal:spotlight.navigate')}
         </span>
         <span className="spotlight-footer-hint">
-          <kbd>Enter</kbd> {commandMode ? 'run command' : t('terminal:spotlight.select')}
+          <kbd>Enter</kbd> {commandMode
+            ? t('terminal:spotlight.runCommand', { defaultValue: 'run command' })
+            : t('terminal:spotlight.select')}
         </span>
         <span className="spotlight-footer-hint">
-          <kbd>Tab</kbd> {commandMode ? 'complete command' : t('terminal:spotlight.switchTabs')}
+          <kbd>Tab</kbd> {commandMode
+            ? t('terminal:spotlight.completeCommand', { defaultValue: 'complete command' })
+            : t('terminal:spotlight.switchTabs')}
         </span>
       </div>
       <div className="spotlight-footer-right">

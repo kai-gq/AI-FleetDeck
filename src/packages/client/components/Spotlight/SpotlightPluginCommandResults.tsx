@@ -1,4 +1,5 @@
 import React, { forwardRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import type { SpotlightPluginCommand } from './pluginCommands';
 
@@ -20,6 +21,7 @@ export const SpotlightPluginCommandResults = forwardRef<HTMLDivElement, Spotligh
     onSelectIndex,
     onExecute,
   }, ref) {
+    const { t } = useTranslation('terminal');
     useEffect(() => {
       if (!ref || typeof ref === 'function') return;
       ref.current?.querySelector('.spotlight-command-item.selected')?.scrollIntoView({ block: 'nearest' });
@@ -30,8 +32,8 @@ export const SpotlightPluginCommandResults = forwardRef<HTMLDivElement, Spotligh
         <div className="spotlight-command-mode-banner">
           <span className="spotlight-command-mode-icon"><Icon name="terminal" size={13} /></span>
           <div>
-            <strong>Plugin command mode</strong>
-            <span>Runs locally without sending a prompt to an AI agent</span>
+            <strong>{t('terminal:spotlightCommand.mode', { defaultValue: 'Plugin command mode' })}</strong>
+            <span>{t('terminal:spotlightCommand.modeHint', { defaultValue: 'Runs locally without sending a prompt to an AI agent' })}</span>
           </div>
         </div>
 
@@ -45,8 +47,12 @@ export const SpotlightPluginCommandResults = forwardRef<HTMLDivElement, Spotligh
         {commands.length === 0 ? (
           <div className="spotlight-empty spotlight-command-empty">
             <Icon name="search" size={18} />
-            <strong>No matching plugin command</strong>
-            <span>Type <code>/</code> to see enabled plugin commands.</span>
+            <strong>{t('terminal:spotlightCommand.noMatch', { defaultValue: 'No matching plugin command' })}</strong>
+            <span>
+              {t('terminal:spotlightCommand.typePrefix', { defaultValue: 'Type ' })}
+              <code>/</code>
+              {t('terminal:spotlightCommand.typeSuffix', { defaultValue: ' to see enabled plugin commands.' })}
+            </span>
           </div>
         ) : commands.map((command, index) => (
           <button
@@ -62,14 +68,16 @@ export const SpotlightPluginCommandResults = forwardRef<HTMLDivElement, Spotligh
               <span className="spotlight-item-header">
                 <code className="spotlight-command-name">{command.name}</code>
                 {command.name !== command.canonicalName && (
-                  <span className="spotlight-command-alias">alias of {command.canonicalName}</span>
+                  <span className="spotlight-command-alias">
+                    {t('terminal:spotlightCommand.aliasOf', { defaultValue: 'alias of {{name}}', name: command.canonicalName })}
+                  </span>
                 )}
               </span>
               <span className="spotlight-item-subtitle">{command.summary}</span>
             </span>
             <span className="spotlight-command-plugin-badge">{command.pluginName}</span>
             {executing && index === selectedIndex
-              ? <span className="spotlight-loading-spinner" aria-label="Running command" />
+              ? <span className="spotlight-loading-spinner" aria-label={t('terminal:spotlightCommand.running', { defaultValue: 'Running command' })} />
               : <span className="spotlight-command-enter">↵</span>}
           </button>
         ))}
