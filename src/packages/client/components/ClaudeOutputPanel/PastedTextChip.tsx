@@ -40,7 +40,7 @@ export function PastedTextChip({ id, lineCount, fullText, onRemove, onUpdate }: 
           <span
             className="pasted-text-chip-edit"
             onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
-            title="Edit content"
+            title={t('tools:pastedText.editContent', { defaultValue: 'Edit content' })}
           >
             <Icon name="edit" size={10} />
           </span>
@@ -138,9 +138,9 @@ function PastedTextModal({ id, lineCount, content, onClose, onUpdate }: PastedTe
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => setIsEditing(true)}
-                title="Edit content"
+                title={t('tools:pastedText.editContent', { defaultValue: 'Edit content' })}
               >
-                <Icon name="edit" size={12} /> Edit
+                <Icon name="edit" size={12} /> {t('common:buttons.edit')}
               </button>
             )}
             {isEditing ? (
@@ -148,16 +148,16 @@ function PastedTextModal({ id, lineCount, content, onClose, onUpdate }: PastedTe
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={handleSave}
-                  title="Save changes"
+                  title={t('tools:pastedText.saveChanges', { defaultValue: 'Save changes' })}
                 >
-                  <Icon name="check" size={12} /> Save
+                  <Icon name="check" size={12} /> {t('common:buttons.save')}
                 </button>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={handleCancelEdit}
-                  title="Discard changes"
+                  title={t('tools:pastedText.discardChanges', { defaultValue: 'Discard changes' })}
                 >
-                  Cancel
+                  {t('common:buttons.cancel')}
                 </button>
               </>
             ) : (

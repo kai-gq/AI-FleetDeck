@@ -4,6 +4,7 @@
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Icon } from '../Icon';
@@ -290,7 +291,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
               </div>
             ))}
             {hunks.length === 0 && (
-              <div className="diff-empty">No changes detected</div>
+              <div className="diff-empty">{t('terminal:toolRenderers.noChangesDetected', { defaultValue: 'No changes detected' })}</div>
             )}
           </div>
         </div>
@@ -375,6 +376,7 @@ interface ReadToolInputProps {
 }
 
 export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   try {
     const input = JSON.parse(content);
     const { file_path, offset, limit } = input;
@@ -397,7 +399,7 @@ export function ReadToolInput({ content, onFileClick }: ReadToolInputProps) {
 
     return (
       <div className="read-tool-input">
-        <span className="read-tool-file clickable" onClick={handleClick} title={`Open ${file_path}${hasRange ? ' (with highlighted lines)' : ''}`}>
+        <span className="read-tool-file clickable" onClick={handleClick} title={hasRange ? t('terminal:toolRenderers.openFileHighlighted', { defaultValue: 'Open {{path}} (with highlighted lines)', path: file_path }) : t('terminal:toolRenderers.openFile', { defaultValue: 'Open {{path}}', path: file_path })}>
           <Icon name="file-text" size={12} /> {fileName}
         </span>
         <span className="read-tool-path">{file_path}</span>
@@ -493,6 +495,7 @@ function normalizePickedLabels(raw: string | undefined): string[] {
 }
 
 export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuestionInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expandedOption, setExpandedOption] = useState<number | null>(null);
 
   // Interactive state — only used when pendingPromptId is set
@@ -569,7 +572,7 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
       <div className={`ask-question-input ${interactive ? 'is-interactive' : ''}`} data-pending-prompt-id={pendingPromptId || ''}>
         {interactive && (
           <div className="ask-question-pending-banner">
-            Awaiting your answer{pendingPromptId ? ` · ${pendingPromptId.slice(-6)}` : ''}
+            {t('terminal:toolRenderers.awaitingAnswer', { defaultValue: 'Awaiting your answer' })}{pendingPromptId ? ` · ${pendingPromptId.slice(-6)}` : ''}
           </div>
         )}
         {questions.map((q, qIdx) => {
@@ -580,8 +583,8 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
               <div className="ask-question-header">
                 {q.header && <span className="ask-question-badge">{q.header}</span>}
                 <span className="ask-question-text">{q.question}</span>
-                {q.multiSelect && <span className="ask-question-multi">multi</span>}
-                {isAnswered && !interactive && <span className="ask-question-answered-tag">answered</span>}
+                {q.multiSelect && <span className="ask-question-multi">{t('terminal:toolRenderers.multi', { defaultValue: 'multi' })}</span>}
+                {isAnswered && !interactive && <span className="ask-question-answered-tag">{t('terminal:toolRenderers.answered', { defaultValue: 'answered' })}</span>}
               </div>
               {q.options && q.options.length > 0 && (
                 <div className="ask-question-options">
@@ -604,7 +607,7 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
                         <div className="ask-option-row">
                           <span className="ask-option-number">{oIdx + 1}</span>
                           <span className="ask-option-label">{opt.label}</span>
-                          {isPicked && <span className="ask-option-pick-mark" aria-label="user picked">✓</span>}
+                          {isPicked && <span className="ask-option-pick-mark" aria-label={t('terminal:toolRenderers.userPicked', { defaultValue: 'user picked' })}>✓</span>}
                           {opt.markdown && !interactive && (
                             <span className="ask-option-preview-hint"><Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
                           )}
@@ -626,7 +629,7 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
               {isAnswered && !interactive && pickedLabels.length > 0 && (
                 <div className="ask-question-picked">
                   <span className="ask-question-picked-label">
-                    {q.multiSelect || pickedLabels.length > 1 ? 'Your answers' : 'Your answer'}
+                    {q.multiSelect || pickedLabels.length > 1 ? t('terminal:toolRenderers.yourAnswers', { defaultValue: 'Your answers' }) : t('terminal:toolRenderers.yourAnswer', { defaultValue: 'Your answer' })}
                   </span>
                   {pickedLabels.map((label, i) => {
                     const matchesOption = q.options?.some((o) => o.label === label) ?? false;
@@ -634,11 +637,11 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
                       <span
                         key={i}
                         className={`ask-question-picked-value ${matchesOption ? '' : 'ask-question-picked-value--custom'}`}
-                        title={matchesOption ? `Selected option: ${label}` : `Custom answer: ${label}`}
+                        title={matchesOption ? t('terminal:toolRenderers.selectedOption', { defaultValue: 'Selected option: {{label}}', label }) : t('terminal:toolRenderers.customAnswer', { defaultValue: 'Custom answer: {{label}}', label })}
                       >
                         <span className="ask-question-picked-text">{label}</span>
                         {!matchesOption && (
-                          <span className="ask-question-picked-custom-tag">custom</span>
+                          <span className="ask-question-picked-custom-tag">{t('terminal:toolRenderers.custom', { defaultValue: 'custom' })}</span>
                         )}
                       </span>
                     );
@@ -649,7 +652,7 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
                 <div className="ask-question-freetext">
                   <input
                     type="text"
-                    placeholder="Or type your own answer…"
+                    placeholder={t('terminal:toolRenderers.freeTextPlaceholder', { defaultValue: 'Or type your own answer…' })}
                     value={freeText[q.question] ?? ''}
                     onChange={(e) => setFreeText((p) => ({ ...p, [q.question]: e.target.value }))}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyFreeText(q); } }}
@@ -660,7 +663,7 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
                     onClick={() => applyFreeText(q)}
                     disabled={submitting || !(freeText[q.question] ?? '').trim()}
                   >
-                    Use
+                    {t('terminal:credentials.use')}
                   </button>
                 </div>
               )}
@@ -671,19 +674,19 @@ export function AskQuestionInput({ content, answers, pendingPromptId }: AskQuest
           <div className="ask-question-actions">
             <span className={`ask-question-progress ${allAnswered ? 'complete' : ''}`}>
               {allAnswered
-                ? 'All questions answered'
-                : `${answeredCount} of ${questions.length} answered`}
+                ? t('terminal:toolRenderers.allAnswered', { defaultValue: 'All questions answered' })
+                : t('terminal:toolRenderers.answeredCount', { defaultValue: '{{done}} of {{total}} answered', done: answeredCount, total: questions.length })}
             </span>
             <button className="ask-question-btn deny" onClick={decline} disabled={submitting}>
-              <Icon name="close" size={12} /> Decline
+              <Icon name="close" size={12} /> {t('terminal:toolRenderers.decline', { defaultValue: 'Decline' })}
             </button>
             <button
               className="ask-question-btn approve"
               onClick={submit}
               disabled={submitting || !allAnswered}
-              title={allAnswered ? 'Submit answers' : `${questions.length - answeredCount} unanswered`}
+              title={allAnswered ? t('terminal:toolRenderers.submitAnswers', { defaultValue: 'Submit answers' }) : t('terminal:toolRenderers.unanswered', { defaultValue: '{{n}} unanswered', n: questions.length - answeredCount })}
             >
-              <Icon name="check" size={12} /> Submit answers
+              <Icon name="check" size={12} /> {t('terminal:toolRenderers.submitAnswers', { defaultValue: 'Submit answers' })}
             </button>
           </div>
         )}
@@ -707,6 +710,7 @@ interface AskQuestionResultProps {
 }
 
 export function AskQuestionResult({ content }: AskQuestionResultProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   // Match all "Quoted question"="Quoted answer" pairs.
   // Answers may include escaped quotes/commas; we use a lazy match until the
   // next `"=` or end of the answer-list segment.
@@ -723,7 +727,7 @@ export function AskQuestionResult({ content }: AskQuestionResultProps) {
     <div className="ask-question-result">
       <div className="ask-question-result-header">
         <Icon name="check" size={12} />
-        <span>Your answers</span>
+        <span>{t('terminal:toolRenderers.yourAnswers', { defaultValue: 'Your answers' })}</span>
       </div>
       <ul className="ask-question-result-list">
         {pairs.map((p, i) => (
@@ -754,6 +758,7 @@ interface ExitPlanModeInputProps {
 }
 
 export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: ExitPlanModeInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const interactive = Boolean(pendingPromptId);
   // Auto-expand when the plan is awaiting interactive approval so the user
   // can read it without an extra click.
@@ -769,7 +774,7 @@ export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: 
     }
 
     const headingMatch = plan.match(/^#+\s+(.+)$/m);
-    const preview = (headingMatch?.[1] || plan.split('\n').find((line: string) => line.trim().length > 0) || 'Plan ready').trim();
+    const preview = (headingMatch?.[1] || plan.split('\n').find((line: string) => line.trim().length > 0) || t('terminal:toolRenderers.planReady', { defaultValue: 'Plan ready' })).trim();
 
     async function approve() {
       if (!pendingPromptId) return;
@@ -787,14 +792,14 @@ export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: 
     return (
       <div className={`plan-tool-input ${interactive ? 'is-interactive' : ''}`}>
         <div className="plan-tool-header">
-          <span className="plan-tool-title"><Icon name="map" size={13} /> Plan{interactive && ' — awaiting approval'}</span>
+          <span className="plan-tool-title"><Icon name="map" size={13} /> {interactive ? t('terminal:toolRenderers.planAwaitingApproval', { defaultValue: 'Plan — awaiting approval' }) : t('terminal:toolRenderers.plan', { defaultValue: 'Plan' })}</span>
           <button
             type="button"
             className="plan-tool-toggle"
             onClick={() => setExpanded((prev) => !prev)}
-            title={expanded ? 'Collapse plan' : 'Expand plan'}
+            title={expanded ? t('terminal:toolRenderers.collapsePlan', { defaultValue: 'Collapse plan' }) : t('terminal:toolRenderers.expandPlan', { defaultValue: 'Expand plan' })}
           >
-            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? t('common:buttons2.hide') : t('common:buttons2.show')}
           </button>
           <button
             type="button"
@@ -809,9 +814,9 @@ export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: 
                 window.dispatchEvent(new CustomEvent('tide:viewMarkdown', { detail: { content: plan } }));
               } catch { /* environments without CustomEvent */ }
             }}
-            title="Open plan in modal"
+            title={t('terminal:toolRenderers.openPlanInModal', { defaultValue: 'Open plan in modal' })}
           >
-            <Icon name="fullscreen" size={11} /> Open
+            <Icon name="fullscreen" size={11} /> {t('terminal:toolRenderers.openButton', { defaultValue: 'Open' })}
           </button>
         </div>
         {expanded ? (
@@ -826,10 +831,10 @@ export function ExitPlanModeInput({ content, pendingPromptId, onViewMarkdown }: 
         {interactive && (
           <div className="plan-tool-actions">
             <button className="ask-question-btn deny" onClick={reject} disabled={submitting}>
-              <Icon name="close" size={12} /> Reject
+              <Icon name="close" size={12} /> {t('terminal:toolRenderers.reject', { defaultValue: 'Reject' })}
             </button>
             <button className="ask-question-btn approve" onClick={approve} disabled={submitting}>
-              <Icon name="check" size={12} /> Approve plan
+              <Icon name="check" size={12} /> {t('terminal:toolRenderers.approvePlan', { defaultValue: 'Approve plan' })}
             </button>
           </div>
         )}
@@ -927,6 +932,7 @@ interface TaskUpdateInputProps {
 }
 
 export function TaskUpdateInput({ content, subject }: TaskUpdateInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -954,7 +960,7 @@ export function TaskUpdateInput({ content, subject }: TaskUpdateInputProps) {
   const subjectFromEnrichment = subject?.trim();
   const displayText = subjectFromEnrichment
     || trimmedDescription
-    || (status ? `status: ${status}` : '(no description)');
+    || (status ? t('terminal:toolRenderers.statusLabel', { defaultValue: 'status: {{status}}', status }) : t('terminal:toolRenderers.noDescription', { defaultValue: '(no description)' }));
 
   return (
     <div className="task-tool-input">
@@ -983,22 +989,23 @@ function memoryKindIcon(kind: BashMemoryKind): string {
   }
 }
 
-function memoryKindLabel(kind: BashMemoryKind, failed: boolean): string {
+function memoryKindLabel(kind: BashMemoryKind, failed: boolean, t: TFunction): string {
   if (failed) {
     switch (kind) {
-      case 'read':  return 'Failed reading memory';
-      case 'save':  return 'Failed saving memory';
-      case 'clear': return 'Failed clearing memory';
+      case 'read':  return t('terminal:toolRenderers.failedReadingMemory', { defaultValue: 'Failed reading memory' });
+      case 'save':  return t('terminal:toolRenderers.failedSavingMemory', { defaultValue: 'Failed saving memory' });
+      case 'clear': return t('terminal:toolRenderers.failedClearingMemory', { defaultValue: 'Failed clearing memory' });
     }
   }
   switch (kind) {
-    case 'read':  return 'Reading memory';
-    case 'save':  return 'Saved memory';
-    case 'clear': return 'Cleared memory';
+    case 'read':  return t('terminal:toolRenderers.readingMemory', { defaultValue: 'Reading memory' });
+    case 'save':  return t('terminal:toolRenderers.savedMemory', { defaultValue: 'Saved memory' });
+    case 'clear': return t('terminal:toolRenderers.clearedMemory', { defaultValue: 'Cleared memory' });
   }
 }
 
 export function MemoryOpInput({ info, response }: MemoryOpInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const failed = response?.failed ?? false;
   const length = info.kind === 'save' ? (response?.length ?? info.bodyLength) : undefined;
   const shortId = info.agentId.length > 8 ? info.agentId.slice(0, 8) : info.agentId;
@@ -1007,19 +1014,19 @@ export function MemoryOpInput({ info, response }: MemoryOpInputProps) {
   return (
     <span className={`memory-op-inline memory-op-${stateClass}`} title={info.commandBody}>
       <span className="memory-op-icon" aria-hidden>{memoryKindIcon(info.kind)}</span>
-      <span className="memory-op-label">{memoryKindLabel(info.kind, failed)}</span>
+      <span className="memory-op-label">{memoryKindLabel(info.kind, failed, t)}</span>
       <span className="memory-op-sep">·</span>
-      <span className="memory-op-agent">agent {shortId}</span>
+      <span className="memory-op-agent">{t('terminal:toolRenderers.memoryAgent', { defaultValue: 'agent {{id}}', id: shortId })}</span>
       {typeof length === 'number' && (
         <>
           <span className="memory-op-sep">·</span>
-          <span className="memory-op-length">{length.toLocaleString()} chars</span>
+          <span className="memory-op-length">{t('terminal:toolRenderers.memoryChars', { defaultValue: '{{n}} chars', n: length.toLocaleString() })}</span>
         </>
       )}
       {failed && (
         <>
           <span className="memory-op-sep">·</span>
-          <span className="memory-op-error">error</span>
+          <span className="memory-op-error">{t('common:status.error')}</span>
         </>
       )}
     </span>
@@ -1041,6 +1048,7 @@ export function ToolInputChips({
   data: Record<string, unknown>;
   preferKeys?: string[];
 }) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const entries = Object.entries(data).filter(([, v]) => v !== undefined && v !== null && v !== '');
   if (entries.length === 0) return null;
 
@@ -1063,10 +1071,14 @@ export function ToolInputChips({
           else if (value.every((v) => typeof v === 'string' || typeof v === 'number')) {
             display = value.map((v) => String(v)).join(', ');
             if (display.length > 80) {
-              display = `${value.length} item${value.length === 1 ? '' : 's'}`;
+              display = value.length === 1
+              ? t('terminal:toolRenderers.itemOne', { defaultValue: '{{n}} item', n: value.length })
+              : t('terminal:toolRenderers.itemMany', { defaultValue: '{{n}} items', n: value.length });
             }
           } else {
-            display = `${value.length} item${value.length === 1 ? '' : 's'}`;
+            display = value.length === 1
+              ? t('terminal:toolRenderers.itemOne', { defaultValue: '{{n}} item', n: value.length })
+              : t('terminal:toolRenderers.itemMany', { defaultValue: '{{n}} items', n: value.length });
           }
         } else if (typeof value === 'object') {
           display = JSON.stringify(value);
@@ -1134,6 +1146,7 @@ export function ListFilesInput({
 
 /** get_command_or_subagent_output — task id chips + timeout. */
 export function TaskOutputWaitInput({ content }: { content: string }) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   try {
     const input = JSON.parse(content) as Record<string, unknown>;
     const idsRaw = input.task_ids ?? input.taskIds ?? input.task_id ?? input.taskId;
@@ -1151,13 +1164,13 @@ export function TaskOutputWaitInput({ content }: { content: string }) {
       <div className="task-output-wait-input">
         {ids.map((id) => (
           <span key={id} className="tool-input-chip tool-input-chip--id" title={id}>
-            <span className="tool-input-chip-key">task</span>
+            <span className="tool-input-chip-key">{t('terminal:toolRenderers.chipTask', { defaultValue: 'task' })}</span>
             <span className="tool-input-chip-val mono">{id.length > 16 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id}</span>
           </span>
         ))}
         {Number.isFinite(timeout) && timeout > 0 && (
           <span className="tool-input-chip tool-input-chip--timeout" title={`${timeout}ms`}>
-            <span className="tool-input-chip-key">wait</span>
+            <span className="tool-input-chip-key">{t('terminal:toolRenderers.chipWait', { defaultValue: 'wait' })}</span>
             <span className="tool-input-chip-val">
               {timeout >= 1000 ? `${Math.round(timeout / 1000)}s` : `${timeout}ms`}
             </span>
@@ -1332,6 +1345,7 @@ interface ToolSearchInputProps {
 }
 
 export function ToolSearchInput({ content }: ToolSearchInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expanded, setExpanded] = useState(false);
   const parsed = parseToolSearchContent(content);
 
@@ -1359,22 +1373,22 @@ export function ToolSearchInput({ content }: ToolSearchInputProps) {
           </span>
         )}
         {fallback && (
-          <span className="toolsearch-meta-pill">Fallback: {fallback}</span>
+          <span className="toolsearch-meta-pill">{t('terminal:toolRenderers.fallbackLabel', { defaultValue: 'Fallback: {{value}}', value: fallback })}</span>
         )}
         {showHide && (
-          <span className="toolsearch-meta-pill">Show: {showHide}</span>
+          <span className="toolsearch-meta-pill">{t('terminal:toolRenderers.showLabel', { defaultValue: 'Show: {{value}}', value: showHide })}</span>
         )}
         {hasQueryParams && (
           <button
             type="button"
             className="toolsearch-toggle"
             onClick={() => setExpanded((prev) => !prev)}
-            aria-label={expanded ? 'Hide query parameters' : 'Show query parameters'}
-            title={expanded ? 'Hide query parameters' : 'Show query parameters'}
+            aria-label={expanded ? t('terminal:toolRenderers.hideQueryParams', { defaultValue: 'Hide query parameters' }) : t('terminal:toolRenderers.showQueryParams', { defaultValue: 'Show query parameters' })}
+            title={expanded ? t('terminal:toolRenderers.hideQueryParams', { defaultValue: 'Hide query parameters' }) : t('terminal:toolRenderers.showQueryParams', { defaultValue: 'Show query parameters' })}
           >
             <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
             <span className="toolsearch-toggle-label">
-              {expanded ? 'Hide' : `${parsed.queryParams.length} param${parsed.queryParams.length === 1 ? '' : 's'}`}
+              {expanded ? t('common:buttons2.hide') : (parsed.queryParams.length === 1 ? t('terminal:toolRenderers.paramOne', { defaultValue: '{{n}} param', n: parsed.queryParams.length }) : t('terminal:toolRenderers.paramMany', { defaultValue: '{{n}} params', n: parsed.queryParams.length }))}
             </span>
           </button>
         )}
@@ -1397,6 +1411,7 @@ export function ToolSearchInput({ content }: ToolSearchInputProps) {
 }
 
 export function UnknownToolInput({ toolName, content, chipsOnly = false }: UnknownToolInputProps) {
+  const { t } = useTranslation(['tools', 'common', 'terminal']);
   const [expanded, setExpanded] = useState(false);
 
   // Don't render if content is empty or just '{}'
@@ -1436,9 +1451,9 @@ export function UnknownToolInput({ toolName, content, chipsOnly = false }: Unkno
               type="button"
               className="unknown-tool-toggle unknown-tool-toggle--raw"
               onClick={() => setExpanded((prev) => !prev)}
-              title={expanded ? 'Hide raw JSON' : 'Show raw JSON'}
+              title={expanded ? t('terminal:toolRenderers.hideRawJson', { defaultValue: 'Hide raw JSON' }) : t('terminal:toolRenderers.showRawJson', { defaultValue: 'Show raw JSON' })}
             >
-              <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide raw' : 'Raw'}
+              <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? t('terminal:toolRenderers.hideRaw', { defaultValue: 'Hide raw' }) : t('terminal:toolRenderers.rawLabel', { defaultValue: 'Raw' })}
             </button>
             {expanded && <pre className="output-input-content">{content}</pre>}
           </>
@@ -1456,9 +1471,9 @@ export function UnknownToolInput({ toolName, content, chipsOnly = false }: Unkno
           type="button"
           className="unknown-tool-toggle"
           onClick={() => setExpanded((prev) => !prev)}
-          title={expanded ? 'Collapse details' : 'Expand details'}
+          title={expanded ? t('terminal:toolRenderers.collapseDetails', { defaultValue: 'Collapse details' }) : t('terminal:toolRenderers.expandDetails', { defaultValue: 'Expand details' })}
         >
-          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? 'Hide' : 'Show'}
+          <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /> {expanded ? t('common:buttons2.hide') : t('common:buttons2.show')}
         </button>
       </div>
       {expanded ? (

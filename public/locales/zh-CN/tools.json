@@ -299,7 +299,10 @@
     "lineCount": "+{{count}} 行",
     "lineCountFull": "{{count}} 行",
     "clickToView": "点击查看完整内容",
-    "pastedTextTitle": "粘贴文本 #{{id}}"
+    "pastedTextTitle": "粘贴文本 #{{id}}",
+    "editContent": "编辑内容",
+    "saveChanges": "保存更改",
+    "discardChanges": "放弃更改"
   },
   "response": {
     "noContent": "没有可用的响应内容。",
@@ -312,5 +315,18 @@
     "diffTruncated": "差异已截断…",
     "moreLines": "还有 {{count}} 行",
     "skippedLines": "… 已跳过 {{count}} 行 …"
+  },
+  "thinkingBlock": {
+    "collapse": "收起思考",
+    "expand": "展开思考",
+    "agentBadge": "智能体：{{name}}",
+    "summariesTitle": "提供方暴露的明文推理摘要",
+    "summaryOne": "{{n}} 条摘要",
+    "summaryMany": "{{n}} 条摘要",
+    "tokensTitle": "模型消耗的推理 Token",
+    "tokens": "{{n}} Token",
+    "encryptedTitle": "提供方不会返回可解密的详细思维链文本",
+    "providerSummaryEncrypted": "仅提供方摘要 · 详细推理内容已加密。",
+    "providerSummaryOnly": "仅提供方摘要。"
   }
 }

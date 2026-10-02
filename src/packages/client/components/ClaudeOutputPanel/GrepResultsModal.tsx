@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ModalPortal } from '../shared/ModalPortal';
 import { Icon } from '../Icon';
 import type { CodexGrepResults } from '../../utils/outputRendering';
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function GrepResultsModal({ results, onClose, onFileClick }: Props) {
+  const { t } = useTranslation('terminal');
   const groups = new Map<string, typeof results.matches>();
   for (const match of results.matches) {
     const group = groups.get(match.path) || [];
@@ -30,15 +32,15 @@ export function GrepResultsModal({ results, onClose, onFileClick }: Props) {
       <div className="modal-overlay visible" onClick={onClose}>
         <div className="modal grep-results-modal" onClick={(event) => event.stopPropagation()}>
           <div className="modal-header grep-results-header">
-            <div className="grep-results-title"><Icon name="search" size={16} /><span>Search results</span></div>
+            <div className="grep-results-title"><Icon name="search" size={16} /><span>{t('terminal:grepResults.title', { defaultValue: 'Search results' })}</span></div>
             <button className="agent-response-modal-close" onClick={onClose}>&times;</button>
           </div>
           <div className="grep-results-summary">
             <code>{results.query}</code>
-            <span>{filesOnly ? `${groups.size} files` : `${results.matches.length} matches · ${groups.size} files`}</span>
+            <span>{filesOnly ? t('terminal:grepResults.fileCount', { defaultValue: '{{n}} files', n: groups.size }) : t('terminal:grepResults.matchCount', { defaultValue: '{{matches}} matches · {{files}} files', matches: results.matches.length, files: groups.size })}</span>
           </div>
           <div className="modal-body grep-results-body">
-            {results.matches.length === 0 ? <div className="grep-results-empty">No captured matches</div> : [...groups].map(([path, matches]) => (
+            {results.matches.length === 0 ? <div className="grep-results-empty">{t('terminal:grepResults.noMatches', { defaultValue: 'No captured matches' })}</div> : [...groups].map(([path, matches]) => (
               <section className="grep-result-file" key={path}>
                 <button className="grep-result-file-name" onClick={() => onFileClick?.(path, matches[0].line > 0 ? { highlightRange: { offset: matches[0].line, limit: 1 } } : undefined)} title={path}>
                   <Icon name="file-code" size={13} /> {path.split('/').pop() || path}

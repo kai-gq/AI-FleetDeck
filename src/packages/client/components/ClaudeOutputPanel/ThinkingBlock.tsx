@@ -198,7 +198,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
             }
           : undefined
       }
-      title={canCollapse && !liveStream ? (showFull ? 'Collapse thinking' : 'Expand thinking') : undefined}
+      title={canCollapse && !liveStream ? (showFull ? t('tools:thinkingBlock.collapse', { defaultValue: 'Collapse thinking' }) : t('tools:thinkingBlock.expand', { defaultValue: 'Expand thinking' })) : undefined}
     >
       {/* Dense header: time (left) · icon · agent · label · pulse · caret (right) */}
       <div className="output-thinking-header">
@@ -211,7 +211,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           <Icon name="brain" size={13} />
         </span>
         {agentName && (
-          <span className="output-agent-badge output-thinking-agent" title={`Agent: ${agentName}`}>
+          <span className="output-agent-badge output-thinking-agent" title={t('tools:thinkingBlock.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>
             {agentName}
           </span>
         )}
@@ -225,13 +225,13 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         )}
         <span className="output-thinking-label">{label}</span>
         {reasoningSummaryCount !== undefined && reasoningSummaryCount > 0 && (
-          <span className="output-thinking-metric" title="Plaintext reasoning summaries exposed by the provider">
-            {reasoningSummaryCount} {reasoningSummaryCount === 1 ? 'summary' : 'summaries'}
+          <span className="output-thinking-metric" title={t('tools:thinkingBlock.summariesTitle', { defaultValue: 'Plaintext reasoning summaries exposed by the provider' })}>
+            {reasoningSummaryCount === 1 ? t('tools:thinkingBlock.summaryOne', { defaultValue: '{{n}} summary', n: reasoningSummaryCount }) : t('tools:thinkingBlock.summaryMany', { defaultValue: '{{n}} summaries', n: reasoningSummaryCount })}
           </span>
         )}
         {reasoningTokens !== undefined && reasoningTokens > 0 && (
-          <span className="output-thinking-metric" title="Reasoning tokens consumed by the model">
-            {reasoningTokens.toLocaleString()} tokens
+          <span className="output-thinking-metric" title={t('tools:thinkingBlock.tokensTitle', { defaultValue: 'Reasoning tokens consumed by the model' })}>
+            {t('tools:thinkingBlock.tokens', { defaultValue: '{{n}} tokens', n: reasoningTokens.toLocaleString() })}
           </span>
         )}
         {liveStream && <span className="output-thinking-pulse" aria-hidden />}
@@ -261,10 +261,12 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         )}
       </div>
       {!liveStream && reasoningSummaryOnly && (
-        <div className="output-thinking-visibility" title="The provider does not return decryptable detailed chain-of-thought text">
+        <div className="output-thinking-visibility" title={t('tools:thinkingBlock.encryptedTitle', { defaultValue: 'The provider does not return decryptable detailed chain-of-thought text' })}>
           <Icon name="info" size={11} />
           <span>
-            Provider summary only{reasoningEncrypted ? ' · detailed reasoning is encrypted' : ''}.
+            {reasoningEncrypted
+              ? t('tools:thinkingBlock.providerSummaryEncrypted', { defaultValue: 'Provider summary only · detailed reasoning is encrypted.' })
+              : t('tools:thinkingBlock.providerSummaryOnly', { defaultValue: 'Provider summary only.' })}
           </span>
         </div>
       )}

@@ -52,6 +52,7 @@ interface JsonNodeProps {
 }
 
 function JsonNode({ value, keyName, depth, isLast }: JsonNodeProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [collapsed, setCollapsed] = React.useState(depth >= 2);
 
   const renderKey = () =>
@@ -112,7 +113,7 @@ function JsonNode({ value, keyName, depth, isLast }: JsonNodeProps) {
           {renderKey()}<span className="json-punctuation">[</span>
           {collapsed && (
             <>
-              <span className="json-collapsed-hint">{value.length} item{value.length !== 1 ? 's' : ''}</span>
+              <span className="json-collapsed-hint">{value.length === 1 ? t('terminal:terminalModals.itemOne', { defaultValue: '{{n}} item', n: value.length }) : t('terminal:terminalModals.itemMany', { defaultValue: '{{n}} items', n: value.length })}</span>
               <span className="json-punctuation">]</span>{comma}
             </>
           )}
@@ -147,7 +148,7 @@ function JsonNode({ value, keyName, depth, isLast }: JsonNodeProps) {
           {renderKey()}<span className="json-punctuation">{'{'}</span>
           {collapsed && (
             <>
-              <span className="json-collapsed-hint">{entries.length} key{entries.length !== 1 ? 's' : ''}</span>
+              <span className="json-collapsed-hint">{entries.length === 1 ? t('terminal:terminalModals.keyOne', { defaultValue: '{{n}} key', n: entries.length }) : t('terminal:terminalModals.keyMany', { defaultValue: '{{n}} keys', n: entries.length })}</span>
               <span className="json-punctuation">{'}'}</span>{comma}
             </>
           )}
@@ -532,7 +533,7 @@ function InjectedPromptSection({ agentId }: InjectedPromptSectionProps) {
       const result = await fetchAgentInjectedPrompt(agentId);
       setPrompt(result);
     } catch (err: any) {
-      setError(err?.message || 'Error');
+      setError(err?.message || t('errors:toast.error'));
     } finally {
       setLoading(false);
     }
@@ -653,7 +654,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
     ? ((agent as any).grokModel || DEFAULT_GROK_MODEL)
     : agent.provider === 'pi'
     ? ((agent as any).piModel || 'pi default')
-    : (agent.model || (agent.detectedModel ? `${agent.detectedModel} (default)` : 'default'));
+    : (agent.model || (agent.detectedModel ? `${agent.detectedModel} ${t('terminal:terminalModals.defaultSuffix', { defaultValue: '(default)' })}` : t('terminal:terminalModals.defaultModel', { defaultValue: 'default' })));
 
   const classInstructions = customClass?.instructions?.trim() || '';
   const agentInstructions = agent.customInstructions?.trim() || '';
@@ -688,7 +689,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
                   <strong>
                     <ProviderIcon
                       agent={agent}
-                      alt={`${agent.name} provider`}
+                      alt={t('terminal:terminalModals.providerAlt', { defaultValue: '{{name}} provider', name: agent.name })}
                       className="agent-info-provider-icon"
                     />
                     {providerLabel(agent.provider, agent.piModel, agent.piModelProvider)}

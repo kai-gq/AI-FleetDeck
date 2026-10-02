@@ -10,11 +10,13 @@
  */
 
 import React, { memo, useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { getToolIconName } from '../../utils/outputRendering';
 import type { Subagent, SubagentStreamEntry } from '../../../shared/types';
 
 const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorking }: { entries: SubagentStreamEntry[]; isWorking: boolean }) {
+  const { t } = useTranslation('terminal');
   const [expanded, setExpanded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -33,7 +35,7 @@ const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorki
         onClick={() => setExpanded(!expanded)}
       >
         <span className="stream-toggle-arrow"><Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} /></span>
-        <span>{expanded ? 'Hide stream' : `Stream (${entries.length} events)`}</span>
+        <span>{expanded ? t('terminal:subagentInline.hideStream', { defaultValue: 'Hide stream' }) : t('terminal:subagentInline.streamEvents', { defaultValue: 'Stream ({{n}} events)', n: entries.length })}</span>
       </div>
       {(expanded || entries.length <= 3) && (
         <div className="subagent-stream-list" ref={listRef}>
@@ -68,6 +70,7 @@ const SubagentStreamPanel = memo(function SubagentStreamPanel({ entries, isWorki
 });
 
 export const SubagentInline = memo(function SubagentInline({ subagent }: { subagent: Subagent }) {
+  const { t } = useTranslation('terminal');
   const hasActivities = !!(subagent.activities && subagent.activities.length > 0);
   const hasStreamEntries = !!(subagent.streamEntries && subagent.streamEntries.length > 0);
   const shouldRender = subagent.status === 'working' || hasActivities || subagent.stats || hasStreamEntries;
@@ -103,8 +106,8 @@ export const SubagentInline = memo(function SubagentInline({ subagent }: { subag
         {subagent.stats && (
           <div className="subagent-stats-bar">
             <span>{(subagent.stats.durationMs / 1000).toFixed(0)}s</span>
-            <span>{(subagent.stats.tokensUsed / 1000).toFixed(1)}K tokens</span>
-            <span>{subagent.stats.toolUseCount} tools</span>
+            <span>{t('terminal:subagentInline.tokensK', { defaultValue: '{{n}}K tokens', n: (subagent.stats.tokensUsed / 1000).toFixed(1) })}</span>
+            <span>{t('terminal:subagentInline.toolCount', { defaultValue: '{{n}} tools', n: subagent.stats.toolUseCount })}</span>
           </div>
         )}
 

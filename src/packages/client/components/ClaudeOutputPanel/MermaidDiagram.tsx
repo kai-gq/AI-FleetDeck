@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ModalPortal } from '../shared/ModalPortal';
 
 /**
@@ -79,6 +80,7 @@ const boxStyle: React.CSSProperties = {
 };
 
 export function MermaidDiagram({ code }: { code: string }) {
+  const { t } = useTranslation('terminal');
   // useId() contains ':' which is invalid in a DOM id / mermaid render id.
   const baseId = useId().replace(/:/g, '');
   const [svg, setSvg] = useState<string | null>(null);
@@ -119,10 +121,10 @@ export function MermaidDiagram({ code }: { code: string }) {
         style={{ ...boxStyle, padding: '12px', minHeight: 44, display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 12 }}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span aria-hidden>◈</span> Rendering diagram…
+          <span aria-hidden>◈</span> {t('terminal:mermaid.rendering', { defaultValue: 'Rendering diagram…' })}
         </span>
         <details style={{ fontSize: 11 }}>
-          <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>Show source</summary>
+          <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}>{t('terminal:mermaid.showSource', { defaultValue: 'Show source' })}</summary>
           <pre style={{ margin: '6px 0 0', overflowX: 'auto', fontSize: 11, lineHeight: 1.5, color: 'var(--text-primary)' }}>{code}</pre>
         </details>
       </div>
@@ -135,7 +137,7 @@ export function MermaidDiagram({ code }: { code: string }) {
       <div
         className="mermaid-diagram mermaid-diagram--preview"
         onClick={() => setModalOpen(true)}
-        title="Click to open full size (zoom / pan)"
+        title={t('terminal:mermaid.openFullSizeTitle', { defaultValue: 'Click to open full size (zoom / pan)' })}
         // The box itself is never height-capped (that would crop). Compactness
         // comes from scaling the SVG down inside it — see _mermaid.scss.
         style={{ ...boxStyle, position: 'relative', padding: '12px', overflow: 'auto', textAlign: 'center', cursor: 'zoom-in' }}
@@ -161,6 +163,7 @@ export function MermaidDiagram({ code }: { code: string }) {
 }
 
 function MermaidModal({ svg, onClose }: { svg: string; onClose: () => void }) {
+  const { t } = useTranslation('terminal');
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
   const [scale, setScale] = useState(1);
@@ -254,11 +257,11 @@ function MermaidModal({ svg, onClose }: { svg: string; onClose: () => void }) {
         >
           {/* Toolbar: zoom controls + close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 8, borderBottom: '1px solid var(--border-color)' }}>
-            <button type="button" title="Zoom out" style={btnStyle} onClick={() => zoom(scale / 1.2)}>−</button>
-            <button type="button" title="Reset zoom" style={{ ...btnStyle, fontVariantNumeric: 'tabular-nums' }} onClick={resetView}>{Math.round(scale * 100)}%</button>
-            <button type="button" title="Zoom in" style={btnStyle} onClick={() => zoom(scale * 1.2)}>+</button>
-            <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 12 }}>drag to pan · ctrl/⌘+scroll to zoom</span>
-            <button type="button" title="Close (Esc)" style={{ ...btnStyle, marginLeft: 6 }} onClick={onClose}>✕</button>
+            <button type="button" title={t('terminal:iframeModal.zoomOut')} style={btnStyle} onClick={() => zoom(scale / 1.2)}>−</button>
+            <button type="button" title={t('terminal:iframeModal.resetZoom')} style={{ ...btnStyle, fontVariantNumeric: 'tabular-nums' }} onClick={resetView}>{Math.round(scale * 100)}%</button>
+            <button type="button" title={t('terminal:iframeModal.zoomIn')} style={btnStyle} onClick={() => zoom(scale * 1.2)}>+</button>
+            <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 12 }}>{t('terminal:mermaid.panHint', { defaultValue: 'drag to pan · ctrl/⌘+scroll to zoom' })}</span>
+            <button type="button" title={t('terminal:logs.closeEsc')} style={{ ...btnStyle, marginLeft: 6 }} onClick={onClose}>✕</button>
           </div>
           {/* Zoom/pan viewport */}
           <div
