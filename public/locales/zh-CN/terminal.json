@@ -2,10 +2,10 @@
   "header": {
     "openSidebar": "打开侧边栏",
     "closeSidebar": "关闭侧边栏",
-    "showAgentInfo": "显示代理信息",
-    "hideAgentInfo": "隐藏代理信息",
-    "showOverview": "显示代理概览",
-    "hideOverview": "隐藏代理概览",
+    "showAgentInfo": "显示智能体信息",
+    "hideAgentInfo": "隐藏智能体信息",
+    "showOverview": "显示智能体概览",
+    "hideOverview": "隐藏智能体概览",
     "showDebug": "显示调试面板",
     "hideDebug": "隐藏调试面板",
     "search": "搜索 (Ctrl+F)",
@@ -22,13 +22,13 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "collapseContext": "折叠",
-    "collapseContextDesc": "折叠上下文 - 总结对话以节省令牌",
+    "collapseContextDesc": "折叠上下文 - 总结对话以节省 Token",
     "clearContext": "清除上下文",
     "clearContextDesc": "清除上下文 - 开始新的会话",
     "clearAllSubordinates": "清除所有下属",
-    "clearAllSubordinatesDesc": "清除所有下属代理的上下文",
-    "removeAgent": "移除代理",
-    "removeAgentDesc": "从视图中移除此代理",
+    "clearAllSubordinatesDesc": "清除所有下属智能体的上下文",
+    "removeAgent": "移除智能体",
+    "removeAgentDesc": "从视图中移除此智能体",
     "closeTerminal": "关闭终端",
     "searchPlaceholder": "搜索对话... (Esc 关闭)",
     "searchResultsTitle": "搜索结果：",
@@ -54,26 +54,26 @@
   "modals": {
     "context": "上下文",
     "contextUsage": "上下文使用情况",
-    "tokensUsed": "已使用令牌",
-    "tokenLimit": "令牌限制",
+    "tokensUsed": "已使用 Token",
+    "tokenLimit": "Token 限制",
     "freeSpace": "可用空间",
     "sessionHistory": "会话历史",
-    "agentDetails": "代理详情",
+    "agentDetails": "智能体详情",
     "rawOutput": "原始输出",
     "collapseContext": "折叠上下文",
     "clearContext": "清除上下文",
     "clearAllSubordinatesContext": "清除所有下属上下文",
     "collapseConfirm": "折叠对话上下文？",
-    "collapseNote": "这将总结对话以节省令牌，同时保留重要信息。",
-    "clearSubordinatesConfirm": "清除所有 {{count}} 个下属代理的上下文？",
-    "clearSubordinatesNote": "这将为所有下属代理开始新的会话。所有对话历史将丢失。",
-    "clearConfirm": "清除此代理的所有上下文？",
+    "collapseNote": "这将总结对话以节省 Token，同时保留重要信息。",
+    "clearSubordinatesConfirm": "清除所有 {{count}} 个下属智能体的上下文？",
+    "clearSubordinatesNote": "这将为所有下属智能体开始新的会话。所有对话历史将丢失。",
+    "clearConfirm": "清除此智能体的所有上下文？",
     "clearNote": "这将在下一个命令时开始新的会话。所有对话历史将丢失。",
     "clearAll": "全部清除",
     "terminalOutput": "终端输出"
   },
   "agentInfo": {
-    "title": "{{name}} 代理信息",
+    "title": "{{name}} 智能体信息",
     "runtime": "运行时",
     "backend": "后端",
     "model": "模型",
@@ -85,7 +85,7 @@
     "promptAndInstructions": "提示与指令",
     "customPrompt": "自定义提示",
     "classPrompt": "类别提示",
-    "agentPrompt": "代理提示",
+    "agentPrompt": "智能体提示",
     "notConfigured": "未配置",
     "none": "无",
     "skills": "技能 ({{count}})",
@@ -110,47 +110,47 @@
     "injectedPromptLength": "{{chars}} 字符 · ~{{tokens}} token"
   },
   "empty": {
-    "tapAgent": "点击战场上的代理以查看其终端",
+    "tapAgent": "点击战场上的智能体以查看其终端",
     "switchTo3D": "使用菜单按钮切换到3D视图",
     "loadingTerminal": "加载终端中",
     "loadingConversation": "加载对话中",
-    "noOutput": "暂无输出。向此代理发送命令。",
+    "noOutput": "暂无输出。向此智能体发送命令。",
     "loadingOlder": "加载较早的消息...",
     "loadMore": "加载更多（{{count}} 条较早的消息）",
     "subordinateProgress": "下属进度",
     "activeCount": "({{count}} 个活跃)",
     "reattaching": "重新连接中...",
     "reattachingSessionTitle": "重新连接会话...",
-    "reattachingSessionDesc": "此代理的 Claude 进程正在独立运行。Tide Commander 正在自动尝试重新连接到现有会话。如果重新连接失败，请发送新消息以手动恢复会话。",
+    "reattachingSessionDesc": "此智能体的 Claude 进程正在独立运行。Tide Commander 正在自动尝试重新连接到现有会话。如果重新连接失败，请发送新消息以手动恢复会话。",
     "reattachingSessionStatus": "正在恢复会话上下文和输出历史...",
-    "reattachingBadge": "代理已分离 - 正在重新连接..."
+    "reattachingBadge": "智能体已分离 - 正在重新连接..."
   },
   "spawn": {
-    "title": "创建新代理",
-    "deployTitle": "部署新代理",
-    "deployBossTitle": "部署主管代理",
-    "editAgentTitle": "编辑代理：{{name}}",
-    "agentName": "代理名称",
-    "agentNamePlaceholder": "输入代理名称...",
+    "title": "创建新智能体",
+    "deployTitle": "部署新智能体",
+    "deployBossTitle": "部署主管智能体",
+    "editAgentTitle": "编辑智能体：{{name}}",
+    "agentName": "智能体名称",
+    "agentNamePlaceholder": "输入智能体名称...",
     "selectClass": "选择类别",
     "selectRuntime": "选择运行时",
     "workingDir": "工作目录",
     "workingDirPlaceholder": "/项目/路径",
     "initialTask": "初始任务",
-    "initialTaskPlaceholder": "此代理应该做什么？",
+    "initialTaskPlaceholder": "此智能体应该做什么？",
     "advanced": "高级选项",
     "maxTurns": "最大轮次",
     "permissionMode": "权限模式",
-    "addNewAgent": "添加新代理",
-    "spawnAgent": "创建代理",
-    "agentClass": "代理类别",
+    "addNewAgent": "添加新智能体",
+    "spawnAgent": "创建智能体",
+    "agentClass": "智能体类别",
     "bossClass": "主管类别",
     "bossNamePlaceholder": "主管名称",
     "browser": "浏览器",
     "chromeBrowser": "Chrome 浏览器",
     "skills": "技能",
     "customInstructions": "自定义指令",
-    "customInstructionsPlaceholder": "添加将追加到此代理系统提示的自定义指令...",
+    "customInstructionsPlaceholder": "添加将追加到此智能体系统提示的自定义指令...",
     "customInstructionsBossPlaceholder": "添加将追加到此主管系统提示的自定义指令...",
     "linkSession": "关联会话",
     "filterClasses": "筛选类别...",
@@ -166,7 +166,7 @@
     "wouldYouCreate": "是否要创建它？",
     "createDirectory": "创建目录",
     "deployBoss": "部署主管",
-    "noAvailableAgents": "没有可用的代理",
+    "noAvailableAgents": "没有可用的智能体",
     "selected": "已选择 {{count}} 个",
     "initialSubordinates": "初始下属",
     "hasCustomInstructions": "此类别有自定义指令",
@@ -175,25 +175,25 @@
     "newSessionWarning": "将开始新会话 - 无法在目录更改间保留上下文",
     "clickToToggle": "点击切换",
     "noEnabledSkills": "没有可用的已启用技能",
-    "helpWorkingDir": "代理将在此目录中操作。所有文件操作和命令都相对于此路径运行。",
+    "helpWorkingDir": "智能体将在此目录中操作。所有文件操作和命令都相对于此路径运行。",
     "helpRuntime": "Claude：使用 Claude CLI 运行时。Codex：使用 Codex CLI 运行时，带 JSON 事件。",
-    "runtimeTitle": "代理运行时",
+    "runtimeTitle": "智能体运行时",
     "useClaudeCli": "使用 Claude CLI",
     "useCodexCli": "使用 Codex CLI",
-    "helpPermission": "旁路：代理在没有权限提示的情况下运行。更快但控制较少。默认：代理在执行风险操作（如文件写入）之前请求确认。",
+    "helpPermission": "旁路：智能体在没有权限提示的情况下运行。更快但控制较少。默认：智能体在执行风险操作（如文件写入）之前请求确认。",
     "helpModel": "Opus：最强大，适合复杂任务。Sonnet：速度和能力平衡。Haiku：最快，适合简单任务。",
     "modelTitle": "Claude 模型",
-    "chooseCodexModel": "为此代理选择 Codex 模型。",
-    "helpChrome": "启用 Chrome 浏览器自动化。代理可以导航网页、填写表单并与 Web 应用交互。需要 Chrome 扩展。",
+    "chooseCodexModel": "为此智能体选择 Codex 模型。",
+    "helpChrome": "启用 Chrome 浏览器自动化。智能体可以导航网页、填写表单并与 Web 应用交互。需要 Chrome 扩展。",
     "helpChromeDisabled": "Chrome 自动化目前仅适用于 Claude 运行时。",
-    "helpFullAuto": "启用完全自主模式。代理无需审批即可运行。",
+    "helpFullAuto": "启用完全自主模式。智能体无需审批即可运行。",
     "fullAutoTitle": "完全自动模式",
     "helpSearch": "启用实时互联网搜索以获取最新信息。",
     "searchTitle": "实时网络搜索",
-    "helpSkills": "技能为代理添加专业能力。选择此代理应具有的技能。类默认技能会自动包含。",
-    "skillsTitle": "代理技能",
-    "helpCustomInstructions": "附加到此代理系统提示的额外指令。用于自定义行为、提供上下文或设定特定准则。",
-    "helpLinkSession": "将此代理链接到现有的 Claude Code 会话。代理将从该会话的对话历史中恢复，保留上下文和之前的工作。",
+    "helpSkills": "技能为智能体添加专业能力。选择此智能体应具有的技能。类默认技能会自动包含。",
+    "skillsTitle": "智能体技能",
+    "helpCustomInstructions": "附加到此智能体系统提示的额外指令。用于自定义行为、提供上下文或设定特定准则。",
+    "helpLinkSession": "将此智能体链接到现有的 Claude Code 会话。智能体将从该会话的对话历史中恢复，保留上下文和之前的工作。",
     "linkSessionTitle": "会话链接",
     "messagesCount": "{{count}} 条消息",
     "bossClassName": "Boss",
@@ -219,29 +219,29 @@
     }
   },
   "overview": {
-    "title": "代理概览",
-    "noAgents": "无代理",
-    "filter": "筛选代理...",
+    "title": "智能体概览",
+    "noAgents": "无智能体",
+    "filter": "筛选智能体...",
     "sortBy": "排序方式",
     "groupBy": "分组方式",
-    "agents": "{{count}} 个代理",
+    "agents": "{{count}} 个智能体",
     "tools": "{{count}} 个工具",
     "allStatus": "所有状态",
     "mostRecent": "最近",
     "byStatus": "按状态",
     "byName": "按名称",
-    "searchAgents": "搜索代理...",
+    "searchAgents": "搜索智能体...",
     "searchArea": "搜索区域...",
     "areas": "区域",
-    "noAgentsDeployed": "未部署代理",
-    "noAgentsMatch": "没有匹配的代理",
+    "noAgentsDeployed": "未部署智能体",
+    "noAgentsMatch": "没有匹配的智能体",
     "unassigned": "未分配",
-    "subagents": "子代理（{{count}}）",
+    "subagents": "子智能体（{{count}}）",
     "recentActivity": "最近活动",
     "noToolActivity": "暂无工具活动",
     "messages": "{{count}} 条消息",
-    "clickToSwitch": "点击切换到此代理",
-    "subagentsCompleted": "{{count}} 个子代理（全部完成）",
+    "clickToSwitch": "点击切换到此智能体",
+    "subagentsCompleted": "{{count}} 个子智能体（全部完成）",
     "statusLabels": {
       "working": "工作中",
       "idle": "空闲",
@@ -295,7 +295,7 @@
     "captureOffHint": "消息捕获已关闭：在你打开之前不会记录任何内容（它会重新解析并缓冲每个 WebSocket 帧，因此默认关闭）。你的选择会被记住。"
   },
   "fileExplorer": {
-    "title": "文件浏览器",
+    "title": "文件资源管理器",
     "openFile": "打开文件",
     "newFile": "新建文件",
     "newFolder": "新建文件夹",
@@ -486,7 +486,7 @@
     "enterQueryPlaceholder": "在此输入 SQL 查询...",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "折叠侧边栏",
-    "explorer": "浏览器",
+    "explorer": "资源管理器",
     "connection": "连接",
     "databaseTitle": "数据库",
     "selectDatabase": "选择数据库...",
@@ -520,8 +520,8 @@
   },
   "team": {
     "manageTeam": "管理团队",
-    "selectAgents": "选择要分配为下属的代理",
-    "noAgentsAvailable": "没有可分配的代理",
+    "selectAgents": "选择要分配为下属的智能体",
+    "noAgentsAvailable": "没有可分配的智能体",
     "subordinates": "下属",
     "saveTeam": "保存团队"
   },
@@ -530,12 +530,12 @@
     "model": "模型",
     "contextWindowLabel": "上下文窗口",
     "contextUsage": "上下文用量",
-    "tokenBreakdown": "令牌分布",
+    "tokenBreakdown": "Token 分布",
     "noContextData": "暂无可用的上下文数据",
     "clickRefresh": "点击上方的刷新按钮获取详细统计",
     "fetchContextStats": "获取上下文统计",
     "fetchingStats": "获取统计中...",
-    "agentMustBeIdle": "代理必须处于空闲状态才能获取统计",
+    "agentMustBeIdle": "智能体必须处于空闲状态才能获取统计",
     "lastUpdated": "最后更新：{{time}}",
     "systemPrompt": "系统提示",
     "systemTools": "系统工具",
@@ -621,15 +621,15 @@
     "mouseBindings": {
       "left-click-select": {
         "name": "选择或点击",
-        "description": "选择代理并点击建筑或区域"
+        "description": "选择智能体并点击建筑或区域"
       },
       "left-drag-selection": {
         "name": "框选",
-        "description": "拖动以选择多个代理"
+        "description": "拖动以选择多个智能体"
       },
       "right-click-context": {
         "name": "右键菜单或移动",
-        "description": "打开上下文菜单或移动已选代理"
+        "description": "打开上下文菜单或移动已选智能体"
       },
       "alt-right-drag-pan": {
         "name": "镜头平移",
@@ -658,60 +658,60 @@
         "description": "使用 Tab 打开或关闭指挥官视图"
       },
       "spawn-agent": {
-        "name": "创建代理",
-        "description": "打开新建代理弹窗"
+        "name": "创建智能体",
+        "description": "打开新建智能体弹窗"
       },
       "select-agent-1": {
-        "name": "选择代理 1",
-        "description": "选择第一个代理"
+        "name": "选择智能体 1",
+        "description": "选择第一个智能体"
       },
       "select-agent-2": {
-        "name": "选择代理 2",
-        "description": "选择第二个代理"
+        "name": "选择智能体 2",
+        "description": "选择第二个智能体"
       },
       "select-agent-3": {
-        "name": "选择代理 3",
-        "description": "选择第三个代理"
+        "name": "选择智能体 3",
+        "description": "选择第三个智能体"
       },
       "select-agent-4": {
-        "name": "选择代理 4",
-        "description": "选择第四个代理"
+        "name": "选择智能体 4",
+        "description": "选择第四个智能体"
       },
       "select-agent-5": {
-        "name": "选择代理 5",
-        "description": "选择第五个代理"
+        "name": "选择智能体 5",
+        "description": "选择第五个智能体"
       },
       "select-agent-6": {
-        "name": "选择代理 6",
-        "description": "选择第六个代理"
+        "name": "选择智能体 6",
+        "description": "选择第六个智能体"
       },
       "select-agent-7": {
-        "name": "选择代理 7",
-        "description": "选择第七个代理"
+        "name": "选择智能体 7",
+        "description": "选择第七个智能体"
       },
       "select-agent-8": {
-        "name": "选择代理 8",
-        "description": "选择第八个代理"
+        "name": "选择智能体 8",
+        "description": "选择第八个智能体"
       },
       "select-agent-9": {
-        "name": "选择代理 9",
-        "description": "选择第九个代理"
+        "name": "选择智能体 9",
+        "description": "选择第九个智能体"
       },
       "delete-selected": {
         "name": "删除已选",
-        "description": "移除已选择的代理"
+        "description": "移除已选择的智能体"
       },
       "delete-selected-backspace": {
         "name": "退格删除已选",
-        "description": "移除已选择的代理"
+        "description": "移除已选择的智能体"
       },
       "deselect-all": {
         "name": "取消全选",
-        "description": "清除代理选择"
+        "description": "清除智能体选择"
       },
       "open-terminal": {
         "name": "打开终端",
-        "description": "为已选代理打开终端"
+        "description": "为已选智能体打开终端"
       },
       "dashboard-selector-toggle": {
         "name": "仪表盘选择器",
@@ -734,20 +734,20 @@
         "description": "将仪表盘选择器向右移动"
       },
       "next-agent": {
-        "name": "下一个代理",
-        "description": "在战场中选择下一个代理"
+        "name": "下一个智能体",
+        "description": "在战场中选择下一个智能体"
       },
       "prev-agent": {
-        "name": "上一个代理",
-        "description": "在战场中选择上一个代理"
+        "name": "上一个智能体",
+        "description": "在战场中选择上一个智能体"
       },
       "next-working-agent": {
-        "name": "下一个工作中代理",
-        "description": "在战场中选择下一个工作中代理"
+        "name": "下一个工作中智能体",
+        "description": "在战场中选择下一个工作中智能体"
       },
       "prev-working-agent": {
-        "name": "上一个工作中代理",
-        "description": "在战场中选择上一个工作中代理"
+        "name": "上一个工作中智能体",
+        "description": "在战场中选择上一个工作中智能体"
       },
       "next-message": {
         "name": "下一条消息",
@@ -766,24 +766,24 @@
         "description": "在终端向上跳过 10 条消息"
       },
       "next-agent-terminal": {
-        "name": "终端下一个代理",
-        "description": "在终端切换到下一个代理"
+        "name": "终端下一个智能体",
+        "description": "在终端切换到下一个智能体"
       },
       "prev-agent-terminal": {
-        "name": "终端上一个代理",
-        "description": "在终端切换到上一个代理"
+        "name": "终端上一个智能体",
+        "description": "在终端切换到上一个智能体"
       },
       "activate-message": {
         "name": "激活消息",
         "description": "激活选中消息中的交互元素"
       },
       "toggle-file-explorer": {
-        "name": "切换文件浏览器",
-        "description": "打开或关闭文件浏览器"
+        "name": "切换文件资源管理器",
+        "description": "打开或关闭文件资源管理器"
       },
       "file-explorer-close-tab": {
         "name": "关闭文件标签",
-        "description": "关闭浏览器中的活动文件标签"
+        "description": "关闭文件资源管理器中的活动标签"
       },
       "toggle-spotlight": {
         "name": "切换搜索",
@@ -815,10 +815,10 @@
       },
       "commander-expand": {
         "name": "展开折叠",
-        "description": "切换代理展开状态"
+        "description": "切换智能体展开状态"
       },
       "commander-new-agent": {
-        "name": "新建代理",
+        "name": "新建智能体",
         "description": "在指挥官中打开创建表单"
       },
       "commander-next-tab": {
@@ -875,22 +875,22 @@
     "unavailable": "语音助手不可用"
   },
   "spotlight": {
-    "placeholder": "搜索命令、代理、文件...",
+    "placeholder": "搜索命令、智能体、文件...",
     "noResults": "未找到结果",
-    "agents": "代理",
+    "agents": "智能体",
     "commands": "命令",
     "files": "文件",
     "recentCommands": "最近命令",
     "typeToSearch": "输入搜索...",
     "pressEsc": "按 Esc 关闭",
-    "openAgent": "打开代理终端",
-    "spawnAgent": "创建新代理",
-    "killAgent": "终止代理",
+    "openAgent": "打开智能体终端",
+    "spawnAgent": "创建新智能体",
+    "killAgent": "终止智能体",
     "navigate": "导航",
     "select": "选择",
     "categories": {
       "commands": "命令",
-      "agents": "代理",
+      "agents": "智能体",
       "infrastructure": "基础设施",
       "areas": "区域",
       "files": "文件",
@@ -928,7 +928,7 @@
     "delete": "删除",
     "openInBrowser": "在浏览器中打开",
     "openDirectory": "打开目录",
-    "assignAgent": "分配代理",
+    "assignAgent": "分配智能体",
     "status": "状态",
     "healthy": "健康",
     "unhealthy": "不健康",
@@ -965,13 +965,13 @@
     "shortcuts": "Tab 切换区域 • ⌥H/J/K/L 导航 • ⌥O 展开 • ⌥N 新建",
     "advanced": "高级",
     "simple": "简洁",
-    "addAgent": "添加代理",
+    "addAgent": "添加智能体",
     "close": "关闭",
-    "noAgentsAll": "尚未部署代理。按 ⌥N 添加代理。",
-    "noAgentsUnassigned": "没有未分配的代理。",
-    "noAgentsArea": "此区域没有代理。按 ⌥N 添加一个。",
+    "noAgentsAll": "尚未部署智能体。按 ⌥N 添加智能体。",
+    "noAgentsUnassigned": "没有未分配的智能体。",
+    "noAgentsArea": "此区域没有智能体。按 ⌥N 添加一个。",
     "unassigned": "未分配",
-    "page": "第 {{current}} 页，共 {{total}} 页（{{count}} 个代理）",
+    "page": "第 {{current}} 页，共 {{total}} 页（{{count}} 个智能体）",
     "prev": "上一页",
     "next": "下一页",
     "filters": {
@@ -989,14 +989,14 @@
     "noMessages": "暂无消息",
     "noSessionId": "无会话 ID",
     "command": "命令 {{name}}...",
-    "openFileExplorer": "打开文件浏览器",
+    "openFileExplorer": "打开文件资源管理器",
     "clearFilters": "清除所有筛选",
     "expandPanel": "展开",
     "collapsePanel": "折叠 (Esc)"
   },
   "mobileFab": {
     "menu": "菜单",
-    "newAgent": "新建代理",
+    "newAgent": "新建智能体",
     "newBoss": "新建主管",
     "settings": "设置",
     "controls": "控制",
@@ -1021,7 +1021,7 @@
     "testConnection": "测试连接",
     "noConnections": "未配置连接",
     "clickSettingsToAdd": "点击设置以添加数据库连接",
-    "openDbExplorer": "打开数据库浏览器",
+    "openDbExplorer": "打开数据库资源管理器",
     "query": "查询",
     "testAll": "全部测试",
     "testAllConnections": "测试所有连接",
@@ -1099,7 +1099,7 @@
     "noArchivedZones": "没有可恢复的已归档区域。",
     "restoreInfo": "选择要恢复的区域。您可以将其放置在点击的位置或其原始位置。",
     "restoreAllOriginal": "全部恢复到原始位置",
-    "agentCount": "{{count}} 个代理",
+    "agentCount": "{{count}} 个智能体",
     "folderCount": "{{count}} 个文件夹",
     "restoreHere": "恢复到此处",
     "restoreToOriginal": "恢复到原始位置",

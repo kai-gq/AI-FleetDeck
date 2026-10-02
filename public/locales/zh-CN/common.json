@@ -7,7 +7,7 @@
     "delete": "删除",
     "remove": "移除",
     "apply": "应用",
-    "ok": "好的",
+    "ok": "确定",
     "yes": "是",
     "no": "否",
     "edit": "编辑",
@@ -21,7 +21,7 @@
     "refresh": "刷新",
     "reload": "重新加载",
     "reconnect": "重新连接",
-    "deploy": "部署代理",
+    "deploy": "部署智能体",
     "deploying": "部署中...",
     "spawn": "创建",
     "terminate": "终止",
@@ -100,8 +100,8 @@
     "path": "路径",
     "you": "你",
     "system": "系统",
-    "agent": "代理",
-    "agents": "代理",
+    "agent": "智能体",
+    "agents": "智能体",
     "all": "全部",
     "none": "无",
     "default": "默认",
@@ -111,7 +111,7 @@
     "inactive": "非活跃",
     "selected": "已选择",
     "language": "语言",
-    "tokens": "令牌",
+    "tokens": "Token",
     "uptime": "运行时间",
     "task": "任务",
     "cwd": "工作目录",
@@ -135,7 +135,7 @@
     "color": "颜色"
   },
   "search": {
-    "spotlightPlaceholder": "搜索代理、命令、文件、任务..."
+    "spotlightPlaceholder": "搜索智能体、命令、文件、任务..."
   },
   "viewMode": {
     "labels": {
@@ -175,7 +175,7 @@
   "confirm": {
     "areYouSure": "确定吗？",
     "cannotBeUndone": "此操作无法撤销。",
-    "terminateAgent": "确定要终止此代理吗？",
+    "terminateAgent": "确定要终止此智能体吗？",
     "removeAgent": "从视图中移除 {{name}}？",
     "deleteBuilding": "删除此建筑？",
     "clearPatterns": "清除所有已记住的权限模式？"
@@ -191,12 +191,12 @@
     "connectionLost": "连接丢失"
   },
   "unitPanel": {
-    "focusOnAgent": "聚焦代理",
-    "editProperties": "编辑代理属性",
+    "focusOnAgent": "聚焦智能体",
+    "editProperties": "编辑智能体属性",
     "callSubordinates": "召集下属",
     "collapseContext": "折叠上下文",
     "clearContext": "清除上下文",
-    "killAgent": "终止代理",
+    "killAgent": "终止智能体",
     "clickToRename": "点击重命名",
     "permissions": "权限",
     "allowedPatterns": "已允许的模式",
@@ -204,10 +204,10 @@
     "resumeSession": "恢复会话",
     "clickToCopy": "点击复制",
     "session": "会话",
-    "newSession": "新代理，新会话",
-    "bossAgent": "主管代理",
+    "newSession": "新智能体，新会话",
+    "bossAgent": "主管智能体",
     "subordinates": "下属",
-    "noSubordinates": "尚未分配下属。使用\"管理团队\"添加代理。",
+    "noSubordinates": "尚未分配下属。使用\"管理团队\"添加智能体。",
     "unlinkSubordinate": "取消关联下属",
     "delegationHistory": "委派历史",
     "analyzingRequest": "正在分析请求...",
@@ -225,25 +225,25 @@
     "collapseContextTitle": "折叠上下文",
     "clearContextTitle": "清除上下文",
     "collapseContextMsg": "折叠 <strong>{{name}}</strong> 的对话上下文？",
-    "collapseContextNote": "这将对对话进行总结以节省令牌，同时保留重要信息。",
+    "collapseContextNote": "这将对对话进行总结以节省 Token，同时保留重要信息。",
     "clearContextMsg": "清除 <strong>{{name}}</strong> 的所有上下文？",
     "clearContextNote": "这将在下一个命令时开始新会话。所有对话历史将丢失。",
     "collapseBtn": "折叠",
     "clearContextBtn": "清除上下文",
     "removePattern": "移除此模式",
-    "agentsCount": "{{count}} 个代理",
+    "agentsCount": "{{count}} 个智能体",
     "confidence": "置信度：{{level}}"
   },
   "multiAgent": {
-    "agentsSelected": "已选择 {{count}} 个代理",
+    "agentsSelected": "已选择 {{count}} 个智能体",
     "groupSelection": "群组选择",
-    "totalTokens": "总令牌数",
+    "totalTokens": "总 Token 数",
     "working": "工作中"
   },
   "agentsList": {
-    "noAgentsDeployed": "尚未部署代理",
-    "clickNewAgent": "点击\"+ 新建代理\"部署你的第一个代理",
-    "areasAndAgents": "区域和代理",
+    "noAgentsDeployed": "尚未部署智能体",
+    "clickNewAgent": "点击\"+ 新建智能体\"部署你的第一个智能体",
+    "areasAndAgents": "区域和智能体",
     "browseFiles": "浏览文件",
     "unassigned": "未分配",
     "total": "总计",
@@ -251,7 +251,7 @@
     "statusIdle": "空闲",
     "statusWaiting": "等待中",
     "statusError": "错误",
-    "searchPlaceholder": "搜索代理...",
+    "searchPlaceholder": "搜索智能体...",
     "filter_all": "全部",
     "filter_active": "活跃",
     "filter_idle": "空闲",
@@ -259,17 +259,17 @@
     "filter_error": "错误",
     "showing": "显示 {{count}}/{{total}}",
     "clearFilters": "清除筛选",
-    "noResults": "未找到匹配的代理"
+    "noResults": "未找到匹配的智能体"
   },
   "rightPanel": {
     "expandPanel": "展开面板 (Ctrl+\\)",
     "collapsePanel": "折叠面板 (Ctrl+\\)",
     "closePanel": "关闭面板",
     "dragToResize": "拖拽调整大小",
-    "selectAgentDetails": "选择一个代理查看详情",
-    "agentInfo": "代理信息",
-    "selectAgentLogs": "选择一个代理查看日志",
-    "logsWillAppear": "代理日志将在此显示",
+    "selectAgentDetails": "选择一个智能体查看详情",
+    "agentInfo": "智能体信息",
+    "selectAgentLogs": "选择一个智能体查看日志",
+    "logsWillAppear": "智能体日志将在此显示",
     "logsHint": "使用调试面板查看详细消息日志",
     "tabs": {
       "details": "详情",
@@ -292,9 +292,9 @@
     "lastQuery": "最近查询"
   },
   "agentBar": {
-    "spawnNewAgent": "创建新代理",
-    "newAgent": "新建代理",
-    "spawnBoss": "创建主管代理",
+    "spawnNewAgent": "创建新智能体",
+    "newAgent": "新建智能体",
+    "spawnBoss": "创建主管智能体",
     "newBoss": "新建主管",
     "addNewBuilding": "添加新建筑",
     "newBuilding": "新建建筑",
@@ -311,7 +311,7 @@
     "manageSkills": "管理技能"
   },
   "sidebar": {
-    "agentsView": "代理",
+    "agentsView": "智能体",
     "trackingBoard": "跟踪面板"
   }
 }

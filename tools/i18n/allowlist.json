@@ -6,5 +6,8 @@
     "tools:display.toolNames.bash",
     "config:secrets.keyPlaceholder"
   ],
-  "noCJK": []
+  "noCJK": [
+    "common:labels.tokens",
+    "tools:display.tokens"
+  ]
 }

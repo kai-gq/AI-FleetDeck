@@ -12,9 +12,9 @@
     "networkError": "网络错误",
     "networkErrorMsg": "操作期间发生网络错误",
     "spawnFailed": "创建失败",
-    "spawnFailedMsg": "创建代理失败",
+    "spawnFailedMsg": "创建智能体失败",
     "terminateFailed": "终止失败",
-    "terminateFailedMsg": "终止代理失败",
+    "terminateFailedMsg": "终止智能体失败",
     "saveFailed": "保存失败",
     "saveFailedMsg": "保存更改失败",
     "loadFailed": "加载失败",
@@ -40,8 +40,8 @@
     "checkConsole": "查看浏览器控制台以获取更多详细信息。"
   },
   "server": {
-    "agentNotFound": "未找到代理",
-    "agentSpawnFailed": "创建代理失败",
+    "agentNotFound": "未找到智能体",
+    "agentSpawnFailed": "创建智能体失败",
     "sessionExpired": "会话已过期",
     "permissionDenied": "权限被拒绝",
     "invalidRequest": "无效请求",
