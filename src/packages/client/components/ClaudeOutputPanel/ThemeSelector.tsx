@@ -194,7 +194,7 @@ export const ThemeSelector = memo(function ThemeSelector({ iconOnly = false }: T
                   />
                   <span className="theme-option-info">
                     <span className="theme-option-name">{theme.name}</span>
-                    <span className="theme-option-desc">{theme.description}</span>
+                    <span className="theme-option-desc">{t(`terminal:themeDesc.${theme.id}`, { defaultValue: theme.description })}</span>
                   </span>
                   {theme.id === currentTheme && <span className="theme-option-check"><Icon name="check" size={12} /></span>}
                 </button>

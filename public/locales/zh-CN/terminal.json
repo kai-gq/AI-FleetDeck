@@ -3089,5 +3089,30 @@
   "modelUsagePreview": {
     "weeklyQuotaRemaining": "每周限额剩余 {{percent}}%",
     "weeklyUnavailable": "每周限额不可用"
+  },
+  "themeDesc": {
+    "dracula": "哥特绯红与古铜金",
+    "muted": "水墨晕染，朱砂落印",
+    "muted-red": "氧化铜绿与岁月包浆",
+    "nord": "低垂日光下的北极冰原",
+    "solarized-dark": "普鲁士蓝的木刻浪花",
+    "monokai": "玄武岩裂隙中的熔岩",
+    "gruvbox": "沙漠陶土与绿松石",
+    "atom": "星图与望远镜黄铜",
+    "cyberpunk": "雨夜街道上的霓虹招牌",
+    "synthwave": "暗林中的琥珀萤火",
+    "abyss": "漆黑暗渊，鲜明点缀",
+    "abyss-ember": "深渊底色，暖色余烬点缀",
+    "abyss-frost": "深渊底色，寒冰点缀",
+    "abyss-moss": "柔和林炭，护眼舒适",
+    "abyss-dusk": "暖色夜读，低蓝光",
+    "obsidian-bloom": "黑白胶片，一缕绯红",
+    "catppuccin": "紫夜中的梦幻粉彩",
+    "github-dark": "拉丝钢与安全橙",
+    "one-dark": "板岩山丘上的银色月光",
+    "midnight-harbor": "海沟中的生物荧光",
+    "ember-noir": "颠茄紫与毒藤绿",
+    "intellij-one-dark": "IntelliJ One Dark（暗色外观）",
+    "classic": "原始透明风格"
   }
 }
