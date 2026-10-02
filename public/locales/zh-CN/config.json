@@ -12,11 +12,18 @@
     "modelStyle": "智能体模型样式",
     "animations": "动画",
     "secrets": "密钥",
+    "claudeAccounts": "Claude 账号",
     "systemPrompt": "系统提示词",
+    "whatsapp": "WhatsApp 集成",
+    "whatsappNotifications": "WhatsApp 通知",
+    "whatsappHistory": "WhatsApp 历史记录",
     "data": "数据",
+    "integrations": "集成",
     "experimental": "实验性",
     "about": "关于",
-    "sky": "天空颜色"
+    "sky": "天空颜色",
+    "grokAccounts": "Grok 账号",
+    "codexAccounts": "Codex 账号"
   },
   "general": {
     "history": "历史记录",
@@ -30,6 +37,11 @@
     "fpsLimit": "帧率限制",
     "powerSaving": "省电模式",
     "lowPowerMode": "低功耗模式",
+    "tmuxMode": "Tmux 进程持久化",
+    "interactiveMode": "交互式 TUI 模式（实验性）",
+    "codexAppServerMode": "Codex 流式 / app-server（实验性）",
+    "opencodeServerMode": "OpenCode 流式 / serve（实验性）",
+    "piRpcMode": "Pi 回合中引导 / rpc",
     "tts": "文字转语音",
     "stt": "语音转文字",
     "externalEditor": "外部编辑器",
@@ -45,7 +57,16 @@
     "compactView": "紧凑视图",
     "autoScroll": "自动滚动",
     "notifications": "通知",
-    "soundEffects": "音效"
+    "soundEffects": "音效",
+    "vibrationIntensity": "振动强度"
+  },
+  "vibrationValues": {
+    "off": "关闭",
+    "ultraLight": "极轻",
+    "veryLight": "很轻",
+    "light": "轻",
+    "medium": "中等",
+    "heavy": "强"
   },
   "agentNames": {
     "customConfigured": "已配置 {{count}} 个自定义名称",
@@ -61,6 +82,12 @@
     "backendUrl": "后端地址",
     "authToken": "认证令牌",
     "autoDetectHint": "留空自动检测",
+    "addUrl": "添加 URL",
+    "addUrlPlaceholder": "http://host:port",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "priorityLabel": "优先级",
+    "urlsHint": "连接时按顺序尝试，第一个可达的主机生效。留空则自动检测。",
     "tokenPlaceholder": "如需要请输入令牌",
     "tokenRequired": "如果服务器设置了 AUTH_TOKEN 则必填",
     "saveAndReconnect": "保存并重新连接",
@@ -68,10 +95,17 @@
     "hideToken": "隐藏令牌",
     "codexBinaryPath": "Codex 二进制路径",
     "codexBinaryPathPlaceholder": "留空以自动检测",
-    "codexBinaryPathHint": "原生 Codex 二进制文件的路径。绕过 Node.js 包装器以获得更好的会话持久性。"
+    "codexBinaryPathHint": "原生 Codex 二进制文件的路径。绕过 Node.js 包装器以获得更好的会话持久性。",
+    "connectScreen": {
+      "authTokenLabel": "认证令牌",
+      "authTokenPlaceholder": "X-Auth-Token（可选）",
+      "authTokenHint": "可选。如果你的服务器启用了鉴权则必填。"
+    }
   },
   "scene": {
     "characterSize": "角色大小",
+    "scale2d": "2D 缩放",
+    "scale3d": "3D 缩放",
     "time": "时间"
   },
   "time": {
@@ -99,10 +133,12 @@
     "clouds": "云朵"
   },
   "terrainSettings": {
+    "simpleMode": "简单模式",
     "fog": "雾",
     "brightness": "亮度",
     "floor": "地面",
-    "sky": "天空"
+    "sky": "天空",
+    "battlefieldSize": "战场大小"
   },
   "fogValues": {
     "off": "关",
@@ -213,7 +249,7 @@
     "folders": "文件夹 ({{count}})",
     "openFolder": "在资源管理器中打开文件夹",
     "removeFolder": "移除文件夹",
-    "folderPlaceholder": "/路径/到/文件夹",
+    "folderPlaceholder": "/path/to/folder",
     "addFolder": "+ 添加文件夹",
     "assignedAgents": "已分配智能体 ({{count}})",
     "rightClickUnassign": "右键取消分配",
@@ -234,7 +270,10 @@
     "posTopLeft": "左上",
     "posTopRight": "右上",
     "posBottomLeft": "左下",
-    "posBottomRight": "右下"
+    "posBottomRight": "右下",
+    "prompt": "提示词",
+    "promptPlaceholder": "此区域中智能体的系统提示词…",
+    "promptHint": "会注入到此区域中的智能体。下次刷新上下文时生效。"
   },
   "buildings": {
     "title": "建筑 ({{count}})",
@@ -296,6 +335,12 @@
     "placeholder": "在此输入系统提示词...\n\n示例：\n- 代码风格规范\n- 团队沟通规则\n- 项目级约定\n- 安全最佳实践",
     "confirmClear": "确定要清除该智能体的系统提示词吗？",
     "confirmClearGlobal": "确定要清除全局系统提示词（所有智能体）吗？"
+  },
+  "integrations": {
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "本地 WhatsApp（Baileys）集成。"
+    }
   },
   "whatsapp": {
     "title": "WhatsApp 集成",
@@ -607,5 +652,23 @@
     "close": "关闭",
     "retry": "重试",
     "failed": "应用更新失败"
+  },
+  "webBundle": {
+    "title": "UI OTA 更新",
+    "sourceOta": "UI 来源：已同步的 UI 包（{{hash}}）",
+    "sourceBundled": "UI 来源：随 APK 内置",
+    "apkVersion": "APK v{{version}}",
+    "serverBundle": "服务器 UI：v{{version}}（{{hash}}）",
+    "updateAvailable": "有可用更新",
+    "upToDate": "已是最新",
+    "serverUnavailable": "服务器没有可提供的已构建 UI 包（请在服务器上运行 npm run build）",
+    "autoSync": "自动从服务器同步 UI",
+    "syncNow": "立即同步 UI",
+    "syncingPct": "正在同步… {{percent}}%",
+    "reset": "重置为内置 UI",
+    "bannerSyncing": "正在从服务器更新 UI…",
+    "bannerSyncingPct": "正在从服务器更新 UI… {{percent}}%",
+    "bannerFailed": "UI 同步失败",
+    "close": "关闭"
   }
 }

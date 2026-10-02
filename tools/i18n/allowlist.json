@@ -4,7 +4,11 @@
     "re:spawn\\.bossClassName$",
     "re:viewMode\\.labels\\.(2d|3d)$",
     "tools:display.toolNames.bash",
-    "config:secrets.keyPlaceholder"
+    "config:secrets.keyPlaceholder",
+    "config:connection.addUrlPlaceholder",
+    "config:areas.folderPlaceholder",
+    "config:integrations.whatsapp.title",
+    "config:webBundle.apkVersion"
   ],
   "noCJK": [
     "common:labels.tokens",
