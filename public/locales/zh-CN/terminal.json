@@ -10,7 +10,14 @@
     "opEdit": "编辑",
     "opWrite": "写入",
     "openFile": "在弹窗中打开文件",
-    "goToMessage": "跳转到聊天中的该消息"
+    "goToMessage": "跳转到聊天中的该消息",
+    "role": {
+      "user": "你",
+      "assistant": "助手",
+      "tool": "工具",
+      "command": "命令",
+      "output": "输出"
+    }
   },
   "header": {
     "openSidebar": "打开侧边栏",

@@ -40,6 +40,7 @@
     "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
     "re:^terminal:spawn\\.",
     "re:^terminal:testResults\\.",
+    "re:^terminal:search\\.role\\.",
     "re:^terminal:header\\.",
     "re:^dashboard:zone\\.",
     "re:^terminal:bottomPanel\\.",

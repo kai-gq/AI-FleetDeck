@@ -36,6 +36,7 @@ interface SearchResultsPanelProps {
   onHeightChange?: (height: number) => void;
 }
 
+// label is the English fallback; rendered via terminal:search.role.<role>.
 const ROLE_META: Record<ContentRole, { icon: IconName; label: string }> = {
   user: { icon: 'user-circle', label: 'You' },
   assistant: { icon: 'robot', label: 'Assistant' },
@@ -184,7 +185,10 @@ export function SearchResultsPanel({
           ) : (
             contentResults.map((r, i) => {
               const meta = ROLE_META[r.role];
-              const label = r.role === 'tool' && r.toolName ? r.toolName : meta.label;
+              const label =
+                r.role === 'tool' && r.toolName
+                  ? r.toolName
+                  : t(`search.role.${r.role}`, { defaultValue: meta.label });
               return (
                 <button
                   key={`${r.itemIndex}-${i}`}
