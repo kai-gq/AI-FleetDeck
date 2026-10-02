@@ -101,7 +101,7 @@ export function ChangelogModal({ version, onClose }: ChangelogModalProps) {
       <div className="changelog-modal" onClick={stop}>
         <div className="changelog-modal-header">
           <span className="changelog-modal-title">{title}</span>
-          <button className="changelog-modal-close" onClick={onClose} aria-label="Close">
+          <button className="changelog-modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
             ×
           </button>
         </div>

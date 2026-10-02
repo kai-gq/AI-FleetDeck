@@ -202,7 +202,7 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
         className="statistics-line-chart__svg"
         viewBox={`0 0 ${LINE_CHART_WIDTH} ${LINE_CHART_HEIGHT}`}
         role="img"
-        aria-label="Daily Claude token usage by agent"
+        aria-label={t('terminal:statistics.lineChartLabel', { defaultValue: 'Daily Claude token usage by agent' })}
         preserveAspectRatio="xMidYMid meet"
         onMouseLeave={() => setHover(null)}
       >

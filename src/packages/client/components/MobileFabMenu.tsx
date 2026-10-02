@@ -248,7 +248,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
                 e.preventDefault();
                 handleAction(onOrganizeAll);
               }}
-              title="Auto-organize all agents in their areas"
+              title={t('terminal:appShell.autoOrganizeAgents', { defaultValue: 'Auto-organize all agents in their areas' })}
             >
               <Icon name={isOrganizing ? 'hourglass' : 'sparkle'} size={18} />
             </button>

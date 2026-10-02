@@ -1591,7 +1591,7 @@ function AppContent() {
                       dockBuilding(building.id, 'terminal');
                       closeTerminalModal();
                     }}
-                    title="Minimize — dock below the terminal input"
+                    title={t('terminal:bottomPanel.minimizeDock', { defaultValue: 'Minimize — dock below the terminal input' })}
                   >
                     <Icon name="arrow-down" size={14} />
                   </button>

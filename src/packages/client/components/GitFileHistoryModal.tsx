@@ -194,7 +194,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
               <h2>{t('terminal:fileGitHistory.title', { defaultValue: 'Git History' })}</h2>
               <span className="git-file-history-filepath" title={filePath}>{filename}</span>
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>

@@ -374,7 +374,7 @@ export const DatabasePanel: React.FC<DatabasePanelProps> = ({ building, onClose,
             <button
               className="database-panel__close"
               onClick={onMinimize}
-              title="Minimize — dock below the terminal input"
+              title={t('terminal:bottomPanel.minimizeDock', { defaultValue: 'Minimize — dock below the terminal input' })}
             >
               <Icon name="arrow-down" size={14} />
             </button>

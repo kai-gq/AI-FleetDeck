@@ -182,10 +182,10 @@ export function ModelUsagePreview(props: ModelUsagePreviewProps) {
   const weekColor = weekly.free ? '#4aff9e' : weekUsed === null ? 'var(--text-muted)' : getUsedPercentColor(weekUsed);
 
   return (
-    <div className="model-usage-preview" aria-label="Selected model capacity and plan usage">
-      <div className="model-usage-preview__gauge" title={context.limit ? `${context.remaining.toFixed(1)}% context remaining` : 'Context capacity unavailable'}>
+    <div className="model-usage-preview" aria-label={t('terminal:modelUsagePreview.ariaLabel', { defaultValue: 'Selected model capacity and plan usage' })}>
+      <div className="model-usage-preview__gauge" title={context.limit ? t('terminal:modelUsagePreview.contextRemaining', { percent: context.remaining.toFixed(1), defaultValue: '{{percent}}% context remaining' }) : t('terminal:modelUsagePreview.contextUnavailable', { defaultValue: 'Context capacity unavailable' })}>
         <span className="model-usage-preview__label">
-          Ctx <strong>{context.limit ? formatTokenCapacity(context.limit) : '—'}</strong>
+          {t('terminal:input.ctxLabel', { defaultValue: 'Ctx' })} <strong>{context.limit ? formatTokenCapacity(context.limit) : '—'}</strong>
         </span>
         <span className="model-usage-preview__bar">
           <span style={{ width: `${context.usedPercent}%`, backgroundColor: contextColor }} />
@@ -195,12 +195,12 @@ export function ModelUsagePreview(props: ModelUsagePreviewProps) {
         </span>
       </div>
       <div className="model-usage-preview__gauge" title={weekly.window ? t('terminal:modelUsagePreview.weeklyQuotaRemaining', { defaultValue: '{{percent}}% weekly quota remaining', percent: weekRemaining }) : weekly.error ?? t('terminal:modelUsagePreview.weeklyUnavailable', { defaultValue: 'Weekly limit unavailable' })}>
-        <span className="model-usage-preview__label">Week</span>
+        <span className="model-usage-preview__label">{t('terminal:input.weekLabel', { defaultValue: 'Week' })}</span>
         <span className="model-usage-preview__bar">
           <span style={{ width: `${weekUsed ?? 0}%`, backgroundColor: weekColor }} />
         </span>
         <span className="model-usage-preview__value" style={{ color: weekColor }}>
-          {loading ? '…' : weekly.free ? 'Free' : weekRemaining === null ? '—' : `${Math.round(weekRemaining)}% left`}
+          {loading ? '…' : weekly.free ? t('terminal:modelUsagePreview.free', { defaultValue: 'Free' }) : weekRemaining === null ? '—' : t('terminal:usage.percentRemaining', { percent: Math.round(weekRemaining) })}
         </span>
       </div>
     </div>

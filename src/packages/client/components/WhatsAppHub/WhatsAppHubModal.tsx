@@ -49,7 +49,7 @@ export function WhatsAppHubModal({
               <span className="whatsapp-hub-modal__icon">📱</span>
               {t('config:whatsappHub.title', { defaultValue: 'WhatsApp' })}
             </h2>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>

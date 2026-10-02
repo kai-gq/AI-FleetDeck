@@ -111,7 +111,7 @@ export function QueuedMessagesBar({
             <div className="queued-message-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>{t('terminal:queue.modal.title', { defaultValue: 'Queued message' })}</h2>
-                <button className="modal-close" onClick={() => setShownId(null)} aria-label="Close">
+                <button className="modal-close" onClick={() => setShownId(null)} aria-label={t('common:buttons.close')}>
                   <Icon name="close" size={16} />
                 </button>
               </div>

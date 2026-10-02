@@ -181,7 +181,7 @@ export function WhatsAppHistoryPanel({ isOpen, onClose }: WhatsAppHistoryPanelPr
                 </select>
               </label>
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>

@@ -2048,7 +2048,8 @@
     "dailyUsageSubtitle": "按天统计的总 Token 用量，并为每个 Claude 智能体单独列出曲线。",
     "dailyEmpty": "最近几天没有找到 Claude Token 用量记录。",
     "peakDailyTokens": "{{name}}：单日峰值 {{peak}} Token",
-    "legendTokens": "{{name}}：单日峰值 {{peak}} Token，周期内共 {{total}} Token"
+    "legendTokens": "{{name}}：单日峰值 {{peak}} Token，周期内共 {{total}} Token",
+    "lineChartLabel": "各智能体每日 Claude Token 用量"
   },
   "gitPanel": {
     "discardBtnDeleteFile": "删除文件",
@@ -2721,7 +2722,8 @@
     "maxLogRetentionFor": "{{name}} 的最大日志保留量",
     "unlimited": "不限",
     "linesCount": "{{n}} 行",
-    "clearLogs": "清除日志"
+    "clearLogs": "清除日志",
+    "minimizeDock": "最小化——停靠在终端输入框下方"
   },
   "pinnedBar": {
     "newOutput": " — 有新输出",
@@ -3143,7 +3145,11 @@
   },
   "modelUsagePreview": {
     "weeklyQuotaRemaining": "每周限额剩余 {{percent}}%",
-    "weeklyUnavailable": "每周限额不可用"
+    "weeklyUnavailable": "每周限额不可用",
+    "ariaLabel": "所选模型的容量与套餐用量",
+    "contextRemaining": "上下文剩余 {{percent}}%",
+    "contextUnavailable": "上下文容量不可用",
+    "free": "免费"
   },
   "themeDesc": {
     "dracula": "哥特绯红与古铜金",
