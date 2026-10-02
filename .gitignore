@@ -66,3 +66,7 @@ fcm-service-account.json
 # Not part of the repo; friends can install their own copy or set
 # PIPER_BIN / PIPER_VOICES_DIR to point elsewhere.
 tools/piper/
+
+# bolba-board runtime data (SQLite board + Markdown mirror) and local config.
+tools/bolba-board/data/
+tools/bolba-board/config.local.json

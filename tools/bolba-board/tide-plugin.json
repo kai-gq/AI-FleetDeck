@@ -1,0 +1,7 @@
+{
+  "id": "bolba-board",
+  "name": "Bolba Board",
+  "version": "1.0.0",
+  "description": "Tablero de tareas local (REST en 127.0.0.1:7492 + espejo Markdown bidireccional) compatible con el plugin bolba-tasks.",
+  "main": "plugin.mjs"
+}
