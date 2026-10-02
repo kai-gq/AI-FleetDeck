@@ -1,0 +1,17 @@
+# whisper CLI 转发 shim —— 安装后覆盖 venv/Scripts/whisper.exe。
+# 安装:venv\Scripts\python.exe -m pip install -e <本目录> --no-deps
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whisper-cli-shim"
+version = "0.1.0"
+description = "Tide Commander 本地 STT:把 whisper CLI 调用转发给常驻转写服务"
+requires-python = ">=3.9"
+
+[project.scripts]
+whisper = "whisper_shim:main"
+
+[tool.setuptools]
+py-modules = ["whisper_shim"]

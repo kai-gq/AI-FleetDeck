@@ -1,0 +1,9 @@
+# 本地 STT 引擎栈(whisper):依赖 / 二进制 / 模型都不入库。
+# 只需提交 README / server.py / shim / 本文件;重建步骤见 README.md。
+venv/
+ffmpeg/
+models/
+_dl/
+server.log
+__pycache__/
+*.egg-info/
