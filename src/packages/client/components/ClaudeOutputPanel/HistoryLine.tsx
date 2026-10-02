@@ -255,7 +255,7 @@ export const HistoryLine = memo(function HistoryLine({
       <div
         className={`output-line output-session-continuation ${sessionExpanded ? 'expanded' : ''}`}
         onClick={() => setSessionExpanded(!sessionExpanded)}
-        title={t('terminal:history.clickToExpandCollapse')}
+        title={t('terminal:history.clickToExpandCollapse', { defaultValue: 'Click to expand/collapse' })}
       >
         {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
         <span className="session-continuation-icon"><Icon name="link" size={14} /></span>
@@ -2083,7 +2083,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-speak-btn"
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
-              title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
+              title={speaking ? t('terminal:history.stopSpeaking', { defaultValue: 'Stop speaking' }) : t('terminal:history.speakSpanish', { defaultValue: 'Speak (Spanish)' })}
             >
               <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
@@ -2092,7 +2092,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
-              title={t('terminal:history.viewAsMarkdown')}
+              title={t('terminal:history.viewAsMarkdown', { defaultValue: 'View as Markdown' })}
             >
               <Icon name="file-text" size={14} />
             </button>
@@ -2135,7 +2135,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-speak-btn"
               onClick={(e) => { e.stopPropagation(); toggleTTS(content); }}
-              title={speaking ? t('terminal:history.stopSpeaking') : t('terminal:history.speakSpanish')}
+              title={speaking ? t('terminal:history.stopSpeaking', { defaultValue: 'Stop speaking' }) : t('terminal:history.speakSpanish', { defaultValue: 'Speak (Spanish)' })}
             >
               <Icon name={speaking ? 'speaker-on' : 'speaker-off'} size={14} />
             </button>
@@ -2144,7 +2144,7 @@ export const HistoryLine = memo(function HistoryLine({
             <button
               className="history-view-md-btn"
               onClick={(e) => { e.stopPropagation(); onViewMarkdown(content); }}
-              title={t('terminal:history.viewAsMarkdown')}
+              title={t('terminal:history.viewAsMarkdown', { defaultValue: 'View as Markdown' })}
             >
               <Icon name="file-text" size={14} />
             </button>

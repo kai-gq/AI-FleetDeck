@@ -253,7 +253,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
             <span
               className="edit-tool-file clickable"
               onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '', unifiedDiff: unified_diff })}
-              title={t('terminal:history.openFileWithDiff', { path: file_path })}
+              title={t('terminal:history.openFileWithDiff', { defaultValue: 'Open {{path}} with diff view', path: file_path })}
             >
               {fileName}
             </span>
@@ -306,7 +306,7 @@ export function EditToolDiff({ content, onFileClick }: EditToolDiffProps) {
           <span
             className="edit-tool-file clickable"
             onClick={() => onFileClick?.(file_path, { oldString: old_string || '', newString: new_string || '' })}
-            title={t('terminal:history.openFileWithDiff', { path: file_path })}
+            title={t('terminal:history.openFileWithDiff', { defaultValue: 'Open {{path}} with diff view', path: file_path })}
           >
             {fileName}
           </span>

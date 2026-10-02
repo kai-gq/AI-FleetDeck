@@ -140,7 +140,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
                       {agent.status}
                     </div>
                     {isCurrentlyAssigned && (
-                      <div className="subordinate-badge">{t('common:status.current')}</div>
+                      <div className="subordinate-badge">{t('common:status.current', { defaultValue: 'current' })}</div>
                     )}
                   </div>
                 );
@@ -170,7 +170,7 @@ export function SubordinateAssignmentModal({ isOpen, bossId, onClose }: Subordin
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
           >
-            {isSaving ? t('common:status.saving') : t('terminal:team.saveTeam')}
+            {isSaving ? t('common:status.saving', { defaultValue: 'Saving...' }) : t('terminal:team.saveTeam')}
           </button>
         </div>
       </div>

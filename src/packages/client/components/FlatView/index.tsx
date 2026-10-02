@@ -1531,7 +1531,7 @@ const ChatView = React.memo(function ChatView({
                   )}
                   <span
                     className={`flat-terminal-wrapper__area-fetch ${isFetching ? 'flat-terminal-wrapper__area-fetch--fetching' : ''}`}
-                    title={t('terminal:gitPanel.gitFetch')}
+                    title={t('terminal:gitPanel.gitFetch', { defaultValue: 'Git fetch' })}
                     onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                   >
                     <Icon name={isFetching ? 'hourglass' : 'download'} size={12} />

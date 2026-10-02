@@ -86,7 +86,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
         }
       } catch (err) {
         if (cancelled) return;
-        setHistoryError(err instanceof Error ? err.message : t('terminal:fileGitHistory.error'));
+        setHistoryError(err instanceof Error ? err.message : t('terminal:fileGitHistory.error', { defaultValue: 'Failed to load git history' }));
       } finally {
         if (!cancelled) setLoadingHistory(false);
       }
@@ -115,7 +115,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
         setDiff(data);
       } catch (err) {
         if (cancelled) return;
-        setDiffError(err instanceof Error ? err.message : t('terminal:fileGitHistory.error'));
+        setDiffError(err instanceof Error ? err.message : t('terminal:fileGitHistory.error', { defaultValue: 'Failed to load git history' }));
       } finally {
         if (!cancelled) setLoadingDiff(false);
       }
@@ -140,7 +140,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
       return (
         <div className="git-file-history-loading">
           <div className="spinner" />
-          <p>{t('terminal:fileGitHistory.loading')}</p>
+          <p>{t('terminal:fileGitHistory.loading', { defaultValue: 'Loading...' })}</p>
         </div>
       );
     }
@@ -155,7 +155,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
     if (!diff) {
       return (
         <div className="git-file-history-empty">
-          <p>{t('terminal:fileGitHistory.selectCommit')}</p>
+          <p>{t('terminal:fileGitHistory.selectCommit', { defaultValue: 'Select a commit to view its diff' })}</p>
         </div>
       );
     }
@@ -163,7 +163,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
       return (
         <div className="git-file-history-empty">
           <Icon name="file" size={20} />
-          <p>{t('terminal:fileGitHistory.binaryFile')}</p>
+          <p>{t('terminal:fileGitHistory.binaryFile', { defaultValue: 'Binary file — diff not available' })}</p>
         </div>
       );
     }
@@ -191,7 +191,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
         >
           <div className="modal-header">
             <div className="git-file-history-title">
-              <h2>{t('terminal:fileGitHistory.title')}</h2>
+              <h2>{t('terminal:fileGitHistory.title', { defaultValue: 'Git History' })}</h2>
               <span className="git-file-history-filepath" title={filePath}>{filename}</span>
             </div>
             <button className="modal-close" onClick={onClose} aria-label="Close">
@@ -200,11 +200,11 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
           </div>
 
           <div className="git-file-history-body">
-            <aside className="git-file-history-commit-list" aria-label={t('terminal:fileGitHistory.title')}>
+            <aside className="git-file-history-commit-list" aria-label={t('terminal:fileGitHistory.title', { defaultValue: 'Git History' })}>
               {loadingHistory ? (
                 <div className="git-file-history-loading">
                   <div className="spinner" />
-                  <p>{t('terminal:fileGitHistory.loading')}</p>
+                  <p>{t('terminal:fileGitHistory.loading', { defaultValue: 'Loading...' })}</p>
                 </div>
               ) : historyError ? (
                 <div className="git-file-history-empty">
@@ -213,7 +213,7 @@ export function GitFileHistoryModal({ isOpen, onClose, filePath, cwd }: GitFileH
                 </div>
               ) : commits.length === 0 ? (
                 <div className="git-file-history-empty">
-                  <p>{t('terminal:fileGitHistory.empty')}</p>
+                  <p>{t('terminal:fileGitHistory.empty', { defaultValue: 'No history found for this file' })}</p>
                 </div>
               ) : (
                 <ul className="git-file-history-commits" role="listbox">

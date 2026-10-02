@@ -453,7 +453,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           className="action-btn start"
           onClick={() => handleCommand('start')}
           disabled={!canStart || building.status === 'running' || building.status === 'starting'}
-          title={canStart ? t('terminal:buildingAction.start') : t('terminal:buildingAction.noStartCommand')}
+          title={canStart ? t('terminal:buildingAction.start') : t('terminal:buildingAction.noStartCommand', { defaultValue: 'No start command configured' })}
         >
           <span className="icon">&#9654;</span>
           {t('terminal:buildingAction.start')}
@@ -462,7 +462,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           className="action-btn stop"
           onClick={() => handleCommand('stop')}
           disabled={!canStop || building.status === 'stopped' || building.status === 'stopping'}
-          title={canStop ? t('terminal:buildingAction.stop') : t('terminal:buildingAction.noStopCommand')}
+          title={canStop ? t('terminal:buildingAction.stop') : t('terminal:buildingAction.noStopCommand', { defaultValue: 'No stop command configured' })}
         >
           <span className="icon">&#9632;</span>
           {t('terminal:buildingAction.stop')}
@@ -471,7 +471,7 @@ export const BuildingActionPopup = memo(function BuildingActionPopup({ building,
           className="action-btn restart"
           onClick={() => handleCommand('restart')}
           disabled={!canRestart}
-          title={canRestart ? t('terminal:buildingAction.restart') : t('terminal:buildingAction.noRestartCommand')}
+          title={canRestart ? t('terminal:buildingAction.restart') : t('terminal:buildingAction.noRestartCommand', { defaultValue: 'No restart command configured' })}
         >
           <span className="icon">&#8634;</span>
           {t('terminal:buildingAction.restart')}
