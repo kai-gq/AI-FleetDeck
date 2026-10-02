@@ -127,7 +127,6 @@
   },
   "spawn": {
     "title": "创建新代理",
-    "addNewAgent": "添加新代理",
     "deployTitle": "部署新代理",
     "deployBossTitle": "部署主管代理",
     "editAgentTitle": "编辑代理：{{name}}",
@@ -142,6 +141,7 @@
     "advanced": "高级选项",
     "maxTurns": "最大轮次",
     "permissionMode": "权限模式",
+    "addNewAgent": "添加新代理",
     "spawnAgent": "创建代理",
     "agentClass": "代理类别",
     "bossClass": "主管类别",
@@ -339,9 +339,9 @@
     "copyRichText": "复制富文本",
     "copyRichTextTitle": "复制为富文本（粘贴到 Word、Docs 等）",
     "copyHtml": "复制 HTML",
-    "openInFileExplorer": "在文件管理器中打开",
     "copyHtmlTitle": "复制为 HTML 标签（用于 Google Docs、HTML 编辑器）",
     "copyMarkdown": "复制 Markdown",
+    "openInFileExplorer": "在文件管理器中打开",
     "copyMarkdownTitle": "复制为 Markdown 源码",
     "copyOriginal": "复制原始内容",
     "copyOriginalTitle": "复制原始文件内容",
@@ -378,7 +378,6 @@
     "closeComparison": "关闭比较",
     "noDifferences": "分支之间没有差异",
     "fileCount": "{{count}} 个文件",
-    "fileCount_other": "{{count}} 个文件",
     "flatList": "平铺列表",
     "directoryTree": "目录树",
     "switchedToBranch": "已切换到 {{branch}}",
@@ -961,17 +960,6 @@
     "release": "释放以完成",
     "exitDrawingMode": "退出绘制模式 (ESC)"
   },
-  "mobileFab": {
-    "menu": "菜单",
-    "newAgent": "新建代理",
-    "newBoss": "新建主管",
-    "settings": "设置",
-    "controls": "控制",
-    "spotlight": "搜索",
-    "closeMenu": "关闭菜单",
-    "openMenu": "打开菜单",
-    "showTerminal": "显示终端"
-  },
   "commander": {
     "title": "指挥官视图",
     "shortcuts": "Tab 切换区域 • ⌥H/J/K/L 导航 • ⌥O 展开 • ⌥N 新建",
@@ -1005,6 +993,17 @@
     "clearFilters": "清除所有筛选",
     "expandPanel": "展开",
     "collapsePanel": "折叠 (Esc)"
+  },
+  "mobileFab": {
+    "menu": "菜单",
+    "newAgent": "新建代理",
+    "newBoss": "新建主管",
+    "settings": "设置",
+    "controls": "控制",
+    "spotlight": "搜索",
+    "closeMenu": "关闭菜单",
+    "openMenu": "打开菜单",
+    "showTerminal": "显示终端"
   },
   "building": {
     "unitsCount": "{{count}} 个单元",

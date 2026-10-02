@@ -7,7 +7,6 @@
     "byActivity": "按活动"
   },
   "agentCount": "{{count}} 个代理",
-  "agentCount_plural": "{{count}} 个代理",
   "working": "工作中",
   "focusZone": "聚焦区域",
   "noAgentsMatching": "没有匹配 \"{{search}}\" 的代理",
