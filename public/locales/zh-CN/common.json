@@ -141,12 +141,14 @@
     "labels": {
       "2d": "2D",
       "3d": "3D",
-      "dashboard": "仪表盘"
+      "dashboard": "仪表盘",
+      "flat": "平铺"
     },
     "descriptions": {
       "2d": "轻量级俯视图",
       "3d": "完整 3D 等距视图",
-      "dashboard": "指标和状态概览"
+      "dashboard": "指标和状态概览",
+      "flat": "平铺界面布局"
     }
   },
   "buttons2": {
@@ -177,6 +179,8 @@
     "cannotBeUndone": "此操作无法撤销。",
     "terminateAgent": "确定要终止此智能体吗？",
     "removeAgent": "从视图中移除 {{name}}？",
+    "removeAgentTitle": "移除智能体",
+    "removeAgentMessage": "确定要移除 {{name}} 吗？此操作无法撤销。",
     "deleteBuilding": "删除此建筑？",
     "clearPatterns": "清除所有已记住的权限模式？"
   },
@@ -197,6 +201,8 @@
     "collapseContext": "折叠上下文",
     "clearContext": "清除上下文",
     "killAgent": "终止智能体",
+    "cloneAgent": "克隆智能体",
+    "forkAgent": "派生智能体（克隆并继续对话）",
     "clickToRename": "点击重命名",
     "permissions": "权限",
     "allowedPatterns": "已允许的模式",
@@ -232,7 +238,8 @@
     "clearContextBtn": "清除上下文",
     "removePattern": "移除此模式",
     "agentsCount": "{{count}} 个智能体",
-    "confidence": "置信度：{{level}}"
+    "confidence": "置信度：{{level}}",
+    "noActiveTasks": "暂无进行中的任务"
   },
   "multiAgent": {
     "agentsSelected": "已选择 {{count}} 个智能体",
@@ -304,8 +311,21 @@
     "clickToOpen": "点击打开",
     "updated": "（已更新）"
   },
+  "onboarding": {
+    "title": "欢迎使用 Tide Commander",
+    "subtitle": "你的 AI 团队已就绪，随时可以部署",
+    "step1Title": "部署智能体",
+    "step1Desc": "创建 Claude Code 或 Codex 智能体，指向任意项目目录。",
+    "step2Title": "给它一个任务",
+    "step2Desc": "输入提示词，智能体将在自己的终端中自主工作。",
+    "step3Title": "扩展你的团队",
+    "step3Desc": "添加更多智能体，分配主管，实时监控一切。",
+    "createFirst": "创建你的第一个智能体",
+    "explore": "先探索"
+  },
   "floatingButtons": {
     "settingsAndTools": "设置与工具",
+    "globalSearch": "全局搜索",
     "commanderView": "指挥官视图",
     "controls": "控制",
     "manageSkills": "管理技能"
@@ -313,5 +333,19 @@
   "sidebar": {
     "agentsView": "智能体",
     "trackingBoard": "跟踪面板"
+  },
+  "mobileBottomMenu": {
+    "label": "快捷操作",
+    "search": "搜索",
+    "tracking": "跟踪",
+    "spawn": "创建",
+    "commander": "指挥官",
+    "settings": "设置",
+    "agents": "智能体",
+    "inspector": "检查器",
+    "close": "关闭",
+    "closeAgent": "关闭智能体",
+    "lastAgent": "上一个智能体",
+    "openLastAgentNamed": "打开 {{name}}"
   }
 }
