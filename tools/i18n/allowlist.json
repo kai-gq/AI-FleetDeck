@@ -37,7 +37,7 @@
     "re:^terminal:building\\.(servicesCount|subsUp|subsErr|gitChanges|testsRunning|openPortInBrowser|addBuildingHint|openTerminalBelowHint|showLogsBelowHint|showDatabaseBelowHint)$",
     "re:^terminal:database\\.(cellActions|editCell|setNull|editThisCell|clickToCancelEditing|editable|readOnly[A-Za-z]+|toastUpdateFailed|toastNoRowsUpdated|toastRowUpdated|toastUpdateTimeout)$",
     "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
-    "re:^terminal:header\\.(clearContextConfirm|moreActions|searchNoResults)$",
+    "re:^terminal:header\\.",
     "re:^terminal:input\\.(pendingMessage|pendingMessages|removeQueuedMessage)$",
     "re:^terminal:fileViewer\\.(downloadPdfTitle|pathInputLabel|pathInputTitle)$",
     "re:^terminal:fileGitHistory\\.",

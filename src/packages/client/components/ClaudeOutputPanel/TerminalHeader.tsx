@@ -72,6 +72,7 @@ import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCom
  * see shared/model-fallback.ts for why that can happen without any notice.
  */
 const ModelChip = memo(function ModelChip({ agent }: { agent: Agent }) {
+  const { t } = useTranslation(['terminal']);
   const { model, effort } = getAgentModelLabel(agent);
   const fallback = agent.modelFallback;
 
@@ -79,12 +80,7 @@ const ModelChip = memo(function ModelChip({ agent }: { agent: Agent }) {
     return (
       <span
         className="guake-model-chip guake-model-chip--fallback"
-        title={
-          `Model fallback: this agent is configured for ${fallback.requestedLabel}, `
-          + `but the API answered with ${fallback.servedLabel}. `
-          + 'Anthropic can substitute models server-side without a prompt, and the local '
-          + 'no-fallback settings do not cover that path.'
-        }
+        title={t('terminal:header.modelFallbackTitle', { defaultValue: 'Model fallback: this agent is configured for {{requested}}, but the API answered with {{served}}. Anthropic can substitute models server-side without a prompt, and the local no-fallback settings do not cover that path.', requested: fallback.requestedLabel, served: fallback.servedLabel })}
       >
         <Icon name="warn" size={11} />
         <span className="guake-model-chip-name">{fallback.requestedLabel}</span>
@@ -96,12 +92,14 @@ const ModelChip = memo(function ModelChip({ agent }: { agent: Agent }) {
 
   // Older generation than what the pickers now offer (e.g. Opus 5 → 5.5).
   const outdated = outdatedAgentModel(agent);
-  const baseTitle = effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`;
+  const baseTitle = effort
+    ? t('terminal:header.modelTitle', { defaultValue: 'Model: {{model}} · Effort: {{effort}}', model, effort })
+    : t('terminal:header.modelTitleSimple', { defaultValue: 'Model: {{model}}', model });
 
   return (
     <span
       className={`guake-model-chip${outdated ? ' guake-model-chip--outdated' : ''}`}
-      title={outdated ? `${baseTitle}\nA newer model is available: ${outdated.newerLabel}` : baseTitle}
+      title={outdated ? t('terminal:header.modelNewerTitle', { defaultValue: '{{base}}\nA newer model is available: {{newer}}', base: baseTitle, newer: outdated.newerLabel }) : baseTitle}
     >
       {outdated && <Icon name="warn" size={10} />}
       <span className="guake-model-chip-name">{model}</span>
@@ -368,20 +366,18 @@ export const TerminalHeader = memo(function TerminalHeader({
             <Tooltip
               content={
                 <>
-                  <div className="tide-tooltip__title"><Icon name="refresh" size={14} /> Reattaching Session...</div>
+                  <div className="tide-tooltip__title"><Icon name="refresh" size={14} /> {t('terminal:empty.reattachingSessionTitle')}</div>
                   <div className="tide-tooltip__text">
-                    This agent's Claude process is running independently. Tide Commander is automatically
-                    attempting to reattach to the existing session. If reattachment fails, send a new message
-                    to manually resume the session.
+                    {t('terminal:empty.reattachingSessionDesc')}
                     <br /><br />
-                    <strong>Status:</strong> Recovering session context and output history...
+                    <strong>{t('common:labels.status')}:</strong> {t('terminal:empty.reattachingSessionStatus')}
                   </div>
                 </>
               }
               position="bottom"
               className="tide-tooltip--detached"
             >
-              <span className="guake-detached-badge" title="Agent is detached - reattaching...">
+              <span className="guake-detached-badge" title={t('terminal:empty.reattachingBadge')}>
                 <span className="guake-detached-spinner"><Icon name="refresh" size={12} /></span>
               </span>
             </Tooltip>
@@ -412,7 +408,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-accessory">
                 <ProviderIcon
                   agent={selectedAgent}
-                  alt={`${selectedAgent.name} provider`}
+                  alt={t('terminal:header.providerAlt', { defaultValue: '{{name}} provider', name: selectedAgent.name })}
                   className="guake-provider-icon"
                 />
                 <ModelChip agent={selectedAgent} />
@@ -440,7 +436,7 @@ export const TerminalHeader = memo(function TerminalHeader({
               <span className="guake-title-accessory">
                 <ProviderIcon
                   agent={selectedAgent}
-                  alt={`${selectedAgent.name} provider`}
+                  alt={t('terminal:header.providerAlt', { defaultValue: '{{name}} provider', name: selectedAgent.name })}
                   className="guake-provider-icon"
                 />
                 <ModelChip agent={selectedAgent} />
@@ -473,7 +469,7 @@ export const TerminalHeader = memo(function TerminalHeader({
           <button
             className="guake-icon-action guake-nav-btn"
             onClick={onNavigateBack}
-            title="Back (Alt+Left)"
+            title={t('terminal:header.backWithKey', { defaultValue: 'Back (Alt+Left)' })}
             disabled={!canNavigateBack}
           >
             <span className="guake-action-icon"><Icon name="arrow-left" size={14} /></span>
@@ -481,7 +477,7 @@ export const TerminalHeader = memo(function TerminalHeader({
           <button
             className="guake-icon-action guake-nav-btn"
             onClick={onNavigateForward}
-            title="Forward (Alt+Right)"
+            title={t('terminal:header.forwardWithKey', { defaultValue: 'Forward (Alt+Right)' })}
             disabled={!canNavigateForward}
           >
             <span className="guake-action-icon"><Icon name="arrow-right" size={14} /></span>
@@ -499,7 +495,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             <button
               className={`guake-icon-action guake-git-toggle ${gitPanelOpen ? 'active' : ''}`}
               onClick={() => setGitPanelOpen(!gitPanelOpen)}
-              title={gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
+              title={gitPanelOpen ? t('terminal:header.hideGit', { defaultValue: 'Hide Git Changes' }) : t('terminal:header.showGit', { defaultValue: 'Show Git Changes' })}
             >
               <span className="guake-action-icon"><Icon name="git-branch" size={16} /></span>
             </button>
@@ -508,7 +504,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             <button
               className={`guake-icon-action guake-workflow-toggle ${workflowPanelOpen ? 'active' : ''}`}
               onClick={() => setWorkflowPanelOpen(!workflowPanelOpen)}
-              title={workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
+              title={workflowPanelOpen ? t('terminal:header.hideWorkflow', { defaultValue: 'Hide Workflow' }) : t('terminal:header.showWorkflow', { defaultValue: 'Show Workflow' })}
             >
               <span className="guake-action-icon"><Icon name="refresh" size={16} /></span>
             </button>
@@ -517,7 +513,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             <button
               className={`guake-icon-action guake-tracking-board-toggle ${trackingBoardVisible ? 'active' : ''}`}
               onClick={() => setTrackingBoardVisible(!trackingBoardVisible)}
-              title={trackingBoardVisible ? 'Hide Tracking Board' : 'Show Tracking Board'}
+              title={trackingBoardVisible ? t('terminal:header.hideTrackingBoard', { defaultValue: 'Hide Tracking Board' }) : t('terminal:header.showTrackingBoard', { defaultValue: 'Show Tracking Board' })}
             >
               <span className="guake-action-icon"><Icon name="list-checks" size={16} /></span>
             </button>
@@ -540,7 +536,7 @@ export const TerminalHeader = memo(function TerminalHeader({
             className={`guake-icon-action guake-slash-output-toggle ${showSlashCommandOutputs ? 'active' : ''}`}
             onClick={toggleSlashCommandOutputs}
             aria-pressed={showSlashCommandOutputs}
-            title={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+            title={showSlashCommandOutputs ? t('terminal:header.hideSlashOutput', { defaultValue: 'Hide slash command output' }) : t('terminal:header.showSlashOutput', { defaultValue: 'Show slash command output' })}
           >
             <span className="guake-action-icon"><Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={16} /></span>
           </button>
@@ -568,7 +564,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                 onClick={() => { handleViewModeToggle(); closeDesktopMenu(); }}
               >
                 <span className="guake-desktop-menu-icon">{viewModeIconEl}</span>
-                View: {viewModeLabel}
+                {t('terminal:header.viewMode', { mode: viewModeLabel })}
               </button>
               {setBuildingsPanelOpen && (
                   <button
@@ -576,7 +572,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeDesktopMenu(); }}
                   >
                     <span className="guake-desktop-menu-icon"><Icon name="package" size={16} /></span>
-                    {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
+                    {buildingsPanelOpen ? t('terminal:header.hideBuildings', { defaultValue: 'Hide Buildings' }) : t('terminal:header.showBuildings', { defaultValue: 'Show Buildings' })}
                   </button>
                 )}
                 <button
@@ -632,7 +628,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   disabled={!canNavigateBack}
                 >
                   <span className="guake-mobile-menu-icon"><Icon name="arrow-left" size={16} /></span>
-                  Back
+                  {t('common:buttons.back')}
                 </button>
                 <button
                   className="guake-mobile-menu-item"
@@ -640,7 +636,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   disabled={!canNavigateForward}
                 >
                   <span className="guake-mobile-menu-icon"><Icon name="arrow-right" size={16} /></span>
-                  Forward
+                  {t('terminal:header.forward', { defaultValue: 'Forward' })}
                 </button>
                 <button
                   className="guake-mobile-menu-item"
@@ -688,7 +684,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                   aria-pressed={showSlashCommandOutputs}
                 >
                   <span className="guake-mobile-menu-icon"><Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={16} /></span>
-                  {showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+                  {showSlashCommandOutputs ? t('terminal:header.hideSlashOutput', { defaultValue: 'Hide slash command output' }) : t('terminal:header.showSlashOutput', { defaultValue: 'Show slash command output' })}
                 </button>
                 {setOverviewPanelOpen && (
                   <button
@@ -705,7 +701,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     onClick={() => { setGitPanelOpen(!gitPanelOpen); closeMobileMenu(); }}
                   >
                     <span className="guake-mobile-menu-icon"><Icon name="git-branch" size={16} /></span>
-                    {gitPanelOpen ? 'Hide Git Changes' : 'Show Git Changes'}
+                    {gitPanelOpen ? t('terminal:header.hideGit', { defaultValue: 'Hide Git Changes' }) : t('terminal:header.showGit', { defaultValue: 'Show Git Changes' })}
                   </button>
                 )}
                 {hasWorkflow && setWorkflowPanelOpen && (
@@ -714,7 +710,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     onClick={() => { setWorkflowPanelOpen(!workflowPanelOpen); closeMobileMenu(); }}
                   >
                     <span className="guake-mobile-menu-icon"><Icon name="refresh" size={16} /></span>
-                    {workflowPanelOpen ? 'Hide Workflow' : 'Show Workflow'}
+                    {workflowPanelOpen ? t('terminal:header.hideWorkflow', { defaultValue: 'Hide Workflow' }) : t('terminal:header.showWorkflow', { defaultValue: 'Show Workflow' })}
                   </button>
                 )}
                 {setBuildingsPanelOpen && (
@@ -723,7 +719,7 @@ export const TerminalHeader = memo(function TerminalHeader({
                     onClick={() => { setBuildingsPanelOpen(!buildingsPanelOpen); closeMobileMenu(); }}
                   >
                     <span className="guake-mobile-menu-icon"><Icon name="package" size={16} /></span>
-                    {buildingsPanelOpen ? 'Hide Buildings' : 'Show Buildings'}
+                    {buildingsPanelOpen ? t('terminal:header.hideBuildings', { defaultValue: 'Hide Buildings' }) : t('terminal:header.showBuildings', { defaultValue: 'Show Buildings' })}
                   </button>
                 )}
                 <button
@@ -888,7 +884,7 @@ export function SearchBar({
       {searchQuery.trim().length >= 2 && (
         <span className="guake-search-count">
           {loadingFullHistory
-            ? `${matchCount > 0 ? `${currentMatch + 1} / ${matchCount}` : '...'} loading`
+            ? `${matchCount > 0 ? `${currentMatch + 1} / ${matchCount}` : '...'} ${t('terminal:header.searchLoading', { defaultValue: 'loading' })}`
             : matchCount > 0
               ? `${currentMatch + 1} / ${matchCount}`
               : t('terminal:header.searchNoResults', 'No results')}
@@ -907,7 +903,7 @@ export function SearchBar({
         className="guake-search-nav"
         onClick={navigatePrev}
         disabled={matchCount === 0}
-        title="Previous match (Shift+Enter)"
+        title={t('terminal:documentViewer.prevMatch')}
       >
         <Icon name="caret-up" size={14} />
       </button>
@@ -915,14 +911,14 @@ export function SearchBar({
         className="guake-search-nav"
         onClick={navigateNext}
         disabled={matchCount === 0}
-        title="Next match (Enter)"
+        title={t('terminal:documentViewer.nextMatch')}
       >
         <Icon name="caret-down" size={14} />
       </button>
       <button
         className="guake-search-close"
         onClick={closeSearch}
-        title="Close search (Escape)"
+        title={t('terminal:header.closeSearchEscape', { defaultValue: 'Close search (Escape)' })}
       >
         <Icon name="close" size={14} />
       </button>
