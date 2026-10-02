@@ -3114,5 +3114,23 @@
     "ember-noir": "颠茄紫与毒藤绿",
     "intellij-one-dark": "IntelliJ One Dark（暗色外观）",
     "classic": "原始透明风格"
+  },
+  "stt": {
+    "requiresHttps": "麦克风需要 HTTPS",
+    "permissionDenied": "麦克风权限被拒绝",
+    "noMicrophone": "未找到麦克风",
+    "micInUse": "麦克风正被其他应用占用",
+    "constraintsUnsupported": "不支持该麦克风约束",
+    "micError": "麦克风错误：{{message}}",
+    "accessFailed": "无法访问麦克风",
+    "recordingTooShort": "录音太短",
+    "transcriptionFailed": "转写失败",
+    "transcribeAudioFailed": "音频转写失败"
+  },
+  "plantUml": {
+    "empty": "图表内容为空",
+    "renderFailedStatus": "渲染失败（{{status}}）",
+    "invalidSvg": "SVG 输出无效",
+    "renderFailed": "图表渲染失败"
   }
 }

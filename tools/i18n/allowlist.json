@@ -77,6 +77,8 @@
     "re:^terminal:copyAgentIdentity\\.",
     "re:^terminal:modelUsagePreview\\.",
     "re:^terminal:themeDesc\\.",
+    "re:^terminal:stt\\.",
+    "re:^terminal:plantUml\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

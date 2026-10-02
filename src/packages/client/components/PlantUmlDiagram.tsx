@@ -54,7 +54,7 @@ export function PlantUmlDiagram({ source, endpoint = PLANTUML_RENDER_ENDPOINT }:
   useEffect(() => {
     const trimmed = source.trim();
     if (!trimmed) {
-      setError('Diagram is empty');
+      setError(t('terminal:plantUml.empty', { defaultValue: 'Diagram is empty' }));
       setIsRendering(false);
       setDataUrl(null);
       return;
@@ -76,16 +76,16 @@ export function PlantUmlDiagram({ source, endpoint = PLANTUML_RENDER_ENDPOINT }:
           signal: controller.signal,
         });
         if (!res.ok) {
-          throw new Error(`Render failed (${res.status})`);
+          throw new Error(t('terminal:plantUml.renderFailedStatus', { defaultValue: 'Render failed ({{status}})', status: res.status }));
         }
         const svg = await res.text();
         if (!svg.includes('<svg')) {
-          throw new Error('Invalid SVG output');
+          throw new Error(t('terminal:plantUml.invalidSvg', { defaultValue: 'Invalid SVG output' }));
         }
         setDataUrl(toSvgDataUrl(svg));
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'Failed to render diagram');
+        setError(err instanceof Error ? err.message : t('terminal:plantUml.renderFailed', { defaultValue: 'Failed to render diagram' }));
         setDataUrl(null);
       } finally {
         if (!controller.signal.aborted) {
@@ -95,7 +95,7 @@ export function PlantUmlDiagram({ source, endpoint = PLANTUML_RENDER_ENDPOINT }:
     })();
 
     return () => controller.abort();
-  }, [source, endpoint]);
+  }, [source, endpoint, t]);
 
   if (isRendering) {
     return (

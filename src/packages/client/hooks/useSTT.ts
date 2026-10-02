@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../utils/storage';
 
 interface STTOptions {
@@ -18,6 +19,7 @@ const DEFAULT_OPTIONS: STTOptions = {
 };
 
 export function useSTT(options: STTOptions = {}) {
+  const { t } = useTranslation('terminal');
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function useSTT(options: STTOptions = {}) {
       // Check if we're in a secure context (required for microphone on mobile)
       if (!window.isSecureContext) {
         console.error('[STT] Not in secure context - microphone requires HTTPS');
-        setError('Microphone requires HTTPS');
+        setError(t('terminal:stt.requiresHttps', { defaultValue: 'Microphone requires HTTPS' }));
         return;
       }
 
@@ -96,21 +98,21 @@ export function useSTT(options: STTOptions = {}) {
       // Provide more specific error messages
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          setError('Microphone permission denied');
+          setError(t('terminal:stt.permissionDenied', { defaultValue: 'Microphone permission denied' }));
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          setError('No microphone found');
+          setError(t('terminal:stt.noMicrophone', { defaultValue: 'No microphone found' }));
         } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          setError('Microphone in use by another app');
+          setError(t('terminal:stt.micInUse', { defaultValue: 'Microphone in use by another app' }));
         } else if (err.name === 'OverconstrainedError') {
-          setError('Microphone constraints not supported');
+          setError(t('terminal:stt.constraintsUnsupported', { defaultValue: 'Microphone constraints not supported' }));
         } else {
-          setError(`Microphone error: ${err.message}`);
+          setError(t('terminal:stt.micError', { defaultValue: 'Microphone error: {{message}}', message: err.message }));
         }
       } else {
-        setError('Failed to access microphone');
+        setError(t('terminal:stt.accessFailed', { defaultValue: 'Failed to access microphone' }));
       }
     }
-  }, []);
+  }, [t]);
 
   const stopRecording = useCallback(async (): Promise<string | null> => {
     if (!mediaRecorderRef.current || !recording) {
@@ -135,7 +137,7 @@ export function useSTT(options: STTOptions = {}) {
         console.log('[STT] Recording stopped, audio size:', audioBlob.size);
 
         if (audioBlob.size < 1000) {
-          setError('Recording too short');
+          setError(t('terminal:stt.recordingTooShort', { defaultValue: 'Recording too short' }));
           setRecording(false);
           resolve(null);
           return;
@@ -166,12 +168,12 @@ export function useSTT(options: STTOptions = {}) {
             resolve(data.text);
           } else {
             console.error('[STT] Transcription failed:', data.error);
-            setError(data.error || 'Transcription failed');
+            setError(data.error || t('terminal:stt.transcriptionFailed', { defaultValue: 'Transcription failed' }));
             resolve(null);
           }
         } catch (err) {
           console.error('[STT] Failed to transcribe:', err);
-          setError('Failed to transcribe audio');
+          setError(t('terminal:stt.transcribeAudioFailed', { defaultValue: 'Failed to transcribe audio' }));
           resolve(null);
         } finally {
           setTranscribing(false);
@@ -182,7 +184,7 @@ export function useSTT(options: STTOptions = {}) {
 
       mediaRecorder.stop();
     });
-  }, [recording, opts]);
+  }, [recording, opts, t]);
 
   const toggleRecording = useCallback(async (): Promise<string | null> => {
     if (recording) {
