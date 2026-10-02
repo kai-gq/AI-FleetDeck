@@ -24,6 +24,7 @@
     "re:^common:status\\.(current|saving)$",
     "tools:skills.deleteClass",
     "re:^config:buildings\\.terminal(Config|Shell|Port|Args|Controls|SaveSession)$",
+    "re:^config:buildings\\.docker\\.",
     "config:scene.show2DTaskLabels",
     "re:^config:whatsappHub\\.",
     "re:^terminal:buildingAction\\.no(Start|Stop|Restart)Command$",

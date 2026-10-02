@@ -98,8 +98,8 @@ export function DockerConfigPanel({
             onChange={() => setDockerMode('container')}
           />
           <span className="docker-mode-icon">&#128230;</span>
-          <span className="docker-mode-label">Container</span>
-          <span className="docker-mode-desc">Create a new container</span>
+          <span className="docker-mode-label">{t('config:buildings.docker.modeContainer', { defaultValue: 'Container' })}</span>
+          <span className="docker-mode-desc">{t('config:buildings.docker.modeContainerDesc', { defaultValue: 'Create a new container' })}</span>
         </label>
         <label className={`docker-mode-option ${dockerMode === 'compose' ? 'active' : ''}`}>
           <input
@@ -110,8 +110,8 @@ export function DockerConfigPanel({
             onChange={() => setDockerMode('compose')}
           />
           <span className="docker-mode-icon">&#128736;</span>
-          <span className="docker-mode-label">Compose</span>
-          <span className="docker-mode-desc">Manage multiple services</span>
+          <span className="docker-mode-label">{t('config:buildings.docker.modeCompose', { defaultValue: 'Compose' })}</span>
+          <span className="docker-mode-desc">{t('config:buildings.docker.modeComposeDesc', { defaultValue: 'Manage multiple services' })}</span>
         </label>
         <label className={`docker-mode-option ${dockerMode === 'existing' ? 'active' : ''}`}>
           <input
@@ -122,8 +122,8 @@ export function DockerConfigPanel({
             onChange={() => setDockerMode('existing')}
           />
           <span className="docker-mode-icon">&#128270;</span>
-          <span className="docker-mode-label">Existing</span>
-          <span className="docker-mode-desc">Adopt existing container</span>
+          <span className="docker-mode-label">{t('config:buildings.docker.modeExisting', { defaultValue: 'Existing' })}</span>
+          <span className="docker-mode-desc">{t('config:buildings.docker.modeExistingDesc', { defaultValue: 'Adopt existing container' })}</span>
         </label>
       </div>
 
@@ -132,10 +132,10 @@ export function DockerConfigPanel({
         <>
           <div className="command-row">
             <span className="command-label">
-              Image:
+              {t('config:buildings.docker.imageLabel', { defaultValue: 'Image:' })}
               <HelpTooltip
-                text="Docker image to run, e.g., nginx:latest, redis:alpine, my-app:v1"
-                title="Image"
+                text={t('config:buildings.docker.imageTooltip', { defaultValue: 'Docker image to run, e.g., nginx:latest, redis:alpine, my-app:v1' })}
+                title={t('config:buildings.docker.imageTooltipTitle', { defaultValue: 'Image' })}
                 position="top"
                 size="sm"
               />
@@ -152,10 +152,10 @@ export function DockerConfigPanel({
 
           <div className="command-row">
             <span className="command-label">
-              Container Name:
+              {t('config:buildings.docker.containerNameLabel', { defaultValue: 'Container Name:' })}
               <HelpTooltip
-                text="Custom name for the container. If empty, auto-generated based on building name."
-                title="Container Name"
+                text={t('config:buildings.docker.containerNameTooltip', { defaultValue: 'Custom name for the container. If empty, auto-generated based on building name.' })}
+                title={t('config:buildings.docker.containerNameTooltipTitle', { defaultValue: 'Container Name' })}
                 position="top"
                 size="sm"
               />
@@ -165,16 +165,16 @@ export function DockerConfigPanel({
               className="form-input"
               value={dockerContainerName}
               onChange={(e) => setDockerContainerName(e.target.value)}
-              placeholder="Auto-generated (tc-{name}-{id})"
+              placeholder={t('config:buildings.docker.containerNamePlaceholder', { defaultValue: 'Auto-generated (tc-{name}-{id})' })}
             />
           </div>
 
           <div className="command-row">
             <span className="command-label">
-              Command:
+              {t('config:buildings.docker.commandLabel', { defaultValue: 'Command:' })}
               <HelpTooltip
-                text="Override the default container command. Leave empty to use image's CMD."
-                title="Command Override"
+                text={t('config:buildings.docker.commandTooltip', { defaultValue: "Override the default container command. Leave empty to use image's CMD." })}
+                title={t('config:buildings.docker.commandTooltipTitle', { defaultValue: 'Command Override' })}
                 position="top"
                 size="sm"
               />
@@ -184,20 +184,20 @@ export function DockerConfigPanel({
               className="form-input"
               value={dockerCommand}
               onChange={(e) => setDockerCommand(e.target.value)}
-              placeholder="Optional command override"
+              placeholder={t('config:buildings.docker.commandPlaceholder', { defaultValue: 'Optional command override' })}
             />
           </div>
 
           {/* Ports */}
           <div className="form-section docker-ports-section">
             <label className="form-label">
-              Port Mappings
+              {t('config:buildings.docker.portMappingsLabel', { defaultValue: 'Port Mappings' })}
               <button
                 type="button"
                 className="btn btn-sm btn-add"
                 onClick={() => setDockerPorts([...dockerPorts, ''])}
               >
-                + Add
+                + {t('common:buttons.add')}
               </button>
             </label>
             {dockerPorts.map((port, index) => (
@@ -211,7 +211,7 @@ export function DockerConfigPanel({
                     newPorts[index] = e.target.value;
                     setDockerPorts(newPorts);
                   }}
-                  placeholder="8080:80 or 3000"
+                  placeholder={t('config:buildings.docker.portPlaceholder', { defaultValue: '8080:80 or 3000' })}
                 />
                 <button
                   type="button"
@@ -224,7 +224,7 @@ export function DockerConfigPanel({
             ))}
             {dockerPorts.length === 0 && (
               <div className="form-hint">
-                Format: host:container (e.g., 8080:80) or same port (e.g., 3000)
+                {t('config:buildings.docker.portHint', { defaultValue: 'Format: host:container (e.g., 8080:80) or same port (e.g., 3000)' })}
               </div>
             )}
           </div>
@@ -232,13 +232,13 @@ export function DockerConfigPanel({
           {/* Volumes */}
           <div className="form-section docker-volumes-section">
             <label className="form-label">
-              Volume Mounts
+              {t('config:buildings.docker.volumeMountsLabel', { defaultValue: 'Volume Mounts' })}
               <button
                 type="button"
                 className="btn btn-sm btn-add"
                 onClick={() => setDockerVolumes([...dockerVolumes, ''])}
               >
-                + Add
+                + {t('common:buttons.add')}
               </button>
             </label>
             {dockerVolumes.map((volume, index) => (
@@ -252,7 +252,7 @@ export function DockerConfigPanel({
                     newVolumes[index] = e.target.value;
                     setDockerVolumes(newVolumes);
                   }}
-                  placeholder="./data:/app/data or /host/path:/container/path"
+                  placeholder={t('config:buildings.docker.volumePlaceholder', { defaultValue: './data:/app/data or /host/path:/container/path' })}
                 />
                 <button
                   type="button"
@@ -265,17 +265,17 @@ export function DockerConfigPanel({
             ))}
             {dockerVolumes.length === 0 && (
               <div className="form-hint">
-                Format: host_path:container_path (relative paths resolved from working directory)
+                {t('config:buildings.docker.volumeHint', { defaultValue: 'Format: host_path:container_path (relative paths resolved from working directory)' })}
               </div>
             )}
           </div>
 
           <div className="command-row">
             <span className="command-label">
-              Network:
+              {t('config:buildings.docker.networkLabel', { defaultValue: 'Network:' })}
               <HelpTooltip
-                text="Docker network to connect to. Leave empty for default bridge network."
-                title="Network"
+                text={t('config:buildings.docker.networkTooltip', { defaultValue: 'Docker network to connect to. Leave empty for default bridge network.' })}
+                title={t('config:buildings.docker.networkTooltipTitle', { defaultValue: 'Network' })}
                 position="top"
                 size="sm"
               />
@@ -285,16 +285,16 @@ export function DockerConfigPanel({
               className="form-input"
               value={dockerNetwork}
               onChange={(e) => setDockerNetwork(e.target.value)}
-              placeholder="bridge (default)"
+              placeholder={t('config:buildings.docker.networkPlaceholder', { defaultValue: 'bridge (default)' })}
             />
           </div>
 
           <div className="command-row">
             <span className="command-label">
-              Restart Policy:
+              {t('config:buildings.docker.restartPolicyLabel', { defaultValue: 'Restart Policy:' })}
               <HelpTooltip
-                text="When should Docker restart the container automatically?"
-                title="Restart Policy"
+                text={t('config:buildings.docker.restartPolicyTooltip', { defaultValue: 'When should Docker restart the container automatically?' })}
+                title={t('config:buildings.docker.restartPolicyTooltipTitle', { defaultValue: 'Restart Policy' })}
                 position="top"
                 size="sm"
               />
@@ -306,7 +306,7 @@ export function DockerConfigPanel({
             >
               {(Object.keys(DOCKER_RESTART_POLICIES) as DockerRestartPolicy[]).map((policy) => (
                 <option key={policy} value={policy}>
-                  {DOCKER_RESTART_POLICIES[policy].label}
+                  {t(`config:buildings.docker.restartPolicy.${policy}`, { defaultValue: DOCKER_RESTART_POLICIES[policy].label })}
                 </option>
               ))}
             </select>
@@ -319,10 +319,10 @@ export function DockerConfigPanel({
         <>
           <div className="command-row">
             <span className="command-label">
-              Compose File:
+              {t('config:buildings.docker.composeFileLabel', { defaultValue: 'Compose File:' })}
               <HelpTooltip
-                text="Path to docker-compose.yml file, relative to working directory."
-                title="Compose File"
+                text={t('config:buildings.docker.composeFileTooltip', { defaultValue: 'Path to docker-compose.yml file, relative to working directory.' })}
+                title={t('config:buildings.docker.composeFileTooltipTitle', { defaultValue: 'Compose File' })}
                 position="top"
                 size="sm"
               />
@@ -338,10 +338,10 @@ export function DockerConfigPanel({
 
           <div className="command-row">
             <span className="command-label">
-              Project Name:
+              {t('config:buildings.docker.projectNameLabel', { defaultValue: 'Project Name:' })}
               <HelpTooltip
-                text="Override the compose project name. Leave empty for auto-generated name."
-                title="Project Name"
+                text={t('config:buildings.docker.projectNameTooltip', { defaultValue: 'Override the compose project name. Leave empty for auto-generated name.' })}
+                title={t('config:buildings.docker.projectNameTooltipTitle', { defaultValue: 'Project Name' })}
                 position="top"
                 size="sm"
               />
@@ -351,16 +351,16 @@ export function DockerConfigPanel({
               className="form-input"
               value={dockerComposeProject}
               onChange={(e) => setDockerComposeProject(e.target.value)}
-              placeholder="Auto-generated"
+              placeholder={t('config:buildings.docker.projectNamePlaceholder', { defaultValue: 'Auto-generated' })}
             />
           </div>
 
           <div className="command-row">
             <span className="command-label">
-              Services:
+              {t('config:buildings.docker.servicesLabel', { defaultValue: 'Services:' })}
               <HelpTooltip
-                text="Specific services to manage (comma-separated). Leave empty for all services."
-                title="Services"
+                text={t('config:buildings.docker.servicesTooltip', { defaultValue: 'Specific services to manage (comma-separated). Leave empty for all services.' })}
+                title={t('config:buildings.docker.servicesTooltipTitle', { defaultValue: 'Services' })}
                 position="top"
                 size="sm"
               />
@@ -370,7 +370,7 @@ export function DockerConfigPanel({
               className="form-input"
               value={dockerComposeServices}
               onChange={(e) => setDockerComposeServices(e.target.value)}
-              placeholder="All services (or: api, db, redis)"
+              placeholder={t('config:buildings.docker.servicesPlaceholder', { defaultValue: 'All services (or: api, db, redis)' })}
             />
           </div>
         </>
@@ -381,10 +381,10 @@ export function DockerConfigPanel({
         <div className="docker-existing-section">
           <div className="command-row">
             <span className="command-label">
-              Select Container:
+              {t('config:buildings.docker.selectContainerLabel', { defaultValue: 'Select Container:' })}
               <HelpTooltip
-                text="Choose an existing Docker container to monitor and control. The container will not be deleted when removing the building."
-                title="Existing Container"
+                text={t('config:buildings.docker.selectContainerTooltip', { defaultValue: 'Choose an existing Docker container to monitor and control. The container will not be deleted when removing the building.' })}
+                title={t('config:buildings.docker.selectContainerTooltipTitle', { defaultValue: 'Existing Container' })}
                 position="top"
                 size="sm"
               />
@@ -396,7 +396,7 @@ export function DockerConfigPanel({
                 onChange={(e) => setSelectedExistingContainer(e.target.value)}
                 required={dockerMode === 'existing'}
               >
-                <option value="">Select a container...</option>
+                <option value="">{t('config:buildings.docker.selectContainerPlaceholder', { defaultValue: 'Select a container...' })}</option>
                 {dockerContainersList.map((container: ExistingDockerContainer) => (
                   <option key={container.id} value={container.name}>
                     {container.name} ({container.image}) - {container.state}
@@ -407,7 +407,7 @@ export function DockerConfigPanel({
                 type="button"
                 className="btn btn-sm"
                 onClick={() => store.requestDockerContainersList()}
-                title="Refresh container list"
+                title={t('config:buildings.docker.refreshContainerListTitle', { defaultValue: 'Refresh container list' })}
               >
                 &#8635;
               </button>
@@ -415,7 +415,7 @@ export function DockerConfigPanel({
           </div>
           {dockerContainersList.length === 0 && (
             <div className="form-hint docker-existing-hint">
-              No containers found. Make sure Docker is running and you have containers available.
+              {t('config:buildings.docker.noContainersHint', { defaultValue: 'No containers found. Make sure Docker is running and you have containers available.' })}
             </div>
           )}
           {selectedExistingContainer && (
@@ -426,22 +426,22 @@ export function DockerConfigPanel({
                 return (
                   <>
                     <div className="docker-existing-info-row">
-                      <span className="docker-existing-info-label">Image:</span>
+                      <span className="docker-existing-info-label">{t('config:buildings.docker.imageLabel', { defaultValue: 'Image:' })}</span>
                       <span className="docker-existing-info-value">{container.image}</span>
                     </div>
                     <div className="docker-existing-info-row">
-                      <span className="docker-existing-info-label">Status:</span>
+                      <span className="docker-existing-info-label">{t('config:buildings.docker.existingInfoStatus', { defaultValue: 'Status:' })}</span>
                       <span className={`docker-existing-info-value docker-status-${container.status}`}>
                         {container.state}
                       </span>
                     </div>
                     <div className="docker-existing-info-row">
-                      <span className="docker-existing-info-label">ID:</span>
+                      <span className="docker-existing-info-label">{t('config:buildings.docker.existingInfoId', { defaultValue: 'ID:' })}</span>
                       <span className="docker-existing-info-value">{container.id.slice(0, 12)}</span>
                     </div>
                     {container.ports.length > 0 && (
                       <div className="docker-existing-info-row">
-                        <span className="docker-existing-info-label">Ports:</span>
+                        <span className="docker-existing-info-label">{t('config:buildings.docker.existingInfoPorts', { defaultValue: 'Ports:' })}</span>
                         <span className="docker-existing-info-value">
                           {container.ports.map(p => `${p.host}:${p.container}/${p.protocol}`).join(', ')}
                         </span>
@@ -453,7 +453,7 @@ export function DockerConfigPanel({
             </div>
           )}
           <div className="form-hint">
-            Note: Existing containers will not be deleted when you remove this building.
+            {t('config:buildings.docker.existingNote', { defaultValue: 'Note: Existing containers will not be deleted when you remove this building.' })}
           </div>
         </div>
       )}
@@ -463,10 +463,10 @@ export function DockerConfigPanel({
       <>
       <div className="command-row">
         <span className="command-label">
-          Pull Policy:
+          {t('config:buildings.docker.pullPolicyLabel', { defaultValue: 'Pull Policy:' })}
           <HelpTooltip
-            text="When to pull images: always, only if missing, or never."
-            title="Pull Policy"
+            text={t('config:buildings.docker.pullPolicyTooltip', { defaultValue: 'When to pull images: always, only if missing, or never.' })}
+            title={t('config:buildings.docker.pullPolicyTooltipTitle', { defaultValue: 'Pull Policy' })}
             position="top"
             size="sm"
           />
@@ -478,7 +478,7 @@ export function DockerConfigPanel({
         >
           {(Object.keys(DOCKER_PULL_POLICIES) as DockerPullPolicy[]).map((policy) => (
             <option key={policy} value={policy}>
-              {DOCKER_PULL_POLICIES[policy].label}
+              {t(`config:buildings.docker.pullPolicy.${policy}`, { defaultValue: DOCKER_PULL_POLICIES[policy].label })}
             </option>
           ))}
         </select>
@@ -486,10 +486,10 @@ export function DockerConfigPanel({
 
       <div className="command-row env-row">
         <span className="command-label">
-          Environment:
+          {t('config:buildings.docker.environmentLabel', { defaultValue: 'Environment:' })}
           <HelpTooltip
-            text="Environment variables in KEY=value format, one per line."
-            title="Environment Variables"
+            text={t('config:buildings.docker.environmentTooltip', { defaultValue: 'Environment variables in KEY=value format, one per line.' })}
+            title={t('config:buildings.docker.environmentTooltipTitle', { defaultValue: 'Environment Variables' })}
             position="top"
             size="sm"
           />
@@ -510,28 +510,28 @@ export function DockerConfigPanel({
         <div className="docker-status-display">
           <div className="docker-status-row">
             <span className="docker-metric">
-              <span className="docker-metric-label">ID</span>
+              <span className="docker-metric-label">{t('config:buildings.docker.metricId', { defaultValue: 'ID' })}</span>
               <span className="docker-metric-value">{building.dockerStatus.containerId || '-'}</span>
             </span>
             <span className="docker-metric">
-              <span className="docker-metric-label">Status</span>
+              <span className="docker-metric-label">{t('config:buildings.docker.metricStatus', { defaultValue: 'Status' })}</span>
               <span className="docker-metric-value">{building.dockerStatus.status || '-'}</span>
             </span>
             {building.dockerStatus.health && building.dockerStatus.health !== 'none' && (
               <span className="docker-metric">
-                <span className="docker-metric-label">Health</span>
+                <span className="docker-metric-label">{t('config:buildings.docker.metricHealth', { defaultValue: 'Health' })}</span>
                 <span className="docker-metric-value">{building.dockerStatus.health}</span>
               </span>
             )}
             {building.dockerStatus.cpu !== undefined && (
               <span className="docker-metric">
-                <span className="docker-metric-label">CPU</span>
+                <span className="docker-metric-label">{t('config:buildings.docker.metricCpu', { defaultValue: 'CPU' })}</span>
                 <span className="docker-metric-value">{building.dockerStatus.cpu.toFixed(1)}%</span>
               </span>
             )}
             {building.dockerStatus.memory !== undefined && (
               <span className="docker-metric">
-                <span className="docker-metric-label">MEM</span>
+                <span className="docker-metric-label">{t('config:buildings.docker.metricMem', { defaultValue: 'MEM' })}</span>
                 <span className="docker-metric-value">
                   {formatBytes(building.dockerStatus.memory)}
                   {building.dockerStatus.memoryLimit ? ` / ${formatBytes(building.dockerStatus.memoryLimit)}` : ''}
@@ -541,7 +541,7 @@ export function DockerConfigPanel({
           </div>
           {building.dockerStatus.ports && building.dockerStatus.ports.length > 0 && (
             <div className="docker-ports-row">
-              <span className="docker-metric-label">Ports:</span>
+              <span className="docker-metric-label">{t('config:buildings.docker.existingInfoPorts', { defaultValue: 'Ports:' })}</span>
               {building.dockerStatus.ports.map((p, i) => (
                 <a
                   key={i}
@@ -558,7 +558,7 @@ export function DockerConfigPanel({
           {/* Compose services status */}
           {building.dockerStatus.services && building.dockerStatus.services.length > 0 && (
             <div className="docker-services-status">
-              <span className="docker-metric-label">Services:</span>
+              <span className="docker-metric-label">{t('config:buildings.docker.servicesLabel', { defaultValue: 'Services:' })}</span>
               <div className="docker-services-grid">
                 {building.dockerStatus.services.map((svc, i) => (
                   <div key={i} className="docker-service-item">
@@ -584,28 +584,28 @@ export function DockerConfigPanel({
             className="btn btn-sm btn-success"
             onClick={() => handleCommand('start')}
           >
-            Start
+            {t('common:buttons.start')}
           </button>
           <button
             type="button"
             className="btn btn-sm btn-danger"
             onClick={() => handleCommand('stop')}
           >
-            Stop
+            {t('common:buttons.stop')}
           </button>
           <button
             type="button"
             className="btn btn-sm btn-warning"
             onClick={() => handleCommand('restart')}
           >
-            Restart
+            {t('config:buildings.docker.actionRestart', { defaultValue: 'Restart' })}
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() => handleCommand('logs')}
           >
-            Logs
+            {t('config:buildings.docker.actionLogs', { defaultValue: 'Logs' })}
           </button>
         </div>
       )}
