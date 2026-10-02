@@ -12,6 +12,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { AgentPrompt } from '../../../shared/types';
@@ -42,6 +43,7 @@ export function AgentPromptCard({ prompt }: AgentPromptCardProps) {
 // ─── AskUserQuestion ────────────────────────────────────────────────────────
 
 function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
+  const { t } = useTranslation('terminal');
   const questions = useMemo<Question[]>(() => {
     const raw = (prompt.input?.questions as Question[] | undefined) ?? [];
     return Array.isArray(raw) ? raw : [];
@@ -99,8 +101,12 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
     <div className="agent-prompt-card askuserquestion">
       <div className="agent-prompt-header">
         <Icon name="question" size={14} />
-        <span className="agent-prompt-title">Agent is asking</span>
-        <span className="agent-prompt-badge">{questions.length} question{questions.length === 1 ? '' : 's'}</span>
+        <span className="agent-prompt-title">{t('terminal:agentPromptCard.asking', { defaultValue: 'Agent is asking' })}</span>
+        <span className="agent-prompt-badge">
+          {questions.length === 1
+            ? t('terminal:agentPromptCard.questionOne', { defaultValue: '{{n}} question', n: questions.length })
+            : t('terminal:agentPromptCard.questionMany', { defaultValue: '{{n}} questions', n: questions.length })}
+        </span>
       </div>
       <div className="agent-prompt-questions">
         {questions.map((q, idx) => {
@@ -111,7 +117,7 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
               <div className="agent-prompt-question-header">
                 {q.header && <span className="agent-prompt-question-tag">{q.header}</span>}
                 <span className="agent-prompt-question-text">{q.question}</span>
-                {q.multiSelect && <span className="agent-prompt-multi">(multi)</span>}
+                {q.multiSelect && <span className="agent-prompt-multi">{t('terminal:agentPromptCard.multi', { defaultValue: '(multi)' })}</span>}
                 {answered && <span className="agent-prompt-answered-mark">✓</span>}
               </div>
               <div className="agent-prompt-options">
@@ -136,7 +142,7 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
               <div className="agent-prompt-freetext">
                 <input
                   type="text"
-                  placeholder="Or type your own answer…"
+                  placeholder={t('terminal:agentPromptCard.freeTextPlaceholder', { defaultValue: 'Or type your own answer…' })}
                   value={freeText[q.question] ?? ''}
                   onChange={(e) => setFreeText((p) => ({ ...p, [q.question]: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyFreeText(q); } }}
@@ -147,7 +153,7 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
                   onClick={() => applyFreeText(q)}
                   disabled={submitting || !(freeText[q.question] ?? '').trim()}
                 >
-                  Use
+                  {t('terminal:agentPromptCard.use', { defaultValue: 'Use' })}
                 </button>
               </div>
             </div>
@@ -157,19 +163,21 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
       <div className="agent-prompt-actions">
         <span className={`agent-prompt-progress ${allAnswered ? 'complete' : ''}`}>
           {allAnswered
-            ? 'All questions answered'
-            : `${answeredCount} of ${questions.length} answered — pick the missing ones to submit`}
+            ? t('terminal:agentPromptCard.allAnswered', { defaultValue: 'All questions answered' })
+            : t('terminal:agentPromptCard.progress', { defaultValue: '{{answered}} of {{total}} answered — pick the missing ones to submit', answered: answeredCount, total: questions.length })}
         </span>
         <button className="agent-prompt-btn deny" onClick={decline} disabled={submitting}>
-          <Icon name="close" size={12} /> Decline
+          <Icon name="close" size={12} /> {t('terminal:agentPromptCard.decline', { defaultValue: 'Decline' })}
         </button>
         <button
           className="agent-prompt-btn approve"
           onClick={submit}
           disabled={submitting || !allAnswered}
-          title={allAnswered ? 'Submit answers' : `${questions.length - answeredCount} unanswered`}
+          title={allAnswered
+            ? t('terminal:agentPromptCard.submitAnswers', { defaultValue: 'Submit answers' })
+            : t('terminal:agentPromptCard.unanswered', { defaultValue: '{{n}} unanswered', n: questions.length - answeredCount })}
         >
-          <Icon name="check" size={12} /> Submit answers
+          <Icon name="check" size={12} /> {t('terminal:agentPromptCard.submitAnswers', { defaultValue: 'Submit answers' })}
         </button>
       </div>
     </div>
@@ -179,6 +187,7 @@ function AskUserQuestionCard({ prompt }: { prompt: AgentPrompt }) {
 // ─── ExitPlanMode ───────────────────────────────────────────────────────────
 
 function ExitPlanModeCard({ prompt }: { prompt: AgentPrompt }) {
+  const { t } = useTranslation('terminal');
   const plan = typeof prompt.input?.plan === 'string' ? (prompt.input.plan as string) : '';
   const [expanded, setExpanded] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -198,9 +207,11 @@ function ExitPlanModeCard({ prompt }: { prompt: AgentPrompt }) {
     <div className="agent-prompt-card exitplanmode">
       <div className="agent-prompt-header">
         <Icon name="map" size={14} />
-        <span className="agent-prompt-title">Plan ready — approve to exit plan mode</span>
+        <span className="agent-prompt-title">{t('terminal:agentPromptCard.planReady', { defaultValue: 'Plan ready — approve to exit plan mode' })}</span>
         <button className="agent-prompt-toggle" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? 'Hide plan' : 'Show plan'}
+          {expanded
+            ? t('terminal:agentPromptCard.hidePlan', { defaultValue: 'Hide plan' })
+            : t('terminal:agentPromptCard.showPlan', { defaultValue: 'Show plan' })}
         </button>
       </div>
       {expanded && plan && (
@@ -210,10 +221,10 @@ function ExitPlanModeCard({ prompt }: { prompt: AgentPrompt }) {
       )}
       <div className="agent-prompt-actions">
         <button className="agent-prompt-btn deny" onClick={reject} disabled={submitting}>
-          <Icon name="close" size={12} /> Reject
+          <Icon name="close" size={12} /> {t('terminal:agentPromptCard.reject', { defaultValue: 'Reject' })}
         </button>
         <button className="agent-prompt-btn approve" onClick={approve} disabled={submitting}>
-          <Icon name="check" size={12} /> Approve plan
+          <Icon name="check" size={12} /> {t('terminal:agentPromptCard.approvePlan', { defaultValue: 'Approve plan' })}
         </button>
       </div>
     </div>

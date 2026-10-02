@@ -8,6 +8,7 @@
  */
 
 import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, type IconName } from '../Icon';
 import { store, useTestRun, type TestRun } from '../../store';
 import { ansiToHtml } from '../../utils/ansiToHtml';
@@ -72,10 +73,13 @@ const SuiteRow = memo(function SuiteRow({ suite }: { suite: TestSuiteResult }) {
 // The suite tree only depends on `result` (which changes on progress/completed,
 // NOT on every console line), so memoizing it keeps output updates cheap.
 const SuiteTree = memo(function SuiteTree({ result, isRunning }: { result?: TestRunResult; isRunning: boolean }) {
+  const { t } = useTranslation('terminal');
   return (
     <div className="tri-suites">
       {!result || result.suites.length === 0 ? (
-        <div className="tri-empty">{isRunning ? 'Running… waiting for the first suite' : 'No results.'}</div>
+        <div className="tri-empty">{isRunning
+          ? t('terminal:testRun.waitingFirstSuite', { defaultValue: 'Running… waiting for the first suite' })
+          : t('terminal:testRun.noResults', { defaultValue: 'No results.' })}</div>
       ) : (
         result.suites.map((s) => <SuiteRow key={s.name} suite={s} />)
       )}
@@ -84,6 +88,7 @@ const SuiteTree = memo(function SuiteTree({ result, isRunning }: { result?: Test
 });
 
 export function TestRunInline({ runId }: { runId: string }) {
+  const { t } = useTranslation('terminal');
   const run = useTestRun(runId);
   const [showConsole, setShowConsole] = useState(false);
   // Console lines only rendered when the toggle is open (keeps output updates cheap).
@@ -102,12 +107,14 @@ export function TestRunInline({ runId }: { runId: string }) {
       <div
         className="tri-header"
         onClick={() => store.openTestResultsForRun(run.runId)}
-        title="Open the full test results panel"
+        title={t('terminal:testRun.openPanelTitle', { defaultValue: 'Open the full test results panel' })}
       >
         {isRunning && <span className="tri-spin" />}
         <Icon name="flask" size={12} />
         <span className="tri-status" style={{ color: RUN_COLOR[run.status] }}>
-          {isRunning ? 'Running tests' : `Tests ${run.status}`}
+          {isRunning
+            ? t('terminal:testRun.runningTests', { defaultValue: 'Running tests' })
+            : t('terminal:testRun.testsStatus', { defaultValue: 'Tests {{status}}', status: run.status })}
         </span>
         {totals && (
           <span className="tri-counts">
@@ -117,13 +124,15 @@ export function TestRunInline({ runId }: { runId: string }) {
             <span className="tot">/ {totals.tests}</span>
           </span>
         )}
-        <span className="tri-open">open panel ↗</span>
+        <span className="tri-open">{t('terminal:testRun.openPanel', { defaultValue: 'open panel ↗' })}</span>
       </div>
 
       <SuiteTree result={result} isRunning={isRunning} />
 
       <button className="tri-console-toggle" onClick={() => setShowConsole((v) => !v)}>
-        <Icon name={showConsole ? 'caret-down' : 'caret-right'} size={9} /> {showConsole ? 'Hide console' : 'Show console'}
+        <Icon name={showConsole ? 'caret-down' : 'caret-right'} size={9} /> {showConsole
+          ? t('terminal:testRun.hideConsole', { defaultValue: 'Hide console' })
+          : t('terminal:testRun.showConsole', { defaultValue: 'Show console' })}
       </button>
       {showConsole && (
         <div className="tri-console">

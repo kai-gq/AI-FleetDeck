@@ -6,6 +6,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { HttpResultsCardData, HttpRunRow } from './httpResultsParser';
@@ -45,17 +46,6 @@ function fmtSize(bytes: number | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function fmtAgo(ms: number | undefined): string {
-  if (!ms) return '';
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
 function StatusPill({ row }: { row: HttpRunRow }) {
   const color = statusColor(row);
   return (
@@ -66,6 +56,7 @@ function StatusPill({ row }: { row: HttpRunRow }) {
 }
 
 export function HttpResultsCard({ data }: { data: HttpResultsCardData }) {
+  const { t } = useTranslation(['terminal', 'common']);
   // Prism-colorize JSON previews (token CSS is global, shipped by the file
   // explorer's syntax theme). Hook must run unconditionally — before the
   // list-kind early return.
@@ -76,15 +67,28 @@ export function HttpResultsCard({ data }: { data: HttpResultsCardData }) {
     return t.startsWith('{') || t.startsWith('[') ? highlightCode(preview, 'json') : null;
   }, [data]);
 
+  const fmtAgo = (ms: number | undefined): string => {
+    if (!ms) return '';
+    const diff = Date.now() - ms;
+    if (diff < 60_000) return t('common:time.justNow');
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 60) return t('terminal:httpResults.minsAgo', { defaultValue: '{{n}}m ago', n: mins });
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return t('terminal:httpResults.hoursAgo', { defaultValue: '{{n}}h ago', n: hours });
+    return t('terminal:httpResults.daysAgo', { defaultValue: '{{n}}d ago', n: Math.floor(hours / 24) });
+  };
+
   if (data.kind === 'list') {
     const okCount = data.rows.filter((r) => r.ok && (r.status ?? 600) < 400).length;
     return (
       <div className="http-results-card list">
         <div className="hrc-header">
           <span className="hrc-title">
-            <Icon name="globe" size={13} /> HTTP requests · {data.total} run{data.total === 1 ? '' : 's'}
+            <Icon name="globe" size={13} /> {data.total === 1
+              ? t('terminal:httpResults.titleOne', { defaultValue: 'HTTP requests · {{n}} run', n: data.total })
+              : t('terminal:httpResults.titleMany', { defaultValue: 'HTTP requests · {{n}} runs', n: data.total })}
           </span>
-          <span className="hrc-meta">{okCount}/{data.rows.length} ok shown</span>
+          <span className="hrc-meta">{t('terminal:httpResults.okShown', { defaultValue: '{{ok}}/{{total}} ok shown', ok: okCount, total: data.rows.length })}</span>
         </div>
         <div className="hrc-rows">
           {data.rows.map((r, i) => (
@@ -97,7 +101,7 @@ export function HttpResultsCard({ data }: { data: HttpResultsCardData }) {
               {r.finishedAt !== undefined && <span className="hrc-meta when">{fmtAgo(r.finishedAt)}</span>}
             </div>
           ))}
-          {data.total > data.rows.length && <div className="hrc-more">+{data.total - data.rows.length} more</div>}
+          {data.total > data.rows.length && <div className="hrc-more">{t('terminal:httpResults.more', { defaultValue: '+{{n}} more', n: data.total - data.rows.length })}</div>}
         </div>
       </div>
     );
@@ -124,7 +128,7 @@ export function HttpResultsCard({ data }: { data: HttpResultsCardData }) {
       )}
       {data.unresolvedVariables && (
         <div className="hrc-warn">
-          <Icon name="warning-circle" size={12} /> Unresolved: {data.unresolvedVariables.map((v) => `{{${v}}}`).join(' ')}
+          <Icon name="warning-circle" size={12} /> {t('terminal:httpResults.unresolved', { defaultValue: 'Unresolved:' })} {data.unresolvedVariables.map((v) => `{{${v}}}`).join(' ')}
         </div>
       )}
 
@@ -134,7 +138,7 @@ export function HttpResultsCard({ data }: { data: HttpResultsCardData }) {
         ) : (
           <pre className="hrc-body">
             {data.bodyPreview}
-            {data.bodyTruncated && '\n… [response truncated at 2 MB]'}
+            {data.bodyTruncated && `\n${t('terminal:httpResults.truncated', { defaultValue: '… [response truncated at 2 MB]' })}`}
           </pre>
         ))}
     </div>

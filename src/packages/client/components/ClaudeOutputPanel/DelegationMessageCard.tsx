@@ -1,4 +1,5 @@
 import React, { useCallback, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownComponents as defaultMarkdownComponents } from './MarkdownComponents';
@@ -17,6 +18,7 @@ interface DelegationMessageCardProps {
 }
 
 export function DelegationMessageCard({ bossName, body }: DelegationMessageCardProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [expanded, setExpanded] = useState(false);
   const bodyId = useId();
 
@@ -35,7 +37,7 @@ export function DelegationMessageCard({ bossName, body }: DelegationMessageCardP
           <Icon name="task" size={12} />
         </span>
         <span className="delegation-message-title-text">
-          Task delegated from{' '}
+          {t('terminal:delegationCard.delegatedFrom', { defaultValue: 'Task delegated from' })}{' '}
           <strong className="delegation-message-boss-name">{bossName}</strong>
         </span>
       </div>
@@ -56,7 +58,7 @@ export function DelegationMessageCard({ bossName, body }: DelegationMessageCardP
             aria-expanded={expanded}
             aria-controls={bodyId}
           >
-            <span>{expanded ? 'Show less' : 'Show more'}</span>
+            <span>{expanded ? t('common:buttons.showLess') : t('common:buttons.showMore')}</span>
             <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
           </button>
         </div>

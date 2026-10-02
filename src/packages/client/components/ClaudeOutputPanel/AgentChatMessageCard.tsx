@@ -1,4 +1,5 @@
 import React, { useCallback, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownComponents as defaultMarkdownComponents } from './MarkdownComponents';
@@ -21,6 +22,7 @@ interface AgentChatMessageCardProps {
 }
 
 export function AgentChatMessageCard({ senderName, senderId, body }: AgentChatMessageCardProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const sender = useAgent(senderId);
   const [expanded, setExpanded] = useState(false);
   const bodyId = useId();
@@ -48,7 +50,7 @@ export function AgentChatMessageCard({ senderName, senderId, body }: AgentChatMe
           <Icon name="envelope-simple" size={12} />
         </span>
         <span className="agent-chat-message-title-text">
-          Message from{' '}
+          {t('terminal:chatMessageCard.from', { defaultValue: 'Message from' })}{' '}
           {sender ? (
             <span className="agent-chat-message-sender clickable-agent-name" onClick={handleSenderClick}>
               <AgentIcon agent={sender} size={12} />
@@ -79,7 +81,7 @@ export function AgentChatMessageCard({ senderName, senderId, body }: AgentChatMe
             aria-expanded={expanded}
             aria-controls={bodyId}
           >
-            <span>{expanded ? 'Show less' : 'Show more'}</span>
+            <span>{expanded ? t('common:buttons.showLess') : t('common:buttons.showMore')}</span>
             <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
           </button>
         </div>

@@ -8,7 +8,9 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
+import { getI18nInstance } from '../../utils/formatting';
 import { renderBodyWithAttachments } from './AttachmentChip';
 
 export interface SlackMessage {
@@ -150,7 +152,13 @@ function channelLabel(msg: SlackMessage): string {
   // Legacy (id-only) format. Render a kind-specific fallback.
   if (!msg.channel) return '—';
   if (msg.channelKind === 'dm') return 'DM';
-  if (msg.channelKind === 'group') return `grupo · ${msg.channel}`;
+  if (msg.channelKind === 'group') {
+    const i18n = getI18nInstance();
+    const t = i18n?.t?.bind(i18n);
+    return t
+      ? t('terminal:slackBubble.groupLabel', { defaultValue: 'group · {{channel}}', channel: msg.channel })
+      : `group · ${msg.channel}`;
+  }
   return `#${msg.channel}`;
 }
 
@@ -173,7 +181,10 @@ interface SlackMessageBubbleProps {
 }
 
 export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.ReactElement {
-  const dirLabel = msg.direction === 'outbound' ? 'enviado' : 'recibido';
+  const { t } = useTranslation('terminal');
+  const dirLabel = msg.direction === 'outbound'
+    ? t('terminal:slackBubble.sent', { defaultValue: 'sent' })
+    : t('terminal:slackBubble.received', { defaultValue: 'received' });
   const fromLabel = msg.fromName || msg.rawFrom || '—';
   const channelTxt = channelLabel(msg);
   const channelTooltip = msg.channel && msg.channelName ? `${msg.channelName} · ${msg.channel}` : (msg.channel || msg.channelName);
@@ -181,7 +192,7 @@ export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.Reac
 
   return (
     <div className={`slack-row slack-row--${msg.direction}`}>
-      <div className="slack-bubble" role="group" aria-label="Slack message">
+      <div className="slack-bubble" role="group" aria-label={t('terminal:slackBubble.ariaMessage', { defaultValue: 'Slack message' })}>
         <div className="slack-bubble__header">
           <span className="slack-bubble__avatar" aria-hidden="true">{initialsFor(fromLabel)}</span>
           <div className="slack-bubble__person">
@@ -198,7 +209,7 @@ export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.Reac
             )}
           </span>
           {msg.instance && (
-            <span className="slack-bubble__instance" title={`Workspace: ${msg.instance}`}>{msg.instance}</span>
+            <span className="slack-bubble__instance" title={t('terminal:slackBubble.workspaceTitle', { defaultValue: 'Workspace: {{name}}', name: msg.instance })}>{msg.instance}</span>
           )}
         </div>
 
@@ -216,14 +227,14 @@ export function SlackMessageBubble({ msg }: SlackMessageBubbleProps): React.Reac
         <div className="slack-bubble__body">
           {msg.body
             ? renderBodyWithAttachments(msg.body, 'slack-bubble__link')
-            : <span className="slack-bubble__empty">(sin texto)</span>}
+            : <span className="slack-bubble__empty">{t('terminal:slackBubble.noText', { defaultValue: '(no text)' })}</span>}
         </div>
 
         <div className="slack-bubble__footer">
           <span className="slack-bubble__brand">Slack · {dirLabel}</span>
           {threadShort && (
             <span className="slack-bubble__thread" title={`thread_ts ${msg.thread}`}>
-              thread #{threadShort}
+              {t('terminal:slackBubble.threadLabel', { defaultValue: 'thread #{{id}}', id: threadShort })}
             </span>
           )}
         </div>

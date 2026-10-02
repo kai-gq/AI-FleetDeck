@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, type IconName } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { useModalClose } from '../../hooks/useModalClose';
@@ -82,6 +83,7 @@ function iconForKind(kind: Kind): IconName {
 }
 
 export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onClose }: WhatsAppAttachmentPreviewProps): React.ReactElement | null {
+  const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown, handleClick } = useModalClose(onClose);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [textError, setTextError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
       <ImageModal
         url={url}
         name={effectiveName}
-        subtitle={[mimetype || 'unknown type', humanSize(size)].filter(Boolean).join(' · ')}
+        subtitle={[mimetype || t('terminal:whatsappAttachment.unknownType', { defaultValue: 'unknown type' }), humanSize(size)].filter(Boolean).join(' · ')}
         downloadName={effectiveName}
         onClose={onClose}
       />
@@ -139,10 +141,10 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
     }
     if (kind === 'text') {
       if (textError) {
-        return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Failed to load preview: {textError}</div>;
+        return <div style={{ padding: 16, color: 'var(--text-muted)' }}>{t('terminal:whatsappAttachment.previewFailed', { defaultValue: 'Failed to load preview:' })} {textError}</div>;
       }
       if (textContent === null) {
-        return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading…</div>;
+        return <div style={{ padding: 16, color: 'var(--text-muted)' }}>{t('terminal:whatsappAttachment.loading', { defaultValue: 'Loading…' })}</div>;
       }
       return (
         <pre style={{
@@ -164,8 +166,8 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
     return (
       <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)' }}>
         <Icon name="file" size={48} />
-        <div style={{ marginTop: 12 }}>No inline preview available for this file type.</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>Use the download button below to open it locally.</div>
+        <div style={{ marginTop: 12 }}>{t('terminal:whatsappAttachment.noInlinePreview', { defaultValue: 'No inline preview available for this file type.' })}</div>
+        <div style={{ fontSize: 12, marginTop: 4 }}>{t('terminal:whatsappAttachment.downloadHint', { defaultValue: 'Use the download button below to open it locally.' })}</div>
       </div>
     );
   })();
@@ -183,7 +185,7 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
          *  popover. This container is sized by its content up to 90vw/90vh. */}
         <div
           role="dialog"
-          aria-label="WhatsApp attachment preview"
+          aria-label={t('terminal:whatsappAttachment.ariaPreview', { defaultValue: 'WhatsApp attachment preview' })}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -214,14 +216,14 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
                 {effectiveName}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}>
-                {[mimetype || 'unknown type', humanSize(size)].filter(Boolean).join(' · ')}
+                {[mimetype || t('terminal:whatsappAttachment.unknownType', { defaultValue: 'unknown type' }), humanSize(size)].filter(Boolean).join(' · ')}
               </div>
             </div>
             <a
               href={url}
               download={effectiveName}
               className="btn btn-secondary btn-sm"
-              title="Download"
+              title={t('common:buttons.download')}
               style={{ textDecoration: 'none' }}
             >
               <Icon name="download" size={12} />
@@ -229,8 +231,8 @@ export function WhatsAppAttachmentPreview({ path, mimetype, filename, size, onCl
             <button
               className="btn btn-secondary btn-sm"
               onClick={onClose}
-              aria-label="Close"
-              title="Close (Esc)"
+              aria-label={t('common:buttons.close')}
+              title={t('terminal:logs.closeEsc')}
             >
               ×
             </button>

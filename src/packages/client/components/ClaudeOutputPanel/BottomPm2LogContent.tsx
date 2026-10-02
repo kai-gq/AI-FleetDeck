@@ -6,6 +6,7 @@
  */
 
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStreamingBuildingLogs } from '../../store/selectors';
 import { trimLogBufferByLines } from '../../utils/logRetention';
@@ -20,6 +21,7 @@ export const BottomPm2LogContent = memo(function BottomPm2LogContent({
   filterText: string;
   maxRetention: number | null;
 }) {
+  const { t } = useTranslation('terminal');
   const streamingBuildingLogs = useStreamingBuildingLogs();
   const logs = streamingBuildingLogs.get(buildingId) || '';
   const logRef = useRef<HTMLDivElement>(null);
@@ -76,10 +78,10 @@ export const BottomPm2LogContent = memo(function BottomPm2LogContent({
   ), [visibleLines]);
 
   const emptyMessage = useMemo(() => {
-    if (!retainedLogs) return 'Waiting for logs...';
-    if (normalizedFilter && !visibleLogs) return 'No log lines match the current filter.';
+    if (!retainedLogs) return t('terminal:logs.waitingForLogs');
+    if (normalizedFilter && !visibleLogs) return t('terminal:pm2Log.noFilterMatch', { defaultValue: 'No log lines match the current filter.' });
     return null;
-  }, [retainedLogs, normalizedFilter, visibleLogs]);
+  }, [retainedLogs, normalizedFilter, visibleLogs, t]);
 
   const virtualizer = useVirtualizer({
     count: lineHtml.length,

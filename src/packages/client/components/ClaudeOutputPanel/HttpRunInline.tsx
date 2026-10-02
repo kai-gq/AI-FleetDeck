@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { store, useHttpRun } from '../../store';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
@@ -89,6 +90,7 @@ export function matchHttpRunHandle(
 }
 
 export function HttpRunInline({ runId }: { runId: string }) {
+  const { t } = useTranslation('terminal');
   const run = useHttpRun(runId);
   const [showBody, setShowBody] = useState(true);
   const [showHeaders, setShowHeaders] = useState(false);
@@ -133,7 +135,7 @@ export function HttpRunInline({ runId }: { runId: string }) {
         </span>
         {running ? (
           <span className="hri-running">
-            <span className="hri-spin" /> running…
+            <span className="hri-spin" /> {t('terminal:httpRun.running', { defaultValue: 'running…' })}
           </span>
         ) : (
           <>
@@ -154,18 +156,18 @@ export function HttpRunInline({ runId }: { runId: string }) {
                 <button
                   className={`hri-btn ${showHeaders ? 'active' : ''}`}
                   onClick={() => setShowHeaders((v) => !v)}
-                  title="Response headers"
+                  title={t('terminal:httpRun.responseHeaders', { defaultValue: 'Response headers' })}
                 >
                   <Icon name="list" size={11} />
                 </button>
               )}
-              <CopyCurlButton request={result.request} className="hri-btn" title="Copy as curl (as sent)" />
+              <CopyCurlButton request={result.request} className="hri-btn" title={t('terminal:httpRun.copyAsCurl', { defaultValue: 'Copy as curl (as sent)' })} />
               <button
                 className="hri-btn rerun"
                 onClick={() => void store.rerunHttpRun(runId)}
-                title="Re-run this request"
+                title={t('terminal:httpRun.rerunTitle', { defaultValue: 'Re-run this request' })}
               >
-                <Icon name="refresh" size={11} /> Re-run
+                <Icon name="refresh" size={11} /> {t('terminal:httpRun.rerun', { defaultValue: 'Re-run' })}
               </button>
             </>
           )}
@@ -184,7 +186,7 @@ export function HttpRunInline({ runId }: { runId: string }) {
       )}
       {!running && result?.unresolvedVariables && result.unresolvedVariables.length > 0 && (
         <div className="hri-warn">
-          <Icon name="warning-circle" size={12} /> Unresolved:{' '}
+          <Icon name="warning-circle" size={12} /> {t('terminal:httpRun.unresolved', { defaultValue: 'Unresolved:' })}{' '}
           {result.unresolvedVariables.map((v) => `{{${v}}}`).join(' ')}
         </div>
       )}
@@ -203,7 +205,9 @@ export function HttpRunInline({ runId }: { runId: string }) {
         <>
           <button className="hri-body-toggle" onClick={() => setShowBody((v) => !v)}>
             <Icon name={showBody ? 'caret-down' : 'caret-right'} size={10} />
-            {showBody ? 'Hide response' : 'Response'}
+            {showBody
+              ? t('terminal:httpRun.hideResponse', { defaultValue: 'Hide response' })
+              : t('terminal:httpRun.showResponse', { defaultValue: 'Response' })}
           </button>
           {showBody &&
             (bodyPreview.html ? (
@@ -211,11 +215,11 @@ export function HttpRunInline({ runId }: { runId: string }) {
             ) : (
               <pre className="hri-body">{bodyPreview.text}</pre>
             ))}
-          {showBody && bodyPreview.truncated && <div className="hri-truncated">preview truncated</div>}
+          {showBody && bodyPreview.truncated && <div className="hri-truncated">{t('terminal:httpRun.previewTruncated', { defaultValue: 'preview truncated' })}</div>}
         </>
       )}
       {!running && result?.bodyBinary && (
-        <div className="hri-truncated">binary response ({fmtSize(result.sizeBytes)}) — not displayed</div>
+        <div className="hri-truncated">{t('terminal:httpRun.binaryResponse', { defaultValue: 'binary response ({{size}}) — not displayed', size: fmtSize(result.sizeBytes) })}</div>
       )}
     </div>
   );

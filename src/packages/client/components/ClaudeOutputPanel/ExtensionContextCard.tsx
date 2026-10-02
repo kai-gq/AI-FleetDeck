@@ -14,6 +14,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getImageWebUrl } from './contentRendering';
 
 // ── parsing (ported from the extension's renderers.js) ───────────────────────
@@ -234,19 +235,22 @@ interface CardProps {
 }
 
 function ElementCard({ ctx }: { ctx: ElementCtx }) {
+  const { t } = useTranslation('terminal');
   const [open, setOpen] = useState(false);
   return (
     <div className={`ext-card ext-card--element${open ? ' open' : ''}`}>
       <button type="button" className="ext-head" onClick={() => setOpen((o) => !o)}>
-        <span className="ext-chip ext-chip--element">{ctx.isShot ? 'Element shot' : 'UI element'}</span>
+        <span className="ext-chip ext-chip--element">{ctx.isShot
+          ? t('terminal:extensionCard.elementShot', { defaultValue: 'Element shot' })
+          : t('terminal:extensionCard.uiElement', { defaultValue: 'UI element' })}</span>
         <span className="ext-tag" title={ctx.tag}>{elementTagLabel(ctx.tag)}</span>
         {ctx.rect && <span className="ext-dim">{ctx.rect.w} × {ctx.rect.h}</span>}
         {(ctx.html || ctx.text) && <span className="ext-toggle">{open ? '▾' : '▸'}</span>}
       </button>
       {ctx.request && <div className="ext-req">{ctx.request}</div>}
       <div className="ext-meta">
-        {ctx.selector && <div className="ext-row"><span className="ext-k">selector</span><code className="ext-sel">{ctx.selector}</code></div>}
-        {ctx.page && <div className="ext-row"><span className="ext-k">page</span><span className="ext-v">{ctx.page}</span></div>}
+        {ctx.selector && <div className="ext-row"><span className="ext-k">{t('terminal:extensionCard.selector', { defaultValue: 'selector' })}</span><code className="ext-sel">{ctx.selector}</code></div>}
+        {ctx.page && <div className="ext-row"><span className="ext-k">{t('terminal:extensionCard.page', { defaultValue: 'page' })}</span><span className="ext-v">{ctx.page}</span></div>}
         {ctx.shotPath && <div className="ext-row"><span className="ext-k">📷</span><code className="ext-sel">{ctx.shotPath}</code></div>}
       </div>
       {open && (
@@ -265,6 +269,7 @@ function statusClass(status: string): string {
 }
 
 function NetworkCard({ ctx }: { ctx: NetworkCtx }) {
+  const { t } = useTranslation('terminal');
   const [open, setOpen] = useState(false);
   const hasDetail = !!(ctx.reqHeaders || ctx.reqBody || ctx.resHeaders || ctx.resBody || ctx.page);
   return (
@@ -279,11 +284,11 @@ function NetworkCard({ ctx }: { ctx: NetworkCtx }) {
       {ctx.request && <div className="ext-req">{ctx.request}</div>}
       {open && (
         <div className="ext-detail">
-          {ctx.page && <div className="ext-row"><span className="ext-k">page</span><span className="ext-v">{ctx.page}</span></div>}
-          <Section label="Request headers" content={ctx.reqHeaders} />
-          <Section label="Request body" content={ctx.reqBody} json />
-          <Section label="Response headers" content={ctx.resHeaders} />
-          <Section label="Response body" content={ctx.resBody} json />
+          {ctx.page && <div className="ext-row"><span className="ext-k">{t('terminal:extensionCard.page', { defaultValue: 'page' })}</span><span className="ext-v">{ctx.page}</span></div>}
+          <Section label={t('terminal:extensionCard.requestHeaders', { defaultValue: 'Request headers' })} content={ctx.reqHeaders} />
+          <Section label={t('terminal:extensionCard.requestBody', { defaultValue: 'Request body' })} content={ctx.reqBody} json />
+          <Section label={t('terminal:extensionCard.responseHeaders', { defaultValue: 'Response headers' })} content={ctx.resHeaders} />
+          <Section label={t('terminal:extensionCard.responseBody', { defaultValue: 'Response body' })} content={ctx.resBody} json />
         </div>
       )}
     </div>
@@ -291,6 +296,7 @@ function NetworkCard({ ctx }: { ctx: NetworkCtx }) {
 }
 
 function ErrorCard({ ctx }: { ctx: ErrorCtx }) {
+  const { t } = useTranslation('terminal');
   const [open, setOpen] = useState(false);
   const hasDetail = !!(ctx.reqBody || ctx.resBody || ctx.stack || ctx.page);
   return (
@@ -307,10 +313,10 @@ function ErrorCard({ ctx }: { ctx: ErrorCtx }) {
       {ctx.request && <div className="ext-req">{ctx.request}</div>}
       {open && (
         <div className="ext-detail">
-          {ctx.page && <div className="ext-row"><span className="ext-k">page</span><span className="ext-v">{ctx.page}</span></div>}
-          <Section label="Request body" content={ctx.reqBody} json />
-          <Section label="Response body" content={ctx.resBody} json />
-          <Section label="Stack" content={ctx.stack} json />
+          {ctx.page && <div className="ext-row"><span className="ext-k">{t('terminal:extensionCard.page', { defaultValue: 'page' })}</span><span className="ext-v">{ctx.page}</span></div>}
+          <Section label={t('terminal:extensionCard.requestBody', { defaultValue: 'Request body' })} content={ctx.reqBody} json />
+          <Section label={t('terminal:extensionCard.responseBody', { defaultValue: 'Response body' })} content={ctx.resBody} json />
+          <Section label={t('terminal:extensionCard.stack', { defaultValue: 'Stack' })} content={ctx.stack} json />
         </div>
       )}
     </div>
@@ -318,11 +324,14 @@ function ErrorCard({ ctx }: { ctx: ErrorCtx }) {
 }
 
 function AttachedCard({ ctx, onImageClick }: { ctx: AttachedCtx; onImageClick?: (url: string, name: string) => void }) {
+  const { t } = useTranslation('terminal');
   const n = ctx.files.length;
   return (
     <div className="ext-card ext-card--att">
       <div className="ext-head ext-head--static">
-        <span className="ext-chip ext-chip--att">📎 {n} attachment{n > 1 ? 's' : ''}</span>
+        <span className="ext-chip ext-chip--att">📎 {n > 1
+          ? t('terminal:extensionCard.attachmentMany', { defaultValue: '{{n}} attachments', n })
+          : t('terminal:extensionCard.attachmentOne', { defaultValue: '{{n}} attachment', n })}</span>
       </div>
       {ctx.request && <div className="ext-req">{ctx.request}</div>}
       <div className="ext-att-list">
@@ -335,7 +344,7 @@ function AttachedCard({ ctx, onImageClick }: { ctx: AttachedCtx; onImageClick?: 
                   className="ext-att-img"
                   src={url}
                   alt={f.name}
-                  title={`${f.name} — click to enlarge`}
+                  title={t('terminal:extensionCard.clickToEnlarge', { defaultValue: '{{name}} — click to enlarge', name: f.name })}
                   loading="lazy"
                   onClick={() => onImageClick?.(url, f.name)}
                 />

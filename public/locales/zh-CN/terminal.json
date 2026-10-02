@@ -2829,5 +2829,96 @@
     "clickForTaskBoard": "{{text}}\n\n（点击打开任务看板）",
     "workingOn": "正在处理",
     "progressTitle": "已完成 {{done}}/{{total}} 个任务"
+  },
+  "agentPromptCard": {
+    "asking": "智能体正在询问",
+    "questionOne": "{{n}} 个问题",
+    "questionMany": "{{n}} 个问题",
+    "multi": "（多选）",
+    "freeTextPlaceholder": "或输入你自己的回答…",
+    "use": "使用",
+    "allAnswered": "所有问题已回答",
+    "progress": "已回答 {{answered}}/{{total}} 个问题 — 请选择未回答的问题后提交",
+    "decline": "拒绝",
+    "submitAnswers": "提交回答",
+    "unanswered": "{{n}} 个未回答",
+    "planReady": "计划已就绪 — 批准后退出计划模式",
+    "hidePlan": "隐藏计划",
+    "showPlan": "显示计划",
+    "reject": "拒绝",
+    "approvePlan": "批准计划"
+  },
+  "extensionCard": {
+    "elementShot": "元素截图",
+    "uiElement": "UI 元素",
+    "selector": "选择器",
+    "page": "页面",
+    "requestHeaders": "请求头",
+    "requestBody": "请求体",
+    "responseHeaders": "响应头",
+    "responseBody": "响应体",
+    "stack": "调用栈",
+    "attachmentOne": "{{n}} 个附件",
+    "attachmentMany": "{{n}} 个附件",
+    "clickToEnlarge": "{{name}} — 点击放大"
+  },
+  "httpResults": {
+    "minsAgo": "{{n}} 分钟前",
+    "hoursAgo": "{{n}} 小时前",
+    "daysAgo": "{{n}} 天前",
+    "titleOne": "HTTP 请求 · {{n}} 次",
+    "titleMany": "HTTP 请求 · {{n}} 次",
+    "okShown": "已显示 {{ok}}/{{total}} 成功",
+    "more": "还有 {{n}} 条",
+    "unresolved": "未解析：",
+    "truncated": "… [响应已在 2 MB 处截断]"
+  },
+  "testRun": {
+    "waitingFirstSuite": "运行中… 等待第一个测试套件",
+    "noResults": "暂无结果。",
+    "openPanelTitle": "打开完整测试结果面板",
+    "runningTests": "正在运行测试",
+    "testsStatus": "测试{{status}}",
+    "openPanel": "打开面板 ↗",
+    "hideConsole": "隐藏控制台",
+    "showConsole": "显示控制台"
+  },
+  "whatsappAttachment": {
+    "unknownType": "未知类型",
+    "previewFailed": "预览加载失败：",
+    "loading": "加载中…",
+    "noInlinePreview": "此文件类型不支持内嵌预览。",
+    "downloadHint": "请使用下方的下载按钮在本地打开。",
+    "ariaPreview": "WhatsApp 附件预览"
+  },
+  "httpRun": {
+    "running": "运行中…",
+    "responseHeaders": "响应头",
+    "copyAsCurl": "复制为 curl（原样发送）",
+    "rerunTitle": "重新运行此请求",
+    "rerun": "重新运行",
+    "unresolved": "未解析：",
+    "hideResponse": "隐藏响应",
+    "showResponse": "响应",
+    "previewTruncated": "预览已截断",
+    "binaryResponse": "二进制响应（{{size}}）— 不予显示"
+  },
+  "slackBubble": {
+    "sent": "已发送",
+    "received": "已接收",
+    "groupLabel": "群组 · {{channel}}",
+    "workspaceTitle": "工作区：{{name}}",
+    "noText": "（无文本）",
+    "threadLabel": "会话串 #{{id}}",
+    "ariaMessage": "Slack 消息"
+  },
+  "chatMessageCard": {
+    "from": "来自"
+  },
+  "delegationCard": {
+    "delegatedFrom": "委派任务来自"
+  },
+  "pm2Log": {
+    "noFilterMatch": "没有日志行匹配当前筛选条件。"
   }
 }
