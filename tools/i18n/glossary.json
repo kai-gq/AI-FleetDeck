@@ -34,7 +34,7 @@
   "style": [
     "全角标点(，。！？：；()「」),省略号用 …;英文术语与数字前后保留自然间距(如「输入 Token」「{{count}} 个智能体」)",
     "占位符 {{name}} / {{count}} 原样保留,不改名、不加空格",
-    "按钮用词:确定 / 取消 / 保存 / 关闭 / 新建 / 删除;确认弹窗用「确定要……吗?」句式",
+    "按钮用词:确定 / 取消 / 保存 / 关闭 / 新建 / 删除;确认弹窗用「确定要……吗？」句式",
     "代码、命令、变量名、示例路径(/path/to/folder、.env、npm run build)不翻译",
     "按键名保留英文:Alt / Shift / Ctrl / Cmd / ⌥ / ⌘,组合键写「按 Alt 加右键」,不把 Alt 译作「替代」",
     "品牌与技术标识保留英文:Tide Commander、Claude、Codex、Chrome、Bash、Git、Spotlight、2D / 3D、Token(计量)",
