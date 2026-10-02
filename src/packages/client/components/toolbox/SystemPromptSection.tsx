@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchSystemPrompt, updateSystemPrompt, clearSystemPrompt } from '../../api/system-settings';
 import '../styles/system-prompt-section.scss';
 import { Icon } from '../Icon';
@@ -9,6 +10,7 @@ interface SystemPromptSectionProps {
 }
 
 export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ searchQuery = '' }) => {
+  const { t } = useTranslation(['config', 'common']);
   const [prompt, setPrompt] = useState('');
   const [originalPrompt, setOriginalPrompt] = useState('');
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
       setOriginalPrompt(content);
       setIsDirty(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load system prompt');
+      setError(err instanceof Error ? err.message : t('config:systemPromptSection.loadFailed', { defaultValue: 'Failed to load system prompt' }));
     } finally {
       setLoading(false);
     }
@@ -52,9 +54,9 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
       await updateSystemPrompt(prompt);
       setOriginalPrompt(prompt);
       setIsDirty(false);
-      setSuccess('System prompt saved successfully. It will apply to all new agent sessions.');
+      setSuccess(t('config:systemPromptSection.saved', { defaultValue: 'System prompt saved successfully. It will apply to all new agent sessions.' }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save system prompt');
+      setError(err instanceof Error ? err.message : t('config:systemPromptSection.saveFailed', { defaultValue: 'Failed to save system prompt' }));
     }
   };
 
@@ -70,9 +72,9 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
       setPrompt('');
       setOriginalPrompt('');
       setIsDirty(false);
-      setSuccess('System prompt cleared successfully.');
+      setSuccess(t('config:systemPromptSection.cleared', { defaultValue: 'System prompt cleared successfully.' }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear system prompt');
+      setError(err instanceof Error ? err.message : t('config:systemPromptSection.clearFailed', { defaultValue: 'Failed to clear system prompt' }));
     }
   };
 
@@ -91,14 +93,14 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
   return (
     <div className="system-prompt-section">
       <div className="section-header">
-        <h3>System Prompt</h3>
+        <h3>{t('config:systemPrompt.title')}</h3>
         <p className="section-description">
-          Add global instructions that will apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.
+          {t('config:systemPromptSection.description', { defaultValue: 'Add global instructions that will apply to all agents. This appears after Tide Commander base rules but before agent-specific instructions.' })}
         </p>
       </div>
 
       {loading ? (
-        <div className="loading">Loading system prompt...</div>
+        <div className="loading">{t('config:systemPromptSection.loading', { defaultValue: 'Loading system prompt...' })}</div>
       ) : (
         <div className="section-content">
           {error && (
@@ -118,7 +120,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
           <div className="editor-wrapper">
             <div className="editor-info">
               <span className="char-count">
-                {prompt.length} characters
+                {prompt.length} {t('config:systemPrompt.characters')}
               </span>
             </div>
 
@@ -126,12 +128,12 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
               className="prompt-editor"
               value={prompt}
               onChange={handlePromptChange}
-              placeholder="Enter your global system prompt here...&#10;&#10;Examples:&#10;- Coding style guidelines&#10;- Team communication rules&#10;- Project-wide conventions&#10;- Security best practices"
+              placeholder={t('config:systemPromptSection.placeholder', { defaultValue: 'Enter your global system prompt here...\n\nExamples:\n- Coding style guidelines\n- Team communication rules\n- Project-wide conventions\n- Security best practices' })}
               rows={12}
             />
 
             <div className="editor-hint">
-              This prompt will be inserted into the system instructions for all agents.
+              {t('config:systemPromptSection.hint', { defaultValue: 'This prompt will be inserted into the system instructions for all agents.' })}
             </div>
           </div>
 
@@ -141,7 +143,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
               onClick={handleSave}
               disabled={!isDirty || loading}
             >
-              Save Prompt
+              {t('config:systemPrompt.save')}
             </button>
 
             <button
@@ -149,7 +151,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
               onClick={handleReset}
               disabled={!isDirty || loading}
             >
-              Reset Changes
+              {t('config:systemPrompt.reset')}
             </button>
 
             <button
@@ -157,7 +159,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
               onClick={handleClear}
               disabled={!prompt || loading}
             >
-              Clear Prompt
+              {t('config:systemPrompt.clear')}
             </button>
           </div>
         </div>
@@ -165,10 +167,10 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({ search
 
       <ConfirmModal
         isOpen={clearConfirmOpen}
-        title="Clear System Prompt"
-        message="Are you sure you want to clear the system prompt?"
-        confirmLabel="Clear"
-        cancelLabel="Cancel"
+        title={t('config:systemPromptSection.clearTitle', { defaultValue: 'Clear System Prompt' })}
+        message={t('config:systemPromptSection.clearConfirm', { defaultValue: 'Are you sure you want to clear the system prompt?' })}
+        confirmLabel={t('common:buttons.clear')}
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { void performClear(); }}
         onClose={() => setClearConfirmOpen(false)}

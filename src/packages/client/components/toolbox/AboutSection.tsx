@@ -26,6 +26,7 @@ import { apiUrl, authFetch } from '../../utils/storage';
 
 // Theme selector component
 export function ThemeSelector() {
+  const { t } = useTranslation(['terminal']);
   const [currentTheme, setCurrentTheme] = useState<ThemeId>(() => getSavedTheme());
 
   const handleThemeChange = (themeId: ThemeId) => {
@@ -42,7 +43,7 @@ export function ThemeSelector() {
             key={theme.id}
             className={`theme-option ${currentTheme === theme.id ? 'active' : ''}`}
             onClick={() => handleThemeChange(theme.id)}
-            title={theme.description}
+            title={t(`terminal:themeDesc.${theme.id}`, { defaultValue: theme.description })}
           >
             <div className="theme-preview">
               <div
@@ -517,7 +518,7 @@ function PushNotificationsPanel() {
         body: JSON.stringify({ json: jsonInput }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Invalid service account');
+      if (!response.ok) throw new Error(body.error || t('config:about.invalidServiceAccount', { defaultValue: 'Invalid service account' }));
       setJsonInput('');
       setShowInput(false);
       setNotice(t('config:about.pushSaved', { project: body.projectId }));
@@ -657,7 +658,7 @@ export function AboutSection() {
             <span
               className="about-version-update-badge"
               onClick={openReleasePage}
-              title={`Update available: ${updateInfo.version}`}
+              title={t('config:about.updateAvailableTitle', { defaultValue: 'Update available: {{version}}', version: updateInfo.version })}
             >
               {updateInfo.version}
             </span>

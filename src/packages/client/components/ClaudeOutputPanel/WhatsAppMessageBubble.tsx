@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { renderBodyWithAttachments } from './AttachmentChip';
 
@@ -169,15 +170,18 @@ interface WhatsAppMessageBubbleProps {
 }
 
 export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): React.ReactElement {
+  const { t } = useTranslation(['terminal']);
   const time = formatBubbleTime(msg.date);
   const sessionLabel = shortenSession(msg.session);
-  const dirLabel = msg.direction === 'outbound' ? 'enviado' : 'recibido';
+  const dirLabel = msg.direction === 'outbound'
+    ? t('terminal:whatsAppBubble.sent', { defaultValue: 'sent' })
+    : t('terminal:whatsAppBubble.received', { defaultValue: 'received' });
   const phoneLabel = msg.phone || msg.rawFrom || '';
   const { primary, secondary } = composeIdentity(msg, phoneLabel);
 
   return (
     <div className={`whatsapp-row whatsapp-row--${msg.direction}`}>
-      <div className="whatsapp-bubble" role="group" aria-label="WhatsApp message">
+      <div className="whatsapp-bubble" role="group" aria-label={t('terminal:whatsAppBubble.ariaLabel', { defaultValue: 'WhatsApp message' })}>
         <div className="whatsapp-bubble__header">
           <span className="whatsapp-bubble__icon" aria-hidden="true">
             <Icon name="chat" size={11} weight="fill" />
@@ -190,7 +194,7 @@ export function WhatsAppMessageBubble({ msg }: WhatsAppMessageBubbleProps): Reac
           )}
           {msg.isGroup && (
             <span className="whatsapp-bubble__badge">
-              <Icon name="users" size={10} /> Grupo
+              <Icon name="users" size={10} /> {t('terminal:whatsAppBubble.group', { defaultValue: 'Group' })}
             </span>
           )}
           {sessionLabel && (

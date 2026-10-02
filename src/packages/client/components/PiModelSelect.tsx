@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OpencodeModelSelect } from './OpencodeModelSelect';
 import { fetchPiModels } from '../api/pi';
 import { getStorage, setStorage, STORAGE_KEYS } from '../utils/storage';
@@ -39,6 +40,7 @@ function normalizeRecentModels(models: unknown): string[] {
 }
 
 export function PiModelSelect({ value, onChange, inputId }: PiModelSelectProps) {
+  const { t } = useTranslation(['terminal']);
   const [recentModels, setRecentModels] = useState<string[]>(() =>
     normalizeRecentModels(getStorage<unknown>(STORAGE_KEYS.RECENT_PI_MODELS, [])),
   );
@@ -77,13 +79,13 @@ export function PiModelSelect({ value, onChange, inputId }: PiModelSelectProps) 
         value={value}
         onChange={selectModel}
         inputId={inputId}
-        placeholder="pi default — or provider/model (e.g., anthropic/claude-sonnet-4-5)"
+        placeholder={t('terminal:piModelSelect.placeholder', { defaultValue: 'pi default — or provider/model (e.g., anthropic/claude-sonnet-4-5)' })}
         fetchModels={fetchPiModels}
         cliLabel="pi"
       />
       {recentModels.length > 0 && (
-        <div className="pi-model-select__recents" aria-label="Recently selected Pi models">
-          <span className="pi-model-select__recents-label">Recent</span>
+        <div className="pi-model-select__recents" aria-label={t('terminal:piModelSelect.recentAria', { defaultValue: 'Recently selected Pi models' })}>
+          <span className="pi-model-select__recents-label">{t('terminal:piModelSelect.recent', { defaultValue: 'Recent' })}</span>
           {recentModels.map((model) => {
             const slashIndex = model.indexOf('/');
             const provider = slashIndex >= 0 ? model.slice(0, slashIndex + 1) : '';

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IntegrationInfo } from '../../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../../utils/storage';
 
@@ -16,6 +17,7 @@ interface IntegrationStatusPanelProps {
 }
 
 export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelProps) {
+  const { t } = useTranslation(['config', 'common']);
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,11 +39,11 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
   }, [fetchIntegrations]);
 
   if (loading) {
-    return <div style={{ color: 'var(--text-secondary, #a6adc8)', fontSize: 12, padding: '4px 0' }}>Loading...</div>;
+    return <div style={{ color: 'var(--text-secondary, #a6adc8)', fontSize: 12, padding: '4px 0' }}>{t('common:status.loading')}</div>;
   }
 
   if (integrations.length === 0) {
-    return <div style={{ color: 'var(--text-secondary, #a6adc8)', fontSize: 12, padding: '4px 0' }}>No integrations available.</div>;
+    return <div style={{ color: 'var(--text-secondary, #a6adc8)', fontSize: 12, padding: '4px 0' }}>{t('config:integrationStatusPanel.noIntegrations', { defaultValue: 'No integrations available.' })}</div>;
   }
 
   return (
@@ -51,7 +53,11 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
         const hasError = !!integration.status.error;
         const connected = integration.status.connected;
         const statusColor = hasError ? '#f38ba8' : connected ? '#a6e3a1' : '#fab387';
-        const statusText = hasError ? 'Error' : connected ? 'Connected' : 'Setup Required';
+        const statusText = hasError
+          ? t('config:integrationStatusPanel.statusError', { defaultValue: 'Error' })
+          : connected
+            ? t('common:status.connected')
+            : t('config:integrationStatusPanel.statusSetupRequired', { defaultValue: 'Setup Required' });
         const statusIcon = hasError ? '\u2717' : connected ? '\u2713' : '\u26A0';
 
         return (
@@ -86,7 +92,7 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
             </span>
             <button
               onClick={() => onOpenModal(integration.id)}
-              title={`Configure ${integration.name}`}
+              title={t('config:integrationStatusPanel.configure', { defaultValue: 'Configure {{name}}', name: integration.name })}
               style={{
                 background: 'none',
                 border: 'none',
@@ -122,7 +128,7 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
         onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--accent, #89b4fa)'; (e.target as HTMLElement).style.color = 'var(--accent, #89b4fa)'; }}
         onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border, #313244)'; (e.target as HTMLElement).style.color = 'var(--text-secondary, #a6adc8)'; }}
       >
-        Manage All Integrations
+        {t('config:integrationStatusPanel.manageAll', { defaultValue: 'Manage All Integrations' })}
       </button>
     </div>
   );

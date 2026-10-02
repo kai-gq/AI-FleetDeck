@@ -109,11 +109,10 @@ export const SpotlightItem = memo(function SpotlightItem({
           {result.type === 'agent' && result._sessionMatches !== undefined && result._sessionMatches > 0 && (
             <span
               className="spotlight-item-match-count"
-              title={`${result._sessionMatches} match${result._sessionMatches === 1 ? '' : 'es'} in conversation`}
+              title={t('terminal:spotlightItem.matchesInConversation', { defaultValue: '{{n}} match{{plural}} in conversation', n: result._sessionMatches, plural: result._sessionMatches === 1 ? '' : 'es' })}
             >
               <Icon name="chat" size={9} aria-hidden />
-              {result._sessionMatches}
-              {result._sessionMatches === 1 ? ' match' : ' matches'}
+              {t('terminal:spotlightItem.matchCount', { defaultValue: '{{n}} match{{plural}}', n: result._sessionMatches, plural: result._sessionMatches === 1 ? '' : 'es' })}
             </span>
           )}
           {result._taskLabel && (
@@ -123,7 +122,7 @@ export const SpotlightItem = memo(function SpotlightItem({
             </span>
           )}
           {result.type === 'agent' && result._areaName && (
-            <span className="spotlight-item-area-badge" title={`Area: ${result._areaName}`}>
+            <span className="spotlight-item-area-badge" title={t('terminal:spotlightItem.areaTitle', { defaultValue: 'Area: {{name}}', name: result._areaName })}>
               <span
                 className="spotlight-area-dot"
                 style={result._areaColor ? { background: result._areaColor } : undefined}
@@ -233,7 +232,7 @@ export const SpotlightItem = memo(function SpotlightItem({
           <span className="spotlight-item-time">
             <span className={`spotlight-time-away ${idleAgeClass(result.timeAway)}`}>
               <Icon name="hourglass" size={9} aria-hidden />
-              Idle: {formatDuration(result.timeAway)}
+              {t('terminal:spotlightItem.idleLabel', { defaultValue: 'Idle:' })} {formatDuration(result.timeAway)}
             </span>
           </span>
         )}

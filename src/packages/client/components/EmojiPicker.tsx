@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // Comprehensive emoji data with searchable keywords
 const EMOJI_DATA: Array<{ emoji: string; keywords: string[]; category: string }> = [
@@ -776,6 +777,7 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ value, onChange }: EmojiPickerProps) {
+  const { t } = useTranslation(['common']);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -826,7 +828,7 @@ export function EmojiPicker({ value, onChange }: EmojiPickerProps) {
           type="button"
           className="emoji-picker-toggle"
           onClick={() => setIsOpen(!isOpen)}
-          title="Browse emojis"
+          title={t('common:emojiPicker.browse', { defaultValue: 'Browse emojis' })}
         >
           ▼
         </button>
@@ -837,7 +839,7 @@ export function EmojiPicker({ value, onChange }: EmojiPickerProps) {
             <input
               type="text"
               className="form-input"
-              placeholder="Search emojis..."
+              placeholder={t('common:emojiPicker.searchPlaceholder', { defaultValue: 'Search emojis...' })}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
@@ -845,7 +847,7 @@ export function EmojiPicker({ value, onChange }: EmojiPickerProps) {
           </div>
           <div className="emoji-picker-grid-container">
             {filteredResults.length === 0 ? (
-              <div className="emoji-picker-empty">No emojis found</div>
+              <div className="emoji-picker-empty">{t('common:emojiPicker.noResults', { defaultValue: 'No emojis found' })}</div>
             ) : (
               filteredResults.map(({ category, emojis }) => (
                 <div key={category} className="emoji-picker-category">

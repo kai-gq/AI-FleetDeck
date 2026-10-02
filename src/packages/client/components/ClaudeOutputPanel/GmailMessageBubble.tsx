@@ -265,7 +265,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
 
   return (
     <div className={`gmail-bubble-row gmail-${msg.direction}`}>
-      <div className="gmail-bubble" role="group" aria-label="Gmail email">
+      <div className="gmail-bubble" role="group" aria-label={t('terminal:gmailBubble.ariaLabel', { defaultValue: 'Gmail email' })}>
         <div className="gmail-bubble-meta">
           <span className="gmail-bubble-icon" aria-hidden="true">
             <Icon name="envelope" size={12} weight="fill" />
@@ -395,7 +395,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
               </a>
             )}
             {msg.thread && (
-              <span className="gmail-bubble-thread" title={`Thread ${msg.thread}`}>
+              <span className="gmail-bubble-thread" title={t('terminal:gmailBubble.threadTitle', { defaultValue: 'Thread {{id}}', id: msg.thread })}>
                 #{msg.thread.slice(0, 8)}
               </span>
             )}

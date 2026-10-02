@@ -332,6 +332,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
   const isSelected = selectedAgentIds.has(agent.id);
   const hasUnread = unseenAgents.has(agent.id);
   const [, setTick] = useState(0);
+  const { t } = useTranslation(['common']);
 
   // Update idle timer every 15 seconds when agent is idle
   useEffect(() => {
@@ -407,7 +408,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
             </span>
           )}
           {agent.isBoss && (
-            <span className="agent-item-boss-badge" title="Boss agent">B</span>
+            <span className="agent-item-boss-badge" title={t('common:agentsList.bossAgentTitle', { defaultValue: 'Boss agent' })}>B</span>
           )}
           {agent.latestTodos && agent.latestTodos.length > 0 && (
             <TaskProgressDots todos={agent.latestTodos} />
@@ -418,7 +419,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
         </div>
 
         {/* Mini context bar */}
-        <div className="agent-item-context-bar" title={`Context: ${Math.round(contextInfo.usedPercent)}% used`}>
+        <div className="agent-item-context-bar" title={t('common:agentsList.contextUsageTitle', { defaultValue: 'Context: {{pct}}% used', pct: Math.round(contextInfo.usedPercent) })}>
           <div
             className="agent-item-context-fill"
             style={{

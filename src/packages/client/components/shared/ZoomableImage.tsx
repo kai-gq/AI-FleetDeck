@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 8;
@@ -34,6 +35,7 @@ function midpoint(a: Point, b: Point): Point {
 
 /** Image viewport with wheel/trackpad zoom, touch pinch zoom, and drag panning. */
 export function ZoomableImage({ src, alt, className = '' }: ZoomableImageProps) {
+  const { t } = useTranslation(['terminal']);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pointersRef = useRef(new Map<number, Point>());
   const transformRef = useRef<Transform>({ scale: 1, x: 0, y: 0 });
@@ -172,7 +174,7 @@ export function ZoomableImage({ src, alt, className = '' }: ZoomableImageProps) 
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
       onDoubleClick={reset}
-      title="Pinch or scroll to zoom; drag to pan; double-click to reset"
+      title={t('terminal:zoomedImage.hint', { defaultValue: 'Pinch or scroll to zoom; drag to pan; double-click to reset' })}
     >
       <img
         src={src}
@@ -182,11 +184,11 @@ export function ZoomableImage({ src, alt, className = '' }: ZoomableImageProps) 
         style={{ transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})` }}
       />
       <div className="zoomable-image-controls" onPointerDown={(event) => event.stopPropagation()}>
-        <button type="button" onClick={() => zoomAt(transform.scale / 1.25)} aria-label="Zoom out">−</button>
-        <button type="button" className="zoomable-image-level" onClick={reset} aria-label="Reset zoom">
+        <button type="button" onClick={() => zoomAt(transform.scale / 1.25)} aria-label={t('terminal:iframeModal.zoomOut')}>−</button>
+        <button type="button" className="zoomable-image-level" onClick={reset} aria-label={t('terminal:iframeModal.resetZoom')}>
           {Math.round(transform.scale * 100)}%
         </button>
-        <button type="button" onClick={() => zoomAt(transform.scale * 1.25)} aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => zoomAt(transform.scale * 1.25)} aria-label={t('terminal:iframeModal.zoomIn')}>+</button>
       </div>
     </div>
   );

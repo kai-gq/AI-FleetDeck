@@ -348,7 +348,7 @@ export function SingleAgentPanel({
       {/* Task Label */}
       {agent.taskLabel && (
         <div className="unit-task-label">
-          <div className="unit-stat-label"><Icon name="task" size={12} /> Task</div>
+          <div className="unit-stat-label"><Icon name="task" size={12} /> {t('common:labels.task')}</div>
           <div className="unit-task-label-value">{agent.taskLabel}</div>
         </div>
       )}
@@ -622,8 +622,8 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
   const formatDate = (ts: number) => {
     const now = Date.now();
     const diff = now - ts;
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 3600000) return t('common:unitPanel.minutesAgo', { defaultValue: '{{n}}m ago', n: Math.floor(diff / 60000) });
+    if (diff < 86400000) return t('common:unitPanel.hoursAgo', { defaultValue: '{{n}}h ago', n: Math.floor(diff / 3600000) });
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
@@ -659,7 +659,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
               <div key={entry.sessionId}>
                 <div className={`unit-session-history-item ${previewSessionId === entry.sessionId ? 'active' : ''}`}>
                   {entry.fileExists === false && (
-                    <span className="unit-session-history-missing" title="Session file missing from disk"><Icon name="warn" size={12} /></span>
+                    <span className="unit-session-history-missing" title={t('common:unitPanel.sessionFileMissing', { defaultValue: 'Session file missing from disk' })}><Icon name="warn" size={12} /></span>
                   )}
                   <div
                     className="unit-session-history-item-info"
@@ -683,9 +683,9 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
                 {previewSessionId === entry.sessionId && (
                   <div className="unit-session-preview">
                     {previewLoading ? (
-                      <div className="unit-session-preview-loading">Loading...</div>
+                      <div className="unit-session-preview-loading">{t('common:status.loading')}</div>
                     ) : previewMessages.length === 0 ? (
-                      <div className="unit-session-preview-empty">No messages found</div>
+                      <div className="unit-session-preview-empty">{t('common:unitPanel.noMessagesFound', { defaultValue: 'No messages found' })}</div>
                     ) : (
                       previewMessages
                         .filter((m) => m.type === 'user' || m.type === 'assistant' || m.type === 'tool_use')
@@ -693,7 +693,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
                           if (msg.type === 'tool_use') {
                             return (
                               <div key={i} className="unit-session-preview-msg tool">
-                                <span className="unit-session-preview-tool-chip">{msg.toolName || 'Tool'}</span>
+                                <span className="unit-session-preview-tool-chip">{msg.toolName || t('common:agentPopup.tool')}</span>
                               </div>
                             );
                           }
@@ -702,7 +702,7 @@ const SessionHistorySection = memo(function SessionHistorySection({ agentId }: S
                           return (
                             <div key={i} className={`unit-session-preview-msg ${msg.type}`}>
                               <div className="unit-session-preview-role-chip">
-                                {msg.type === 'user' ? 'YOU' : 'AGENT'}
+                                {msg.type === 'user' ? t('common:unitPanel.youLabel', { defaultValue: 'YOU' }) : t('common:unitPanel.agentLabel', { defaultValue: 'AGENT' })}
                               </div>
                               <div className="unit-session-preview-text">{text}</div>
                             </div>

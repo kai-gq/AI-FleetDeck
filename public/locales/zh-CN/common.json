@@ -244,7 +244,13 @@
     "removePattern": "移除此模式",
     "agentsCount": "{{count}} 个智能体",
     "confidence": "置信度：{{level}}",
-    "noActiveTasks": "暂无进行中的任务"
+    "noActiveTasks": "暂无进行中的任务",
+    "minutesAgo": "{{n}} 分钟前",
+    "hoursAgo": "{{n}} 小时前",
+    "sessionFileMissing": "会话文件已从磁盘中丢失",
+    "noMessagesFound": "未找到消息",
+    "youLabel": "你",
+    "agentLabel": "智能体"
   },
   "multiAgent": {
     "agentsSelected": "已选择 {{count}} 个智能体",
@@ -271,7 +277,9 @@
     "filter_error": "错误",
     "showing": "显示 {{count}}/{{total}}",
     "clearFilters": "清除筛选",
-    "noResults": "未找到匹配的智能体"
+    "noResults": "未找到匹配的智能体",
+    "bossAgentTitle": "主管智能体",
+    "contextUsageTitle": "上下文：已使用 {{pct}}%"
   },
   "rightPanel": {
     "expandPanel": "展开面板（Ctrl+\\）",
@@ -405,5 +413,13 @@
     "newNamePlaceholder": "新工作区名称",
     "noAreas": "无区域",
     "areaCount": "{{n}} 个区域"
+  },
+  "spotlight": {
+    "pluginCommand": "插件命令"
+  },
+  "emojiPicker": {
+    "browse": "浏览表情",
+    "searchPlaceholder": "搜索表情…",
+    "noResults": "未找到表情"
   }
 }

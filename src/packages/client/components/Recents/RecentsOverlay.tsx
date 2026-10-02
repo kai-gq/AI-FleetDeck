@@ -16,6 +16,7 @@
  */
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAgentsArray, useBuildings } from '../../store/selectors';
 import { store } from '../../store';
 import { Icon } from '../Icon';
@@ -33,10 +34,10 @@ import {
 
 type RecentsTab = 'all' | 'agents' | 'buildings';
 const RECENTS_TABS: readonly RecentsTab[] = ['all', 'agents', 'buildings'];
-const RECENTS_TAB_LABELS: Record<RecentsTab, string> = {
-  all: 'All',
-  agents: 'Agents',
-  buildings: 'Buildings',
+const RECENTS_TAB_KEYS: Record<RecentsTab, string> = {
+  all: 'terminal:spotlight.tabs.all',
+  agents: 'terminal:spotlight.tabs.agents',
+  buildings: 'terminal:spotlight.tabs.buildings',
 };
 
 // Cap the rendered list so a large fleet doesn't produce an unwieldy palette;
@@ -74,6 +75,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 }
 
 export function RecentsOverlay({ isOpen, onClose, onOpenBuilding }: RecentsOverlayProps) {
+  const { t } = useTranslation(['terminal']);
   const agents = useAgentsArray();
   const buildings = useBuildings();
 
@@ -246,7 +248,7 @@ export function RecentsOverlay({ isOpen, onClose, onOpenBuilding }: RecentsOverl
             ref={inputRef}
             type="text"
             className="spotlight-input"
-            placeholder="Filter recent agents & buildings…"
+            placeholder={t('terminal:recents.filterPlaceholder', { defaultValue: 'Filter recent agents & buildings…' })}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -263,7 +265,7 @@ export function RecentsOverlay({ isOpen, onClose, onOpenBuilding }: RecentsOverl
           </div>
         </div>
 
-        <div className="spotlight-tabs" role="tablist" aria-label="Recents filter">
+        <div className="spotlight-tabs" role="tablist" aria-label={t('terminal:recents.filterLabel', { defaultValue: 'Recents filter' })}>
           {RECENTS_TABS.map((tab) => (
             <button
               key={tab}
@@ -277,7 +279,7 @@ export function RecentsOverlay({ isOpen, onClose, onOpenBuilding }: RecentsOverl
                 setSelectedIndex(0);
               }}
             >
-              {RECENTS_TAB_LABELS[tab]}
+              {t(RECENTS_TAB_KEYS[tab])}
             </button>
           ))}
           <span className="spotlight-tabs-hint">
@@ -287,7 +289,7 @@ export function RecentsOverlay({ isOpen, onClose, onOpenBuilding }: RecentsOverl
 
         <div className="spotlight-results" ref={resultsRef}>
           {results.length === 0 ? (
-            <div className="spotlight-empty">No recent items</div>
+            <div className="spotlight-empty">{t('terminal:recents.noItems', { defaultValue: 'No recent items' })}</div>
           ) : (
             results.map((result, index) => (
               <SpotlightItem

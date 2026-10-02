@@ -69,6 +69,7 @@ function loadProviderUsage(agentId: string, cacheKey: string, force = false): Pr
 
 /** Cached provider usage for status surfaces and the detailed tooltip. */
 export function useProviderUsageSnapshot(agentId: string, enabled = true, refreshMs = 0, scope = '') {
+  const { t } = useTranslation('terminal');
   const cacheKey = scope ? `${agentId}:${scope}` : agentId;
   const [snapshot, setSnapshot] = useState<ProviderUsageSnapshot | null>(
     () => usageCache.get(cacheKey)?.snapshot ?? null,
@@ -105,7 +106,7 @@ export function useProviderUsageSnapshot(agentId: string, enabled = true, refres
         .catch((err: Error) => {
           if (cancelled) return;
           setLoading(false);
-          setError(err.message || 'Failed to load plan limits');
+          setError(err.message || t('terminal:planLimits.loadFailed', { defaultValue: 'Failed to load plan limits' }));
         });
     };
 
@@ -117,7 +118,7 @@ export function useProviderUsageSnapshot(agentId: string, enabled = true, refres
       cancelled = true;
       if (interval !== null) window.clearInterval(interval);
     };
-  }, [agentId, cacheKey, enabled, refreshMs]);
+  }, [agentId, cacheKey, enabled, refreshMs, t]);
 
   const belongsToCurrentScope = snapshotCacheKey === cacheKey;
   return {

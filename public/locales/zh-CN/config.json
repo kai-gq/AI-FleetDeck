@@ -300,7 +300,8 @@
     "posBottomRight": "右下",
     "prompt": "提示词",
     "promptPlaceholder": "此区域中智能体的系统提示词…",
-    "promptHint": "会注入到此区域中的智能体。下次刷新上下文时生效。"
+    "promptHint": "会注入到此区域中的智能体。下次刷新上下文时生效。",
+    "setColorAria": "设置区域颜色 {{color}}"
   },
   "buildings": {
     "title": "建筑（{{count}}）",
@@ -409,7 +410,8 @@
     "terminalArgsHint": "传递给 ttyd 的额外命令行参数",
     "terminalProxy": "代理",
     "terminalOpenModal": "弹窗",
-    "terminalOpenBelow": "下方"
+    "terminalOpenBelow": "下方",
+    "openPortTitle": "打开 :{{port}}"
   },
   "tools": {
     "select": "选择",
@@ -655,7 +657,20 @@
     "importing": "导入中…",
     "importCount": "导入（{{count}}）",
     "readingFile": "读取文件中…",
-    "files": "个文件"
+    "files": "个文件",
+    "backupStatusFailed": "获取备份状态失败",
+    "backupUpdateFailed": "更新备份设置失败",
+    "exportFailed": "导出失败",
+    "previewFailed": "预览配置文件失败",
+    "readFailed": "读取配置文件失败",
+    "importFailed": "导入失败",
+    "hourlyBackups": "每小时备份",
+    "backupInfoPrefix": "每小时将数据的压缩快照保存到",
+    "backupInfoSuffix": "。相同的快照会被跳过。保留最新 8 份，外加最近 2 天各一份。",
+    "backupScriptNotFound": "未找到备份脚本，路径：",
+    "lastRun": "上次运行：",
+    "lastRunOk": " — 正常",
+    "loadingBackupStatus": "正在加载备份状态…"
   },
   "about": {
     "title": "关于 Tide Commander",
@@ -719,7 +734,9 @@
     "pushSaved": "已保存 — 项目 {{project}}",
     "pushTest": "发送测试",
     "pushTestSent": "测试已发送至 {{count}} 台设备",
-    "pushTestFailed": "测试推送失败 — 请检查服务器日志"
+    "pushTestFailed": "测试推送失败 — 请检查服务器日志",
+    "invalidServiceAccount": "服务账号无效",
+    "updateAvailableTitle": "有可用更新：{{version}}"
   },
   "updateBanner": {
     "newVersion": "新版本 v{{version}} 可用",
@@ -1714,5 +1731,25 @@
     "connect": "连接",
     "backToApp": "返回应用",
     "explore": "先探索"
+  },
+  "systemPromptSection": {
+    "description": "添加应用于所有智能体的全局指令。它会显示在 Tide Commander 基础规则之后、智能体专属指令之前。",
+    "loading": "正在加载系统提示词…",
+    "loadFailed": "加载系统提示词失败",
+    "saveFailed": "保存系统提示词失败",
+    "clearFailed": "清除系统提示词失败",
+    "saved": "系统提示词保存成功。它将应用于所有新的智能体会话。",
+    "cleared": "系统提示词已成功清除。",
+    "placeholder": "在此输入全局系统提示词…\n\n示例：\n- 代码风格规范\n- 团队沟通规则\n- 项目级约定\n- 安全最佳实践",
+    "hint": "此提示词将插入所有智能体的系统指令中。",
+    "clearTitle": "清除系统提示词",
+    "clearConfirm": "确定要清除系统提示词吗？"
+  },
+  "integrationStatusPanel": {
+    "noIntegrations": "暂无可用集成。",
+    "statusError": "错误",
+    "statusSetupRequired": "需要设置",
+    "configure": "配置 {{name}}",
+    "manageAll": "管理所有集成"
   }
 }

@@ -843,7 +843,7 @@ const ChatView = React.memo(function ChatView({
       <div className="flat-chat flat-chat--empty">
         <div className="flat-chat__placeholder">
           <span className="flat-chat__placeholder-icon">💬</span>
-          <span className="flat-chat__placeholder-text">Select an agent to start chatting</span>
+          <span className="flat-chat__placeholder-text">{t('flatView.selectAgent', { defaultValue: 'Select an agent to start chatting' })}</span>
         </div>
       </div>
     );

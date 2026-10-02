@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchOpencodeModels } from '../api/opencode';
 import { Icon } from './Icon';
 import '../styles/components/opencode-model-select.scss';
@@ -25,11 +26,12 @@ interface OpencodeModelSelectProps {
 export function OpencodeModelSelect({
   value,
   onChange,
-  placeholder = 'provider/model (e.g., opencode/gpt-5-nano)',
+  placeholder,
   inputId,
   fetchModels,
   cliLabel = 'opencode',
 }: OpencodeModelSelectProps) {
+  const { t } = useTranslation(['terminal']);
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +52,7 @@ export function OpencodeModelSelect({
       const res = await (fetchModels ?? fetchOpencodeModels)(refresh);
       setModels(res.models);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load models');
+      setError(err?.message || t('terminal:opencodeModelSelect.loadFailed', { defaultValue: 'Failed to load models' }));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -137,7 +139,7 @@ export function OpencodeModelSelect({
           type="text"
           className="opencode-model-select__input"
           value={displayValue}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('terminal:opencodeModelSelect.placeholder', { defaultValue: 'provider/model (e.g., opencode/gpt-5-nano)' })}
           onFocus={() => {
             setOpen(true);
             setQuery('');
@@ -158,7 +160,7 @@ export function OpencodeModelSelect({
             e.preventDefault();
             loadModels(true);
           }}
-          title={`Refresh models from ${cliLabel} CLI`}
+          title={t('terminal:opencodeModelSelect.refreshTitle', { defaultValue: 'Refresh models from {{cli}} CLI', cli: cliLabel })}
           disabled={refreshing}
         >
           <span className={refreshing ? 'spin' : ''}>
@@ -170,7 +172,7 @@ export function OpencodeModelSelect({
       {open && (
         <div className="opencode-model-select__dropdown">
           {loading && (
-            <div className="opencode-model-select__status">Loading models…</div>
+            <div className="opencode-model-select__status">{t('terminal:opencodeModelSelect.loading', { defaultValue: 'Loading models…' })}</div>
           )}
           {error && !loading && (
             <div className="opencode-model-select__status opencode-model-select__status--error">
@@ -180,8 +182,8 @@ export function OpencodeModelSelect({
           {!loading && !error && filtered.length === 0 && (
             <div className="opencode-model-select__status">
               {query.trim()
-                ? <>No matches. Press Enter to use <code>{query.trim()}</code></>
-                : `No models returned by ${cliLabel} CLI`}
+                ? <>{t('terminal:opencodeModelSelect.noMatchesPressEnter', { defaultValue: 'No matches. Press Enter to use' })} <code>{query.trim()}</code></>
+                : t('terminal:opencodeModelSelect.noModels', { defaultValue: 'No models returned by {{cli}} CLI', cli: cliLabel })}
             </div>
           )}
           {!loading && filtered.length > 0 && (
@@ -224,11 +226,11 @@ export function OpencodeModelSelect({
           <div className="opencode-model-select__footer">
             <span>
               {models.length > 0
-                ? `${filtered.length} of ${models.length}`
+                ? t('terminal:opencodeModelSelect.count', { defaultValue: '{{shown}} of {{total}}', shown: filtered.length, total: models.length })
                 : ''}
             </span>
             <span className="opencode-model-select__hint">
-              ↑↓ navigate · Enter select · Esc close
+              {t('terminal:opencodeModelSelect.hints', { defaultValue: '↑↓ navigate · Enter select · Esc close' })}
             </span>
           </div>
         </div>

@@ -190,7 +190,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               className={`color-swatch ${area.color === color ? 'selected' : ''}`}
               style={{ backgroundColor: color }}
               onClick={() => handleColorSelect(color)}
-              aria-label={`Set area color ${color}`}
+              aria-label={t('config:areas.setColorAria', { defaultValue: 'Set area color {{color}}', color })}
               aria-pressed={area.color === color}
               title={color}
             />

@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { Icon } from '../Icon';
 
@@ -42,6 +43,7 @@ export function FolderInput({
   hasError = false,
   disabled = false,
 }: FolderInputProps) {
+  const { t } = useTranslation(['common']);
   const [suggestions, setSuggestions] = useState<PathSuggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -220,7 +222,7 @@ export function FolderInput({
       {showSuggestions && (suggestions.length > 0 || isLoading) && (
         <div ref={suggestionsRef} className="folder-input-suggestions">
           {isLoading && suggestions.length === 0 ? (
-            <div className="folder-input-loading">Loading...</div>
+            <div className="folder-input-loading">{t('common:status.loading')}</div>
           ) : (
             suggestions.map((suggestion, index) => (
               <div

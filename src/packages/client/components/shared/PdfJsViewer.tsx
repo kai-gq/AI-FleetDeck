@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Shared pdf.js-based viewer (extracted from FileViewerModal so the git-panel
@@ -8,6 +9,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 export function PdfJsViewer({ url, authToken }: { url: string; authToken?: string }) {
+  const { t } = useTranslation(['terminal']);
   const [numPages, setNumPages] = useState<number>(0);
   const [renderedPages, setRenderedPages] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export function PdfJsViewer({ url, authToken }: { url: string; authToken?: strin
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load PDF');
+          setError(err instanceof Error ? err.message : t('terminal:fileExplorer.failedToLoadPdf'));
         }
       }
     };
@@ -148,13 +150,13 @@ export function PdfJsViewer({ url, authToken }: { url: string; authToken?: strin
 
   return (
     <div className="pdf-js-container">
-      {loading && <div className="pdf-js-loading">Loading PDF…</div>}
+      {loading && <div className="pdf-js-loading">{t('terminal:pdfJsViewer.loading', { defaultValue: 'Loading PDF…' })}</div>}
       {error && <div className="pdf-js-error">{error}</div>}
       {numPages > 0 && (
         <div className="pdf-js-info">
           {renderedPages < numPages
-            ? `Rendering page ${renderedPages + 1} of ${numPages}…`
-            : `${numPages} page${numPages !== 1 ? 's' : ''}`}
+            ? t('terminal:pdfJsViewer.renderingPage', { defaultValue: 'Rendering page {{page}} of {{total}}…', page: renderedPages + 1, total: numPages })
+            : t('terminal:pdfJsViewer.pageCount', { defaultValue: '{{count}} page{{plural}}', count: numPages, plural: numPages !== 1 ? 's' : '' })}
         </div>
       )}
       <div ref={containerRef} className="pdf-js-pages" />

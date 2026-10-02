@@ -1384,15 +1384,15 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               type="button"
               className="mobile-limit-gauge"
               onClick={() => store.setContextModalAgentId(selectedAgentId)}
-              title={`Session context: ${Math.round(mobileContext.usedPercent)}% used`}
-              aria-label={`Session context ${Math.round(mobileContext.usedPercent)} percent used`}
+              title={t('terminal:input.sessionContextTitle', { defaultValue: 'Session context: {{pct}}% used', pct: Math.round(mobileContext.usedPercent) })}
+              aria-label={t('terminal:input.sessionContextAria', { defaultValue: 'Session context {{pct}} percent used', pct: Math.round(mobileContext.usedPercent) })}
             >
               <span
                 className="mobile-context-bar-fill"
                 style={{ width: `${Math.min(100, mobileContext.usedPercent)}%`, backgroundColor: mobileContextColor }}
               />
               <span className="mobile-context-bar-text">
-                <span className="mobile-context-bar-label">Ctx</span>
+                <span className="mobile-context-bar-label">{t('terminal:input.ctxLabel', { defaultValue: 'Ctx' })}</span>
                 <span className="mobile-context-bar-window">{formatTokenCapacity(mobileContext.contextWindow)}</span>
                 <span className="mobile-context-bar-value" style={{ color: mobileContextColor }}>
                   {Math.round(mobileContext.usedPercent)}%
@@ -1404,16 +1404,16 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               className="mobile-limit-gauge"
               onClick={() => store.setContextModalAgentId(selectedAgentId)}
               title={weeklyWindow
-                ? `Weekly usage: ${Math.round(weeklyUsedPercent!)}% used`
-                : providerUsage.error || 'Weekly usage unavailable'}
-              aria-label={`Weekly usage ${weeklyValue}`}
+                ? t('terminal:input.weeklyUsageTitle', { defaultValue: 'Weekly usage: {{pct}}% used', pct: Math.round(weeklyUsedPercent!) })
+                : providerUsage.error || t('terminal:input.weeklyUsageUnavailable', { defaultValue: 'Weekly usage unavailable' })}
+              aria-label={t('terminal:input.weeklyUsageAria', { defaultValue: 'Weekly usage {{value}}', value: weeklyValue })}
             >
               <span
                 className="mobile-context-bar-fill"
                 style={{ width: `${weeklyUsedPercent ?? 0}%`, backgroundColor: weeklyColor }}
               />
               <span className="mobile-context-bar-text">
-                <span className="mobile-context-bar-label">Week</span>
+                <span className="mobile-context-bar-label">{t('terminal:input.weekLabel', { defaultValue: 'Week' })}</span>
                 <span className="mobile-context-bar-value" style={{ color: weeklyColor }}>
                   {weeklyValue}
                 </span>
@@ -1471,7 +1471,9 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                 type="button"
                 className={`guake-pin-btn ${isPinned ? 'pinned' : ''}`}
                 onClick={() => store.togglePinnedAgent(selectedAgentId)}
-                title={isPinned ? 'Unpin this agent from the quick-select bar' : 'Pin this agent to the quick-select bar'}
+                title={isPinned
+                  ? t('terminal:input.unpinTitle', { defaultValue: 'Unpin this agent from the quick-select bar' })
+                  : t('terminal:input.pinTitle', { defaultValue: 'Pin this agent to the quick-select bar' })}
                 aria-pressed={isPinned}
               >
                 <Icon name="pin" size={14} />

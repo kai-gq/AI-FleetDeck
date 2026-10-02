@@ -37,7 +37,7 @@ export const SpotlightInput = forwardRef<HTMLInputElement, SpotlightInputProps>(
         autoFocus
         spellCheck={false}
         disabled={executingCommand}
-        aria-label={commandMode ? 'Plugin command' : undefined}
+        aria-label={commandMode ? t('common:spotlight.pluginCommand', { defaultValue: 'Plugin command' }) : undefined}
       />
       <div className="spotlight-input-hints">
         <span className="spotlight-shortcut-hint">↑↓</span>

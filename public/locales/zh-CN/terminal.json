@@ -115,7 +115,16 @@
     "jumpToPrompt": "在对话中跳转到此提示词",
     "pendingMessage": "已排队 1 条消息——连接后将自动发送",
     "pendingMessages": "已排队 {{count}} 条消息——连接后将自动发送",
-    "removeQueuedMessage": "移除已排队的消息"
+    "removeQueuedMessage": "移除已排队的消息",
+    "sessionContextTitle": "会话上下文：已使用 {{pct}}%",
+    "sessionContextAria": "会话上下文已使用 {{pct}}%",
+    "ctxLabel": "上下文",
+    "weeklyUsageTitle": "每周用量：已使用 {{pct}}%",
+    "weeklyUsageUnavailable": "每周用量不可用",
+    "weeklyUsageAria": "每周用量 {{value}}",
+    "weekLabel": "本周",
+    "unpinTitle": "从快速选择栏取消固定此智能体",
+    "pinTitle": "将此智能体固定到快速选择栏"
   },
   "modals": {
     "context": "上下文",
@@ -2260,7 +2269,8 @@
     "selectAgentToInspect": "选择一个智能体进行检查",
     "agentNotFound": "未找到智能体",
     "terminalPanelName": "终端——{{name}}",
-    "areaFallback": "区域"
+    "areaFallback": "区域",
+    "selectAgent": "选择一个智能体开始对话"
   },
   "slashCommands": {
     "summary": {
@@ -2584,7 +2594,9 @@
     "hideQuoted": "隐藏引用内容",
     "showQuoted": "查看引用内容",
     "openInGmail": "在 Gmail 中打开",
-    "viewInGmail": "在 Gmail 中查看"
+    "viewInGmail": "在 Gmail 中查看",
+    "threadTitle": "邮件串 {{id}}",
+    "ariaLabel": "Gmail 邮件"
   },
   "spotlightItem": {
     "extractsAria": "匹配的对话摘录",
@@ -2598,7 +2610,11 @@
       "user": "你",
       "assistant": "智能体",
       "tool": "工具"
-    }
+    },
+    "matchesInConversation": "对话中 {{n}} 处匹配",
+    "matchCount": "{{n}} 处匹配",
+    "areaTitle": "区域：{{name}}",
+    "idleLabel": "空闲："
   },
   "spotlightCommand": {
     "resultAria": "{{command}} 的结果",
@@ -3297,5 +3313,58 @@
     "explainIncomplete": "根据智能体写入的内容重建，但部分后续编辑无法重放，因此该文件在此之后可能已有变化。",
     "explainFromWrite": "根据智能体写入的内容（及其后续编辑）重建。对话之外所做的更改不包含在内。",
     "explainFromRead": "智能体读取时的完整文件。对话之外所做的后续更改不包含在内。"
+  },
+  "recents": {
+    "filterPlaceholder": "筛选最近的智能体和建筑…",
+    "filterLabel": "最近记录筛选",
+    "noItems": "暂无最近项目"
+  },
+  "planLimits": {
+    "loadFailed": "加载套餐限额失败"
+  },
+  "whatsAppBubble": {
+    "sent": "已发送",
+    "received": "已接收",
+    "group": "群组",
+    "ariaLabel": "WhatsApp 消息"
+  },
+  "agentPane": {
+    "compacting": "正在压缩上下文…"
+  },
+  "terminalPane": {
+    "loading": "正在加载终端…"
+  },
+  "searchableSelect": {
+    "placeholder": "搜索…"
+  },
+  "pdfJsViewer": {
+    "loading": "正在加载 PDF…",
+    "renderingPage": "正在渲染第 {{page}} 页，共 {{total}} 页…",
+    "pageCount": "{{count}} 页"
+  },
+  "imageModal": {
+    "previousTitle": "上一张（←）",
+    "previous": "上一张",
+    "nextTitle": "下一张（→）",
+    "next": "下一张",
+    "galleryLabel": "本次对话中的图片"
+  },
+  "zoomedImage": {
+    "hint": "双指或滚轮缩放；拖动平移；双击重置"
+  },
+  "piModelSelect": {
+    "placeholder": "pi 默认 — 或 provider/model（例如 anthropic/claude-sonnet-4-5）",
+    "recentAria": "最近选择的 Pi 模型",
+    "recent": "最近"
+  },
+  "opencodeModelSelect": {
+    "placeholder": "provider/model（例如 opencode/gpt-5-nano）",
+    "loadFailed": "加载模型失败",
+    "refreshTitle": "从 {{cli}} CLI 刷新模型",
+    "loading": "正在加载模型…",
+    "noMatchesPressEnter": "无匹配项。按 Enter 使用",
+    "noModels": "{{cli}} CLI 未返回任何模型",
+    "count": "{{shown}} / {{total}}",
+    "hints": "↑↓ 导航 · Enter 选择 · Esc 关闭"
   }
 }

@@ -151,6 +151,7 @@ const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   src: string;
   title: string;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
   // Defer src assignment so the UI paints first, then the iframe loads in the background
@@ -199,7 +200,7 @@ const _BottomTerminalIframe = memo(function BottomTerminalIframe({
   return (
     <>
       {!loaded && (
-        <div className="guake-bottom-terminal-starting"><span>Loading terminal...</span></div>
+        <div className="guake-bottom-terminal-starting"><span>{t('terminal:terminalPane.loading', { defaultValue: 'Loading terminal...' })}</span></div>
       )}
       <iframe
         ref={iframeRef}

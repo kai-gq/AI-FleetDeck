@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface SearchableSelectOption {
   value: string;
@@ -33,11 +34,12 @@ export function SearchableSelect({
   options,
   onChange,
   pinnedOptions = [],
-  placeholder = 'Search…',
+  placeholder,
   className = '',
   disabled = false,
   title,
 }: SearchableSelectProps) {
+  const { t } = useTranslation(['terminal']);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
@@ -126,7 +128,7 @@ export function SearchableSelect({
             ref={inputRef}
             className="searchable-select__search"
             value={query}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t('terminal:searchableSelect.placeholder', { defaultValue: 'Search…' })}
             onChange={(event) => {
               setQuery(event.target.value);
               setHighlight(0);
@@ -134,7 +136,7 @@ export function SearchableSelect({
           />
           <ul ref={listRef} className="searchable-select__list" role="listbox">
             {visible.length === 0 ? (
-              <li className="searchable-select__empty">No matches</li>
+              <li className="searchable-select__empty">{t('terminal:fileExplorer.noMatches')}</li>
             ) : visible.map((option, index) => (
               <li
                 key={`${option.value}-${index}`}

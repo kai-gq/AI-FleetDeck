@@ -43,7 +43,7 @@ export function BuildingItem({ building, isSelected, onClick, onEdit }: Building
                   href={`http://${window.location.hostname}:${port}`}
                   className="building-port-link"
                   onClick={(e) => handlePortClick(e, port)}
-                  title={`Open :${port}`}
+                  title={t('config:buildings.openPortTitle', { defaultValue: 'Open :{{port}}', port })}
                 >
                   :{port}
                 </a>

@@ -20,7 +20,8 @@
     "terminal:bolbaRecommended.aiBadge",
     "terminal:curlCard.bodyJson",
     "common:appModals.deleteNamedQ2",
-    "terminal:missingFile.gitHead"
+    "terminal:missingFile.gitHead",
+    "terminal:opencodeModelSelect.count"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -154,6 +155,31 @@
     "re:^terminal:spotlightItem\\.",
     "re:^terminal:spotlightCommand\\.",
     "re:^terminal:spotlightFile\\.",
-    "re:^terminal:sceneMenu\\."
+    "re:^terminal:sceneMenu\\.",
+    "re:^config:systemPromptSection\\.",
+    "re:^config:integrationStatusPanel\\.",
+    "re:^config:data\\.",
+    "re:^config:about\\.(invalidServiceAccount|updateAvailableTitle)$",
+    "config:buildings.openPortTitle",
+    "config:areas.setColorAria",
+    "re:^common:unitPanel\\.",
+    "re:^common:agentsList\\.",
+    "common:spotlight.pluginCommand",
+    "re:^common:emojiPicker\\.",
+    "re:^terminal:recents\\.",
+    "terminal:flatView.selectAgent",
+    "terminal:planLimits.loadFailed",
+    "re:^terminal:input\\.(sessionContextTitle|sessionContextAria|ctxLabel|weeklyUsageTitle|weeklyUsageUnavailable|weeklyUsageAria|weekLabel|unpinTitle|pinTitle)$",
+    "re:^terminal:whatsAppBubble\\.",
+    "re:^terminal:gmailBubble\\.(threadTitle|ariaLabel)$",
+    "terminal:agentPane.compacting",
+    "terminal:terminalPane.loading",
+    "terminal:searchableSelect.placeholder",
+    "re:^terminal:pdfJsViewer\\.",
+    "re:^terminal:imageModal\\.",
+    "terminal:zoomedImage.hint",
+    "re:^terminal:spotlightItem\\.(matchesInConversation|matchCount|areaTitle|idleLabel)$",
+    "re:^terminal:piModelSelect\\.",
+    "re:^terminal:opencodeModelSelect\\."
   ]
 }

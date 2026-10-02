@@ -63,7 +63,7 @@ export function DataSection() {
       .then(setBackupStatus)
       .catch(err => {
         console.error('Failed to fetch backup status:', err);
-        setBackupError(err.message || 'Failed to fetch backup status');
+        setBackupError(err.message || t('config:data.backupStatusFailed', { defaultValue: 'Failed to fetch backup status' }));
       });
   }, []);
 
@@ -75,7 +75,7 @@ export function DataSection() {
       const next = await updateBackupEnabled(enabled);
       setBackupStatus(next);
     } catch (err: any) {
-      setBackupError(err.message || 'Failed to update backup setting');
+      setBackupError(err.message || t('config:data.backupUpdateFailed', { defaultValue: 'Failed to update backup setting' }));
     } finally {
       setBackupBusy(false);
     }
@@ -120,7 +120,7 @@ export function DataSection() {
       const response = await authFetch(apiUrl(`/api/config/export?categories=${categoriesParam}`));
 
       if (!response.ok) {
-        throw new Error('Export failed');
+        throw new Error(t('config:data.exportFailed', { defaultValue: 'Export failed' }));
       }
 
       // Download the file
@@ -138,7 +138,7 @@ export function DataSection() {
 
       setMessage({ type: 'success', text: t('config:data.exportSuccess') });
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Export failed' });
+      setMessage({ type: 'error', text: err.message || t('config:data.exportFailed', { defaultValue: 'Export failed' }) });
     } finally {
       setIsExporting(false);
     }
@@ -162,7 +162,7 @@ export function DataSection() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to preview config file');
+        throw new Error(error.error || t('config:data.previewFailed', { defaultValue: 'Failed to preview config file' }));
       }
 
       const preview = await response.json();
@@ -170,7 +170,7 @@ export function DataSection() {
       setImportPreview({ ...preview, categories: previewCats });
       setSelectedImport(new Set(previewCats.map((c: ConfigCategory) => c.id)));
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to read config file' });
+      setMessage({ type: 'error', text: err.message || t('config:data.readFailed', { defaultValue: 'Failed to read config file' }) });
       setImportFile(null);
     }
   };
@@ -192,7 +192,7 @@ export function DataSection() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Import failed');
+        throw new Error(result.error || t('config:data.importFailed', { defaultValue: 'Import failed' }));
       }
 
       setMessage({ type: 'success', text: result.message || t('config:data.importSuccess') });
@@ -200,7 +200,7 @@ export function DataSection() {
       setImportPreview(null);
       setSelectedImport(new Set());
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Import failed' });
+      setMessage({ type: 'error', text: err.message || t('config:data.importFailed', { defaultValue: 'Import failed' }) });
     } finally {
       setIsImporting(false);
     }
@@ -224,7 +224,7 @@ export function DataSection() {
       {/* Hourly Backup Toggle */}
       <div className="data-subsection">
         <div className="data-subsection-header">
-          <span className="data-subsection-title">Hourly Backups</span>
+          <span className="data-subsection-title">{t('config:data.hourlyBackups', { defaultValue: 'Hourly Backups' })}</span>
           <Toggle
             checked={!!backupStatus?.enabled}
             disabled={backupBusy || !backupStatus}
@@ -235,20 +235,19 @@ export function DataSection() {
           {backupStatus ? (
             <>
               <div>
-                Saves a compressed snapshot of your data every hour to{' '}
-                <code>{backupStatus.backupDir}</code>.
-                Identical snapshots are skipped. Keeps the 8 newest plus one from each
-                of the 2 most recent prior days.
+                {t('config:data.backupInfoPrefix', { defaultValue: 'Saves a compressed snapshot of your data every hour to' })}{' '}
+                <code>{backupStatus.backupDir}</code>
+                {t('config:data.backupInfoSuffix', { defaultValue: '. Identical snapshots are skipped. Keeps the 8 newest plus one from each of the 2 most recent prior days.' })}
               </div>
               {!backupStatus.scriptExists && (
                 <div style={{ marginTop: 6, color: 'var(--dracula-red, #ff5555)' }}>
-                  Backup script not found at <code>{backupStatus.scriptPath}</code>
+                  {t('config:data.backupScriptNotFound', { defaultValue: 'Backup script not found at' })} <code>{backupStatus.scriptPath}</code>
                 </div>
               )}
               {backupStatus.lastRunAt && (
                 <div style={{ marginTop: 6 }}>
-                  Last run: {new Date(backupStatus.lastRunAt).toLocaleString()}
-                  {backupStatus.lastRunOk === true && ' — ok'}
+                  {t('config:data.lastRun', { defaultValue: 'Last run:' })} {new Date(backupStatus.lastRunAt).toLocaleString()}
+                  {backupStatus.lastRunOk === true && t('config:data.lastRunOk', { defaultValue: ' — ok' })}
                   {backupStatus.lastRunOk === false && backupStatus.lastRunError && (
                     <span style={{ color: 'var(--dracula-red, #ff5555)' }}>
                       {' — '}{backupStatus.lastRunError}
@@ -258,7 +257,7 @@ export function DataSection() {
               )}
             </>
           ) : (
-            <div>Loading backup status…</div>
+            <div>{t('config:data.loadingBackupStatus', { defaultValue: 'Loading backup status…' })}</div>
           )}
           {backupError && (
             <div className="data-message data-message-error" style={{ marginTop: 6 }}>

@@ -1511,7 +1511,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
                   draggable={false}
                 />
               </div>
-              <span className="compacting-label">Compacting context...</span>
+              <span className="compacting-label">{t('terminal:agentPane.compacting', { defaultValue: 'Compacting context...' })}</span>
             </div>
           )}
           {/* Subordinate progress indicators now render inline within each DelegationBlock */}

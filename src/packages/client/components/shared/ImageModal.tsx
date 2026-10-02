@@ -11,6 +11,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ModalPortal } from './ModalPortal';
 import { ZoomableImage } from './ZoomableImage';
 import { useModalClose } from '../../hooks/useModalClose';
@@ -49,6 +50,7 @@ function isSvgSource(url: string, name: string): boolean {
 /** Any modal that shows a single image should render this rather than rolling
  *  its own `<img>` chrome. */
 export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery }: ImageModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
   // SVGs that only carry a viewBox have no intrinsic pixel size, so this
   // modal's shrink-to-fit box has nothing to measure and collapses the image to
@@ -113,11 +115,11 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery
               <span className="image-modal-counter" aria-live="polite">{index + 1} / {count}</span>
             )}
             {downloadName && (
-              <a className="image-modal-download" href={url} download={downloadName} title="Download" aria-label="Download">
+              <a className="image-modal-download" href={url} download={downloadName} title={t('common:buttons.download')} aria-label={t('common:buttons.download')}>
                 <Icon name="download" size={12} />
               </a>
             )}
-            <button className="image-modal-close" onClick={onClose} aria-label="Close">
+            <button className="image-modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               ×
             </button>
           </div>
@@ -127,8 +129,8 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery
                 className="image-modal-nav is-prev"
                 onClick={(event) => go(event, index - 1)}
                 disabled={!hasPrev}
-                title="Previous image (←)"
-                aria-label="Previous image"
+                title={t('terminal:imageModal.previousTitle', { defaultValue: 'Previous image (←)' })}
+                aria-label={t('terminal:imageModal.previous', { defaultValue: 'Previous image' })}
               >
                 <Icon name="caret-left" size={22} />
               </button>
@@ -140,15 +142,15 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery
                 className="image-modal-nav is-next"
                 onClick={(event) => go(event, index + 1)}
                 disabled={!hasNext}
-                title="Next image (→)"
-                aria-label="Next image"
+                title={t('terminal:imageModal.nextTitle', { defaultValue: 'Next image (→)' })}
+                aria-label={t('terminal:imageModal.next', { defaultValue: 'Next image' })}
               >
                 <Icon name="caret-right" size={22} />
               </button>
             )}
           </div>
           {browsable && gallery && (
-            <div className="image-modal-thumbs" ref={stripRef} role="listbox" aria-label="Images in this conversation">
+            <div className="image-modal-thumbs" ref={stripRef} role="listbox" aria-label={t('terminal:imageModal.galleryLabel', { defaultValue: 'Images in this conversation' })}>
               {gallery.items.map((item, itemIndex) => (
                 <button
                   key={item.url}
