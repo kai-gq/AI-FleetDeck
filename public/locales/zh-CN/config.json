@@ -402,7 +402,14 @@
       "metricMem": "内存",
       "actionRestart": "重启",
       "actionLogs": "日志"
-    }
+    },
+    "shellOptions": {
+      "default": "默认（$SHELL）"
+    },
+    "terminalArgsHint": "传递给 ttyd 的额外命令行参数",
+    "terminalProxy": "代理",
+    "terminalOpenModal": "弹窗",
+    "terminalOpenBelow": "下方"
   },
   "tools": {
     "select": "选择",

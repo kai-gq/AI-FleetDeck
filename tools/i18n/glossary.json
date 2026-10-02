@@ -2,11 +2,12 @@
   "//": "zh-CN 术语表。rules 是机械规则:audit.mjs 对命中的值报 FAIL,apply.mjs --glossary 把 forbidden 词替换为 zh。style 仅作文档,人工精修与 kit 编写时遵循。",
   "rules": [
     {
-      "//": "Agent 一律为「智能体」。经全量扫描,现有 zh 值中「代理」无一例是网络代理等其它含义,故全局生效。",
+      "//": "Agent 一律为「智能体」。经全量扫描,现有 zh 值中「代理」无一例是网络代理等其它含义;唯一网络代理场景(config:buildings.terminalProxy,ttyd 反向代理)列入 exclude。",
       "id": "agent",
       "zh": "智能体",
       "forbidden": ["代理"],
-      "scope": { "ns": "*" }
+      "scope": { "ns": "*" },
+      "exclude": { "keyPattern": "^config:buildings\\.terminalProxy$" }
     },
     {
       "//": "LLM 计量一律写 Token;鉴权 token(config:connection.*、WhatsApp webhook 校验、Claude 账号 OAuth 令牌)译「令牌」,排除在外。",

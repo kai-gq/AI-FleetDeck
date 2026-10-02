@@ -19,8 +19,8 @@ interface TerminalConfigPanelProps {
   onOpenBelow?: (buildingId: string) => void;
 }
 
-const SHELL_OPTIONS = [
-  { value: '', label: 'Default ($SHELL)' },
+const SHELL_OPTIONS: Array<{ value: string; label: string; labelKey?: string }> = [
+  { value: '', label: 'Default ($SHELL)', labelKey: 'config:buildings.shellOptions.default' },
   { value: '/bin/bash', label: 'Bash' },
   { value: '/bin/zsh', label: 'Zsh' },
   { value: '/usr/bin/fish', label: 'Fish' },
@@ -42,7 +42,7 @@ export function TerminalConfigPanel({
   onOpenTerminal,
   onOpenBelow,
 }: TerminalConfigPanelProps) {
-  const { t } = useTranslation(['config']);
+  const { t } = useTranslation(['config', 'common', 'terminal']);
   const isRunning = building?.status === 'running';
   const terminalStatus = building?.terminalStatus;
 
@@ -60,7 +60,7 @@ export function TerminalConfigPanel({
               onChange={(e) => setTerminalShell(e.target.value)}
             >
               {SHELL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>{opt.labelKey ? t(opt.labelKey, { defaultValue: opt.label }) : opt.label}</option>
               ))}
             </select>
           </div>
@@ -71,7 +71,7 @@ export function TerminalConfigPanel({
               className="form-input"
               value={terminalPort}
               onChange={(e) => setTerminalPort(e.target.value)}
-              placeholder="Auto"
+              placeholder={t('config:time.auto')}
               min={1024}
               max={65535}
             />
@@ -99,7 +99,7 @@ export function TerminalConfigPanel({
             placeholder="--client-option titleFixed=Terminal"
           />
           <div className="form-hint">
-            Additional command-line arguments passed to ttyd
+            {t('config:buildings.terminalArgsHint', { defaultValue: 'Additional command-line arguments passed to ttyd' })}
           </div>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function TerminalConfigPanel({
           {terminalStatus && (
             <div className="building-runtime-info">
               <div className="runtime-row">
-                <span className="runtime-label">Proxy</span>
+                <span className="runtime-label">{t('config:buildings.terminalProxy', { defaultValue: 'Proxy' })}</span>
                 <span className="runtime-value" style={{ color: '#4a9eff' }}>
                   {terminalStatus.url}
                 </span>
@@ -122,12 +122,12 @@ export function TerminalConfigPanel({
                 <span className="runtime-value">{terminalStatus.pid}</span>
               </div>
               <div className="runtime-row">
-                <span className="runtime-label">Port</span>
+                <span className="runtime-label">{t('config:buildings.terminalPort', { defaultValue: 'Port' })}</span>
                 <span className="runtime-value">{terminalStatus.port}</span>
               </div>
               {terminalStatus.tmuxSession && (
                 <div className="runtime-row">
-                  <span className="runtime-label">Session</span>
+                  <span className="runtime-label">{t('common:labels.session')}</span>
                   <span className="runtime-value">{terminalStatus.tmuxSession}</span>
                 </div>
               )}
@@ -137,16 +137,16 @@ export function TerminalConfigPanel({
           <div className="building-actions" style={{ marginTop: '8px' }}>
             {!isRunning && (
               <button type="button" className="btn btn-sm btn-success" onClick={() => handleCommand('start')}>
-                <Icon name="play" size={12} /> Start
+                <Icon name="play" size={12} /> {t('common:buttons.start')}
               </button>
             )}
             {isRunning && (
               <>
                 <button type="button" className="btn btn-sm btn-warning" onClick={() => handleCommand('restart')}>
-                  <Icon name="refresh" size={12} /> Restart
+                  <Icon name="refresh" size={12} /> {t('terminal:buildingAction.restart')}
                 </button>
                 <button type="button" className="btn btn-sm btn-danger" onClick={() => handleCommand('stop')}>
-                  <Icon name="stop" size={12} /> Stop
+                  <Icon name="stop" size={12} /> {t('common:buttons.stop')}
                 </button>
                 {terminalStatus?.url && (
                   <>
@@ -156,7 +156,7 @@ export function TerminalConfigPanel({
                         className="btn btn-sm btn-primary"
                         onClick={() => onOpenTerminal(terminalStatus.url!)}
                       >
-                        <Icon name="desktop" size={12} /> Modal
+                        <Icon name="desktop" size={12} /> {t('config:buildings.terminalOpenModal', { defaultValue: 'Modal' })}
                       </button>
                     )}
                     {onOpenBelow && building && (
@@ -165,7 +165,7 @@ export function TerminalConfigPanel({
                         className="btn btn-sm btn-primary"
                         onClick={() => onOpenBelow(building.id)}
                       >
-                        <Icon name="arrow-down" size={12} /> Below
+                        <Icon name="arrow-down" size={12} /> {t('config:buildings.terminalOpenBelow', { defaultValue: 'Below' })}
                       </button>
                     )}
                   </>
