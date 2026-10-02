@@ -2173,7 +2173,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             onClick={(e) => { e.stopPropagation(); setSubagentResultExpanded(!subagentResultExpanded); }}
           >
             <span className="subagent-result-arrow"><Icon name={subagentResultExpanded ? 'caret-down' : 'caret-right'} size={10} /></span>
-            {subagentResultExpanded ? 'Hide result' : 'Show result'}
+            {subagentResultExpanded ? t('terminal:outputLine.hideResult', { defaultValue: 'Hide result' }) : t('terminal:outputLine.showResult', { defaultValue: 'Show result' })}
           </button>
           {subagentResultExpanded && (
             <div className="subagent-result-content markdown-content">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Agent, AgentProvider, ClaudeModel } from '../../shared/types';
 import { CLAUDE_MODELS, GROK_MODELS } from '../../shared/types';
 import { fetchPiModels } from '../api/pi';
@@ -104,6 +105,7 @@ function staticContextWindow(props: ModelUsagePreviewProps): number | null {
 }
 
 export function ModelUsagePreview(props: ModelUsagePreviewProps) {
+  const { t } = useTranslation('terminal');
   const selectedPiProvider = piProvider(props.piModel);
   const selectedOpenCodeProvider = piProvider(props.opencodeModel);
   const selectedUsageProvider = props.provider === 'pi' ? selectedPiProvider : selectedOpenCodeProvider;
@@ -189,10 +191,10 @@ export function ModelUsagePreview(props: ModelUsagePreviewProps) {
           <span style={{ width: `${context.usedPercent}%`, backgroundColor: contextColor }} />
         </span>
         <span className="model-usage-preview__value" style={{ color: contextColor }}>
-          {context.limit ? `${Math.round(context.remaining)}% free` : '—'}
+          {context.limit ? t('terminal:context.percentFree', { percent: Math.round(context.remaining) }) : '—'}
         </span>
       </div>
-      <div className="model-usage-preview__gauge" title={weekly.window ? `${weekRemaining}% weekly quota remaining` : weekly.error ?? 'Weekly limit unavailable'}>
+      <div className="model-usage-preview__gauge" title={weekly.window ? t('terminal:modelUsagePreview.weeklyQuotaRemaining', { defaultValue: '{{percent}}% weekly quota remaining', percent: weekRemaining }) : weekly.error ?? t('terminal:modelUsagePreview.weeklyUnavailable', { defaultValue: 'Weekly limit unavailable' })}>
         <span className="model-usage-preview__label">Week</span>
         <span className="model-usage-preview__bar">
           <span style={{ width: `${weekUsed ?? 0}%`, backgroundColor: weekColor }} />

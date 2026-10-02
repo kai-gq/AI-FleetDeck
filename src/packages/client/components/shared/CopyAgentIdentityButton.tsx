@@ -1,4 +1,5 @@
 import { useCallback, useState, type MouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { copyTextToClipboard } from '../../utils/clipboard';
 import './CopyAgentIdentityButton.scss';
@@ -19,9 +20,12 @@ export function CopyAgentIdentityButton({
   id,
   className,
 }: CopyAgentIdentityButtonProps) {
+  const { t } = useTranslation('terminal');
   const [copied, setCopied] = useState(false);
   const value = formatAgentIdentity(name, id);
-  const title = copied ? 'Copied name and id' : `Copy ${value}`;
+  const title = copied
+    ? t('terminal:copyAgentIdentity.copiedNameAndId', { defaultValue: 'Copied name and id' })
+    : t('terminal:copyAgentIdentity.copyValue', { defaultValue: 'Copy {{value}}', value });
 
   const handleClick = useCallback((event: MouseEvent) => {
     event.preventDefault();

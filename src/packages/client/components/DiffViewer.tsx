@@ -985,7 +985,7 @@ export function DiffViewer({
           )}
           {downloadButton}
           {!readOnly && !isNewFile && !isDeletedFile && (
-            <Tooltip content={viewOnlyModified ? 'Show diff view' : 'View only modified'} position="bottom">
+            <Tooltip content={viewOnlyModified ? t('terminal:diffViewer.tooltipShowDiff', { defaultValue: 'Show diff view' }) : t('terminal:diffViewer.tooltipViewOnlyModified', { defaultValue: 'View only modified' })} position="bottom">
               <button
                 className={`diff-toggle-btn ${viewOnlyModified ? 'active' : ''}`}
                 onClick={() => setViewOnlyModified(!viewOnlyModified)}
@@ -994,7 +994,7 @@ export function DiffViewer({
               </button>
             </Tooltip>
           )}
-          <Tooltip content={readOnly ? 'Copy file content' : isMarkdown && viewOnlyModified ? 'Copy as rich text' : 'Copy modified content'} position="bottom">
+          <Tooltip content={readOnly ? t('terminal:diffViewer.tooltipCopyFileContent', { defaultValue: 'Copy file content' }) : isMarkdown && viewOnlyModified ? t('terminal:outputLine.copyRichText', { defaultValue: 'Copy as rich text' }) : t('terminal:diffViewer.tooltipCopyModifiedContent', { defaultValue: 'Copy modified content' })} position="bottom">
             <button
               className={`diff-copy-btn ${copyStatus}`}
               onClick={handleCopyModified}

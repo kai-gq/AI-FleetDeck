@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import type { HttpResolvedRequest } from '../../../shared/types';
 
@@ -33,11 +34,12 @@ export function CopyCurlButton({
   title?: string;
   className?: string;
 }) {
+  const { t } = useTranslation(['terminal', 'common']);
   const [copied, setCopied] = useState(false);
   return (
     <button
       className={className}
-      title={title ?? 'Copy this request as a curl command'}
+      title={title ?? t('terminal:copyCurl.copyAsCurl', { defaultValue: 'Copy this request as a curl command' })}
       onClick={(e) => {
         e.stopPropagation();
         void navigator.clipboard.writeText(buildCurlCommand(request)).then(() => {
@@ -46,7 +48,7 @@ export function CopyCurlButton({
         });
       }}
     >
-      <Icon name={copied ? 'check' : 'copy'} size={11} /> {copied ? 'Copied' : 'curl'}
+      <Icon name={copied ? 'check' : 'copy'} size={11} /> {copied ? t('common:buttons.copied', { defaultValue: 'Copied' }) : 'curl'}
     </button>
   );
 }

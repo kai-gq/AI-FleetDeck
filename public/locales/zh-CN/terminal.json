@@ -1412,7 +1412,11 @@
     "modifiedWorking": "修改后（工作区）",
     "previousResult": "上一个结果",
     "nextResult": "下一个结果",
-    "copyMarkdownSource": "复制 Markdown 源码"
+    "copyMarkdownSource": "复制 Markdown 源码",
+    "tooltipShowDiff": "显示差异视图",
+    "tooltipViewOnlyModified": "仅查看修改内容",
+    "tooltipCopyFileContent": "复制文件内容",
+    "tooltipCopyModifiedContent": "复制修改后的内容"
   },
   "buildingAction": {
     "start": "启动",
@@ -2711,7 +2715,9 @@
     "chipNotify": "通知",
     "chipTask": "任务",
     "chipReport": "报告",
-    "chipSearch": "搜索"
+    "chipSearch": "搜索",
+    "hideResult": "隐藏结果",
+    "showResult": "显示结果"
   },
   "shellCommands": {
     "saveFailed": "无法保存命令脚本",
@@ -3072,5 +3078,16 @@
   },
   "resultsTable": {
     "selectDateTime": "选择日期和时间"
+  },
+  "copyCurl": {
+    "copyAsCurl": "复制此请求为 curl 命令"
+  },
+  "copyAgentIdentity": {
+    "copiedNameAndId": "已复制名称和 ID",
+    "copyValue": "复制 {{value}}"
+  },
+  "modelUsagePreview": {
+    "weeklyQuotaRemaining": "每周限额剩余 {{percent}}%",
+    "weeklyUnavailable": "每周限额不可用"
   }
 }

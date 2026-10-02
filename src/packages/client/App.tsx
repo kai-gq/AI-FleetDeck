@@ -1288,7 +1288,7 @@ function AppContent() {
               localStorage.setItem('tide-commander-sidebar-collapsed', String(newCollapsedState));
             }
           }}
-          title={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+          title={sidebarCollapsed ? t('terminal:header.openSidebar') : t('terminal:header.closeSidebar')}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             {sidebarRevealedByHover ? (
