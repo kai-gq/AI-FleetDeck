@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useAgents, usePinnedAgentIds, useCustomAgentClassesArray, useAreas, useViewMode, useAgentsWithUnseenOutput } from '../../store';
 import { AgentIcon } from '../AgentIcon';
 import { STORAGE_KEYS, getStorage, getStorageString, setStorageString, removeStorage } from '../../utils/storage';
@@ -43,7 +44,9 @@ const NO_AGENTS: Agent[] = [];
  */
 type BarMode = 'none' | 'status' | 'area' | 'active';
 const BAR_MODES: BarMode[] = ['none', 'status', 'area', 'active'];
+// English sources for t(…, { defaultValue }); zh lives in the locale files.
 const MODE_LABEL: Record<BarMode, string> = { none: 'All', status: 'Status', area: 'Area', active: 'Active' };
+const MODE_LABEL_KEY: Record<BarMode, string> = { none: 'all', status: 'status', area: 'area', active: 'active' };
 
 /** Coarse status buckets for "group by status". The live AgentStatus union is
  * `idle | working | waiting | waiting_permission | error | offline | orphaned`.
@@ -150,6 +153,7 @@ const PinnedChip = memo(function PinnedChip({
   onDrop,
   onDragEnd,
 }: PinnedChipProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const working = statusBucket(agent) === 'working';
   const isBoss = agent.class === 'boss' || !!agent.isBoss;
   const provider = providerLabel(agent.provider, agent.piModel, agent.piModelProvider);
@@ -163,11 +167,11 @@ const PinnedChip = memo(function PinnedChip({
       }${isPinned ? '' : ' pinned-agent--unpinned'}${
         isExiting ? ' exiting' : ''
       }${isDragging ? ' dragging' : ''}${dropState ? (dropState === 'after' ? ' drop-after' : ' drop-before') : ''}`}
-      title={`${agent.name} · ${provider} — ${agent.status}${hasUnread ? ' — new output' : ''}${isPinned ? '' : ' — not pinned (right-click to pin)'}`}
+      title={`${agent.name} · ${provider} — ${agent.status}${hasUnread ? t('terminal:pinnedBar.newOutput', { defaultValue: ' — new output' }) : ''}${isPinned ? '' : t('terminal:pinnedBar.notPinnedHint', { defaultValue: ' — not pinned (right-click to pin)' })}`}
       // Keep an accessible name even in miniature mode, where the visible
       // name label is hidden via CSS. The provider badge is decorative, so its
       // name rides here rather than as image alt text.
-      aria-label={`${agent.name}, ${provider}${hasUnread ? ', new output' : ''}${isPinned ? '' : ', not pinned'}`}
+      aria-label={`${agent.name}, ${provider}${hasUnread ? t('terminal:pinnedBar.newOutputAria', { defaultValue: ', new output' }) : ''}${isPinned ? '' : t('terminal:pinnedBar.notPinnedAria', { defaultValue: ', not pinned' })}`}
       style={areaColor ? ({ ['--area-color']: areaColor } as React.CSSProperties) : undefined}
       onClick={() => onSelect(agent.id)}
       // Warm the history cache during hover so the switch on click paints
@@ -200,8 +204,8 @@ const PinnedChip = memo(function PinnedChip({
         <span
           className="pinned-agent-unpin"
           role="button"
-          aria-label="Unpin agent"
-          title="Unpin"
+          aria-label={t('terminal:pinnedBar.unpinAgent', { defaultValue: 'Unpin agent' })}
+          title={t('terminal:pinnedBar.unpin', { defaultValue: 'Unpin' })}
           onClick={(e) => onTogglePin(e, agent.id)}
         >
           ×
@@ -218,6 +222,7 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   const areas = useAreas();
   const viewMode = useViewMode();
   const [activeWorkspace] = useWorkspaceFilter();
+  const { t } = useTranslation(['terminal', 'common']);
   // Agents whose finished work the user hasn't opened yet (same source as the
   // AgentBar triangle and the tracking-board "!" bubble). The store adds an id
   // when an agent goes working→idle unviewed and clears it on select/open, so
@@ -325,11 +330,11 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     for (const entry of pinnedEntries) {
       if (groupMode === 'status') {
         const b = statusBucket(entry.agent);
-        push(b, STATUS_LABEL[b], null, entry);
+        push(b, t(`terminal:pinnedBar.status.${b}`, { defaultValue: STATUS_LABEL[b] }), null, entry);
       } else {
         const area = store.getAreaForAgent(entry.agent.id);
         if (area) push(`area:${area.id}`, area.name, area.color ?? null, entry);
-        else push('noarea', 'No area', null, entry);
+        else push('noarea', t('terminal:pinnedBar.noArea', { defaultValue: 'No area' }), null, entry);
       }
     }
 
@@ -346,12 +351,12 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
     }
 
     if (unpinnedEntries.length > 0) {
-      list.push({ key: '__active__', label: 'Active', color: null, entries: unpinnedEntries });
+      list.push({ key: '__active__', label: t('terminal:pinnedBar.activeSection', { defaultValue: 'Active' }), color: null, entries: unpinnedEntries });
     }
     return list;
     // `areas` dep keeps the by-area headers (name + color) fresh when an area is
     // renamed/recolored/moved without the pin set itself changing.
-  }, [groupMode, pinned, dockEntries, areas]);
+  }, [groupMode, pinned, dockEntries, areas, t]);
 
   // Status/recency changes may alter the transient roster while the pointer is
   // already aimed at a miniature chip. Freeze the exact rendered groups for
@@ -560,13 +565,14 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
   // well as the row, so the "active only" filter can never WIDEN the bar by
   // dropping the visible count back under the threshold.
   const miniature = allPinned.length > miniatureThreshold || row.length > miniatureThreshold;
+  const modeLabel = t(`terminal:pinnedBar.mode.${MODE_LABEL_KEY[barMode]}`, { defaultValue: MODE_LABEL[barMode] });
 
   return (
     <div
       ref={barRef}
       className={`pinned-agents-bar${miniature ? ' miniature' : ''}`}
       role="toolbar"
-      aria-label="Agents"
+      aria-label={t('common:labels.agents')}
       onPointerEnter={(e) => { if (e.pointerType === 'mouse') lockRosterForPointer(); }}
       onPointerDownCapture={handleRosterPointerDown}
       onPointerUpCapture={releaseRosterAfterPointer}
@@ -577,12 +583,12 @@ export const PinnedAgentsBar = memo(function PinnedAgentsBar({ activeAgentId, in
         type="button"
         className={`pinned-mode-toggle${activeOnly ? ' on' : ''}`}
         title={activeOnly
-          ? `Active: showing ${pinned.length}/${allPinned.length} pins (working or active in the last ${PINNED_ACTIVE_WINDOW_MS / 60000}min) — click for All`
-          : `View: ${MODE_LABEL[barMode]} — click cycles All → Status → Area → Active`}
-        aria-label={`View mode: ${MODE_LABEL[barMode]}. Click to change.`}
+          ? t('terminal:pinnedBar.activeOnlyTitle', { defaultValue: 'Active: showing {{shown}}/{{total}} pins (working or active in the last {{min}}min) — click for All', shown: pinned.length, total: allPinned.length, min: PINNED_ACTIVE_WINDOW_MS / 60000 })
+          : t('terminal:pinnedBar.viewCycleTitle', { defaultValue: 'View: {{mode}} — click cycles All → Status → Area → Active', mode: modeLabel })}
+        aria-label={t('terminal:pinnedBar.viewModeAria', { defaultValue: 'View mode: {{mode}}. Click to change.', mode: modeLabel })}
         onClick={cycleBarMode}
       >
-        {MODE_LABEL[barMode]}
+        {modeLabel}
       </button>
       {groups.map((g) => (
         g.label === null

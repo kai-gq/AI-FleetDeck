@@ -39,6 +39,7 @@
     "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
     "re:^terminal:header\\.",
     "re:^terminal:bottomPanel\\.",
+    "re:^terminal:pinnedBar\\.",
     "re:^terminal:input\\.(pendingMessage|pendingMessages|removeQueuedMessage)$",
     "re:^terminal:fileViewer\\.(downloadPdfTitle|pathInputLabel|pathInputTitle)$",
     "re:^terminal:fileGitHistory\\.",

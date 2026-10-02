@@ -2605,5 +2605,29 @@
     "unlimited": "不限",
     "linesCount": "{{n}} 行",
     "clearLogs": "清除日志"
+  },
+  "pinnedBar": {
+    "newOutput": " — 有新输出",
+    "notPinnedHint": " — 未固定（右键固定）",
+    "newOutputAria": "，有新输出",
+    "notPinnedAria": "，未固定",
+    "unpinAgent": "取消固定智能体",
+    "unpin": "取消固定",
+    "status": {
+      "working": "工作中",
+      "idle": "空闲",
+      "offline": "离线"
+    },
+    "noArea": "无区域",
+    "activeSection": "活跃",
+    "mode": {
+      "all": "全部",
+      "status": "状态",
+      "area": "区域",
+      "active": "活跃"
+    },
+    "activeOnlyTitle": "活跃：显示 {{shown}}/{{total}} 个固定项（最近 {{min}} 分钟内工作或活跃）— 点击查看全部",
+    "viewCycleTitle": "视图：{{mode}} — 点击循环切换 全部 → 状态 → 区域 → 活跃",
+    "viewModeAria": "视图模式：{{mode}}。点击切换。"
   }
 }
