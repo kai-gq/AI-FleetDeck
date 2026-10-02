@@ -301,7 +301,7 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
           <button
             type="button"
             className="aop-area-eye-btn"
-            title="Hide area"
+            title={t('terminal:overview.hideArea', { defaultValue: 'Hide area' })}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -314,7 +314,7 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
             <button
               type="button"
               className="aop-area-eye-btn"
-              title="Edit area prompt"
+              title={t('terminal:overview.editAreaPrompt', { defaultValue: 'Edit area prompt' })}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -354,8 +354,8 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
           {workingAgentCount > 0 && (
             <span
               className="aop-area-working"
-              title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
-              aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+              title={workingAgentCount === 1 ? t('terminal:overview.workingAgentsOne', { defaultValue: '{{n}} working agent', n: workingAgentCount }) : t('terminal:overview.workingAgentsMany', { defaultValue: '{{n}} working agents', n: workingAgentCount })}
+              aria-label={workingAgentCount === 1 ? t('terminal:overview.workingAgentsOne', { defaultValue: '{{n}} working agent', n: workingAgentCount }) : t('terminal:overview.workingAgentsMany', { defaultValue: '{{n}} working agents', n: workingAgentCount })}
             >
               <ActivityGlyph animated size={12} className="aop-area-working-glyph" />
               <span>{workingAgentCount}</span>
@@ -370,7 +370,7 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
             className="aop-area-prompt-textarea"
             value={editingPromptText}
             onChange={(e) => setEditingPromptText(e.target.value)}
-            placeholder="System prompt for agents in this area..."
+            placeholder={t('terminal:overview.areaPromptPlaceholder', { defaultValue: 'System prompt for agents in this area...' })}
             rows={3}
             autoFocus
           />
@@ -382,13 +382,13 @@ const AreaGroupSection = React.memo(function AreaGroupSection({
                 setEditingPromptAreaId(null);
               }}
             >
-              Save
+              {t('common:buttons.save')}
             </button>
             <button
               className="aop-area-prompt-cancel"
               onClick={() => setEditingPromptAreaId(null)}
             >
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
           </div>
         </div>
@@ -1300,10 +1300,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
               type="button"
               className="aop-mobile-size-toggle"
               onClick={onToggleMobileFull}
-              title={mobileFull ? 'Show compact agents panel' : 'Show complete agents panel'}
-              aria-label={mobileFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+              title={mobileFull ? t('terminal:overview.showCompactPanel', { defaultValue: 'Show compact agents panel' }) : t('terminal:overview.showCompletePanel', { defaultValue: 'Show complete agents panel' })}
+              aria-label={mobileFull ? t('terminal:overview.showCompactPanel', { defaultValue: 'Show compact agents panel' }) : t('terminal:overview.showCompletePanel', { defaultValue: 'Show complete agents panel' })}
             >
-              {mobileFull ? 'Compact' : 'Full'}
+              {mobileFull ? t('terminal:overview.compact', { defaultValue: 'Compact' }) : t('terminal:overview.full', { defaultValue: 'Full' })}
             </button>
           )}
           <button
@@ -1313,7 +1313,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
               setMobileFiltersCollapsed(false);
               requestAnimationFrame(() => searchInputRef.current?.focus());
             }}
-            title="Search agents"
+            title={t('terminal:overview.searchAgentsTitle', { defaultValue: 'Search agents' })}
           >
             <Icon name="search" size={14} />
           </button>
@@ -1321,9 +1321,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
             type="button"
             className={`aop-filters-toggle${mobileFiltersCollapsed ? ' collapsed' : ''}`}
             onClick={() => setMobileFiltersCollapsed(v => !v)}
-            title={mobileFiltersCollapsed ? 'Show filters' : 'Hide filters'}
+            title={mobileFiltersCollapsed ? t('terminal:overview.showFilters', { defaultValue: 'Show filters' }) : t('terminal:overview.hideFilters', { defaultValue: 'Hide filters' })}
           >
-            {mobileFiltersCollapsed ? 'Filters' : 'Hide filters'}
+            {mobileFiltersCollapsed ? t('terminal:overview.filtersLabel', { defaultValue: 'Filters' }) : t('terminal:overview.hideFilters', { defaultValue: 'Hide filters' })}
           </button>
           <input
             ref={searchInputRef}
@@ -1404,9 +1404,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
             <button
               className={`action-btn action-btn--toggle${!isAllAreasVisible ? ' active' : ''}`}
               onClick={() => setAreaFilterOpen(v => !v)}
-              title="Filter areas"
+              title={t('terminal:overview.filterAreas', { defaultValue: 'Filter areas' })}
             >
-              {isAllAreasVisible ? 'All areas' : `${visibleAreaIds!.size} areas`}
+              {isAllAreasVisible ? t('terminal:overview.allAreas', { defaultValue: 'All areas' }) : t('terminal:overview.areasCount', { defaultValue: '{{n}} areas', n: visibleAreaIds!.size })}
               <span className="aop-area-filter-caret"><Icon name={areaFilterOpen ? 'caret-up' : 'caret-down'} size={10} /></span>
             </button>
             {areaFilterOpen && (
@@ -1415,7 +1415,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
                   <div className="aop-area-filter-search">
                     <input
                       type="text"
-                      placeholder="Filter areas..."
+                      placeholder={t('terminal:overview.filterAreasPlaceholder', { defaultValue: 'Filter areas...' })}
                       value={areaFilterSearch}
                       onChange={(e) => setAreaFilterSearch(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
@@ -1436,7 +1436,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
                           <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAllAreas(); }}>
                             <input type="checkbox" checked={isAllAreasVisible} readOnly />
                             <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
-                            <span>All</span>
+                            <span>{t('terminal:overview.all', { defaultValue: 'All' })}</span>
                           </label>
                           <div className="aop-area-filter-divider" />
                         </>
@@ -1457,12 +1457,12 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
                           <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAreaVisibility('__unassigned__'); }}>
                             <input type="checkbox" checked={isAllAreasVisible || (visibleAreaIds?.has('__unassigned__') ?? false)} readOnly />
                             <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
-                            <span className="aop-area-filter-name">Unassigned</span>
+                            <span className="aop-area-filter-name">{t('terminal:overview.unassigned')}</span>
                           </label>
                         </>
                       )}
                       {search && filtered.length === 0 && !showUnassigned && (
-                        <div className="aop-area-filter-empty">No matching areas</div>
+                        <div className="aop-area-filter-empty">{t('terminal:overview.noMatchingAreas', { defaultValue: 'No matching areas' })}</div>
                       )}
                     </>
                   );
@@ -1476,9 +1476,9 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
             <button
               className={`action-btn action-btn--toggle${!isAllRuntimesVisible ? ' active' : ''}`}
               onClick={() => setRuntimeFilterOpen(v => !v)}
-              title="Filter runtimes"
+              title={t('terminal:overview.filterRuntimes', { defaultValue: 'Filter runtimes' })}
             >
-              {isAllRuntimesVisible ? 'All runtimes' : `${visibleProviders!.size} runtimes`}
+              {isAllRuntimesVisible ? t('terminal:overview.allRuntimes', { defaultValue: 'All runtimes' }) : t('terminal:overview.runtimesCount', { defaultValue: '{{n}} runtimes', n: visibleProviders!.size })}
               <span className="aop-area-filter-caret"><Icon name={runtimeFilterOpen ? 'caret-up' : 'caret-down'} size={10} /></span>
             </button>
             {runtimeFilterOpen && (
@@ -1486,7 +1486,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
                 <label className="aop-area-filter-option" onClick={(e) => { e.preventDefault(); toggleAllRuntimes(); }}>
                   <input type="checkbox" checked={isAllRuntimesVisible} readOnly />
                   <span className="aop-area-filter-color" style={{ background: '#6272a4' }} />
-                  <span>All</span>
+                  <span>{t('terminal:overview.all', { defaultValue: 'All' })}</span>
                 </label>
                 <div className="aop-area-filter-divider" />
                 {availableProviders.map(provider => {
@@ -1508,16 +1508,16 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
             type="button"
             onClick={() => onSetExpandedAreas([])}
             className="action-btn"
-            title="Collapse all areas"
+            title={t('terminal:overview.collapseAllAreasTitle', { defaultValue: 'Collapse all areas' })}
           >
-            Collapse all
+            {t('terminal:overview.collapseAll', { defaultValue: 'Collapse all' })}
           </button>
         )}
         <button onClick={() => setSameAreaOnly(v => !v)} className={`action-btn action-btn--toggle${sameAreaOnly ? ' active' : ''}`} title={t('terminal:overview.sameAreaOnly')}>
           {t('terminal:overview.sameAreaOnly')}
         </button>
-        <button onClick={() => setBulkManageOpen(true)} className="action-btn" title="Bulk manage agents">
-          Bulk Manage
+        <button onClick={() => setBulkManageOpen(true)} className="action-btn" title={t('terminal:overview.bulkManageTitle', { defaultValue: 'Bulk manage agents' })}>
+          {t('terminal:overview.bulkManage', { defaultValue: 'Bulk Manage' })}
         </button>
       </div>
 
@@ -1824,7 +1824,7 @@ const AgentCard = React.memo(function AgentCard({
           onClick={handleClearContext}
           title={t('terminal:overview.clearContext', { defaultValue: 'Clear context' })}
         >
-          <Icon name="clear" size={14} /> {t('terminal:overview.clearContext', { defaultValue: 'Clear' })}
+          <Icon name="clear" size={14} /> {t('common:buttons.clear')}
         </button>
       )}
       <div
@@ -1865,7 +1865,7 @@ const AgentCard = React.memo(function AgentCard({
           <AgentIcon agent={agent} size="100%" customClasses={customClasses} />
           <ProviderIcon
             agent={agent}
-            alt={`${agent.name} provider`}
+            alt={t('terminal:header.providerAlt', { defaultValue: '{{name}} provider', name: agent.name })}
             className="aop-provider-icon"
           />
         </div>
@@ -1884,11 +1884,11 @@ const AgentCard = React.memo(function AgentCard({
         <CopyAgentIdentityButton name={agent.name} id={agent.id} />
         {(agent.status === 'working' || isCompacting) && (
           <AgentCardWorkingIndicator
-            label={isCompacting ? 'Compacting context' : 'Working'}
+            label={isCompacting ? t('terminal:overview.compactingContext', { defaultValue: 'Compacting context' }) : t('terminal:overview.statusLabels.working')}
           />
         )}
         {hasPendingRead && (
-          <span className="aop-pending-read-indicator" title="Pending read">!</span>
+          <span className="aop-pending-read-indicator" title={t('terminal:overview.pendingRead', { defaultValue: 'Pending read' })}>!</span>
         )}
         {hasDraft && (
           <span
@@ -1958,7 +1958,7 @@ const AgentCard = React.memo(function AgentCard({
               <Icon name={matchContext.type === 'file' ? 'file-text' : 'chat'} size={12} />
             </span>
             <span className="match-label">
-              {matchContext.type === 'file' ? 'file' : 'task'}
+              {matchContext.type === 'file' ? t('terminal:overview.fileLabel', { defaultValue: 'file' }) : t('terminal:overview.taskLabel', { defaultValue: 'task' })}
             </span>
             <span className="match-text">{truncate(matchContext.text, trunc)}</span>
           </div>
@@ -2023,7 +2023,7 @@ const AgentCard = React.memo(function AgentCard({
         {agent.contextLimit > 0 && (
           <div
             className="aop-context-bar"
-            title={`${Math.round(contextUsageRatio * 100)}% context used (${Math.round(agent.contextUsed / 1000)}k / ${Math.round(agent.contextLimit / 1000)}k)`}
+            title={t('terminal:overview.contextUsed', { defaultValue: '{{pct}}% context used ({{used}}k / {{limit}}k)', pct: Math.round(contextUsageRatio * 100), used: Math.round(agent.contextUsed / 1000), limit: Math.round(agent.contextLimit / 1000) })}
           >
             <div
               className="aop-context-fill"
