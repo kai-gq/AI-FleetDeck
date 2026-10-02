@@ -1,6 +1,6 @@
 {
   "title": "工具与设置",
-  "searchPlaceholder": "搜索设置...",
+  "searchPlaceholder": "搜索设置…",
   "noResults": "未找到与 '{{query}}' 相关的设置",
   "sections": {
     "general": "通用",
@@ -71,7 +71,7 @@
   "agentNames": {
     "customConfigured": "已配置 {{count}} 个自定义名称",
     "usingDefaults": "使用默认名称。添加自定义名称来个性化。",
-    "addPlaceholder": "添加名称...",
+    "addPlaceholder": "添加名称…",
     "addName": "添加名称"
   },
   "connection": {
@@ -233,11 +233,11 @@
     "2dView": "2D 视图模式",
     "voiceAssistant": "语音助手",
     "tts": "文字转语音",
-    "echoPrompt": "Echo Prompt",
+    "echoPrompt": "回显提示词",
     "hint": "这些功能是实验性的，可能会发生变化"
   },
   "areas": {
-    "title": "区域 ({{count}})",
+    "title": "区域（{{count}}）",
     "editArea": "编辑区域",
     "color": "颜色",
     "areaName": "区域名称",
@@ -246,12 +246,12 @@
     "back": "后置",
     "bringToFront": "移到最前（放在其他区域上方）",
     "sendToBack": "移到最后（放在其他区域下方）",
-    "folders": "文件夹 ({{count}})",
+    "folders": "文件夹（{{count}}）",
     "openFolder": "在资源管理器中打开文件夹",
     "removeFolder": "移除文件夹",
     "folderPlaceholder": "/path/to/folder",
     "addFolder": "+ 添加文件夹",
-    "assignedAgents": "已分配智能体 ({{count}})",
+    "assignedAgents": "已分配智能体（{{count}}）",
     "rightClickUnassign": "右键取消分配",
     "drawToCreate": "在战场上绘制以创建区域",
     "rect": "矩形",
@@ -276,7 +276,7 @@
     "promptHint": "会注入到此区域中的智能体。下次刷新上下文时生效。"
   },
   "buildings": {
-    "title": "建筑 ({{count}})",
+    "title": "建筑（{{count}}）",
     "addBuilding": "添加建筑",
     "editBuilding": "编辑建筑",
     "style": "样式",
@@ -310,9 +310,9 @@
     "copyPlaceholder": "点击复制占位符",
     "namePlaceholder": "我的 API 密钥",
     "keyPlaceholder": "MY_API_KEY",
-    "valuePlaceholder": "密钥值...",
+    "valuePlaceholder": "密钥值…",
     "descriptionPlaceholder": "可选描述",
-    "usedAs": "使用为 {{placeholder}}",
+    "usedAs": "以 {{placeholder}} 引用",
     "update": "更新"
   },
   "systemPrompt": {
@@ -332,7 +332,7 @@
     "clearedGlobal": "已清除全局系统提示词。",
     "hint": "此提示词仅插入所选智能体的系统指令中。",
     "hintGlobal": "此提示词会插入所有智能体的系统指令中，位于任何单个智能体提示词之前。",
-    "placeholder": "在此输入系统提示词...\n\n示例：\n- 代码风格规范\n- 团队沟通规则\n- 项目级约定\n- 安全最佳实践",
+    "placeholder": "在此输入系统提示词…\n\n示例：\n- 代码风格规范\n- 团队沟通规则\n- 项目级约定\n- 安全最佳实践",
     "confirmClear": "确定要清除该智能体的系统提示词吗？",
     "confirmClearGlobal": "确定要清除全局系统提示词（所有智能体）吗？"
   },
@@ -530,14 +530,14 @@
     "backupCreated": "备份已创建",
     "importSuccess": "配置导入成功！",
     "exportSuccess": "配置导出成功！",
-    "selectFile": "选择配置 ZIP 文件...",
+    "selectFile": "选择配置 ZIP 文件…",
     "exported": "导出时间",
     "selectToImport": "选择要导入的内容：",
-    "exporting": "导出中...",
-    "exportCount": "导出 ({{count}})",
-    "importing": "导入中...",
-    "importCount": "导入 ({{count}})",
-    "readingFile": "读取文件中...",
+    "exporting": "导出中…",
+    "exportCount": "导出（{{count}}）",
+    "importing": "导入中…",
+    "importCount": "导入（{{count}}）",
+    "readingFile": "读取文件中…",
     "files": "个文件"
   },
   "about": {
@@ -553,7 +553,7 @@
     "changelog": "更新日志",
     "downloadAPK": "下载 APK",
     "viewRelease": "查看版本",
-    "checkingUpdates": "检查更新中...",
+    "checkingUpdates": "检查更新中…",
     "upToDate": "已是最新版本",
     "check": "检查",
     "recentReleases": "最近版本",
@@ -634,7 +634,7 @@
     "viewOnGithub": "在 GitHub 上查看"
   },
   "shortcuts": {
-    "pressKeys": "按下按键...",
+    "pressKeys": "按下按键…",
     "notSet": "未设置",
     "pressKeysOrClick": "按下按键或点击确认",
     "clickToChange": "点击更改快捷键",

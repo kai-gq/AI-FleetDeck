@@ -1,6 +1,6 @@
 {
   "title": "仪表盘",
-  "searchPlaceholder": "搜索智能体...",
+  "searchPlaceholder": "搜索智能体…",
   "grouping": {
     "byZone": "按区域",
     "byStatus": "按状态",
@@ -9,7 +9,7 @@
   "agentCount": "{{count}} 个智能体",
   "working": "工作中",
   "focusZone": "聚焦区域",
-  "noAgentsMatching": "没有匹配 \"{{search}}\" 的智能体",
+  "noAgentsMatching": "没有匹配「{{search}}」的智能体",
   "noAgentsSpawned": "尚未创建智能体",
   "cards": {
     "doubleClickHint": "双击打开终端 | 拖拽移动到其他区域",

@@ -22,7 +22,7 @@
     "reload": "重新加载",
     "reconnect": "重新连接",
     "deploy": "部署智能体",
-    "deploying": "部署中...",
+    "deploying": "部署中…",
     "spawn": "创建",
     "terminate": "终止",
     "start": "启动",
@@ -62,13 +62,13 @@
     "orphaned": "失联",
     "waiting": "等待中",
     "waitingPermission": "等待授权",
-    "loading": "加载中...",
-    "connecting": "连接中...",
+    "loading": "加载中…",
+    "connecting": "连接中…",
     "connected": "已连接",
     "disconnected": "已断开",
     "noResults": "无结果",
-    "empty": "(空)",
-    "running": "运行中...",
+    "empty": "（空）",
+    "running": "运行中…",
     "completed": "已完成",
     "failed": "失败",
     "pending": "待处理",
@@ -135,7 +135,7 @@
     "color": "颜色"
   },
   "search": {
-    "spotlightPlaceholder": "搜索智能体、命令、文件、任务..."
+    "spotlightPlaceholder": "搜索智能体、命令、文件、任务…"
   },
   "viewMode": {
     "labels": {
@@ -216,7 +216,7 @@
     "noSubordinates": "尚未分配下属。使用\"管理团队\"添加智能体。",
     "unlinkSubordinate": "取消关联下属",
     "delegationHistory": "委派历史",
-    "analyzingRequest": "正在分析请求...",
+    "analyzingRequest": "正在分析请求…",
     "noDelegationHistory": "尚无委派历史。向主管发送命令以委派任务。",
     "linkToBoss": "关联到主管",
     "selectBoss": "选择主管",
@@ -231,7 +231,7 @@
     "collapseContextTitle": "折叠上下文",
     "clearContextTitle": "清除上下文",
     "collapseContextMsg": "折叠 <strong>{{name}}</strong> 的对话上下文？",
-    "collapseContextNote": "这将对对话进行总结以节省 Token，同时保留重要信息。",
+    "collapseContextNote": "这将总结对话以节省 Token，同时保留重要信息。",
     "clearContextMsg": "清除 <strong>{{name}}</strong> 的所有上下文？",
     "clearContextNote": "这将在下一个命令时开始新会话。所有对话历史将丢失。",
     "collapseBtn": "折叠",
@@ -258,7 +258,7 @@
     "statusIdle": "空闲",
     "statusWaiting": "等待中",
     "statusError": "错误",
-    "searchPlaceholder": "搜索智能体...",
+    "searchPlaceholder": "搜索智能体…",
     "filter_all": "全部",
     "filter_active": "活跃",
     "filter_idle": "空闲",
@@ -269,8 +269,8 @@
     "noResults": "未找到匹配的智能体"
   },
   "rightPanel": {
-    "expandPanel": "展开面板 (Ctrl+\\)",
-    "collapsePanel": "折叠面板 (Ctrl+\\)",
+    "expandPanel": "展开面板（Ctrl+\\）",
+    "collapsePanel": "折叠面板（Ctrl+\\）",
     "closePanel": "关闭面板",
     "dragToResize": "拖拽调整大小",
     "selectAgentDetails": "选择一个智能体查看详情",
