@@ -61,3 +61,8 @@ __pycache__/
 # push to every device of the project. Never commit these.
 android/app/google-services.json
 fcm-service-account.json
+
+# Local tool installs (piper TTS engine + voice models, ~159 MB).
+# Not part of the repo; friends can install their own copy or set
+# PIPER_BIN / PIPER_VOICES_DIR to point elsewhere.
+tools/piper/
