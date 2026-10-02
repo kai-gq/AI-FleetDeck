@@ -1,0 +1,12 @@
+{
+  "port": 7492,
+  "token": "abcd",
+  "db": "data/board.db",
+  "md": "data/Tareas.md",
+  "autosync": true,
+  "counterPrefix": "BOLBA",
+  "projEmojis": {
+    "ALT": "🔧",
+    "BOL": "🚢"
+  }
+}

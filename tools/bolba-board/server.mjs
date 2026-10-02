@@ -235,5 +235,5 @@ export async function startBoard(options = {}) {
     store.close();
   }
 
-  return { url: `http://127.0.0.1:${actualPort}`, port: actualPort, dbPath, mdPath, store, close };
+  return { url: `http://127.0.0.1:${actualPort}`, port: actualPort, dbPath, mdPath, store, sync, text, close };
 }

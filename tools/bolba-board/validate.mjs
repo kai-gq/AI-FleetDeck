@@ -94,10 +94,11 @@ export function normalizeDate(raw) {
   if (raw === null || raw === undefined) return undefined;
   const s = String(raw).trim();
   if (!s) return '';
+  const valid = (year, month, day) => Number(month) >= 1 && Number(month) <= 12 && Number(day) >= 1 && Number(day) <= 31;
   let m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(s);
-  if (m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+  if (m) return valid(m[1], m[2], m[3]) ? `${m[1]}-${pad2(m[2])}-${pad2(m[3])}` : undefined;
   m = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(s);
-  if (m) return `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
+  if (m) return valid(m[3], m[2], m[1]) ? `${m[3]}-${pad2(m[2])}-${pad2(m[1])}` : undefined;
   return undefined;
 }
 
