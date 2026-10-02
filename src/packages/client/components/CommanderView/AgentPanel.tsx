@@ -399,7 +399,7 @@ export function AgentPanel({
         </div>
         <div
           className="agent-panel-context"
-          title={`Context: ${Math.round(contextInfo.usedPercent)}% used (${formatTokens(contextInfo.totalTokens)} / ${formatTokens(contextInfo.contextWindow)})`}
+          title={t('terminal:agentPanel.contextTitle', { defaultValue: 'Context: {{percent}}% used ({{used}} / {{total}})', percent: Math.round(contextInfo.usedPercent), used: formatTokens(contextInfo.totalTokens), total: formatTokens(contextInfo.contextWindow) })}
         >
           <div
             className="agent-panel-context-bar"

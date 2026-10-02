@@ -1,4 +1,5 @@
 import React, { Suspense, Profiler } from 'react';
+import { useTranslation } from 'react-i18next';
 import { store, useAgents, useBuildings, useSelectedAgentIds, useSelectedBuildingIds } from '../store';
 import { useExplorerAreaId } from '../store/selectors';
 import { type SceneConfig } from './toolbox';
@@ -135,6 +136,7 @@ export function AppModals({
   onOpenDatabasePanel,
   onSyncScene,
 }: AppModalsProps) {
+  const { t } = useTranslation(['common']);
   const agents = useAgents();
   const buildings = useBuildings();
   const [toolboxSearchQuery, setToolboxSearchQuery] = React.useState<string>();
@@ -242,17 +244,19 @@ export function AppModals({
           }}
         >
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">Remove Agents</div>
+            <div className="modal-header">{t('common:appModals.removeAgentsTitle', { defaultValue: 'Remove Agents' })}</div>
             <div className="modal-body confirm-modal-body">
-              <p>Remove {selectedAgentIds.size} selected agent{selectedAgentIds.size > 1 ? 's' : ''} from the battlefield?</p>
-              <p className="confirm-modal-note">Claude Code sessions will continue running in the background.</p>
+              <p>{selectedAgentIds.size > 1
+                ? t('common:appModals.removeAgentsMany', { defaultValue: 'Remove {{n}} selected agents from the battlefield?', n: selectedAgentIds.size })
+                : t('common:appModals.removeAgentsOne', { defaultValue: 'Remove {{n}} selected agent from the battlefield?', n: selectedAgentIds.size })}</p>
+              <p className="confirm-modal-note">{t('common:appModals.sessionsContinueNote', { defaultValue: 'Claude Code sessions will continue running in the background.' })}</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={deleteConfirmModal.close}>
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button className="btn btn-danger" onClick={onDeleteSelectedAgents} autoFocus>
-                Remove
+                {t('common:buttons.remove')}
               </button>
             </div>
           </div>
@@ -270,21 +274,27 @@ export function AppModals({
           }}
         >
           <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">Delete Building{isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 's' : ''}</div>
+            <div className="modal-header">{isSelectedBuildingsDelete && selectedBuildingCount > 1
+              ? t('common:appModals.deleteBuildingsTitle', { defaultValue: 'Delete Buildings' })
+              : t('common:appModals.deleteBuildingTitle', { defaultValue: 'Delete Building' })}</div>
             <div className="modal-body confirm-modal-body">
               {isSelectedBuildingsDelete ? (
-                <p>Delete {selectedBuildingCount} selected building{selectedBuildingCount > 1 ? 's' : ''}?</p>
+                <p>{selectedBuildingCount > 1
+                  ? t('common:appModals.deleteBuildingsQ', { defaultValue: 'Delete {{n}} selected buildings?', n: selectedBuildingCount })
+                  : t('common:appModals.deleteBuildingQ', { defaultValue: 'Delete {{n}} selected building?', n: selectedBuildingCount })}</p>
               ) : (
-                <p>Delete <strong>{pendingBuilding?.name}</strong>?</p>
+                <p>{t('common:appModals.deleteNamedQ1', { defaultValue: 'Delete ' })}<strong>{pendingBuilding?.name}</strong>{t('common:appModals.deleteNamedQ2', { defaultValue: '?' })}</p>
               )}
-              <p className="confirm-modal-note">This will permanently remove the building{isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 's' : ''} and {isSelectedBuildingsDelete && selectedBuildingCount > 1 ? 'their' : 'its'} configuration.</p>
+              <p className="confirm-modal-note">{isSelectedBuildingsDelete && selectedBuildingCount > 1
+                ? t('common:appModals.deleteBuildingNoteMany', { defaultValue: 'This will permanently remove the buildings and their configuration.' })
+                : t('common:appModals.deleteBuildingNoteOne', { defaultValue: 'This will permanently remove the building and its configuration.' })}</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={onCancelBuildingDelete}>
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button className="btn btn-danger" onClick={onConfirmBuildingDelete} autoFocus>
-                Delete
+                {t('common:buttons.delete')}
               </button>
             </div>
           </div>
@@ -301,17 +311,17 @@ export function AppModals({
           }}
         >
           <div className="modal confirm-modal navigation-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">Leave Tide Commander?</div>
+            <div className="modal-header">{t('common:appModals.leaveTitle', { defaultValue: 'Leave Tide Commander?' })}</div>
             <div className="modal-body confirm-modal-body">
-              <p>Are you sure you want to leave this page?</p>
-              <p className="confirm-modal-note">Active Claude Code sessions will continue running in the background.</p>
+              <p>{t('common:appModals.leaveConfirm', { defaultValue: 'Are you sure you want to leave this page?' })}</p>
+              <p className="confirm-modal-note">{t('common:appModals.leaveNote', { defaultValue: 'Active Claude Code sessions will continue running in the background.' })}</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={onCloseBackNavModal} autoFocus>
-                Stay
+                {t('common:appModals.stay', { defaultValue: 'Stay' })}
               </button>
               <button className="btn btn-danger" onClick={onLeave}>
-                Leave
+                {t('common:appModals.leave', { defaultValue: 'Leave' })}
               </button>
             </div>
           </div>

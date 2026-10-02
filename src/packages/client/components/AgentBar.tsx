@@ -77,6 +77,7 @@ const AgentBarItem = memo(function AgentBarItem({
   onDragStart, onDragEnd, onDragOver, onDragEnter, onDragLeave, onDrop,
   onAgentClick, onAgentDoubleClick, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, onHoverEnter, onHoverLeave, onItemRef, onTogglePin,
 }: AgentBarItemProps) {
+  const { t } = useTranslation(['common']);
   const canDrag = !isTouchInput || isTouchDragEnabled;
 
   const handleRef = useCallback((el: HTMLDivElement | null) => {
@@ -103,8 +104,8 @@ const AgentBarItem = memo(function AgentBarItem({
       onMouseEnter={() => onHoverEnter(agent)}
       onMouseLeave={onHoverLeave}
       title={isTouchInput
-        ? `${agent.name} (${currentIndex + 1}) - Long press to reorder`
-        : `${agent.name} (${currentIndex + 1}) - Drag to reorder within group`}
+        ? t('common:agentBar.reorderLongPress', { defaultValue: '{{name}} ({{index}}) - Long press to reorder', name: agent.name, index: currentIndex + 1 })
+        : t('common:agentBar.reorderDrag', { defaultValue: '{{name}} ({{index}}) - Drag to reorder within group', name: agent.name, index: currentIndex + 1 })}
     >
       <div className="agent-bar-avatar">
         <AgentIcon classId={agent.class} size="100%" className="agent-bar-icon" />
@@ -115,7 +116,7 @@ const AgentBarItem = memo(function AgentBarItem({
         {hasUnseenOutput && (
           <span
             className="agent-bar-notification-badge"
-            title="New output available - click to view"
+            title={t('common:agentBar.newOutput', { defaultValue: 'New output available - click to view' })}
           />
         )}
         {agent.status === 'idle' && agent.lastActivity > 0 && (
@@ -132,8 +133,12 @@ const AgentBarItem = memo(function AgentBarItem({
       <button
         type="button"
         className={`agent-bar-pin${isPinned ? ' pinned' : ''}`}
-        title={isPinned ? 'Unpin from quick-select bar' : 'Pin to quick-select bar'}
-        aria-label={isPinned ? 'Unpin agent' : 'Pin agent'}
+        title={isPinned
+          ? t('common:agentBar.unpinTooltip', { defaultValue: 'Unpin from quick-select bar' })
+          : t('common:agentBar.pinTooltip', { defaultValue: 'Pin to quick-select bar' })}
+        aria-label={isPinned
+          ? t('common:agentBar.unpinAria', { defaultValue: 'Unpin agent' })
+          : t('common:agentBar.pinAria', { defaultValue: 'Pin agent' })}
         onClick={(e) => { e.stopPropagation(); onTogglePin(agent.id, e); }}
         onDoubleClick={(e) => e.stopPropagation()}
         draggable={false}
@@ -570,7 +575,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
       <button
         className="agent-bar-hide-btn"
         onClick={() => store.toggleAgentBarHidden()}
-        aria-label="Hide agent bar"
+        aria-label={t('common:agentBar.hideBarAria', { defaultValue: 'Hide agent bar' })}
         title={t('common:agentBar.hideBar', { defaultValue: 'Hide bar' })}
       >
         ▼
@@ -586,14 +591,14 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         {relation === 'behind' && latestVersion ? (
           <span
             className="agent-bar-version-badge agent-bar-version-badge-behind"
-            title={`Behind npm latest v${latestVersion}`}
+            title={t('common:agentBar.behindLatest', { defaultValue: 'Behind npm latest v{{version}}', version: latestVersion })}
           >
             npm v{latestVersion}
           </span>
         ) : relation === 'ahead' && latestVersion ? (
           <span
             className="agent-bar-version-badge agent-bar-version-badge-ahead"
-            title={`Ahead of npm latest v${latestVersion}`}
+            title={t('common:agentBar.aheadLatest', { defaultValue: 'Ahead of npm latest v{{version}}', version: latestVersion })}
           >
             npm v{latestVersion}
           </span>
@@ -635,7 +640,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
         )}
         {/* HMR Refresh button - only shows when there are pending 3D scene changes */}
         {hasPendingHmrChanges && (
-          <Tooltip content="Refresh 3D Scene (HMR changes pending)" position="bottom">
+          <Tooltip content={t('common:agentBar.refresh3dScene', { defaultValue: 'Refresh 3D Scene (HMR changes pending)' })} position="bottom">
             <button
               className="agent-bar-hmr-refresh"
               onClick={refreshScene}
@@ -849,7 +854,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               <span className="agent-bar-tooltip-name">
                 <ProviderIcon
                   agent={hoveredAgent}
-                  alt={`${hoveredAgent.name} provider`}
+                  alt={t('common:agentBar.providerAlt', { defaultValue: '{{name}} provider', name: hoveredAgent.name })}
                   className="agent-bar-provider-icon"
                 />
                 {hoveredAgent.name}
@@ -913,7 +918,7 @@ export const AgentBar = memo(function AgentBar({ onFocusAgent, onSpawnClick, onS
               )}
               {hoveredAgent.taskLabel && (
                 <div className="agent-bar-tooltip-row">
-                  <span className="agent-bar-tooltip-label"><Icon name="task" size={11} /> Task:</span>
+                  <span className="agent-bar-tooltip-label"><Icon name="task" size={11} /> {t('common:labels.task')}:</span>
                   <span className="agent-bar-tooltip-value agent-bar-tooltip-tool">
                     {hoveredAgent.taskLabel}
                   </span>

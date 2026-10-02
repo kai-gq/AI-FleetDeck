@@ -10,7 +10,9 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { getI18nInstance } from '../../utils/formatting';
 import { triggerBrowserDownload } from '../../utils/file-download';
 import { ZoomableImage } from './ZoomableImage';
 
@@ -57,23 +59,36 @@ function formatWhen(timestamp?: string): string {
     : date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+/** Translate a `terminal:` key outside React (module-level helpers). The
+ * English default keeps en output byte-identical; before i18n init the
+ * `{{vars}}` are interpolated by hand so callers never see raw placeholders. */
+function tr(key: string, defaultValue: string, vars?: Record<string, unknown>): string {
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
+  if (t) return t(`terminal:${key}`, { defaultValue, ...vars });
+  if (!vars) return defaultValue;
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
+}
+
 function copyLabel(copy: RecoveredCopy): string {
-  if (copy.source === 'git-head') return 'Git HEAD';
+  if (copy.source === 'git-head') return tr('missingFile.gitHead', 'Git HEAD');
   const when = formatWhen(copy.timestamp);
-  return `Conversation · ${copy.detail}${when ? ` · ${when}` : ''}`;
+  return when
+    ? tr('missingFile.conversationLabelWithWhen', 'Conversation · {{detail}} · {{when}}', { detail: copy.detail, when })
+    : tr('missingFile.conversationLabel', 'Conversation · {{detail}}', { detail: copy.detail });
 }
 
 function copyExplanation(copy: RecoveredCopy): string {
-  if (copy.source === 'git-head') return 'The version committed at HEAD. Uncommitted changes made before the deletion are not included.';
+  if (copy.source === 'git-head') return tr('missingFile.explainGitHead', 'The version committed at HEAD. Uncommitted changes made before the deletion are not included.');
   if (copy.kind === 'image') {
-    return 'The image as the agent saw it when it read the file. It may have been resized or re-encoded, so it is not always byte-identical to the original.';
+    return tr('missingFile.explainImage', 'The image as the agent saw it when it read the file. It may have been resized or re-encoded, so it is not always byte-identical to the original.');
   }
   if (copy.incomplete) {
-    return 'Rebuilt from what the agent wrote, but some later edits could not be replayed, so the file may have changed after this.';
+    return tr('missingFile.explainIncomplete', 'Rebuilt from what the agent wrote, but some later edits could not be replayed, so the file may have changed after this.');
   }
   return copy.detail.startsWith('Write')
-    ? 'Rebuilt from the content the agent wrote (plus its later edits). Changes made outside the conversation are not included.'
-    : 'The full file as the agent read it. Later changes made outside the conversation are not included.';
+    ? tr('missingFile.explainFromWrite', 'Rebuilt from the content the agent wrote (plus its later edits). Changes made outside the conversation are not included.')
+    : tr('missingFile.explainFromRead', 'The full file as the agent read it. Later changes made outside the conversation are not included.');
 }
 
 export function MissingFileView({
@@ -85,6 +100,7 @@ export function MissingFileView({
   onNavigate,
   formatFileSize,
 }: MissingFileViewProps) {
+  const { t } = useTranslation(['terminal']);
   const [recovery, setRecovery] = useState<{ status: 'loading' | 'done' | 'error'; copies: RecoveredCopy[] }>({ status: 'loading', copies: [] });
   const [selected, setSelected] = useState(0);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -147,15 +163,15 @@ export function MissingFileView({
   };
 
   const headline = !diagnosis
-    ? 'File not found'
+    ? t('terminal:missingFile.headlineNotFound', { defaultValue: 'File not found' })
     : diagnosis.kind === 'deleted'
-      ? 'This file no longer exists'
-      : 'This file’s folder no longer exists';
+      ? t('terminal:missingFile.headlineDeleted', { defaultValue: 'This file no longer exists' })
+      : t('terminal:missingFile.headlineFolderGone', { defaultValue: 'This file’s folder no longer exists' });
   const explanation = !diagnosis
-    ? 'Nothing matched this path.'
+    ? t('terminal:missingFile.explanationNothingMatched', { defaultValue: 'Nothing matched this path.' })
     : diagnosis.kind === 'deleted'
-      ? 'It was deleted or renamed after it was referenced. Its folder is still there.'
-      : `The folder ${diagnosis.parentDir} was removed, moved or renamed.`;
+      ? t('terminal:missingFile.explanationDeleted', { defaultValue: 'It was deleted or renamed after it was referenced. Its folder is still there.' })
+      : t('terminal:missingFile.explanationFolderGone', { defaultValue: 'The folder {{dir}} was removed, moved or renamed.', dir: diagnosis.parentDir });
 
   const similar = diagnosis?.similar ?? [];
   const similarPaths = new Set(similar.map((entry) => entry.path));
@@ -171,23 +187,29 @@ export function MissingFileView({
           {diagnosis?.git && (
             <span className="file-viewer-missing-git">
               {diagnosis.git.inHead
-                ? ` It is tracked in git (${diagnosis.git.relPath}), so the committed version is recoverable.`
-                : ` It is inside a git repository but was never committed.`}
+                ? ' ' + t('terminal:missingFile.gitTracked', { defaultValue: 'It is tracked in git ({{path}}), so the committed version is recoverable.', path: diagnosis.git.relPath })
+                : ' ' + t('terminal:missingFile.gitUntracked', { defaultValue: 'It is inside a git repository but was never committed.' })}
             </span>
           )}
         </div>
         <div className="file-viewer-missing-actions">
           {folderTarget && (
             <button type="button" className="file-viewer-copy-html-btn" onClick={() => onNavigate(folderTarget)}>
-              {folderTarget === diagnosis?.parentDir ? 'Open folder' : 'Open closest existing folder'}
+              {folderTarget === diagnosis?.parentDir
+                ? t('terminal:missingFile.openFolder', { defaultValue: 'Open folder' })
+                : t('terminal:missingFile.openClosestFolder', { defaultValue: 'Open closest existing folder' })}
             </button>
           )}
           <button type="button" className={`file-viewer-copy-html-btn ${copyStatus}`} onClick={handleCopyPath}>
-            {copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Copy failed' : 'Copy path'}
+            {copyStatus === 'copied'
+              ? t('terminal:missingFile.copied', { defaultValue: 'Copied' })
+              : copyStatus === 'error'
+                ? t('terminal:missingFile.copyFailed', { defaultValue: 'Copy failed' })
+                : t('terminal:missingFile.copyPath', { defaultValue: 'Copy path' })}
           </button>
           {copy && (
             <button type="button" className="file-viewer-copy-html-btn" onClick={handleDownloadCopy}>
-              Download recovered copy
+              {t('terminal:missingFile.downloadRecoveredCopy', { defaultValue: 'Download recovered copy' })}
             </button>
           )}
         </div>
@@ -195,18 +217,18 @@ export function MissingFileView({
 
       <div className="file-viewer-missing-recovery">
         {recovery.status === 'loading' && (
-          <div className="file-viewer-missing-note">Looking for a saved copy in git and the agent conversations…</div>
+          <div className="file-viewer-missing-note">{t('terminal:missingFile.searching', { defaultValue: 'Looking for a saved copy in git and the agent conversations…' })}</div>
         )}
         {recovery.status === 'error' && (
-          <div className="file-viewer-missing-note">Couldn’t search for a saved copy.</div>
+          <div className="file-viewer-missing-note">{t('terminal:missingFile.searchFailed', { defaultValue: 'Couldn’t search for a saved copy.' })}</div>
         )}
         {recovery.status === 'done' && recovery.copies.length === 0 && (
-          <div className="file-viewer-missing-note">No saved copy found in git or in the agent conversations.</div>
+          <div className="file-viewer-missing-note">{t('terminal:missingFile.noSavedCopy', { defaultValue: 'No saved copy found in git or in the agent conversations.' })}</div>
         )}
         {copy && (
           <>
             <div className="file-viewer-missing-recovery-header">
-              <span className="file-viewer-missing-recovery-badge">Recovered copy</span>
+              <span className="file-viewer-missing-recovery-badge">{t('terminal:missingFile.recoveredCopy', { defaultValue: 'Recovered copy' })}</span>
               {recovery.copies.length > 1 ? (
                 <span className="file-viewer-missing-tabs" role="tablist">
                   {recovery.copies.map((entry, index) => (
@@ -229,7 +251,7 @@ export function MissingFileView({
             <div className="file-viewer-missing-note">{copyExplanation(copy)}</div>
             {imageSrc && (
               <div className="file-viewer-image-wrapper zoomable file-viewer-missing-image">
-                <ZoomableImage src={imageSrc} alt={`Recovered ${filename}`} />
+                <ZoomableImage src={imageSrc} alt={t('terminal:missingFile.recoveredAlt', { defaultValue: 'Recovered {{filename}}', filename })} />
               </div>
             )}
             {textLines && (
@@ -237,7 +259,7 @@ export function MissingFileView({
                 <code>{textLines.shown}</code>
                 {textLines.total > TEXT_PREVIEW_MAX_LINES && (
                   <div className="file-viewer-missing-note">
-                    {`Showing the first ${TEXT_PREVIEW_MAX_LINES} of ${textLines.total} lines. Download the copy for the rest.`}
+                    {t('terminal:missingFile.firstLines', { defaultValue: 'Showing the first {{shown}} of {{total}} lines. Download the copy for the rest.', shown: TEXT_PREVIEW_MAX_LINES, total: textLines.total })}
                   </div>
                 )}
               </pre>
@@ -250,7 +272,7 @@ export function MissingFileView({
         <div className="file-viewer-resolve-results file-viewer-missing-suggestions">
           {similar.length > 0 && (
             <>
-              <div className="file-viewer-resolve-header">Similar files in the same folder:</div>
+              <div className="file-viewer-resolve-header">{t('terminal:missingFile.similarHeader', { defaultValue: 'Similar files in the same folder:' })}</div>
               <div className="file-viewer-resolve-list">
                 {similar.map((entry) => (
                   <button key={entry.path} type="button" className="file-viewer-resolve-item" onClick={() => onNavigate(entry.path)}>
@@ -267,7 +289,7 @@ export function MissingFileView({
           )}
           {elsewhere.length > 0 && (
             <>
-              <div className="file-viewer-resolve-header">{`Files named ${filename} elsewhere in the project:`}</div>
+              <div className="file-viewer-resolve-header">{t('terminal:missingFile.elsewhereHeader', { defaultValue: 'Files named {{filename}} elsewhere in the project:', filename })}</div>
               <div className="file-viewer-resolve-list">
                 {elsewhere.map((entry) => (
                   <button key={entry.path} type="button" className="file-viewer-resolve-item" onClick={() => onNavigate(entry.path)}>
@@ -287,7 +309,9 @@ export function MissingFileView({
 
       {triedCount > 0 && (
         <div className="file-viewer-missing-footnote">
-          {`Also searched ${triedCount} other location${triedCount === 1 ? '' : 's'} in case it had moved.`}
+          {triedCount === 1
+            ? t('terminal:missingFile.alsoSearchedOne', { defaultValue: 'Also searched {{n}} other location in case it had moved.', n: triedCount })
+            : t('terminal:missingFile.alsoSearchedMany', { defaultValue: 'Also searched {{n}} other locations in case it had moved.', n: triedCount })}
         </div>
       )}
     </div>

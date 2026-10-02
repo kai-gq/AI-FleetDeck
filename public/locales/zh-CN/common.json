@@ -327,7 +327,19 @@
     "workspaces": "工作区",
     "allWorkspaces": "全部",
     "manageWorkspaces": "管理",
-    "newWorkspace": "新建工作区"
+    "newWorkspace": "新建工作区",
+    "hideBarAria": "隐藏智能体栏",
+    "reorderLongPress": "{{name}}（{{index}}），长按以重新排序",
+    "reorderDrag": "{{name}}（{{index}}），拖拽以在组内重新排序",
+    "newOutput": "有新输出，点击查看",
+    "unpinTooltip": "从快速选择栏取消固定",
+    "pinTooltip": "固定到快速选择栏",
+    "unpinAria": "取消固定智能体",
+    "pinAria": "固定智能体",
+    "behindLatest": "落后于 npm 最新版 v{{version}}",
+    "aheadLatest": "领先于 npm 最新版 v{{version}}",
+    "refresh3dScene": "刷新 3D 场景（有待处理的 HMR 更改）",
+    "providerAlt": "{{name}} 提供商"
   },
   "onboarding": {
     "title": "欢迎使用 Tide Commander",
@@ -368,5 +380,30 @@
     "openLastAgentNamed": "打开 {{name}}",
     "chatActions": "对话操作",
     "actions": "操作"
+  },
+  "appModals": {
+    "removeAgentsTitle": "移除智能体",
+    "removeAgentsMany": "确定要从战场移除 {{n}} 个选中的智能体吗？",
+    "removeAgentsOne": "确定要从战场移除 {{n}} 个选中的智能体吗？",
+    "sessionsContinueNote": "Claude Code 会话将在后台继续运行。",
+    "deleteBuildingTitle": "删除建筑",
+    "deleteBuildingsTitle": "删除建筑",
+    "deleteBuildingQ": "确定要删除 {{n}} 个选中的建筑吗？",
+    "deleteBuildingsQ": "确定要删除 {{n}} 个选中的建筑吗？",
+    "deleteNamedQ1": "删除 ",
+    "deleteNamedQ2": "？",
+    "deleteBuildingNoteOne": "这将永久移除该建筑及其配置。",
+    "deleteBuildingNoteMany": "这将永久移除这些建筑及其配置。",
+    "leaveTitle": "离开 Tide Commander？",
+    "leaveConfirm": "确定要离开此页面吗？",
+    "leaveNote": "活动的 Claude Code 会话将在后台继续运行。",
+    "stay": "留下",
+    "leave": "离开"
+  },
+  "workspaceSwitcher": {
+    "namePlaceholder": "工作区名称",
+    "newNamePlaceholder": "新工作区名称",
+    "noAreas": "无区域",
+    "areaCount": "{{n}} 个区域"
   }
 }

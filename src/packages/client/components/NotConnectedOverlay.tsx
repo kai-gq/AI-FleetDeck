@@ -42,16 +42,19 @@ interface ConnectionStatusBarProps {
  * *know* the link is down — not to be interrupted by a modal.
  */
 function ConnectionStatusBar({ tone, retrying, onRetry, onOpenSettings, onDismiss }: ConnectionStatusBarProps) {
+  const { t } = useTranslation(['config', 'common']);
   const queued = tone !== 'reconnecting' && hasPendingMessages();
 
   const label =
-    tone === 'auth' ? 'Auth token rejected'
-    : tone === 'offline' ? "Can't reach server"
-    : 'Reconnecting…';
+    tone === 'auth' ? t('config:notConnected.authRejected', { defaultValue: 'Auth token rejected' })
+    : tone === 'offline' ? t('config:notConnected.unreachable', { defaultValue: 'Can\'t reach server' })
+    : t('config:notConnected.reconnecting', { defaultValue: 'Reconnecting…' });
 
   const detail =
-    tone === 'auth' ? 'Update the token to reconnect.'
-    : tone === 'offline' ? (queued ? 'Retrying — your messages will send once back.' : 'Retrying in the background.')
+    tone === 'auth' ? t('config:notConnected.updateToken', { defaultValue: 'Update the token to reconnect.' })
+    : tone === 'offline' ? (queued
+      ? t('config:notConnected.retryingQueued', { defaultValue: 'Retrying — your messages will send once back.' })
+      : t('config:notConnected.retryingBackground', { defaultValue: 'Retrying in the background.' }))
     : null;
 
   return (
@@ -72,9 +75,11 @@ function ConnectionStatusBar({ tone, retrying, onRetry, onOpenSettings, onDismis
             className="connection-bar-btn"
             onClick={onRetry}
             disabled={retrying}
-            title="Retry now"
+            title={t('config:notConnected.retryNow', { defaultValue: 'Retry now' })}
           >
-            <Icon name="refresh" size={11} /> {retrying ? 'Retrying' : 'Retry'}
+            <Icon name="refresh" size={11} /> {retrying
+              ? t('config:notConnected.retryingLabel', { defaultValue: 'Retrying' })
+              : t('common:buttons.retry')}
           </button>
         )}
         {onOpenSettings && (
@@ -82,9 +87,9 @@ function ConnectionStatusBar({ tone, retrying, onRetry, onOpenSettings, onDismis
             type="button"
             className="connection-bar-btn"
             onClick={onOpenSettings}
-            title="Connection settings"
+            title={t('config:notConnected.connectionSettings', { defaultValue: 'Connection settings' })}
           >
-            <Icon name="gear" size={11} /> Settings
+            <Icon name="gear" size={11} /> {t('common:buttons.settings')}
           </button>
         )}
         {onDismiss && (
@@ -92,8 +97,8 @@ function ConnectionStatusBar({ tone, retrying, onRetry, onOpenSettings, onDismis
             type="button"
             className="connection-bar-close"
             onClick={onDismiss}
-            title="Hide until the connection changes"
-            aria-label="Hide connection banner"
+            title={t('config:notConnected.hideUntilChange', { defaultValue: 'Hide until the connection changes' })}
+            aria-label={t('config:notConnected.hideBannerAria', { defaultValue: 'Hide connection banner' })}
           >
             <Icon name="close" size={11} />
           </button>
@@ -250,23 +255,23 @@ export function NotConnectedOverlay() {
     const getRemainingMs = () => CONNECT_TIMEOUT_MS - (Date.now() - startedAt);
 
     setConnectError(null);
-    setConnectStatus('Validating URL');
+    setConnectStatus(t('config:notConnected.validatingUrl', { defaultValue: 'Validating URL' }));
 
     const effectiveUrl = backendUrlDraft.trim() || 'http://localhost:6200';
     const validation = validateBackendUrlInput(effectiveUrl);
     if (!validation.ok) {
       setConnectStatus(null);
-      setConnectError(validation.error || 'Invalid backend URL');
+      setConnectError(validation.error || t('config:notConnected.invalidUrl', { defaultValue: 'Invalid backend URL' }));
       return;
     }
 
     setIsConnecting(true);
-    setConnectStatus('Checking host reachability');
+    setConnectStatus(t('config:notConnected.checkingReachability', { defaultValue: 'Checking host reachability' }));
     const reachabilityTimeout = getRemainingMs();
     if (reachabilityTimeout <= 0) {
       setIsConnecting(false);
       setConnectStatus(null);
-      setConnectError('Connection timeout after 4 seconds');
+      setConnectError(t('config:notConnected.timeout4s', { defaultValue: 'Connection timeout after 4 seconds' }));
       return;
     }
     const reachability = await checkBackendReachability(validation.normalizedUrl, reachabilityTimeout);
@@ -275,9 +280,9 @@ export function NotConnectedOverlay() {
       setIsConnecting(false);
       setConnectStatus(null);
       if (getRemainingMs() <= 0) {
-        setConnectError('Connection timeout after 4 seconds');
+        setConnectError(t('config:notConnected.timeout4s', { defaultValue: 'Connection timeout after 4 seconds' }));
       } else {
-        setConnectError(reachability.error || 'Failed to reach host');
+        setConnectError(reachability.error || t('config:notConnected.failedToReachHost', { defaultValue: 'Failed to reach host' }));
       }
       return;
     }
@@ -292,14 +297,14 @@ export function NotConnectedOverlay() {
     ];
     setBackendUrls(reorderedUrls);
     setStorageString(STORAGE_KEYS.AUTH_TOKEN, authTokenDraft.trim());
-    setConnectStatus('Connecting to server');
+    setConnectStatus(t('config:notConnected.connectingToServer', { defaultValue: 'Connecting to server' }));
     reconnect();
 
     const wsTimeout = getRemainingMs();
     if (wsTimeout <= 0) {
       setIsConnecting(false);
       setConnectStatus(null);
-      setConnectError('Connection timeout after 4 seconds');
+      setConnectError(t('config:notConnected.timeout4s', { defaultValue: 'Connection timeout after 4 seconds' }));
       return;
     }
 
@@ -310,17 +315,17 @@ export function NotConnectedOverlay() {
       setIsConnecting(false);
       setConnectStatus(null);
       if (getRemainingMs() <= 0) {
-        setConnectError('Connection timeout after 4 seconds');
+        setConnectError(t('config:notConnected.timeout4s', { defaultValue: 'Connection timeout after 4 seconds' }));
       } else {
-        setConnectError('Could not establish WebSocket connection. Verify host and auth token, then retry');
+        setConnectError(t('config:notConnected.wsFailed', { defaultValue: 'Could not establish WebSocket connection. Verify host and auth token, then retry' }));
       }
       return;
     }
 
     setIsConnecting(false);
-    setConnectStatus('Connected');
+    setConnectStatus(t('config:notConnected.connected', { defaultValue: 'Connected' }));
     setConnectError(null);
-  }, [backendUrlDraft, authTokenDraft, isConnecting, waitForWsConnected]);
+  }, [backendUrlDraft, authTokenDraft, isConnecting, waitForWsConnected, t]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isConnecting) {
@@ -416,8 +421,8 @@ export function NotConnectedOverlay() {
             type="button"
             className="not-connected-close"
             onClick={handleClosePanel}
-            title="Close"
-            aria-label="Close connection settings"
+            title={t('common:buttons.close')}
+            aria-label={t('config:notConnected.closeSettingsAria', { defaultValue: 'Close connection settings' })}
           >
             <Icon name="close" size={14} />
           </button>
@@ -425,30 +430,28 @@ export function NotConnectedOverlay() {
         <h2 className="not-connected-title">Tide Commander</h2>
         {authRejected ? (
           <div className="not-connected-failing" role="alert" aria-live="polite">
-            The server rejected the auth token. Enter the correct token below and connect.
+            {t('config:notConnected.authRejectedPanel', { defaultValue: 'The server rejected the auth token. Enter the correct token below and connect.' })}
           </div>
         ) : connectionFailing && (
           <div className="not-connected-failing" role="alert" aria-live="polite">
-            Cannot reach server — retrying in the background.
+            {t('config:notConnected.unreachablePanel', { defaultValue: 'Cannot reach server — retrying in the background.' })}
           </div>
         )}
         <p className="not-connected-description">
-          A visual multi-agent orchestrator for Claude Code and Codex.
-          Deploy, control, and monitor your AI team from an RTS-inspired interface.
+          {t('config:notConnected.description', { defaultValue: 'A visual multi-agent orchestrator for Claude Code and Codex. Deploy, control, and monitor your AI team from an RTS-inspired interface.' })}
         </p>
         <p className="not-connected-privacy">
-          Tide Commander syncs with Claude Code instances running on your local machine.
-          No files or code are sent to this server.
+          {t('config:notConnected.privacy', { defaultValue: 'Tide Commander syncs with Claude Code instances running on your local machine. No files or code are sent to this server.' })}
         </p>
         <div className="not-connected-setup">
-          <p className="not-connected-setup-label">Get started:</p>
-          <div className="not-connected-code" onClick={handleCopy} title="Click to copy">
+          <p className="not-connected-setup-label">{t('config:notConnected.getStarted', { defaultValue: 'Get started:' })}</p>
+          <div className="not-connected-code" onClick={handleCopy} title={t('config:notConnected.clickToCopy', { defaultValue: 'Click to copy' })}>
             <span>bunx tide-commander</span>
             <span className="not-connected-copy-icon"><Icon name={copied ? 'check' : 'copy'} size={12} /></span>
           </div>
         </div>
         <div className="not-connected-url-section">
-          <label className="not-connected-url-label" htmlFor="backend-url">Backend URL</label>
+          <label className="not-connected-url-label" htmlFor="backend-url">{t('config:notConnected.backendUrlLabel', { defaultValue: 'Backend URL' })}</label>
           <div className="not-connected-url-row">
             <input
               id="backend-url"
@@ -467,7 +470,7 @@ export function NotConnectedOverlay() {
               onKeyDown={handleKeyDown}
             />
           </div>
-          <span className="config-hint">Leave empty for auto-detect</span>
+          <span className="config-hint">{t('config:notConnected.leaveEmptyHint', { defaultValue: 'Leave empty for auto-detect' })}</span>
         </div>
         <div className="not-connected-url-section">
           <label className="not-connected-url-label" htmlFor="auth-token">
@@ -512,10 +515,14 @@ export function NotConnectedOverlay() {
         </div>
         <div className="not-connected-actions">
           <button className="not-connected-btn not-connected-btn-retry" onClick={() => { void handleConnect(); }} disabled={isConnecting}>
-            {isConnecting ? 'Connecting...' : <><Icon name="refresh" size={12} /> Connect</>}
+            {isConnecting
+              ? t('config:notConnected.connecting', { defaultValue: 'Connecting...' })
+              : <><Icon name="refresh" size={12} /> {t('config:notConnected.connect', { defaultValue: 'Connect' })}</>}
           </button>
           <button className="not-connected-btn not-connected-btn-explore" onClick={panelOpen ? handleClosePanel : handleExplore}>
-            {panelOpen ? 'Back to app' : 'Explore'}
+            {panelOpen
+              ? t('config:notConnected.backToApp', { defaultValue: 'Back to app' })
+              : t('config:notConnected.explore', { defaultValue: 'Explore' })}
           </button>
         </div>
       </div>

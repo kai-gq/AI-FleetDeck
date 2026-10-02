@@ -435,8 +435,8 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                 <div className="shortcuts-context-group">
                   {expandedContext === 'all' && (
                     <div className="shortcuts-context-header">
-                      <span className="shortcuts-context-label">Agent Terminal Shortcuts</span>
-                      <span className="shortcuts-context-description">Per-agent global shortcuts that open the guake terminal</span>
+                      <span className="shortcuts-context-label">{t('terminal:controlsModal.agentShortcutsTitle', { defaultValue: 'Agent Terminal Shortcuts' })}</span>
+                      <span className="shortcuts-context-description">{t('terminal:controlsModal.agentShortcutsDescription', { defaultValue: 'Per-agent global shortcuts that open the guake terminal' })}</span>
                     </div>
                   )}
                   <div className="shortcuts-grid">
@@ -444,7 +444,7 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                       <div key={agent.id} className="shortcut-item">
                         <div className="shortcut-item-info">
                           <span className="shortcut-item-name">{agent.name}</span>
-                          <span className="shortcut-item-description">Open terminal for this agent</span>
+                          <span className="shortcut-item-description">{t('terminal:spawn.shortcutDescription', { defaultValue: 'Open terminal for this agent' })}</span>
                         </div>
                         <div className="key-capture-container">
                           <button className="key-capture-input disabled" disabled>

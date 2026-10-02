@@ -620,7 +620,7 @@ export function SpawnModal({
     >
       <div className="modal spawn-modal">
         <div className="modal-header">
-          {initialSession ? 'Restore conversation to new agent' : t('terminal:spawn.deployTitle')}
+          {initialSession ? t('terminal:spawnModal.restoreTitle', { defaultValue: 'Restore conversation to new agent' }) : t('terminal:spawn.deployTitle')}
         </div>
 
         <div className="modal-body spawn-modal-body">
@@ -628,13 +628,13 @@ export function SpawnModal({
             <div className="spawn-restore-banner">
               <Icon name="history" size={16} />
               <div>
-                <strong>Conversation ready to restore</strong>
+                <strong>{t('terminal:spawnModal.restoreReady', { defaultValue: 'Conversation ready to restore' })}</strong>
                 <span>
                   {initialSession.provider}{initialSession.model ? ` · ${initialSession.model}` : ''}
                   {' · '}{initialSession.sessionId.slice(0, 8)}…
                 </span>
               </div>
-              <span className="spawn-restore-banner-hint">Choose the new agent's characteristics below</span>
+              <span className="spawn-restore-banner-hint">{t('terminal:spawnModal.restoreHint', { defaultValue: 'Choose the new agent\'s characteristics below' })}</span>
             </div>
           )}
           {/* Identity: Preview + Class + Name/CWD */}
@@ -756,7 +756,7 @@ export function SpawnModal({
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
                     disabled={!!initialSession}
-                    title={initialSession ? 'Runtime is fixed by the restored conversation' : t('terminal:spawn.useClaudeCli')}
+                    title={initialSession ? t('terminal:spawnModal.runtimeFixed', { defaultValue: 'Runtime is fixed by the restored conversation' }) : t('terminal:spawn.useClaudeCli')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/claude.ico`} alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
@@ -765,7 +765,7 @@ export function SpawnModal({
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
                     disabled={!!initialSession}
-                    title={initialSession ? 'Runtime is fixed by the restored conversation' : t('terminal:spawn.useCodexCli')}
+                    title={initialSession ? t('terminal:spawnModal.runtimeFixed', { defaultValue: 'Runtime is fixed by the restored conversation' }) : t('terminal:spawn.useCodexCli')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
@@ -774,7 +774,7 @@ export function SpawnModal({
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
                     disabled={!!initialSession}
-                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use OpenCode CLI (multi-provider)'}
+                    title={initialSession ? t('terminal:spawnModal.runtimeFixed', { defaultValue: 'Runtime is fixed by the restored conversation' }) : t('terminal:spawn.useOpenCodeCli', { defaultValue: 'Use OpenCode CLI (multi-provider)' })}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
@@ -783,7 +783,7 @@ export function SpawnModal({
                     className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('grok')}
                     disabled={!!initialSession}
-                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use Grok CLI (headless)'}
+                    title={initialSession ? t('terminal:spawnModal.runtimeFixed', { defaultValue: 'Runtime is fixed by the restored conversation' }) : t('terminal:spawn.useGrokCli', { defaultValue: 'Use Grok CLI (headless)' })}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
@@ -792,7 +792,7 @@ export function SpawnModal({
                     className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('pi')}
                     disabled={!!initialSession}
-                    title={initialSession ? 'Runtime is fixed by the restored conversation' : 'Use Pi coding agent CLI (multi-provider)'}
+                    title={initialSession ? t('terminal:spawnModal.runtimeFixed', { defaultValue: 'Runtime is fixed by the restored conversation' }) : t('terminal:spawn.usePiCli', { defaultValue: 'Use Pi coding agent CLI (multi-provider)' })}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
                     <span>Pi</span>
@@ -911,14 +911,14 @@ export function SpawnModal({
             <div className="spawn-form-row">
               {(selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && (
                 <div className="spawn-field">
-                  <label className="spawn-label">Effort</label>
+                  <label className="spawn-label">{t('terminal:spawn.effort', { defaultValue: 'Effort' })}</label>
                   <div className="spawn-select-row spawn-select-row--effort">
                     <button
                       className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === undefined ? 'selected' : ''}`}
                       onClick={() => setSelectedEffort(undefined)}
-                      title="Use default effort level"
+                      title={t('terminal:spawn.effortDefaultTitle', { defaultValue: 'Use default effort level' })}
                     >
-                      <span>Default</span>
+                      <span>{t('common:labels.default')}</span>
                     </button>
                     {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[])
                       // Grok tiers vary per model (4.5 has no xhigh, none have max).
@@ -1097,7 +1097,7 @@ export function SpawnModal({
                   />
                 </h4>
                 <span className="spawn-section-hint">
-                  {selectedSkillIds.size} selected · {t('common:labels.optional')}
+                  {t('terminal:spawn.selected', { count: selectedSkillIds.size })} · {t('common:labels.optional')}
                 </span>
               </div>
               {availableSkills.length > 6 && (
@@ -1232,8 +1232,8 @@ export function SpawnModal({
           </button>
           <button className="btn btn-primary" onClick={handleSpawn} disabled={isSpawning}>
             {isSpawning
-              ? (initialSession ? 'Restoring…' : t('common:buttons.deploying'))
-              : (initialSession ? 'Restore conversation' : t('common:buttons2.deploy'))}
+              ? (initialSession ? t('terminal:spawnModal.restoring', { defaultValue: 'Restoring…' }) : t('common:buttons.deploying'))
+              : (initialSession ? t('terminal:spawnModal.restoreConversation', { defaultValue: 'Restore conversation' }) : t('common:buttons2.deploy'))}
           </button>
         </div>
       </div>

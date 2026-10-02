@@ -537,7 +537,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
-                    title="Use OpenCode CLI (multi-provider)"
+                    title={t('terminal:spawn.useOpenCodeCli', { defaultValue: 'Use OpenCode CLI (multi-provider)' })}
                   >
                     <span><Icon name="status-pending" size={14} weight="fill" color="#4ade80" /></span>
                     <span>OpenCode</span>
@@ -545,7 +545,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   <button
                     className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('grok')}
-                    title="Use Grok CLI (headless)"
+                    title={t('terminal:spawn.useGrokCli', { defaultValue: 'Use Grok CLI (headless)' })}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
@@ -553,7 +553,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   <button
                     className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('pi')}
-                    title="Use Pi coding agent CLI (multi-provider)"
+                    title={t('terminal:spawn.usePiCli', { defaultValue: 'Use Pi coding agent CLI (multi-provider)' })}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
                     <span>Pi</span>
@@ -619,12 +619,12 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                     type="text"
                     className="spawn-input"
                     defaultValue="minimax/MiniMax-M1-80k"
-                    placeholder="provider/model (e.g., minimax/MiniMax-M1-80k)"
+                    placeholder={t('terminal:bossSpawn.opencodeModelPlaceholder', { defaultValue: 'provider/model (e.g., minimax/MiniMax-M1-80k)' })}
                   />
                 ) : selectedProvider === 'grok' ? (
                   <div className="spawn-inline-hint">{DEFAULT_GROK_MODEL}</div>
                 ) : selectedProvider === 'pi' ? (
-                  <div className="spawn-inline-hint">pi default (configure via agent edit)</div>
+                  <div className="spawn-inline-hint">{t('terminal:bossSpawn.piDefaultHint', { defaultValue: 'pi default (configure via agent edit)' })}</div>
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}

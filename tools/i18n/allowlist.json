@@ -18,7 +18,9 @@
     "tools:display.tokens",
     "config:workflowEditor.variableType.json",
     "terminal:bolbaRecommended.aiBadge",
-    "terminal:curlCard.bodyJson"
+    "terminal:curlCard.bodyJson",
+    "common:appModals.deleteNamedQ2",
+    "terminal:missingFile.gitHead"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -88,6 +90,15 @@
     "re:^config:googleOAuth\\.",
     "re:^config:slackSetup\\.",
     "re:^config:integrationsPanel\\.",
+    "re:^terminal:spawnModal\\.",
+    "re:^terminal:sessionSearch\\.",
+    "re:^terminal:controlsModal\\.",
+    "re:^terminal:agentPanel\\.",
+    "re:^terminal:missingFile\\.",
+    "re:^terminal:bossSpawn\\.",
+    "re:^common:appModals\\.",
+    "re:^common:workspaceSwitcher\\.",
+    "re:^config:notConnected\\.",
     "config:whatsAppConfig.qrImageAlt",
     "re:^config:pluginHost\\.",
     "re:^config:systemPromptModal\\.",

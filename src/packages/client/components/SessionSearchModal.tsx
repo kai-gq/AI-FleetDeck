@@ -9,6 +9,8 @@
  */
 
 import React, { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { getI18nInstance } from '../utils/formatting';
 import { ModalPortal } from './shared/ModalPortal';
 import { Icon } from './Icon';
 import { AgentIcon } from './AgentIcon';
@@ -62,9 +64,9 @@ function formatDate(iso: string): string {
   const ts = new Date(iso).getTime();
   if (!Number.isFinite(ts)) return '';
   const diff = Date.now() - ts;
-  if (diff < 3600_000) return `${Math.max(1, Math.floor(diff / 60_000))}m ago`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
-  if (diff < 7 * 86400_000) return `${Math.floor(diff / 86400_000)}d ago`;
+  if (diff < 3600_000) return tr('sessionSearch.agoMinutes', '{{n}}m ago', { n: Math.max(1, Math.floor(diff / 60_000)) });
+  if (diff < 86400_000) return tr('sessionSearch.agoHours', '{{n}}h ago', { n: Math.floor(diff / 3600_000) });
+  if (diff < 7 * 86400_000) return tr('sessionSearch.agoDays', '{{n}}d ago', { n: Math.floor(diff / 86400_000) });
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -86,9 +88,20 @@ function formatToolInput(input: unknown): string {
   }
 }
 
+/** Translate a `terminal:` key outside React (module-level helpers). The
+ * English default keeps en output byte-identical; before i18n init the
+ * `{{vars}}` are interpolated by hand so callers never see raw placeholders. */
+function tr(key: string, defaultValue: string, vars?: Record<string, unknown>): string {
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
+  if (t) return t(`terminal:${key}`, { defaultValue, ...vars });
+  if (!vars) return defaultValue;
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
+}
+
 function clip(text: string, max: number): string {
   if (text.length <= max) return text;
-  return text.slice(0, max) + `\n… (${text.length - max} more chars)`;
+  return text.slice(0, max) + '\n' + tr('sessionSearch.moreChars', '… ({{n}} more chars)', { n: text.length - max });
 }
 
 /**
@@ -104,8 +117,8 @@ function clipAroundMatch(text: string, max: number, query: string): string {
   if (at === -1 || at + q.length <= max) return clip(text, max);
   const start = Math.max(0, at - Math.floor(max / 3));
   const end = Math.min(text.length, start + max);
-  const head = start > 0 ? `… (${start} chars)\n` : '';
-  const tail = end < text.length ? `\n… (${text.length - end} more chars)` : '';
+  const head = start > 0 ? tr('sessionSearch.prevChars', '… ({{n}} chars)', { n: start }) + '\n' : '';
+  const tail = end < text.length ? '\n' + tr('sessionSearch.moreChars', '… ({{n}} more chars)', { n: text.length - end }) : '';
   return head + text.slice(start, end) + tail;
 }
 
@@ -121,7 +134,7 @@ function getDisplayText(m: SessionPreviewMessage, query: string): string {
     return args ? clipAroundMatch(args, TOOL_INPUT_MAX_CHARS, query) : '';
   }
   if (m.type === 'tool_result') {
-    return clipAroundMatch(m.content || '(no output)', TOOL_RESULT_MAX_CHARS, query);
+    return clipAroundMatch(m.content || tr('sessionSearch.noOutput', '(no output)'), TOOL_RESULT_MAX_CHARS, query);
   }
   return clipAroundMatch(m.content || '', MESSAGE_MAX_CHARS, query);
 }
@@ -182,6 +195,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
   initialQuery,
   initialSessionKey,
 }: SessionSearchModalProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const agentsMap = useAgents();
   const selectedAgentIds = useSelectedAgentIds();
   const agents = useMemo(
@@ -295,7 +309,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
       }
     } catch (err) {
       if (seq !== fetchSeqRef.current) return;
-      setError(err instanceof Error ? err.message : 'Failed to load sessions');
+      setError(err instanceof Error ? err.message : t('terminal:sessionSearch.loadFailed', { defaultValue: 'Failed to load sessions' }));
       setResults([]);
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
@@ -397,7 +411,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
     const fallbackProvider = selectedRow.provider ?? ownerProvider;
     const validProviders: AgentProvider[] = ['claude', 'codex', 'opencode', 'grok', 'pi'];
     if (!validProviders.includes(fallbackProvider as AgentProvider)) {
-      setError(`Unsupported session runtime: ${fallbackProvider}`);
+      setError(t('terminal:sessionSearch.unsupportedRuntime', { defaultValue: 'Unsupported session runtime: {{provider}}', provider: fallbackProvider }));
       setPreparingNewAgent(false);
       return;
     }
@@ -450,8 +464,8 @@ export const SessionSearchModal = memo(function SessionSearchModal({
     );
     setRestoreSuccess(
       needsCwdSwap
-        ? `Restored on ${targetAgent.name} (cwd → ${selectedRow.projectPath})`
-        : `Restored on ${targetAgent.name}`
+        ? t('terminal:sessionSearch.restoredWithCwd', { defaultValue: 'Restored on {{name}} (cwd → {{path}})', name: targetAgent.name, path: selectedRow.projectPath })
+        : t('terminal:sessionSearch.restored', { defaultValue: 'Restored on {{name}}', name: targetAgent.name })
     );
   }, [selectedRow, targetAgent]);
 
@@ -482,9 +496,9 @@ export const SessionSearchModal = memo(function SessionSearchModal({
         <div className="session-finder-modal" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
           <div className="modal-header">
             <h2>
-              <Icon name="search" size={14} /> Session Finder
+              <Icon name="search" size={14} /> {t('terminal:sessionSearch.title', { defaultValue: 'Session Finder' })}
             </h2>
-            <button className="modal-close" onClick={onClose} aria-label="Close">
+            <button className="modal-close" onClick={onClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -496,13 +510,13 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                 <input
                   className="session-finder-input"
                   type="text"
-                  placeholder="Search across ALL sessions (text, tool args, prompts)…"
+                  placeholder={t('terminal:sessionSearch.searchPlaceholder', { defaultValue: 'Search across ALL sessions (text, tool args, prompts)…' })}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   autoFocus
                 />
                 {query && (
-                  <button className="session-finder-clear" onClick={() => setQuery('')} aria-label="Clear">
+                  <button className="session-finder-clear" onClick={() => setQuery('')} aria-label={t('common:buttons.clear')}>
                     <Icon name="close" size={12} />
                   </button>
                 )}
@@ -511,19 +525,19 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                 <input
                   className="session-finder-input"
                   type="text"
-                  placeholder="Filter by project path… (e.g. /home/riven/d/pagamento)"
+                  placeholder={t('terminal:sessionSearch.filterPlaceholder', { defaultValue: 'Filter by project path… (e.g. /home/riven/d/pagamento)' })}
                   value={cwdFilter}
                   onChange={(e) => setCwdFilter(e.target.value)}
                 />
                 {cwdFilter && (
-                  <button className="session-finder-clear" onClick={() => setCwdFilter('')} aria-label="Clear">
+                  <button className="session-finder-clear" onClick={() => setCwdFilter('')} aria-label={t('common:buttons.clear')}>
                     <Icon name="close" size={12} />
                   </button>
                 )}
               </div>
             </div>
             <div className="session-finder-target-row">
-              <label className="session-finder-target-label">Restore to:</label>
+              <label className="session-finder-target-label">{t('terminal:sessionSearch.restoreTo', { defaultValue: 'Restore to:' })}</label>
               <AgentPicker
                 agents={agents}
                 value={targetAgentId}
@@ -535,14 +549,16 @@ export const SessionSearchModal = memo(function SessionSearchModal({
           <div className="session-finder-body">
             <div className="session-finder-list">
               {loading && (
-                <div className="session-finder-loading"><div className="spinner" /> Loading…</div>
+                <div className="session-finder-loading"><div className="spinner" /> {t('terminal:sessionSearch.loading', { defaultValue: 'Loading…' })}</div>
               )}
               {error && (
                 <div className="session-finder-error"><Icon name="warn" size={12} /> {error}</div>
               )}
               {!loading && !error && results.length === 0 && (
                 <div className="session-finder-empty">
-                  {query ? 'No matches.' : 'No sessions found.'}
+                  {query
+                    ? t('terminal:sessionSearch.noMatches', { defaultValue: 'No matches.' })
+                    : t('terminal:sessionSearch.noSessions', { defaultValue: 'No sessions found.' })}
                 </div>
               )}
               {!loading && results.map((row) => {
@@ -558,19 +574,19 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                   >
                     <div className="session-finder-result-top">
                       <span className="session-finder-result-cwd" title={row.projectPath || row.projectDir}>
-                        {row.projectPath || `(unrecoverable cwd) ${row.projectDir}`}
+                        {row.projectPath || t('terminal:sessionSearch.unrecoverableCwd', { defaultValue: '(unrecoverable cwd) {{dir}}', dir: row.projectDir })}
                       </span>
                       <span className="session-finder-result-date">{formatDate(row.lastModified)}</span>
                     </div>
                     <div className="session-finder-result-mid">
                       <code className="session-finder-result-id">{shortenSessionId(row.sessionId)}</code>
                       {row.totalMatches !== undefined && (
-                        <span className="session-finder-result-hits">{row.totalMatches} hits</span>
+                        <span className="session-finder-result-hits">{t('terminal:sessionSearch.hits', { defaultValue: '{{n}} hits', n: row.totalMatches })}</span>
                       )}
                       {attachedAgent && (
                         <span
                           className="session-finder-result-attached"
-                          title={`Currently attached to ${attachedAgent.name}`}
+                          title={t('terminal:sessionSearch.attachedTitle', { defaultValue: 'Currently attached to {{name}}', name: attachedAgent.name })}
                         >
                           <AgentIcon agent={attachedAgent} size={12} />
                           <span>{attachedAgent.name}</span>
@@ -591,7 +607,7 @@ export const SessionSearchModal = memo(function SessionSearchModal({
               {!selectedRow && (
                 <div className="session-finder-preview-empty">
                   <Icon name="info" size={16} />
-                  <span>Select a session to preview its conversation</span>
+                  <span>{t('terminal:sessionSearch.selectPrompt', { defaultValue: 'Select a session to preview its conversation' })}</span>
                 </div>
               )}
               {selectedRow && (
@@ -603,20 +619,20 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                     {sessionToAgent.get(selectedRow.sessionId) && (() => {
                       const att = sessionToAgent.get(selectedRow.sessionId)!;
                       return (
-                        <span className="session-finder-result-attached" title={`Currently attached to ${att.name}`}>
+                        <span className="session-finder-result-attached" title={t('terminal:sessionSearch.attachedTitle', { defaultValue: 'Currently attached to {{name}}', name: att.name })}>
                           <AgentIcon agent={att} size={12} />
                           <span>{att.name}</span>
                         </span>
                       );
                     })()}
                     {query && (
-                      <div className="session-finder-match-nav" role="group" aria-label="Match navigator">
+                      <div className="session-finder-match-nav" role="group" aria-label={t('terminal:sessionSearch.matchNavigator', { defaultValue: 'Match navigator' })}>
                         <button
                           className="session-finder-match-btn"
                           onClick={goPrev}
                           disabled={totalMatches === 0}
-                          aria-label="Previous match"
-                          title="Previous match (Shift+F3)"
+                          aria-label={t('terminal:sessionSearch.prevMatch', { defaultValue: 'Previous match' })}
+                          title={t('terminal:sessionSearch.prevMatchTitle', { defaultValue: 'Previous match (Shift+F3)' })}
                         >
                           <Icon name="arrow-up" size={11} />
                         </button>
@@ -627,8 +643,8 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                           className="session-finder-match-btn"
                           onClick={goNext}
                           disabled={totalMatches === 0}
-                          aria-label="Next match"
-                          title="Next match (F3)"
+                          aria-label={t('terminal:sessionSearch.nextMatch', { defaultValue: 'Next match' })}
+                          title={t('terminal:sessionSearch.nextMatchTitle', { defaultValue: 'Next match (F3)' })}
                         >
                           <Icon name="arrow-down" size={11} />
                         </button>
@@ -637,9 +653,9 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                     <code className="session-finder-preview-id">{selectedRow.sessionId}</code>
                   </div>
                   {previewLoading ? (
-                    <div className="session-finder-loading"><div className="spinner" /> Loading messages…</div>
+                    <div className="session-finder-loading"><div className="spinner" /> {t('terminal:sessionSearch.loadingMessages', { defaultValue: 'Loading messages…' })}</div>
                   ) : previewMessages.length === 0 ? (
-                    <div className="session-finder-preview-empty">No messages found.</div>
+                    <div className="session-finder-preview-empty">{t('terminal:sessionSearch.noMessages', { defaultValue: 'No messages found.' })}</div>
                   ) : (
                     <PreviewMessages
                       messages={previewMessages}
@@ -656,7 +672,9 @@ export const SessionSearchModal = memo(function SessionSearchModal({
           <div className="modal-footer session-finder-footer">
             <div className="session-finder-footer-info">
               {results.length > 0 && (
-                <span>{results.length} session{results.length === 1 ? '' : 's'}</span>
+                <span>{results.length === 1
+                  ? t('terminal:sessionSearch.sessionCountOne', { defaultValue: '{{n}} session', n: results.length })
+                  : t('terminal:sessionSearch.sessionCountMany', { defaultValue: '{{n}} sessions', n: results.length })}</span>
               )}
               {restoreSuccess && (
                 <span className="session-finder-restore-success">
@@ -664,27 +682,31 @@ export const SessionSearchModal = memo(function SessionSearchModal({
                 </span>
               )}
               {cwdMismatch && (
-                <span className="session-finder-cwd-warn" title="Restoring will switch the agent's working directory">
-                  <Icon name="warn" size={12} /> cwd will change
+                <span className="session-finder-cwd-warn" title={t('terminal:sessionSearch.cwdWarnTitle', { defaultValue: 'Restoring will switch the agent\'s working directory' })}>
+                  <Icon name="warn" size={12} /> {t('terminal:sessionSearch.cwdWarn', { defaultValue: 'cwd will change' })}
                 </span>
               )}
             </div>
             <div className="session-finder-footer-actions">
-              <button className="btn btn-secondary" onClick={onClose}>Close</button>
+              <button className="btn btn-secondary" onClick={onClose}>{t('common:buttons.close')}</button>
               <button
                 className="btn btn-secondary"
                 onClick={() => { void handleRestoreToNewAgent(); }}
                 disabled={!selectedRow || !selectedRow.projectPath || preparingNewAgent}
-                title="Choose the new agent's class, model, permissions, skills and other characteristics before restoring"
+                title={t('terminal:sessionSearch.restoreToNewTitle', { defaultValue: 'Choose the new agent\'s class, model, permissions, skills and other characteristics before restoring' })}
               >
-                {preparingNewAgent ? 'Preparing…' : 'Restore to new agent'}
+                {preparingNewAgent
+                  ? t('terminal:sessionSearch.preparing', { defaultValue: 'Preparing…' })
+                  : t('terminal:sessionSearch.restoreToNew', { defaultValue: 'Restore to new agent' })}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleRestore}
                 disabled={!selectedRow || !targetAgent}
               >
-                Restore{targetAgent ? ` to ${targetAgent.name}` : ''}
+                {targetAgent
+                  ? t('terminal:sessionSearch.restoreToName', { defaultValue: 'Restore to {{name}}', name: targetAgent.name })
+                  : t('terminal:sessionSearch.restore', { defaultValue: 'Restore' })}
               </button>
             </div>
           </div>
@@ -705,6 +727,7 @@ interface AgentPickerProps {
 }
 
 const AgentPicker = memo(function AgentPicker({ agents, value, onChange }: AgentPickerProps) {
+  const { t } = useTranslation('terminal');
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -774,7 +797,7 @@ const AgentPicker = memo(function AgentPicker({ agents, value, onChange }: Agent
             <span className="agent-picker-cwd">{selected.cwd}</span>
           </>
         ) : (
-          <span className="agent-picker-empty-label">Select an agent…</span>
+          <span className="agent-picker-empty-label">{t('terminal:sessionSearch.selectAgent', { defaultValue: 'Select an agent…' })}</span>
         )}
         <Icon name={open ? 'caret-up' : 'caret-down'} size={10} />
       </button>
@@ -785,7 +808,7 @@ const AgentPicker = memo(function AgentPicker({ agents, value, onChange }: Agent
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search agents by name or path…"
+              placeholder={t('terminal:sessionSearch.searchAgentsPlaceholder', { defaultValue: 'Search agents by name or path…' })}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               onKeyDown={handleInputKeyDown}
@@ -795,7 +818,7 @@ const AgentPicker = memo(function AgentPicker({ agents, value, onChange }: Agent
                 type="button"
                 className="agent-picker-clear"
                 onClick={() => { setFilter(''); inputRef.current?.focus(); }}
-                aria-label="Clear filter"
+                aria-label={t('terminal:sessionSearch.clearFilter', { defaultValue: 'Clear filter' })}
               >
                 <Icon name="close" size={10} />
               </button>
@@ -803,7 +826,7 @@ const AgentPicker = memo(function AgentPicker({ agents, value, onChange }: Agent
           </div>
           <div className="agent-picker-list">
             {filtered.length === 0 ? (
-              <div className="agent-picker-no-match">No agents match "{filter}"</div>
+              <div className="agent-picker-no-match">{t('terminal:sessionSearch.noAgentsMatch', { defaultValue: 'No agents match "{{filter}}"', filter })}</div>
             ) : (
               filtered.map((a) => (
                 <button
@@ -847,6 +870,7 @@ const PreviewMessages = memo(function PreviewMessages({
   matchRefs,
   messagesContainerRef,
 }: PreviewMessagesProps) {
+  const { t } = useTranslation('terminal');
   // Build the complete render tree once per (messages, query) change. We
   // accumulate match refs in a fresh array and assign it on render so the
   // surrounding nav can scroll to the right element.
@@ -899,7 +923,7 @@ const PreviewMessages = memo(function PreviewMessages({
           return (
             <div key={i} className="session-finder-msg tool-use">
               <div className="session-finder-msg-role">
-                <span className="session-finder-msg-tool">{m.toolName || 'Tool'}</span>
+                <span className="session-finder-msg-tool">{m.toolName || t('terminal:sessionSearch.toolFallback', { defaultValue: 'Tool' })}</span>
                 <span className="session-finder-msg-tool-tag">tool_use</span>
               </div>
               {clipped && <pre className="session-finder-msg-text mono">{renderText(clipped)}</pre>}
@@ -911,7 +935,7 @@ const PreviewMessages = memo(function PreviewMessages({
           return (
             <div key={i} className="session-finder-msg tool-result">
               <div className="session-finder-msg-role">
-                <span className="session-finder-msg-tool">{m.toolName || 'Result'}</span>
+                <span className="session-finder-msg-tool">{m.toolName || t('terminal:sessionSearch.resultFallback', { defaultValue: 'Result' })}</span>
                 <span className="session-finder-msg-tool-tag muted">tool_result</span>
               </div>
               <pre className="session-finder-msg-text mono">{renderText(clipped)}</pre>
@@ -922,7 +946,9 @@ const PreviewMessages = memo(function PreviewMessages({
         return (
           <div key={i} className={`session-finder-msg ${m.type}`}>
             <div className="session-finder-msg-role">
-              {m.type === 'user' ? 'YOU' : 'AGENT'}
+              {m.type === 'user'
+                ? t('terminal:sessionSearch.roleYou', { defaultValue: 'YOU' })
+                : t('terminal:sessionSearch.roleAgent', { defaultValue: 'AGENT' })}
             </div>
             <div className="session-finder-msg-text">{renderText(clipped)}</div>
           </div>

@@ -353,7 +353,7 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
       <button
         className="workspace-switcher-trigger"
         onClick={() => { setDropdownOpen(!dropdownOpen); setManagerOpen(false); }}
-        title="Workspaces"
+        title={t('agentBar.workspaces', { defaultValue: 'Workspaces' })}
       >
         <span className="workspace-switcher-icon"><Icon name="folder-open" size={14} /></span>
         <span className="workspace-switcher-label">
@@ -408,7 +408,7 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       className="workspace-switcher-input"
-                      placeholder="Workspace name"
+                      placeholder={t('workspaceSwitcher.namePlaceholder', { defaultValue: 'Workspace name' })}
                       autoFocus
                       onKeyDown={(e) => { if (e.key === 'Enter') handleUpdate(); if (e.key === 'Escape') setEditingId(null); }}
                     />
@@ -423,19 +423,19 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
                           <span style={{ color: area.color }}>{area.name}</span>
                         </label>
                       ))}
-                      {areasList.length === 0 && <span className="workspace-switcher-empty">No areas</span>}
+                      {areasList.length === 0 && <span className="workspace-switcher-empty">{t('workspaceSwitcher.noAreas', { defaultValue: 'No areas' })}</span>}
                     </div>
                     <div className="workspace-switcher-editor-actions">
-                      <button className="workspace-switcher-btn-save" onClick={handleUpdate}>Save</button>
-                      <button className="workspace-switcher-btn-cancel" onClick={() => setEditingId(null)}>Cancel</button>
+                      <button className="workspace-switcher-btn-save" onClick={handleUpdate}>{t('common:buttons.save')}</button>
+                      <button className="workspace-switcher-btn-cancel" onClick={() => setEditingId(null)}>{t('common:buttons.cancel')}</button>
                     </div>
                   </div>
                 ) : (
                   <div className="workspace-switcher-manager-row">
                     <span className="workspace-switcher-manager-name">{ws.name}</span>
-                    <span className="workspace-switcher-manager-count">{ws.areaIds.length} areas</span>
-                    <button className="workspace-switcher-btn-edit" onClick={() => startEdit(ws)} title="Edit"><Icon name="edit" size={12} /></button>
-                    <button className="workspace-switcher-btn-delete" onClick={() => handleDelete(ws.id)} title="Delete"><Icon name="trash" size={12} /></button>
+                    <span className="workspace-switcher-manager-count">{t('workspaceSwitcher.areaCount', { defaultValue: '{{n}} areas', n: ws.areaIds.length })}</span>
+                    <button className="workspace-switcher-btn-edit" onClick={() => startEdit(ws)} title={t('common:buttons.edit')}><Icon name="edit" size={12} /></button>
+                    <button className="workspace-switcher-btn-delete" onClick={() => handleDelete(ws.id)} title={t('common:buttons.delete')}><Icon name="trash" size={12} /></button>
                   </div>
                 )}
               </div>
@@ -450,7 +450,7 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 className="workspace-switcher-input"
-                placeholder="New workspace name"
+                placeholder={t('workspaceSwitcher.newNamePlaceholder', { defaultValue: 'New workspace name' })}
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
               />
@@ -465,11 +465,11 @@ export const WorkspaceSwitcher: React.FC = React.memo(function WorkspaceSwitcher
                     <span style={{ color: area.color }}>{area.name}</span>
                   </label>
                 ))}
-                {areasList.length === 0 && <span className="workspace-switcher-empty">No areas</span>}
+                {areasList.length === 0 && <span className="workspace-switcher-empty">{t('workspaceSwitcher.noAreas', { defaultValue: 'No areas' })}</span>}
               </div>
               <div className="workspace-switcher-editor-actions">
-                <button className="workspace-switcher-btn-save" onClick={handleCreate}>Create</button>
-                <button className="workspace-switcher-btn-cancel" onClick={() => setCreating(false)}>Cancel</button>
+                <button className="workspace-switcher-btn-save" onClick={handleCreate}>{t('common:buttons.create')}</button>
+                <button className="workspace-switcher-btn-cancel" onClick={() => setCreating(false)}>{t('common:buttons.cancel')}</button>
               </div>
             </div>
           ) : (
