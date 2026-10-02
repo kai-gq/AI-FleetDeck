@@ -8,7 +8,8 @@
     "config:connection.addUrlPlaceholder",
     "config:areas.folderPlaceholder",
     "config:integrations.whatsapp.title",
-    "config:webBundle.apkVersion"
+    "config:webBundle.apkVersion",
+    "terminal:documentViewer.copyMarkdown"
   ],
   "noCJK": [
     "common:labels.tokens",
