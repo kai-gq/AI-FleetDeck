@@ -44,26 +44,31 @@ export function highlightText(text: string, query?: string): React.ReactNode {
  */
 export function getImageWebUrl(imagePath: string): string {
   const baseUrl = getApiBaseUrl();
-  if (imagePath.startsWith('http')) {
-    return imagePath;
-  } else if (imagePath.startsWith('/uploads/')) {
-    return `${baseUrl}${imagePath}`;
-  } else if (imagePath.includes('tide-commander-uploads')) {
+  // Windows uploads/agents hand back backslash paths (C:\Users\...\file.png).
+  // Browsers rewrite '\' to '/' inside URLs, so a raw drive path turned into
+  // `/uploads/C:\Users\...` 404s. Normalize before matching so filename
+  // extraction works on both platforms.
+  const normalized = imagePath.replace(/\\/g, '/');
+  if (normalized.startsWith('http')) {
+    return normalized;
+  } else if (normalized.startsWith('/uploads/')) {
+    return `${baseUrl}${normalized}`;
+  } else if (normalized.includes('tide-commander-uploads')) {
     // Absolute path like /tmp/tide-commander-uploads/image.png - extract filename
-    const imageName = imagePath.split('/').pop() || 'image';
+    const imageName = normalized.split('/').pop() || 'image';
     return `${baseUrl}/uploads/${imageName}`;
-  } else if (imagePath.includes('browser-errors/attachments/')) {
+  } else if (normalized.includes('browser-errors/attachments/')) {
     // Browser-extension attachments / element shots are served at /attachments.
-    const imageName = imagePath.split('/').pop() || 'image';
+    const imageName = normalized.split('/').pop() || 'image';
     return `${baseUrl}/attachments/${imageName}`;
-  } else if (imagePath.startsWith('/')) {
+  } else if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
     // Any other absolute path (a screenshot, a generated image an agent just
     // wrote) is not reachable as a web path — stream its bytes through the
     // files API instead of rendering a broken thumbnail.
-    return getLocalFileImageUrl(imagePath);
+    return getLocalFileImageUrl(normalized);
   } else {
     // Default: assume it's a relative path
-    return imagePath;
+    return normalized;
   }
 }
 
