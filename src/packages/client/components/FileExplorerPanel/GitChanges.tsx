@@ -117,7 +117,7 @@ const GitFileItem = memo(function GitFileItem({
             e.stopPropagation();
             onDiscard(file, status);
           }}
-          title={status === 'untracked' || status === 'added' ? 'Delete file' : 'Discard changes'}
+          title={status === 'untracked' || status === 'added' ? t('terminal:gitPanel.discardBtnDeleteFile', { defaultValue: 'Delete file' }) : t('terminal:gitPanel.discardBtnDiscardChanges', { defaultValue: 'Discard changes' })}
         >
           <Icon name="revert" size={12} />
         </button>
@@ -223,7 +223,7 @@ const GitTreeNodeItem = memo(function GitTreeNodeItem({
               e.stopPropagation();
               onDiscard(node.file!, fileStatus);
             }}
-            title={fileStatus === 'untracked' || fileStatus === 'added' ? 'Delete file' : 'Discard changes'}
+            title={fileStatus === 'untracked' || fileStatus === 'added' ? t('terminal:gitPanel.discardBtnDeleteFile', { defaultValue: 'Delete file' }) : t('terminal:gitPanel.discardBtnDiscardChanges', { defaultValue: 'Discard changes' })}
           >
             <Icon name="revert" size={12} />
           </button>
@@ -364,9 +364,11 @@ const GitMergedGroup = memo(function GitMergedGroup({
               e.stopPropagation();
               onDiscardAll();
             }}
-            title={hasUntracked ? `Delete all ${files.length} files` : `Discard all ${files.length} changes`}
+            title={hasUntracked
+              ? t('terminal:fileExplorer.menu.deleteAllFiles', { defaultValue: 'Delete all {{count}} files', count: files.length })
+              : t('terminal:fileExplorer.menu.discardAllChanges', { defaultValue: 'Discard all {{count}} changes', count: files.length })}
           >
-            <Icon name="revert" size={12} /> All
+            <Icon name="revert" size={12} /> {t('terminal:fileExplorer.discardAllBtn', { defaultValue: 'All' })}
           </button>
         )}
       </div>
@@ -484,17 +486,17 @@ function GitChangesComponent({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('success', 'Discarded', `Reverted ${pendingInlineDiscard.files.length} file(s)`);
+        showToast('success', t('terminal:fileExplorer.toast.discarded', { defaultValue: 'Discarded' }), t('terminal:fileExplorer.toast.revertedFiles', { defaultValue: 'Reverted {{count}} file(s)', count: pendingInlineDiscard.files.length }));
         onRefresh();
       } else {
-        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+        showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), data.error || t('terminal:gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       }
     } catch {
-      showToast('error', 'Discard Failed', 'Network error');
+      showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), t('terminal:fileExplorer.toast.networkError', { defaultValue: 'Network error' }));
     } finally {
       setPendingInlineDiscard(null);
     }
-  }, [pendingInlineDiscard, currentFolder, onRefresh, showToast]);
+  }, [pendingInlineDiscard, currentFolder, onRefresh, showToast, t]);
 
   const handleGitFileContextMenu = useCallback((
     event: React.MouseEvent,
@@ -524,24 +526,24 @@ function GitChangesComponent({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('success', 'Discarded', `Restored ${file.name}`);
+        showToast('success', t('terminal:fileExplorer.toast.discarded', { defaultValue: 'Discarded' }), t('terminal:fileExplorer.toast.restoredFile', { defaultValue: 'Restored {{name}}', name: file.name }));
         onRefresh();
       } else {
-        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+        showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), data.error || t('terminal:gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       }
     } catch {
-      showToast('error', 'Discard Failed', 'Network error');
+      showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), t('terminal:fileExplorer.toast.networkError', { defaultValue: 'Network error' }));
     }
-  }, [currentFolder, onRefresh, showToast]);
+  }, [currentFolder, onRefresh, showToast, t]);
 
   const handleCopyFullPath = useCallback(async (filePath: string) => {
     try {
       await navigator.clipboard.writeText(filePath);
-      showToast('success', 'Copied', 'Full path copied');
+      showToast('success', t('terminal:fileExplorer.copied'), t('terminal:fileExplorer.toast.fullPathCopied', { defaultValue: 'Full path copied' }));
     } catch {
-      showToast('error', 'Copy Failed', 'Could not copy path');
+      showToast('error', t('terminal:fileExplorer.toast.copyFailed', { defaultValue: 'Copy Failed' }), t('terminal:fileExplorer.toast.couldNotCopyPath', { defaultValue: 'Could not copy path' }));
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const handleCopyRelativePath = useCallback(async (filePath: string) => {
     const relativePath = currentFolder
@@ -549,11 +551,11 @@ function GitChangesComponent({
       : filePath;
     try {
       await navigator.clipboard.writeText(relativePath);
-      showToast('success', 'Copied', 'Relative path copied');
+      showToast('success', t('terminal:fileExplorer.copied'), t('terminal:fileExplorer.toast.relativePathCopied', { defaultValue: 'Relative path copied' }));
     } catch {
-      showToast('error', 'Copy Failed', 'Could not copy path');
+      showToast('error', t('terminal:fileExplorer.toast.copyFailed', { defaultValue: 'Copy Failed' }), t('terminal:fileExplorer.toast.couldNotCopyPath', { defaultValue: 'Could not copy path' }));
     }
-  }, [currentFolder, showToast]);
+  }, [currentFolder, showToast, t]);
 
   const gitFileContextActions = useMemo((): ContextMenuAction[] => {
     if (!gitFileContextMenu) return [];
@@ -591,7 +593,7 @@ function GitChangesComponent({
     if (status !== 'deleted') {
       actions.push({
         id: 'download-file',
-        label: 'Download File',
+        label: t('terminal:fileExplorer.downloadFile'),
         icon: <Icon name="download" size={14} />,
         onClick: () => downloadFile(file.path, file.path.split('/').pop() || 'file'),
       });
@@ -684,15 +686,15 @@ function GitChangesComponent({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('success', 'Discarded', `Reverted ${files.length} file(s) in ${node.name}`);
+        showToast('success', t('terminal:fileExplorer.toast.discarded', { defaultValue: 'Discarded' }), t('terminal:fileExplorer.toast.revertedFilesIn', { defaultValue: 'Reverted {{count}} file(s) in {{name}}', count: files.length, name: node.name }));
         onRefresh();
       } else {
-        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+        showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), data.error || t('terminal:gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       }
     } catch {
-      showToast('error', 'Discard Failed', 'Network error');
+      showToast('error', t('terminal:gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), t('terminal:fileExplorer.toast.networkError', { defaultValue: 'Network error' }));
     }
-  }, [currentFolder, collectFilesFromNode, onRefresh, showToast]);
+  }, [currentFolder, collectFilesFromNode, onRefresh, showToast, t]);
 
   const gitDirContextActions = useMemo((): ContextMenuAction[] => {
     if (!gitDirContextMenu) return [];
@@ -701,26 +703,26 @@ function GitChangesComponent({
     return [
       {
         id: 'discard-dir',
-        label: `Discard Changes (${files.length} files)`,
+        label: t('terminal:fileExplorer.menu.discardChangesFiles', { defaultValue: 'Discard Changes ({{count}} files)', count: files.length }),
         icon: <Icon name="revert" size={14} />,
         danger: true,
         onClick: () => { void handleDiscardDir(node); },
       },
       {
         id: 'stage-dir',
-        label: `Stage All (${files.length} files)`,
+        label: t('terminal:fileExplorer.menu.stageAllFiles', { defaultValue: 'Stage All ({{count}} files)', count: files.length }),
         icon: <Icon name="plus" size={14} />,
         onClick: () => { void onStageFiles(files.map(f => f.path)); },
       },
       { id: 'divider-download', label: '', divider: true, onClick: () => {} },
       {
         id: 'download-dir',
-        label: 'Download Folder (.zip)',
+        label: t('terminal:gitPanel.downloadFolderZip', { defaultValue: 'Download Folder (.zip)' }),
         icon: <Icon name="download" size={14} />,
         onClick: () => downloadFolder(node.path, node.name),
       },
     ];
-  }, [gitDirContextMenu, collectFilesFromNode, handleDiscardDir, onStageFiles]);
+  }, [gitDirContextMenu, collectFilesFromNode, handleDiscardDir, onStageFiles, t]);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpandedDirs(prev => {
@@ -790,18 +792,18 @@ function GitChangesComponent({
   // Discard All handlers for section headers
   const handleDiscardAllChanges = useCallback(() => {
     if (changesFiles.length === 0) return;
-    setPendingInlineDiscard({ files: changesFiles, label: `${changesFiles.length} changed files` });
-  }, [changesFiles]);
+    setPendingInlineDiscard({ files: changesFiles, label: t('terminal:fileExplorer.confirm.changedFilesCount', { defaultValue: '{{count}} changed files', count: changesFiles.length }) });
+  }, [changesFiles, t]);
 
   const handleDiscardAllUntracked = useCallback(() => {
     if (untrackedFiles.length === 0) return;
-    setPendingInlineDiscard({ files: untrackedFiles, label: `${untrackedFiles.length} unversioned files` });
-  }, [untrackedFiles]);
+    setPendingInlineDiscard({ files: untrackedFiles, label: t('terminal:fileExplorer.confirm.unversionedFilesCount', { defaultValue: '{{count}} unversioned files', count: untrackedFiles.length }) });
+  }, [untrackedFiles, t]);
 
   const handleDiscardAllConflicts = useCallback(() => {
     if (conflictFiles.length === 0) return;
-    setPendingInlineDiscard({ files: conflictFiles, label: `${conflictFiles.length} conflicted files` });
-  }, [conflictFiles]);
+    setPendingInlineDiscard({ files: conflictFiles, label: t('terminal:fileExplorer.confirm.conflictedFilesCount', { defaultValue: '{{count}} conflicted files', count: conflictFiles.length }) });
+  }, [conflictFiles, t]);
 
   const hasConflicts = conflictFiles.length > 0;
 
@@ -883,7 +885,7 @@ function GitChangesComponent({
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setCommitStatus({ type: 'error', text: data.error || 'Commit failed' });
+        setCommitStatus({ type: 'error', text: data.error || t('terminal:fileExplorer.toast.commitFailed', { defaultValue: 'Commit failed' }) });
         setIsCommitting(false);
         return;
       }
@@ -902,10 +904,10 @@ function GitChangesComponent({
           if (pushRes.ok && pushData.success) {
             setCommitStatus({ type: 'success', text: t('terminal:fileExplorer.committedAndPushed') });
           } else {
-            setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: pushData.error || 'Unknown error' }) });
+            setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: pushData.error || t('terminal:gitPanel.unknownError', { defaultValue: 'Unknown error' }) }) });
           }
         } catch {
-          setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: 'Network error' }) });
+          setCommitStatus({ type: 'error', text: t('terminal:fileExplorer.committedButPushFailed', { error: t('terminal:fileExplorer.toast.networkError', { defaultValue: 'Network error' }) }) });
         }
       } else {
         setCommitStatus({ type: 'success', text: t('terminal:fileExplorer.committedSuccessfully') });
@@ -918,11 +920,11 @@ function GitChangesComponent({
       onRefresh();
       onCommitComplete?.();
     } catch (err: any) {
-      setCommitStatus({ type: 'error', text: err.message || 'Commit failed' });
+      setCommitStatus({ type: 'error', text: err.message || t('terminal:fileExplorer.toast.commitFailed', { defaultValue: 'Commit failed' }) });
     } finally {
       setIsCommitting(false);
     }
-  }, [currentFolder, commitMessage, isAmend, checkedFiles, isCommitting, onRefresh, onCommitComplete]);
+  }, [currentFolder, commitMessage, isAmend, checkedFiles, isCommitting, onRefresh, onCommitComplete, t]);
 
   // Loading state
   if (loading) {
@@ -1229,15 +1231,17 @@ function GitChangesComponent({
           <div className="git-discard-confirm" onClick={(e) => e.stopPropagation()}>
             <p>
               {pendingInlineDiscard.files.some(f => f.status === 'untracked' || f.status === 'added')
-                ? <>Delete <strong>{pendingInlineDiscard.label}</strong>?</>
-                : <>Discard changes to <strong>{pendingInlineDiscard.label}</strong>?</>
+                ? <>{t('terminal:fileExplorer.confirm.deletePrefix', { defaultValue: 'Delete' })} <strong>{pendingInlineDiscard.label}</strong>{t('terminal:fileExplorer.confirm.deleteSuffix', { defaultValue: '?' })}</>
+                : <>{t('terminal:fileExplorer.confirm.discardPrefix', { defaultValue: 'Discard changes to' })} <strong>{pendingInlineDiscard.label}</strong>{t('terminal:fileExplorer.confirm.discardSuffix', { defaultValue: '?' })}</>
               }
             </p>
-            <p className="git-discard-confirm-hint">This cannot be undone.</p>
+            <p className="git-discard-confirm-hint">{t('terminal:fileExplorer.confirm.cannotBeUndone', { defaultValue: 'This cannot be undone.' })}</p>
             <div className="git-discard-confirm-actions">
-              <button className="git-discard-confirm-cancel" onClick={() => setPendingInlineDiscard(null)}>Cancel</button>
+              <button className="git-discard-confirm-cancel" onClick={() => setPendingInlineDiscard(null)}>{t('common:buttons.cancel')}</button>
               <button className="git-discard-confirm-btn" onClick={executeInlineDiscard}>
-                {pendingInlineDiscard.files.some(f => f.status === 'untracked' || f.status === 'added') ? 'Delete' : 'Discard'}
+                {pendingInlineDiscard.files.some(f => f.status === 'untracked' || f.status === 'added')
+                  ? t('terminal:fileExplorer.delete')
+                  : t('terminal:gitPanel.btnDiscard', { defaultValue: 'Discard' })}
               </button>
             </div>
           </div>

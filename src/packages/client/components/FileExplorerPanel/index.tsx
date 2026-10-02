@@ -1028,7 +1028,7 @@ export function FileExplorerPanel({
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        showToast('error', 'Delete Failed', data.error || 'Unable to delete item');
+        showToast('error', t('terminal:fileExplorer.toast.deleteFailed', { defaultValue: 'Delete Failed' }), data.error || t('terminal:fileExplorer.toast.unableToDelete', { defaultValue: 'Unable to delete item' }));
         return;
       }
 
@@ -1045,12 +1045,12 @@ export function FileExplorerPanel({
       const parentDir = getParentDir(node.path);
       await reloadDirectory(parentDir);
       await loadGitStatus();
-      showToast('success', node.isDirectory ? 'Folder Deleted' : 'File Deleted', node.name);
+      showToast('success', node.isDirectory ? t('terminal:fileExplorer.toast.folderDeleted', { defaultValue: 'Folder Deleted' }) : t('terminal:fileExplorer.toast.fileDeleted', { defaultValue: 'File Deleted' }), node.name);
     } catch (err) {
       console.error('[FileExplorer] Delete failed:', err);
-      showToast('error', 'Delete Failed', 'Unable to delete item');
+      showToast('error', t('terminal:fileExplorer.toast.deleteFailed', { defaultValue: 'Delete Failed' }), t('terminal:fileExplorer.toast.unableToDelete', { defaultValue: 'Unable to delete item' }));
     }
-  }, [deleteConfirm, activeTabPath, selectedPath, getParentDir, reloadDirectory, loadGitStatus, showToast, clearFile]);
+  }, [deleteConfirm, activeTabPath, selectedPath, getParentDir, reloadDirectory, loadGitStatus, showToast, clearFile, t]);
 
   const handleSubmitCreate = useCallback(async () => {
     const { parentDir, isDirectory, value } = createDialog;
@@ -1060,7 +1060,7 @@ export function FileExplorerPanel({
       return;
     }
     if (nextName.includes('/') || nextName.includes('\\')) {
-      showToast('error', 'Invalid Name', 'Name must not contain path separators');
+      showToast('error', t('terminal:fileExplorer.toast.invalidName', { defaultValue: 'Invalid Name' }), t('terminal:fileExplorer.toast.nameHasSeparators', { defaultValue: 'Name must not contain path separators' }));
       return;
     }
 
@@ -1075,7 +1075,7 @@ export function FileExplorerPanel({
       const data = await res.json();
 
       if (!res.ok) {
-        showToast('error', 'Create Failed', data.error || 'Unable to create item');
+        showToast('error', t('terminal:fileExplorer.toast.createFailed', { defaultValue: 'Create Failed' }), data.error || t('terminal:fileExplorer.toast.unableToCreate', { defaultValue: 'Unable to create item' }));
         setCreateDialog((prev) => ({ ...prev, submitting: false }));
         return;
       }
@@ -1088,14 +1088,14 @@ export function FileExplorerPanel({
       setExpandedPaths(nextExpandedPaths);
       await loadGitStatus();
       setSelectedPath(createdPath);
-      showToast('success', isDirectory ? 'Folder Created' : 'File Created', nextName);
+      showToast('success', isDirectory ? t('terminal:fileExplorer.toast.folderCreated', { defaultValue: 'Folder Created' }) : t('terminal:fileExplorer.toast.fileCreated', { defaultValue: 'File Created' }), nextName);
       handleCloseCreateDialog();
     } catch (err) {
       console.error('[FileExplorer] Create failed:', err);
-      showToast('error', 'Create Failed', 'Unable to create item');
+      showToast('error', t('terminal:fileExplorer.toast.createFailed', { defaultValue: 'Create Failed' }), t('terminal:fileExplorer.toast.unableToCreate', { defaultValue: 'Unable to create item' }));
       setCreateDialog((prev) => ({ ...prev, submitting: false }));
     }
-  }, [createDialog, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast, handleCloseCreateDialog]);
+  }, [createDialog, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast, handleCloseCreateDialog, t]);
 
   const handleRenamePath = useCallback(async () => {
     const node = renameDialog.node;
@@ -1118,7 +1118,7 @@ export function FileExplorerPanel({
       const data = await res.json();
 
       if (!res.ok) {
-        showToast('error', 'Rename Failed', data.error || 'Unable to rename item');
+        showToast('error', t('terminal:fileExplorer.toast.renameFailed', { defaultValue: 'Rename Failed' }), data.error || t('terminal:fileExplorer.toast.unableToRename', { defaultValue: 'Unable to rename item' }));
         setRenameDialog((prev) => ({ ...prev, submitting: false }));
         return;
       }
@@ -1179,14 +1179,14 @@ export function FileExplorerPanel({
         await reloadDirectory(newParentDir);
       }
       await loadGitStatus();
-      showToast('success', 'Renamed', `${node.name} renamed`);
+      showToast('success', t('terminal:fileExplorer.toast.renamed', { defaultValue: 'Renamed' }), t('terminal:fileExplorer.toast.renamedMsg', { defaultValue: '{{name}} renamed', name: node.name }));
       handleCloseRenameDialog();
     } catch (err) {
       console.error('[FileExplorer] Rename failed:', err);
-      showToast('error', 'Rename Failed', 'Unable to rename item');
+      showToast('error', t('terminal:fileExplorer.toast.renameFailed', { defaultValue: 'Rename Failed' }), t('terminal:fileExplorer.toast.unableToRename', { defaultValue: 'Unable to rename item' }));
       setRenameDialog((prev) => ({ ...prev, submitting: false }));
     }
-  }, [renameDialog, handleCloseRenameDialog, activeTabPath, selectedPath, selectedFile, expandedPaths, remapPathPrefix, getParentDir, renamePathInTree, setExpandedPaths, reloadDirectory, loadGitStatus, showToast, setSelectedFile]);
+  }, [renameDialog, handleCloseRenameDialog, activeTabPath, selectedPath, selectedFile, expandedPaths, remapPathPrefix, getParentDir, renamePathInTree, setExpandedPaths, reloadDirectory, loadGitStatus, showToast, setSelectedFile, t]);
 
   const handleCopyNode = useCallback((node: TreeNode) => {
     setFileClipboard({
@@ -1194,8 +1194,8 @@ export function FileExplorerPanel({
       isDirectory: node.isDirectory,
       name: node.name,
     });
-    showToast('info', 'Copied', `${node.name} ready to paste`);
-  }, [showToast]);
+    showToast('info', t('terminal:fileExplorer.copied'), t('terminal:fileExplorer.toast.readyToPaste', { defaultValue: '{{name}} ready to paste', name: node.name }));
+  }, [showToast, t]);
 
   const handlePasteNode = useCallback(async (node: TreeNode) => {
     if (!fileClipboard) return;
@@ -1216,7 +1216,7 @@ export function FileExplorerPanel({
       const data = await res.json();
 
       if (!res.ok) {
-        showToast('error', 'Paste Failed', data.error || 'Unable to paste item');
+        showToast('error', t('terminal:fileExplorer.toast.pasteFailed', { defaultValue: 'Paste Failed' }), data.error || t('terminal:fileExplorer.toast.unableToPaste', { defaultValue: 'Unable to paste item' }));
         return;
       }
 
@@ -1226,22 +1226,22 @@ export function FileExplorerPanel({
       if (data.destinationPath) {
         setSelectedPath(data.destinationPath);
       }
-      showToast('success', 'Pasted', `${fileClipboard.name} pasted`);
+      showToast('success', t('terminal:fileExplorer.toast.pasted', { defaultValue: 'Pasted' }), t('terminal:fileExplorer.toast.pastedMsg', { defaultValue: '{{name}} pasted', name: fileClipboard.name }));
     } catch (err) {
       console.error('[FileExplorer] Paste failed:', err);
-      showToast('error', 'Paste Failed', 'Unable to paste item');
+      showToast('error', t('terminal:fileExplorer.toast.pasteFailed', { defaultValue: 'Paste Failed' }), t('terminal:fileExplorer.toast.unableToPaste', { defaultValue: 'Unable to paste item' }));
     }
-  }, [fileClipboard, getParentDir, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast]);
+  }, [fileClipboard, getParentDir, expandedPaths, reloadDirectory, setExpandedPaths, loadGitStatus, showToast, t]);
 
   const handleCopyPath = useCallback(async (node: TreeNode) => {
     try {
       await navigator.clipboard.writeText(node.path);
-      showToast('success', 'Copied', 'Full path copied');
+      showToast('success', t('terminal:fileExplorer.copied'), t('terminal:fileExplorer.toast.fullPathCopied', { defaultValue: 'Full path copied' }));
     } catch (err) {
       console.error('[FileExplorer] Copy path failed:', err);
-      showToast('error', 'Copy Failed', 'Could not copy path');
+      showToast('error', t('terminal:fileExplorer.toast.copyFailed', { defaultValue: 'Copy Failed' }), t('terminal:fileExplorer.toast.couldNotCopyPath', { defaultValue: 'Could not copy path' }));
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const handleOpenGitHistory = useCallback((node: TreeNode) => {
     if (node.isDirectory || !currentFolder) return;
@@ -1259,9 +1259,9 @@ export function FileExplorerPanel({
     try {
       await store.runTests(node.path);
     } catch (err) {
-      showToast('error', 'Run Tests Failed', err instanceof Error ? err.message : 'Unable to start tests');
+      showToast('error', t('terminal:fileExplorer.toast.runTestsFailed', { defaultValue: 'Run Tests Failed' }), err instanceof Error ? err.message : t('terminal:fileExplorer.toast.unableToStartTests', { defaultValue: 'Unable to start tests' }));
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const fileTreeContextActions = useMemo((): ContextMenuAction[] => {
     if (!fileTreeContextMenu) return [];
@@ -1284,19 +1284,19 @@ export function FileExplorerPanel({
       { id: 'divider-create', label: '', divider: true, onClick: () => {} },
       {
         id: 'rename',
-        label: node.isDirectory ? 'Rename Folder' : 'Rename File',
+        label: node.isDirectory ? t('terminal:fileExplorer.menu.renameFolder', { defaultValue: 'Rename Folder' }) : t('terminal:fileExplorer.menu.renameFile', { defaultValue: 'Rename File' }),
         icon: <Icon name="edit" size={14} />,
         onClick: () => handleOpenRenameDialog(node),
       },
       {
         id: 'copy',
-        label: node.isDirectory ? 'Copy Folder' : 'Copy File',
+        label: node.isDirectory ? t('terminal:fileExplorer.menu.copyFolder', { defaultValue: 'Copy Folder' }) : t('terminal:fileExplorer.menu.copyFile', { defaultValue: 'Copy File' }),
         icon: <Icon name="file-text" size={14} />,
         onClick: () => handleCopyNode(node),
       },
       {
         id: 'paste',
-        label: node.isDirectory ? 'Paste Into Folder' : 'Paste Here',
+        label: node.isDirectory ? t('terminal:fileExplorer.menu.pasteIntoFolder', { defaultValue: 'Paste Into Folder' }) : t('terminal:fileExplorer.menu.pasteHere', { defaultValue: 'Paste Here' }),
         icon: <Icon name="clipboard" size={14} />,
         disabled: !fileClipboard,
         onClick: () => { void handlePasteNode(node); },
@@ -1304,7 +1304,7 @@ export function FileExplorerPanel({
       { id: 'divider-1', label: '', divider: true, onClick: () => {} },
       {
         id: 'copy-full-path',
-        label: 'Copy Full Path',
+        label: t('terminal:gitPanel.copyFullPath', { defaultValue: 'Copy Full Path' }),
         icon: <Icon name="pin" size={14} />,
         onClick: () => { void handleCopyPath(node); },
       },
@@ -1317,7 +1317,7 @@ export function FileExplorerPanel({
         { id: 'divider-run-tests', label: '', divider: true, onClick: () => {} },
         {
           id: 'run-tests',
-          label: node.isDirectory ? 'Run Tests' : 'Run This Test',
+          label: node.isDirectory ? t('terminal:fileExplorer.menu.runTests', { defaultValue: 'Run Tests' }) : t('terminal:fileExplorer.menu.runThisTest', { defaultValue: 'Run This Test' }),
           icon: <Icon name="flask" size={14} />,
           onClick: () => { void handleRunTests(node); },
         },
@@ -1340,7 +1340,7 @@ export function FileExplorerPanel({
       { id: 'divider-download', label: '', divider: true, onClick: () => {} },
       {
         id: 'download',
-        label: node.isDirectory ? 'Download Folder (.zip)' : 'Download File',
+        label: node.isDirectory ? t('terminal:gitPanel.downloadFolderZip', { defaultValue: 'Download Folder (.zip)' }) : t('terminal:fileExplorer.downloadFile'),
         icon: <Icon name="download" size={14} />,
         onClick: () => {
           if (node.isDirectory) downloadFolder(node.path, node.name);
@@ -1353,7 +1353,7 @@ export function FileExplorerPanel({
       { id: 'divider-delete', label: '', divider: true, onClick: () => {} },
       {
         id: 'delete',
-        label: node.isDirectory ? 'Delete Folder' : 'Delete File',
+        label: node.isDirectory ? t('terminal:fileExplorer.menu.deleteFolder', { defaultValue: 'Delete Folder' }) : t('terminal:fileExplorer.gitContextMenu.deleteFile'),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => handleOpenDeleteConfirm(node),
@@ -1369,18 +1369,18 @@ export function FileExplorerPanel({
     return [
       {
         id: 'create-file-root',
-        label: 'New File...',
+        label: t('terminal:fileExplorer.menu.newFile', { defaultValue: 'New File...' }),
         icon: <Icon name="file-text" size={14} />,
         onClick: () => handleOpenCreateDialog(parentDir, false),
       },
       {
         id: 'create-folder-root',
-        label: 'New Folder...',
+        label: t('terminal:fileExplorer.menu.newFolder', { defaultValue: 'New Folder...' }),
         icon: <Icon name="folder" size={14} />,
         onClick: () => handleOpenCreateDialog(parentDir, true),
       },
     ];
-  }, [treeRootContextMenu, handleOpenCreateDialog]);
+  }, [treeRootContextMenu, handleOpenCreateDialog, t]);
 
   // Reveal a file in the tree by expanding all parent directories
   const handleRevealInTree = useCallback(async (filePath: string) => {
@@ -1463,26 +1463,26 @@ export function FileExplorerPanel({
 
     if (result.success) {
       setMergingBranch(null);
-      showToast('success', 'Merge Complete', `Merged '${branch}' successfully`);
+      showToast('success', t('terminal:fileExplorer.toast.mergeComplete', { defaultValue: 'Merge Complete' }), t('terminal:fileExplorer.toast.mergedSuccessfully', { defaultValue: "Merged '{{branch}}' successfully", branch }));
       loadTree();
     } else if (result.conflicts && result.conflicts.length > 0) {
       const n = result.conflicts.length;
-      showToast('warning', 'Merge Conflicts', `${n} conflict${n > 1 ? 's' : ''} found — resolve to continue`);
+      showToast('warning', t('terminal:fileExplorer.toast.mergeConflicts', { defaultValue: 'Merge Conflicts' }), t('terminal:fileExplorer.toast.conflictsFound', { defaultValue: '{{count}} conflict{{plural}} found — resolve to continue', count: n, plural: n > 1 ? 's' : '' }));
       setViewMode('git');
     } else {
       setMergingBranch(null);
-      showToast('error', 'Merge Failed', result.error || 'Merge failed');
+      showToast('error', t('terminal:fileExplorer.toast.mergeFailed', { defaultValue: 'Merge Failed' }), result.error || t('terminal:fileExplorer.toast.mergeFailedMsg', { defaultValue: 'Merge failed' }));
     }
-  }, [currentFolder, mergeBranch, loadGitStatus, loadTree, showToast]);
+  }, [currentFolder, mergeBranch, loadGitStatus, loadTree, showToast, t]);
 
   const handlePullConflicts = useCallback(async (conflicts: string[]) => {
     // Pull with conflicts triggers the same merge resolution flow
     setMergingBranch('remote');
     await loadGitStatus();
     const n = conflicts.length;
-    showToast('warning', 'Pull Conflicts', `${n} conflict${n > 1 ? 's' : ''} found — resolve to continue`);
+    showToast('warning', t('terminal:fileExplorer.toast.pullConflicts', { defaultValue: 'Pull Conflicts' }), t('terminal:fileExplorer.toast.conflictsFound', { defaultValue: '{{count}} conflict{{plural}} found — resolve to continue', count: n, plural: n > 1 ? 's' : '' }));
     setViewMode('git');
-  }, [loadGitStatus, showToast]);
+  }, [loadGitStatus, showToast, t]);
 
   const handleConflictOpen = useCallback(async (filePath: string) => {
     if (!currentFolder) return;
@@ -1534,13 +1534,13 @@ export function FileExplorerPanel({
       setMergingBranch(null);
       setConflictFile(null);
       setConflictVersions(null);
-      showToast('success', 'Merge Complete', 'Merge completed successfully');
+      showToast('success', t('terminal:fileExplorer.toast.mergeComplete', { defaultValue: 'Merge Complete' }), t('terminal:fileExplorer.toast.mergeCompleted', { defaultValue: 'Merge completed successfully' }));
       await loadGitStatus();
       loadTree();
     } else {
-      showToast('error', 'Merge Failed', result.error || 'Merge continue failed');
+      showToast('error', t('terminal:fileExplorer.toast.mergeFailed', { defaultValue: 'Merge Failed' }), result.error || t('terminal:fileExplorer.toast.mergeContinueFailed', { defaultValue: 'Merge continue failed' }));
     }
-  }, [currentFolder, mergeContinue, loadGitStatus, loadTree, showToast]);
+  }, [currentFolder, mergeContinue, loadGitStatus, loadTree, showToast, t]);
 
   const handleMergeAbort = useCallback(async () => {
     if (!currentFolder) return;
@@ -1549,13 +1549,13 @@ export function FileExplorerPanel({
       setMergingBranch(null);
       setConflictFile(null);
       setConflictVersions(null);
-      showToast('info', 'Merge Aborted', 'Merge has been aborted');
+      showToast('info', t('terminal:fileExplorer.toast.mergeAborted', { defaultValue: 'Merge Aborted' }), t('terminal:fileExplorer.toast.mergeAbortedMsg', { defaultValue: 'Merge has been aborted' }));
       await loadGitStatus();
       loadTree();
     } else {
-      showToast('error', 'Abort Failed', result.error || 'Failed to abort merge');
+      showToast('error', t('terminal:fileExplorer.toast.abortFailed', { defaultValue: 'Abort Failed' }), result.error || t('terminal:fileExplorer.toast.abortMergeFailed', { defaultValue: 'Failed to abort merge' }));
     }
-  }, [currentFolder, mergeAbort, loadGitStatus, loadTree, showToast]);
+  }, [currentFolder, mergeAbort, loadGitStatus, loadTree, showToast, t]);
 
   // -------------------------------------------------------------------------
   // BRANCH COMPARISON HANDLERS
@@ -1576,19 +1576,19 @@ export function FileExplorerPanel({
       if (res.ok) {
         setCompareResult(data);
       } else {
-        showToast('error', 'Compare Failed', data.error || 'Failed to compare branches');
+        showToast('error', t('terminal:fileExplorer.toast.compareFailed', { defaultValue: 'Compare Failed' }), data.error || t('terminal:fileExplorer.toast.compareBranchesFailed', { defaultValue: 'Failed to compare branches' }));
         setViewMode('files');
         setCompareBranch(null);
       }
     } catch (err) {
       console.error('[FileExplorer] Branch compare failed:', err);
-      showToast('error', 'Compare Failed', 'Network error during comparison');
+      showToast('error', t('terminal:fileExplorer.toast.compareFailed', { defaultValue: 'Compare Failed' }), t('terminal:fileExplorer.toast.networkErrorComparison', { defaultValue: 'Network error during comparison' }));
       setViewMode('files');
       setCompareBranch(null);
     } finally {
       setCompareLoading(false);
     }
-  }, [currentFolder, showToast]);
+  }, [currentFolder, showToast, t]);
 
   const handleCompareFileSelect = useCallback(async (filePath: string, status: GitFileStatusType) => {
     if (!currentFolder || !compareBranch) return;
@@ -1784,7 +1784,7 @@ export function FileExplorerPanel({
                   ref={folderFilterInputRef}
                   type="text"
                   className="file-explorer-folder-dropdown-search-input"
-                  placeholder="Filter folders…"
+                  placeholder={t('terminal:fileExplorer.filterFoldersPlaceholder', { defaultValue: 'Filter folders…' })}
                   value={folderFilter}
                   onChange={(e) => setFolderFilter(e.target.value)}
                   onKeyDown={(e) => {
@@ -1796,11 +1796,11 @@ export function FileExplorerPanel({
                   }}
                   spellCheck={false}
                   autoComplete="off"
-                  aria-label="Filter folders"
+                  aria-label={t('terminal:fileExplorer.filterFolders', { defaultValue: 'Filter folders' })}
                 />
               </div>
               {filteredFolders.length === 0 ? (
-                <div className="file-explorer-folder-dropdown-empty">No matching folders</div>
+                <div className="file-explorer-folder-dropdown-empty">{t('terminal:fileExplorer.noMatchingFolders', { defaultValue: 'No matching folders' })}</div>
               ) : (
                 filteredFolders.map((folder) => (
                   <div
@@ -1845,8 +1845,8 @@ export function FileExplorerPanel({
             onClick={() => store.openTestResults()}
             title={
               latestTestRun.status === 'running'
-                ? 'Tests running — open results'
-                : 'Open last test results'
+                ? t('terminal:fileExplorer.testsRunningOpenResults', { defaultValue: 'Tests running — open results' })
+                : t('terminal:fileExplorer.openLastTestResults', { defaultValue: 'Open last test results' })
             }
           >
             <Icon name="flask" size={14} />
@@ -1860,7 +1860,7 @@ export function FileExplorerPanel({
 
         {/* Recent projects — quick switch between the last visited projects */}
         {recentProjectChips.length > 1 && (
-          <div className="file-explorer-recent-projects" role="group" aria-label="Recent projects">
+          <div className="file-explorer-recent-projects" role="group" aria-label={t('terminal:fileExplorer.recentProjects', { defaultValue: 'Recent projects' })}>
             {recentProjectChips.map((folder) => {
               const name = folder.path.split('/').pop() || folder.path;
               const isActive = folder.path.replace(/\\/g, '/') === currentFolder;
@@ -2157,7 +2157,9 @@ export function FileExplorerPanel({
         <div className="file-explorer-rename-overlay" onClick={handleCloseRenameDialog}>
           <div className="file-explorer-rename-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="file-explorer-rename-title">
-              Rename {renameDialog.node.isDirectory ? 'Folder' : 'File'}
+              {renameDialog.node.isDirectory
+                ? t('terminal:fileExplorer.menu.renameFolder', { defaultValue: 'Rename Folder' })
+                : t('terminal:fileExplorer.menu.renameFile', { defaultValue: 'Rename File' })}
             </div>
             <div className="file-explorer-rename-path" title={renameDialog.node.path}>
               {renameDialog.node.path}
@@ -2185,14 +2187,14 @@ export function FileExplorerPanel({
                 onClick={handleCloseRenameDialog}
                 disabled={renameDialog.submitting}
               >
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button
                 className="file-explorer-rename-btn primary"
                 onClick={() => { void handleRenamePath(); }}
                 disabled={renameDialog.submitting || !renameDialog.value.trim()}
               >
-                {renameDialog.submitting ? 'Renaming...' : 'Rename'}
+                {renameDialog.submitting ? t('terminal:fileExplorer.renaming', { defaultValue: 'Renaming...' }) : t('terminal:fileExplorer.rename')}
               </button>
             </div>
           </div>
@@ -2223,7 +2225,9 @@ export function FileExplorerPanel({
         <div className="file-explorer-rename-overlay" onClick={handleCloseCreateDialog}>
           <div className="file-explorer-rename-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="file-explorer-rename-title">
-              New {createDialog.isDirectory ? 'Folder' : 'File'}
+              {createDialog.isDirectory
+                ? t('terminal:fileExplorer.newFolder')
+                : t('terminal:fileExplorer.newFile')}
             </div>
             <div className="file-explorer-rename-path" title={createDialog.parentDir}>
               {createDialog.parentDir}
@@ -2232,7 +2236,9 @@ export function FileExplorerPanel({
               ref={createInputRef}
               type="text"
               className="file-explorer-rename-input"
-              placeholder={createDialog.isDirectory ? 'folder name' : 'file name'}
+              placeholder={createDialog.isDirectory
+                ? t('terminal:fileExplorer.folderNamePlaceholder', { defaultValue: 'folder name' })
+                : t('terminal:fileExplorer.fileNamePlaceholder', { defaultValue: 'file name' })}
               value={createDialog.value}
               onChange={(e) => setCreateDialog((prev) => ({ ...prev, value: e.target.value }))}
               onKeyDown={(e) => {
@@ -2252,14 +2258,14 @@ export function FileExplorerPanel({
                 onClick={handleCloseCreateDialog}
                 disabled={createDialog.submitting}
               >
-                Cancel
+                {t('common:buttons.cancel')}
               </button>
               <button
                 className="file-explorer-rename-btn primary"
                 onClick={() => { void handleSubmitCreate(); }}
                 disabled={createDialog.submitting || !createDialog.value.trim()}
               >
-                {createDialog.submitting ? 'Creating...' : 'Create'}
+                {createDialog.submitting ? t('terminal:fileExplorer.creating', { defaultValue: 'Creating...' }) : t('terminal:fileExplorer.create', { defaultValue: 'Create' })}
               </button>
             </div>
           </div>
@@ -2275,20 +2281,20 @@ export function FileExplorerPanel({
 
       <ConfirmModal
         isOpen={!!deleteConfirm}
-        title={deleteConfirm?.node.isDirectory ? 'Delete Folder' : 'Delete File'}
+        title={deleteConfirm?.node.isDirectory ? t('terminal:fileExplorer.menu.deleteFolder', { defaultValue: 'Delete Folder' }) : t('terminal:fileExplorer.gitContextMenu.deleteFile')}
         message={
           deleteConfirm ? (
             <>
-              Permanently delete <strong>{deleteConfirm.node.name}</strong>?
+              {t('terminal:fileExplorer.confirmDeletePrefix', { defaultValue: 'Permanently delete' })} <strong>{deleteConfirm.node.name}</strong>{t('terminal:fileExplorer.confirm.deleteSuffix', { defaultValue: '?' })}
             </>
           ) : ''
         }
         note={deleteConfirm?.node.isDirectory
-          ? 'The folder and everything inside it will be removed from disk.'
-          : 'The file will be removed from disk.'
+          ? t('terminal:fileExplorer.confirmDeleteFolderNote', { defaultValue: 'The folder and everything inside it will be removed from disk.' })
+          : t('terminal:fileExplorer.confirmDeleteFileNote', { defaultValue: 'The file will be removed from disk.' })
         }
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        confirmLabel={t('terminal:fileExplorer.delete')}
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { void handleConfirmDelete(); }}
         onClose={() => setDeleteConfirm(null)}

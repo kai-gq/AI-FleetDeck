@@ -112,7 +112,7 @@ const CommitFilesList = memo(function CommitFilesList({
   }
 
   if (files.length === 0) {
-    return <div className="gh-files-empty">No changed files</div>;
+    return <div className="gh-files-empty">{t('terminal:fileExplorer.gitHistory.noFiles')}</div>;
   }
 
   return (
@@ -238,7 +238,7 @@ export const GitHistory = memo(function GitHistory({
         <button
           className={`gh-filter-toggle ${showFilters ? 'active' : ''} ${hasActiveFilters ? 'has-filters' : ''}`}
           onClick={() => setShowFilters(!showFilters)}
-          title="Filters"
+          title={t('terminal:fileExplorer.gitHistory.filters', { defaultValue: 'Filters' })}
         >
           <Icon name="gear" size={12} />
         </button>
@@ -302,10 +302,10 @@ export const GitHistory = memo(function GitHistory({
         <div className="gh-commits-section">
           {/* Table header */}
           <div className="gh-header-row">
-            <span className="gh-col-hash">Hash</span>
-            <span className="gh-col-message">Message</span>
-            <span className="gh-col-author">Author</span>
-            <span className="gh-col-date">Date</span>
+            <span className="gh-col-hash">{t('terminal:fileExplorer.gitHistory.colHash', { defaultValue: 'Hash' })}</span>
+            <span className="gh-col-message">{t('terminal:fileExplorer.gitHistory.colMessage', { defaultValue: 'Message' })}</span>
+            <span className="gh-col-author">{t('terminal:fileExplorer.gitHistory.colAuthor', { defaultValue: 'Author' })}</span>
+            <span className="gh-col-date">{t('terminal:fileExplorer.gitHistory.colDate', { defaultValue: 'Date' })}</span>
           </div>
 
           {/* Commit rows */}

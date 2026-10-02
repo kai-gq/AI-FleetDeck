@@ -408,7 +408,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
     >
       {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
       <span className="guake-git-file-name"><HighlightedText text={file.name} filter={filter} /></span>
-      <span className="guake-git-file-status" style={{ color: cfg.color, marginLeft: 'auto' }} title={cfg.label}>
+      <span className="guake-git-file-status" style={{ color: cfg.color, marginLeft: 'auto' }} title={t(`terminal:fileExplorer.gitStatus.${file.status}`, { defaultValue: cfg.label })}>
         {cfg.icon}
       </span>
       {onDiscard && (
@@ -2210,7 +2210,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                               filter={fileFilter}
                             />
                           </span>
-                          <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
+                          <span className="guake-git-file-status" style={{ color: cfg.color }} title={_t(`terminal:fileExplorer.gitStatus.${file.status}`, { defaultValue: cfg.label })}>
                             {cfg.icon}
                           </span>
                           <button
@@ -2328,7 +2328,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                             <HighlightedText text={dirPart} filter={fileFilter} />
                           </span>
                           {cfg && (
-                            <span className="guake-git-file-status" style={{ color: cfg.color }} title={cfg.label}>
+                            <span className="guake-git-file-status" style={{ color: cfg.color }} title={_t(`terminal:fileExplorer.gitStatus.${status}`, { defaultValue: cfg.label })}>
                               {cfg.icon}
                             </span>
                           )}

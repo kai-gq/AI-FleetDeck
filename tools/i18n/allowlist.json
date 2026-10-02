@@ -37,6 +37,7 @@
     "re:^terminal:fileGitHistory\\.",
     "re:^terminal:statistics\\.",
     "re:^terminal:gitPanel\\.",
-    "re:^terminal:flatView\\."
+    "re:^terminal:flatView\\.",
+    "re:^terminal:fileExplorer\\."
   ]
 }
