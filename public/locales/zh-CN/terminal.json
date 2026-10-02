@@ -21,6 +21,8 @@
     "hideOverview": "隐藏智能体概览",
     "showDebug": "显示调试面板",
     "hideDebug": "隐藏调试面板",
+    "enterFullscreen": "进入全屏",
+    "exitFullscreen": "退出全屏",
     "search": "搜索 (Ctrl+F)",
     "viewMode": "视图：{{mode}}",
     "chatView": "聊天",
@@ -67,6 +69,7 @@
     "send": "发送",
     "attach": "附加文件",
     "attachOrPaste": "附加文件（或粘贴图片）",
+    "dropToAttach": "拖放文件以附加",
     "attachedFiles": "已附加 {{count}} 个文件",
     "removeAttachment": "移除附件",
     "pasteFilePath": "粘贴文件路径以附加",
@@ -74,7 +77,12 @@
     "stop": "停止",
     "voiceInput": "语音输入 (Whisper)",
     "stopRecording": "停止录音",
-    "transcribing": "转录中..."
+    "transcribing": "转录中...",
+    "expandInput": "展开输入区",
+    "collapseInput": "收起输入区",
+    "uploading": "正在上传…",
+    "uploadingFile": "文件",
+    "jumpToPrompt": "在对话中跳转到此提示词"
   },
   "modals": {
     "context": "上下文",
@@ -105,6 +113,7 @@
     "status": "状态",
     "class": "类别",
     "permission": "权限",
+    "agentId": "智能体 ID",
     "session": "会话",
     "notStarted": "未启动",
     "promptAndInstructions": "提示与指令",
@@ -132,7 +141,10 @@
     "injectedPromptRefresh": "刷新",
     "injectedPromptLoading": "正在加载提示词…",
     "injectedPromptError": "加载提示词失败: {{error}}",
-    "injectedPromptLength": "{{chars}} 字符 · ~{{tokens}} token"
+    "injectedPromptLength": "{{chars}} 字符 · ~{{tokens}} token",
+    "sounds": "提示音",
+    "soundsMuted": "已静音",
+    "soundsActive": "开启"
   },
   "empty": {
     "tapAgent": "点击战场上的智能体以查看其终端",
@@ -240,7 +252,9 @@
       "approvalsUntrusted": "审批：不受信任",
       "approvalsOnFailure": "审批：失败时",
       "approvalsOnRequest": "审批：请求时",
-      "approvalsNever": "审批：从不"
+      "approvalsNever": "审批：从不",
+      "reasoningEffort": "推理强度",
+      "reasoningEffortDefault": "推理强度：默认"
     }
   },
   "overview": {
@@ -266,7 +280,9 @@
     "noToolActivity": "暂无工具活动",
     "messages": "{{count}} 条消息",
     "clickToSwitch": "点击切换到此智能体",
+    "sameAreaOnly": "仅同区域",
     "subagentsCompleted": "{{count}} 个子智能体（全部完成）",
+    "hasDraft": "有未发送的草稿",
     "statusLabels": {
       "working": "工作中",
       "idle": "空闲",
@@ -357,6 +373,8 @@
     "searching": "搜索中...",
     "noDirectoriesLinked": "未关联目录",
     "selectFileToView": "选择文件以查看",
+    "editFile": "编辑文件",
+    "exitEdit": "退出编辑器",
     "openInEditor": "在默认编辑器中打开",
     "openingInEditor": "正在编辑器中打开...",
     "failedToOpenEditor": "无法在编辑器中打开",
@@ -381,6 +399,8 @@
     "diagram": "图表",
     "renderingDiagram": "渲染图表中...",
     "couldNotRender": "无法渲染图表",
+    "diagramRenderedVia": "由 {{host}} 渲染",
+    "diagramExternalNote": "图表源码会发送到 {{host}}（外部服务器）进行渲染。如需保密，可将 PLANTUML_RENDER_ENDPOINT 指向自建实例。",
     "failedToLoad": "无法加载文件",
     "failedToLoadImage": "无法加载图片",
     "failedToLoadPdf": "无法加载 PDF",
@@ -468,11 +488,53 @@
     "committedAndPushed": "已提交并推送",
     "committedButPushFailed": "已提交，但推送失败：{{error}}",
     "committedSuccessfully": "提交成功",
+    "gitGroups": {
+      "conflicts": "冲突",
+      "changes": "更改",
+      "unversioned": "未跟踪文件"
+    },
+    "gitContextMenu": {
+      "openFile": "打开文件",
+      "openConflictResolver": "打开冲突解决器",
+      "stageFile": "暂存文件",
+      "discardChanges": "丢弃更改",
+      "deleteFile": "删除文件",
+      "copyFullPath": "复制完整路径",
+      "copyRelativePath": "复制相对路径",
+      "revealInTree": "在文件树中定位"
+    },
     "noMatchesFound": "未找到匹配项",
     "files": "文件",
     "content": "内容",
     "matchesInFiles": "{{matches}} 个匹配，分布在 {{files}} 个文件中",
-    "moreMatches": "还有 {{count}} 个匹配"
+    "moreMatches": "还有 {{count}} 个匹配",
+    "gitHistory": {
+      "title": "历史",
+      "allBranches": "全部分支",
+      "allAuthors": "全部作者",
+      "branchFilter": "按分支筛选",
+      "authorFilter": "按作者筛选",
+      "searchPlaceholder": "搜索提交…",
+      "pathFilter": "按路径筛选…",
+      "since": "起始日期",
+      "until": "结束日期",
+      "resetFilters": "重置",
+      "noCommits": "未找到提交",
+      "selectCommit": "选择一个提交以查看更改的文件",
+      "noFiles": "没有更改的文件"
+    },
+    "showGitHistory": "显示 Git 历史",
+    "fileGitHistory": {
+      "title": "Git 历史",
+      "loading": "正在加载…",
+      "empty": "未找到此文件的历史记录",
+      "binaryFile": "二进制文件——无法生成 diff",
+      "error": "加载 Git 历史失败",
+      "selectCommit": "选择一个提交以查看其 diff",
+      "added": "新增",
+      "deleted": "删除",
+      "modified": "修改"
+    }
   },
   "database": {
     "title": "数据库",
@@ -505,8 +567,12 @@
     "noResultsYet": "暂无查询结果。",
     "selectDbAndRun": "选择数据库并运行查询以查看结果。",
     "runQuery": "运行查询",
+    "runAll": "全部运行",
+    "runAtCursor": "运行光标处",
     "executeShortcut": "执行查询 (Ctrl+Enter)",
+    "executeCursorShortcut": "执行全部查询（Ctrl+Shift+Enter）",
     "pressCtrlEnter": "按 Ctrl + Enter 执行",
+    "pressCtrlEnterMulti": "Ctrl+Enter：运行光标处 | Ctrl+Shift+Enter：全部运行",
     "selectDbPlaceholder": "选择数据库以开始查询...",
     "enterQueryPlaceholder": "在此输入 SQL 查询...",
     "expandSidebar": "展开侧边栏",
@@ -516,6 +582,8 @@
     "databaseTitle": "数据库",
     "selectDatabase": "选择数据库...",
     "tablesCount": "表 ({{count}})",
+    "filterTables": "筛选表…",
+    "noTablesMatch": "没有表符合筛选条件",
     "insertTableName": "插入表名",
     "closeTab": "关闭标签页",
     "noHistory": "暂无查询历史。",
@@ -575,7 +643,8 @@
     "contextLabel": "上下文",
     "percentFree": "{{percent}}% 可用",
     "msgsLabel": "消息: {{tokens}}k",
-    "clickForContextStats": "点击查看上下文统计"
+    "clickForContextStats": "点击查看上下文统计",
+    "compactedLabel": "上下文已压缩"
   },
   "controls": {
     "title": "控制",
