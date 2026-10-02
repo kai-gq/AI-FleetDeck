@@ -26,7 +26,7 @@
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
-    "re:^common:buttons\\.(copied|copyFailed|play)$",
+    "re:^common:buttons\\.(copied|copyFailed|play|dismiss)$",
     "common:floatingButtons.viewMode",
     "re:^common:mobileBottomMenu\\.(chatActions|actions)$",
     "re:^common:status\\.(current|saving)$",

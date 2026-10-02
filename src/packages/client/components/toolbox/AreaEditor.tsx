@@ -231,7 +231,7 @@ export function AreaEditor({ area, onClose, onOpenFolder }: AreaEditorProps) {
               <div className="area-logo-preview">
                 <img
                   src={getAreaLogoUrl(area.logo.filename)}
-                  alt="Logo"
+                  alt={t('config:areas.logo')}
                   className="area-logo-thumbnail"
                 />
                 <button className="area-logo-remove-btn" onClick={handleLogoRemove}>

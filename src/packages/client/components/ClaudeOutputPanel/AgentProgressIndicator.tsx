@@ -121,7 +121,7 @@ export function AgentProgressIndicator({
         {onDismiss && (
           <span
             className="agent-progress-dismiss"
-            title="Dismiss"
+            title={t('common:buttons.dismiss', { defaultValue: 'Dismiss' })}
             onClick={(e) => {
               e.stopPropagation();
               onDismiss(progress.agentId);

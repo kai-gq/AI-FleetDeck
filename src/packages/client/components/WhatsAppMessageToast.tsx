@@ -9,6 +9,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { WhatsAppMessagePayload } from '../websocket/callbacks';
 import { fetchWhatsAppConfig } from '../api/whatsapp-settings';
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
@@ -36,17 +37,17 @@ interface ToastProps {
   onDismiss: (id: string) => void;
 }
 
-function formatRelativeTime(timestamp: number, now: number): string {
+function formatRelativeTime(timestamp: number, now: number, t: TFunction): string {
   const diff = Math.max(0, now - timestamp);
   const sec = Math.floor(diff / 1000);
-  if (sec < 5) return 'just now';
-  if (sec < 60) return `${sec}s ago`;
+  if (sec < 5) return t('common:time.justNow');
+  if (sec < 60) return t('common:time.secondsAgo', { count: sec });
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return t('common:time.minutesAgo', { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return t('common:time.hoursAgo', { count: hr });
   const day = Math.floor(hr / 24);
-  return `${day}d ago`;
+  return t('common:time.daysAgo', { count: day });
 }
 
 function truncate(text: string, max: number): string {
@@ -160,7 +161,7 @@ function WhatsAppToastItem({ toast, onDismiss }: ToastProps) {
           {headerGroupSuffix && (
             <span className="whatsapp-toast-group">{headerGroupSuffix}</span>
           )}
-          <span className="whatsapp-toast-time">{formatRelativeTime(toast.timestamp, now)}</span>
+          <span className="whatsapp-toast-time">{formatRelativeTime(toast.timestamp, now, t)}</span>
         </div>
         {subtitle && (
           <div className="whatsapp-toast-subtitle">{subtitle}</div>
@@ -184,7 +185,7 @@ function WhatsAppToastItem({ toast, onDismiss }: ToastProps) {
         type="button"
         className="whatsapp-toast-close"
         onClick={(e) => { e.stopPropagation(); onDismiss(toast.toastId); }}
-        aria-label="Dismiss"
+        aria-label={t('common:buttons.dismiss', { defaultValue: 'Dismiss' })}
       >
         &times;
       </button>
