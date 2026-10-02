@@ -21,7 +21,7 @@ describe('shell command result presentation', () => {
       outputTruncated: false,
     });
     expect(shellCommandResultPreview(result)).toBe(
-      "Sudo completado · /execute-sudo-command 'touch' '/opt/test'",
+      "Sudo completed · /execute-sudo-command 'touch' '/opt/test'",
     );
   });
 

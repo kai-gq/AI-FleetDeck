@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import type { ShellCommandResultInfo } from './shellCommandResult';
 
@@ -9,6 +10,7 @@ function formatDuration(ms: number): string {
 }
 
 export function ShellCommandResultCard({ result }: { result: ShellCommandResultInfo }) {
+  const { t } = useTranslation('terminal');
   const [expanded, setExpanded] = useState(false);
   const succeeded = result.exitCode === 0;
   const outputLines = result.output ? result.output.split('\n') : [];
@@ -24,10 +26,14 @@ export function ShellCommandResultCard({ result }: { result: ShellCommandResultI
           <Icon name={succeeded ? 'check' : 'cross'} size={16} />
         </span>
         <div>
-          <small>Execute Sudo Command · Result</small>
-          <strong>{succeeded ? 'Comando completado' : 'El comando terminó con errores'}</strong>
+          <small>{t('terminal:shellResult.header', { defaultValue: 'Execute Sudo Command · Result' })}</small>
+          <strong>{succeeded
+            ? t('terminal:shellResult.completed', { defaultValue: 'Command completed' })
+            : t('terminal:shellResult.finishedWithErrors', { defaultValue: 'The command finished with errors' })}</strong>
         </div>
-        <span className="shell-command-result-card__status">{succeeded ? 'Success' : `Exit ${result.exitCode ?? '—'}`}</span>
+        <span className="shell-command-result-card__status">{succeeded
+          ? t('terminal:shellResult.success', { defaultValue: 'Success' })
+          : `${t('terminal:shellResult.exit', { defaultValue: 'Exit' })} ${result.exitCode ?? '—'}`}</span>
       </header>
 
       <div className="shell-command-result-card__command">
@@ -36,28 +42,34 @@ export function ShellCommandResultCard({ result }: { result: ShellCommandResultI
       </div>
 
       <div className="shell-command-result-card__metrics">
-        <span><small>Exit code</small><strong>{result.exitCode ?? 'terminated'}</strong></span>
-        <span><small>Duration</small><strong>{formatDuration(result.durationMs)}</strong></span>
-        <span><small>Output</small><strong>{result.output ? `${outputLines.length} line${outputLines.length === 1 ? '' : 's'}` : 'Empty'}</strong></span>
+        <span><small>{t('terminal:shellResult.exitCode', { defaultValue: 'Exit code' })}</small><strong>{result.exitCode ?? t('terminal:shellResult.terminated', { defaultValue: 'terminated' })}</strong></span>
+        <span><small>{t('terminal:shellResult.duration', { defaultValue: 'Duration' })}</small><strong>{formatDuration(result.durationMs)}</strong></span>
+        <span><small>{t('terminal:shellResult.output', { defaultValue: 'Output' })}</small><strong>{result.output
+          ? `${outputLines.length} ${outputLines.length === 1
+            ? t('terminal:shellResult.line', { defaultValue: 'line' })
+            : t('terminal:shellResult.lines', { defaultValue: 'lines' })}`
+          : t('terminal:shellResult.empty', { defaultValue: 'Empty' })}</strong></span>
       </div>
 
       {result.output ? (
         <div className="shell-command-result-card__output">
-          <div><span>Command output</span>{result.outputTruncated && <em>tail only</em>}</div>
+          <div><span>{t('terminal:shellResult.commandOutput', { defaultValue: 'Command output' })}</span>{result.outputTruncated && <em>{t('terminal:shellResult.tailOnly', { defaultValue: 'tail only' })}</em>}</div>
           <pre>{displayedOutput}</pre>
           {hasMore && (
             <button type="button" onClick={(event) => { event.stopPropagation(); setExpanded((value) => !value); }}>
-              {expanded ? 'Show less' : 'Show full output'} <Icon name={expanded ? 'caret-up' : 'caret-down'} size={9} />
+              {expanded
+                ? t('terminal:shellResult.showLess', { defaultValue: 'Show less' })
+                : t('terminal:shellResult.showFull', { defaultValue: 'Show full output' })} <Icon name={expanded ? 'caret-up' : 'caret-down'} size={9} />
             </button>
           )}
         </div>
       ) : (
         <div className="shell-command-result-card__empty">
-          <Icon name="check" size={11} /> El comando no produjo salida.
+          <Icon name="check" size={11} /> {t('terminal:shellResult.noOutput', { defaultValue: 'The command produced no output.' })}
         </div>
       )}
 
-      <footer><Icon name="shield" size={10} /> Resultado entregado automáticamente al agente solicitante.</footer>
+      <footer><Icon name="shield" size={10} /> {t('terminal:shellResult.delivered', { defaultValue: 'Result delivered automatically to the requesting agent.' })}</footer>
     </section>
   );
 }

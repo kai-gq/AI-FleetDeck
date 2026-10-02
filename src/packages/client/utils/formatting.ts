@@ -22,6 +22,15 @@ export function getI18nInstance(): I18nType | null {
   return _getI18n();
 }
 
+/**
+ * BCP-47 tag for Intl formatters: the active UI language (so zh-CN users get
+ * Chinese month names), falling back to the runtime default before init.
+ */
+export function getLocaleTag(): string | undefined {
+  const language = _getI18n()?.language;
+  return language ? language : undefined;
+}
+
 // Format number with K/M suffix
 export function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';

@@ -29,6 +29,6 @@ describe('Tide /usages renderer data', () => {
     const now = Date.parse('2026-08-20T10:00:00.000Z');
     expect(formatResetCountdown('2026-08-22T16:30:00.000Z', now)).toBe('2d 6h');
     expect(formatResetCountdown('2026-08-20T14:18:00.000Z', now)).toBe('4h 18m');
-    expect(formatResetCountdown('2026-08-20T09:00:00.000Z', now)).toBe('Ahora');
+    expect(formatResetCountdown('2026-08-20T09:00:00.000Z', now)).toBe('Now');
   });
 });

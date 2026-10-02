@@ -1,3 +1,5 @@
+import { getI18nInstance } from '../../utils/formatting';
+
 export const SHELL_COMMAND_RESULT_START = '[COMMANDER_SLASH_COMMAND_RESULT]';
 export const SHELL_COMMAND_RESULT_END = '[/COMMANDER_SLASH_COMMAND_RESULT]';
 
@@ -35,5 +37,10 @@ export function parseShellCommandResult(text: string | null | undefined): ShellC
 export function shellCommandResultPreview(text: string | null | undefined): string | null {
   const result = parseShellCommandResult(text);
   if (!result) return null;
-  return `Sudo ${result.exitCode === 0 ? 'completado' : 'finalizado'} · ${result.command}`;
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n);
+  const status = result.exitCode === 0
+    ? (t ? t('terminal:shellResult.previewCompleted', { defaultValue: 'completed' }) : 'completed')
+    : (t ? t('terminal:shellResult.previewFinished', { defaultValue: 'finished' }) : 'finished');
+  return `Sudo ${status} · ${result.command}`;
 }

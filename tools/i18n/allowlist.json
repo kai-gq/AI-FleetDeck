@@ -60,6 +60,12 @@
     "re:^terminal:slashCommands\\.",
     "re:^terminal:mentionDropdown\\.",
     "re:^terminal:slashBuilding\\.",
-    "re:^terminal:renameAgent\\."
+    "re:^terminal:renameAgent\\.",
+    "re:^terminal:sudoCard\\.",
+    "re:^terminal:shellResult\\.",
+    "re:^terminal:gmailCard\\.",
+    "re:^terminal:usagesCard\\.",
+    "re:^terminal:jiraCard\\.",
+    "re:^terminal:taskList\\."
   ]
 }

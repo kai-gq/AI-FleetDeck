@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Icon } from '../../components/Icon';
 import { store } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -24,13 +26,14 @@ function isProposalData(value: unknown): value is PluginAgentNameProposalsData {
     ));
 }
 
-function responseError(body: unknown, status: number): string {
+function responseError(body: unknown, status: number, t: TFunction): string {
   return body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
     ? (body as { error: string }).error
-    : `No se pudo renombrar el agente (${status})`;
+    : t('terminal:renameAgent.card.renameFailed', { defaultValue: 'Failed to rename the agent ({{status}})', status: String(status) });
 }
 
 export function RenameAgentCard({ output, agentId }: PluginOutputRendererProps) {
+  const { t } = useTranslation('terminal');
   const incoming = isProposalData(output.data) ? output.data : null;
   const [data, setData] = useState<PluginAgentNameProposalsData | null>(incoming);
   const [busyName, setBusyName] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function RenameAgentCard({ output, agentId }: PluginOutputRendererProps) 
     return () => window.removeEventListener('tide:plugin-data-updated', onUpdate);
   }, [output.instanceId]);
 
-  if (!data) return <div className="rename-agent-card rename-agent-card--invalid">Propuestas de nombre inválidas.</div>;
+  if (!data) return <div className="rename-agent-card rename-agent-card--invalid">{t('terminal:renameAgent.card.invalid', { defaultValue: 'Invalid name proposals.' })}</div>;
   const dismiss = (event: React.MouseEvent) => {
     event.stopPropagation();
     store.dismissPluginOutput(agentId || data.agentId, output.instanceId);
@@ -82,7 +85,7 @@ export function RenameAgentCard({ output, agentId }: PluginOutputRendererProps) 
         output?: { data?: unknown };
         error?: string;
       } | null;
-      if (!response.ok) throw new Error(responseError(body, response.status));
+      if (!response.ok) throw new Error(responseError(body, response.status, t));
       if (isProposalData(body?.output?.data)) setData(body.output.data);
       else setData((current) => current ? { ...current, selectedName: name, renamedAt: Date.now(), status: 'renamed' } : current);
     } catch (cause) {
@@ -102,15 +105,15 @@ export function RenameAgentCard({ output, agentId }: PluginOutputRendererProps) 
         </span>
         <div>
           <strong>{data.status === 'generating'
-            ? 'El agente está creando sus nombres'
+            ? t('terminal:renameAgent.card.generating', { defaultValue: 'The agent is creating its names' })
             : data.status === 'renamed'
-              ? 'Agente renombrado'
+              ? t('terminal:renameAgent.card.renamed', { defaultValue: 'Agent renamed' })
               : data.status === 'error'
-                ? 'No se pudieron generar nombres'
-                : 'Elige un nombre para el agente'}</strong>
+                ? t('terminal:renameAgent.card.generateFailed', { defaultValue: 'Could not generate names' })
+                : t('terminal:renameAgent.card.choose', { defaultValue: 'Choose a name for the agent' })}</strong>
           <span>{data.previousName}</span>
         </div>
-        <button type="button" onClick={dismiss} aria-label="Descartar propuestas"><Icon name="close" size={11} /></button>
+        <button type="button" onClick={dismiss} aria-label={t('terminal:renameAgent.card.dismiss', { defaultValue: 'Dismiss proposals' })}><Icon name="close" size={11} /></button>
       </header>
 
       {data.status === 'renamed' && data.selectedName ? (
@@ -123,16 +126,21 @@ export function RenameAgentCard({ output, agentId }: PluginOutputRendererProps) 
         <>
           <div className="rename-agent-card__context">
             <Icon name="bolt" size={11} />
-            <span><small>{data.status === 'ready' ? 'Contexto elegido por el agente' : 'Actividad detectada'}</small>{data.contextSummary}</span>
+            <span><small>{data.status === 'ready'
+              ? t('terminal:renameAgent.card.contextChosen', { defaultValue: 'Context chosen by the agent' })
+              : t('terminal:renameAgent.card.activityDetected', { defaultValue: 'Activity detected' })}</small>{data.contextSummary}</span>
           </div>
           {data.status === 'generating' && (
             <div className="rename-agent-card__generating">
               <span className="spotlight-loading-spinner" />
-              <div><strong>Analizando la conversación completa…</strong><span>Las tres propuestas aparecerán aquí automáticamente.</span></div>
+              <div>
+                <strong>{t('terminal:renameAgent.card.analyzing', { defaultValue: 'Analyzing the full conversation…' })}</strong>
+                <span>{t('terminal:renameAgent.card.willAppear', { defaultValue: 'The three proposals will appear here automatically.' })}</span>
+              </div>
             </div>
           )}
           {data.status === 'error' && (
-            <div className="rename-agent-card__generation-error"><Icon name="warn" size={12} /> {data.error || 'Ejecuta /rename-agent otra vez.'}</div>
+            <div className="rename-agent-card__generation-error"><Icon name="warn" size={12} /> {data.error || t('terminal:renameAgent.card.runAgain', { defaultValue: 'Run /rename-agent again.' })}</div>
           )}
           {data.status === 'ready' && <div className="rename-agent-card__proposals">
             {data.proposals.map((proposal, index) => (

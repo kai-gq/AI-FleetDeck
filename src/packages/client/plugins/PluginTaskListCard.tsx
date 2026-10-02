@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../components/Icon';
 import { apiUrl, authFetch } from '../utils/storage';
+import { getLocaleTag } from '../utils/formatting';
 import { openPluginModal } from './registry';
 import type { PluginOutputEnvelope, PluginTaskItem, PluginTaskListData } from './types';
 
@@ -16,7 +18,7 @@ function formatRegistrationDate(value?: string): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!match) return value.slice(0, 10);
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat(getLocaleTag(), {
     day: '2-digit',
     month: 'short',
     ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: '2-digit' }),
@@ -67,6 +69,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
   surface = 'guake',
   onDataChange,
 }: PluginTaskListCardProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const initial = isTaskListData(output.data)
     ? output.data
     : { kind: 'task-list' as const, items: [], title: output.title };
@@ -125,7 +128,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
       if (!response.ok) {
         const message = body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
           ? (body as { error: string }).error
-          : `Plugin action failed (${response.status})`;
+          : t('terminal:taskList.actionFailed', { defaultValue: 'Plugin action failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       const updated = extractUpdatedData(body);
@@ -151,7 +154,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
         setRefreshing(false);
       }
     }
-  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId, setNextData]);
+  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId, setNextData, t]);
 
   const visibleItems = useMemo(() => surface === 'guake' ? data.items.slice(0, 40) : data.items, [data.items, surface]);
   const activeItems = useMemo(() => visibleItems.filter((item) => !isCompletedTask(item)), [visibleItems]);
@@ -171,7 +174,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
     return (
       <div className={`plugin-task-row${done ? ' is-done' : ''}`} key={key}>
         {registrationDate && (
-          <time className="plugin-task-row__registered" dateTime={item.registeredAt} title={`Registered ${item.registeredAt}`}>
+          <time className="plugin-task-row__registered" dateTime={item.registeredAt} title={t('terminal:taskList.registered', { defaultValue: 'Registered {{date}}', date: item.registeredAt })}>
             {registrationDate}
           </time>
         )}
@@ -180,8 +183,12 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
           className="plugin-task-row__toggle"
           disabled={!action || busyIds.has(key)}
           onClick={() => action && void invoke(action, item)}
-          title={done ? 'Reopen task' : 'Complete task'}
-          aria-label={done ? `Reopen ${item.title}` : `Complete ${item.title}`}
+          title={done
+            ? t('terminal:taskList.reopenTask', { defaultValue: 'Reopen task' })
+            : t('terminal:taskList.completeTask', { defaultValue: 'Complete task' })}
+          aria-label={done
+            ? t('terminal:taskList.reopenAria', { defaultValue: 'Reopen {{title}}', title: item.title })
+            : t('terminal:taskList.completeAria', { defaultValue: 'Complete {{title}}', title: item.title })}
         >
           {busyIds.has(key)
             ? <span className="plugin-task-row__spinner" />
@@ -214,7 +221,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
     <section className={`plugin-task-card plugin-task-card--${surface}`} data-plugin-id={output.pluginId}>
       <header className="plugin-task-card__header">
         <span className="plugin-task-card__brand"><Icon name="plug" size={12} /></span>
-        <span className="plugin-task-card__title">{data.title || output.title || 'Tasks'}</span>
+        <span className="plugin-task-card__title">{data.title || output.title || t('common:labels.tasks')}</span>
         <span className="plugin-task-card__count">{data.count ?? data.items.length}</span>
         {data.actions?.refresh && (
           <button
@@ -222,7 +229,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
             className="plugin-task-card__icon-btn"
             disabled={refreshing}
             onClick={() => void invoke(data.actions!.refresh!)}
-            title="Refresh"
+            title={t('common:buttons.refresh')}
           >
             <Icon name="arrow-clockwise" size={12} className={refreshing ? 'is-spinning' : undefined} />
           </button>
@@ -235,25 +242,25 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
         {visibleItems.length === 0 ? (
           <div className="plugin-task-card__empty">
             <Icon name="check" size={14} />
-            {data.emptyMessage || 'No pending tasks'}
+            {data.emptyMessage || t('terminal:taskList.noPending', { defaultValue: 'No pending tasks' })}
           </div>
         ) : (
           <>
             {activeItems.length > 0 && (
-              <section className="plugin-task-group" aria-label="Pending tasks">
+              <section className="plugin-task-group" aria-label={t('terminal:taskList.pendingAria', { defaultValue: 'Pending tasks' })}>
                 <div className="plugin-task-group__header">
-                  <span>Pending</span>
+                  <span>{t('common:status.pending')}</span>
                   <strong>{activeItems.length}</strong>
                 </div>
                 {activeItems.map(renderTask)}
               </section>
             )}
             {completedItems.length > 0 && (
-              <section className="plugin-task-group plugin-task-group--completed" aria-label="Recently completed tasks">
+              <section className="plugin-task-group plugin-task-group--completed" aria-label={t('terminal:taskList.completedAria', { defaultValue: 'Recently completed tasks' })}>
                 <div className="plugin-task-group__header">
-                  <span>Recently completed</span>
+                  <span>{t('terminal:taskList.recentlyCompleted', { defaultValue: 'Recently completed' })}</span>
                   <strong>{completedItems.length}</strong>
-                  <em>Click the check to reopen</em>
+                  <em>{t('terminal:taskList.clickToReopen', { defaultValue: 'Click the check to reopen' })}</em>
                 </div>
                 {completedItems.map(renderTask)}
               </section>
@@ -263,7 +270,7 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
       </div>
 
       {surface === 'guake' && data.items.length > visibleItems.length && (
-        <div className="plugin-task-card__more">+{data.items.length - visibleItems.length} more — open the sidebar for all tasks</div>
+        <div className="plugin-task-card__more">{t('terminal:taskList.more', { defaultValue: '+{{n}} more — open the sidebar for all tasks', n: data.items.length - visibleItems.length })}</div>
       )}
     </section>
   );

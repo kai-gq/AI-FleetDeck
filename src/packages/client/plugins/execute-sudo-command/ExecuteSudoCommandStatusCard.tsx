@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import type { PluginOutputRendererProps } from '../types';
 
@@ -19,16 +20,17 @@ function readData(value: unknown): SudoCommandRequestedData | null {
 }
 
 export function ExecuteSudoCommandStatusCard({ output }: PluginOutputRendererProps) {
+  const { t } = useTranslation('terminal');
   const data = readData(output.data);
-  if (!data) return <div className="execute-sudo-command-status is-error">Solicitud sudo inválida.</div>;
+  if (!data) return <div className="execute-sudo-command-status is-error">{t('terminal:sudoCard.invalid', { defaultValue: 'Invalid sudo request.' })}</div>;
   return (
     <section className="execute-sudo-command-status">
       <span className="execute-sudo-command-status__icon"><Icon name="lock" size={15} /></span>
       <div>
-        <small>Execute Sudo Command</small>
-        <strong>Esperando tu autorización</strong>
+        <small>{t('terminal:sudoCard.header', { defaultValue: 'Execute Sudo Command' })}</small>
+        <strong>{t('terminal:sudoCard.waiting', { defaultValue: 'Waiting for your authorization' })}</strong>
         <code>{data.invocation}</code>
-        <span>La tarjeta privada para ingresar la contraseña está abierta en la conversación del agente.</span>
+        <span>{t('terminal:sudoCard.privateCardHint', { defaultValue: 'The private password card is open in the agent conversation.' })}</span>
       </div>
     </section>
   );

@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { getLocaleTag } from '../../utils/formatting';
 import type { PluginOutputRendererProps } from '../types';
 
 interface GmailPendingItem {
@@ -62,15 +64,15 @@ function extractUpdatedData(body: unknown): GmailPendingListData | null {
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat(getLocaleTag(), {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
 }
 
-function senderName(from: string): string {
+function senderName(from: string, unknownSender: string): string {
   const match = from.match(/^\s*"?([^"<]+?)"?\s*</);
-  return match?.[1]?.trim() || from || '(remitente desconocido)';
+  return match?.[1]?.trim() || from || unknownSender;
 }
 
 function renderBodyWithLinks(body: string): React.ReactNode[] {
@@ -96,6 +98,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
   output,
   agentId,
 }: PluginOutputRendererProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const initial = isGmailPendingListData(output.data) ? output.data : null;
   const [data, setData] = useState<GmailPendingListData | null>(initial);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
@@ -154,11 +157,11 @@ export const GmailPendingCard = memo(function GmailPendingCard({
       if (!response.ok) {
         const message = isRecord(body) && typeof body.error === 'string'
           ? body.error
-          : `Gmail action failed (${response.status})`;
+          : t('terminal:gmailCard.actionFailed', { defaultValue: 'Gmail action failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       const updated = extractUpdatedData(body);
-      if (!updated) throw new Error('Gmail plugin returned an invalid response');
+      if (!updated) throw new Error(t('terminal:gmailCard.invalidResponse', { defaultValue: 'Gmail plugin returned an invalid response' }));
       setData(updated);
     } catch (cause) {
       setData(previous);
@@ -174,7 +177,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
         setRefreshing(false);
       }
     }
-  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId]);
+  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId, t]);
 
   const visibleLabels = useMemo(() => {
     if (!data) return new Map<string, string[]>();
@@ -185,7 +188,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
   }, [data]);
 
   if (!data) {
-    return <section className="gmail-pending-card gmail-pending-card--invalid">Respuesta de Gmail inválida</section>;
+    return <section className="gmail-pending-card gmail-pending-card--invalid">{t('terminal:gmailCard.invalid', { defaultValue: 'Invalid Gmail response' })}</section>;
   }
 
   const toggleExpanded = (messageId: string) => {
@@ -205,7 +208,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
           <strong>{data.title}</strong>
           {data.account && <span>{data.account}</span>}
         </div>
-        <div className="gmail-pending-card__filters" role="group" aria-label="Filtrar correos">
+        <div className="gmail-pending-card__filters" role="group" aria-label={t('terminal:gmailCard.filterAria', { defaultValue: 'Filter emails' })}>
           {data.actions.showUnread && (
             <button
               type="button"
@@ -213,7 +216,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
               disabled={refreshing || data.mode === 'unread'}
               onClick={() => void invoke(data.actions.showUnread!)}
             >
-              No leídos
+              {t('terminal:gmailCard.unread', { defaultValue: 'Unread' })}
             </button>
           )}
           {data.actions.showAll && (
@@ -223,7 +226,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
               disabled={refreshing || data.mode === 'all'}
               onClick={() => void invoke(data.actions.showAll!)}
             >
-              Todos
+              {t('common:labels.all')}
             </button>
           )}
         </div>
@@ -234,7 +237,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
             className="gmail-pending-card__refresh"
             disabled={refreshing}
             onClick={() => void invoke(data.actions.refresh!)}
-            title="Actualizar correos"
+            title={t('terminal:gmailCard.refresh', { defaultValue: 'Refresh emails' })}
           >
             <Icon name="arrow-clockwise" size={12} className={refreshing ? 'is-spinning' : undefined} />
           </button>
@@ -246,8 +249,12 @@ export const GmailPendingCard = memo(function GmailPendingCard({
       {data.items.length === 0 ? (
         <div className="gmail-pending-card__empty">
           <Icon name="check" size={16} />
-          <strong>{data.mode === 'all' ? 'Inbox vacío' : 'Inbox al día'}</strong>
-          <span>{data.mode === 'all' ? 'No hay correos en Inbox.' : 'No hay correos pendientes de leer.'}</span>
+          <strong>{data.mode === 'all'
+            ? t('terminal:gmailCard.inboxEmpty', { defaultValue: 'Inbox empty' })
+            : t('terminal:gmailCard.inboxUpToDate', { defaultValue: 'Inbox up to date' })}</strong>
+          <span>{data.mode === 'all'
+            ? t('terminal:gmailCard.noEmails', { defaultValue: 'No emails in Inbox.' })
+            : t('terminal:gmailCard.nothingUnread', { defaultValue: 'No emails waiting to be read.' })}</span>
         </div>
       ) : (
         <div className="gmail-pending-card__messages">
@@ -262,9 +269,11 @@ export const GmailPendingCard = memo(function GmailPendingCard({
                   onClick={() => toggleExpanded(item.id)}
                   aria-expanded={expanded}
                 >
-                  <span className="gmail-pending-message__unread" aria-label={item.isUnread ? 'No leído' : 'Leído'} />
-                  <span className="gmail-pending-message__sender" title={item.from}>{senderName(item.from)}</span>
-                  <span className="gmail-pending-message__subject">{item.subject || '(sin asunto)'}</span>
+                  <span className="gmail-pending-message__unread" aria-label={item.isUnread
+                    ? t('terminal:gmailCard.unread', { defaultValue: 'Unread' })
+                    : t('common:status.read')} />
+                  <span className="gmail-pending-message__sender" title={item.from}>{senderName(item.from, t('terminal:gmailCard.unknownSender', { defaultValue: '(unknown sender)' }))}</span>
+                  <span className="gmail-pending-message__subject">{item.subject || t('terminal:gmailCard.noSubject', { defaultValue: '(no subject)' })}</span>
                   {item.hasAttachments && <Icon name="paperclip" size={10} />}
                   <time dateTime={new Date(item.date).toISOString()}>{formatDate(item.date)}</time>
                   <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
@@ -273,8 +282,8 @@ export const GmailPendingCard = memo(function GmailPendingCard({
                 {expanded && (
                   <div className="gmail-pending-message__details">
                     <div className="gmail-pending-message__meta">
-                      <span><strong>De:</strong> {item.from}</span>
-                      <span><strong>Para:</strong> {item.to.join(', ') || '—'}</span>
+                      <span><strong>{t('terminal:gmailCard.from', { defaultValue: 'From:' })}</strong> {item.from}</span>
+                      <span><strong>{t('terminal:gmailCard.to', { defaultValue: 'To:' })}</strong> {item.to.join(', ') || '—'}</span>
                       {item.cc && item.cc.length > 0 && <span><strong>CC:</strong> {item.cc.join(', ')}</span>}
                       {labels.length > 0 && (
                         <span className="gmail-pending-message__labels">
@@ -284,7 +293,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
                     </div>
 
                     <div className="gmail-pending-message__body">
-                      {item.body ? renderBodyWithLinks(item.body) : <em>(correo sin contenido de texto)</em>}
+                      {item.body ? renderBodyWithLinks(item.body) : <em>{t('terminal:gmailCard.noTextBody', { defaultValue: '(email has no text content)' })}</em>}
                     </div>
 
                     {item.attachmentNames.length > 0 && (
@@ -297,7 +306,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
 
                     <footer className="gmail-pending-message__actions">
                       <a href={item.gmailUrl} target="_blank" rel="noopener noreferrer">
-                        <Icon name="open-external" size={11} /> Ver en Gmail
+                        <Icon name="open-external" size={11} /> {t('terminal:gmailCard.viewInGmail', { defaultValue: 'View in Gmail' })}
                       </a>
                       {data.actions.markRead && item.isUnread && (
                         <button
@@ -308,7 +317,7 @@ export const GmailPendingCard = memo(function GmailPendingCard({
                           {busyIds.has(item.id)
                             ? <span className="gmail-pending-message__spinner" />
                             : <Icon name="check" size={11} />}
-                          Marcar como leído
+                          {t('terminal:gmailCard.markRead', { defaultValue: 'Mark as read' })}
                         </button>
                       )}
                     </footer>
@@ -322,7 +331,9 @@ export const GmailPendingCard = memo(function GmailPendingCard({
 
       {data.count >= data.limit && (
         <footer className="gmail-pending-card__limit">
-          Mostrando hasta {data.limit}. Usa <code>/gmail {data.mode === 'all' ? 'all ' : ''}{Math.min(50, data.limit + 10)}</code> para ver más.
+          {t('terminal:gmailCard.showingUpTo', { defaultValue: 'Showing up to {{limit}}. Use', limit: data.limit })}{' '}
+          <code>/gmail {data.mode === 'all' ? 'all ' : ''}{Math.min(50, data.limit + 10)}</code>{' '}
+          {t('terminal:gmailCard.toSeeMore', { defaultValue: 'to see more.' })}
         </footer>
       )}
     </section>

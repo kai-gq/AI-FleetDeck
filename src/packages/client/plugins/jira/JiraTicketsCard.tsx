@@ -1,7 +1,9 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { store } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { getLocaleTag } from '../../utils/formatting';
 import type { PluginOutputRendererProps } from '../types';
 
 interface JiraTicketItem {
@@ -108,7 +110,7 @@ function formatDate(value?: string): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return new Intl.DateTimeFormat(getLocaleTag(), { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 function statusClass(status: string): string {
@@ -119,6 +121,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
   output,
   agentId,
 }: PluginOutputRendererProps) {
+  const { t } = useTranslation(['terminal', 'common']);
   const initial = isJiraTicketListData(output.data) ? output.data : null;
   const [data, setData] = useState<JiraTicketListData | null>(initial);
   const [query, setQuery] = useState(initial?.mode === 'pending' ? '' : initial?.query ?? '');
@@ -159,7 +162,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
       if (!response.ok) {
         const message = isRecord(body) && typeof body.error === 'string'
           ? body.error
-          : `Jira action failed (${response.status})`;
+          : t('terminal:jiraCard.actionFailed', { defaultValue: 'Jira action failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       const updated = extractUpdatedData(body);
@@ -171,10 +174,14 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
     } finally {
       setLoading(false);
     }
-  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId]);
+  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId, t]);
 
   if (!data) {
-    return <section className="jira-tickets-card jira-tickets-card--invalid">Respuesta de Jira inválida</section>;
+    return (
+      <section className="jira-tickets-card jira-tickets-card--invalid">
+        {t('terminal:jiraCard.invalid', { defaultValue: 'Invalid Jira response' })}
+      </section>
+    );
   }
 
   const loadDetails = async (ticket: JiraTicketItem) => {
@@ -202,11 +209,11 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
       if (!response.ok) {
         const message = isRecord(body) && typeof body.error === 'string'
           ? body.error
-          : `Jira details failed (${response.status})`;
+          : t('terminal:jiraCard.detailsFailed', { defaultValue: 'Jira details failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       const details = extractDetailsData(body);
-      if (!details) throw new Error('Jira plugin returned invalid ticket details');
+      if (!details) throw new Error(t('terminal:jiraCard.invalidDetails', { defaultValue: 'Jira plugin returned invalid ticket details' }));
       setDetailsByKey((current) => ({ ...current, [ticket.key]: details }));
     } catch (cause) {
       setDetailsErrors((current) => ({
@@ -258,7 +265,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
         || typeof payload.path !== 'string') {
         const message = isRecord(body) && typeof body.error === 'string'
           ? body.error
-          : `Attachment preview failed (${response.status})`;
+          : t('terminal:jiraCard.attachmentPreviewFailed', { defaultValue: 'Attachment preview failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       store.setFileViewerPath(payload.path);
@@ -279,7 +286,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
       const response = await authFetch(apiUrl(
         `/api/jira/attachments/${encodeURIComponent(attachment.id)}/content`,
       ));
-      if (!response.ok) throw new Error(`Attachment download failed (${response.status})`);
+      if (!response.ok) throw new Error(t('terminal:jiraCard.attachmentDownloadFailed', { defaultValue: 'Attachment download failed ({{status}})', status: response.status }));
       const blobUrl = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -309,7 +316,11 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
         <span className="jira-tickets-card__brand"><Icon name="clipboard" size={13} /></span>
         <div className="jira-tickets-card__heading">
           <strong>{data.title}</strong>
-          <span>{data.mode === 'pending' ? 'Todos los tickets · sin completar' : `${data.total} resultado${data.total === 1 ? '' : 's'}`}</span>
+          <span>{data.mode === 'pending'
+            ? t('terminal:jiraCard.allPending', { defaultValue: 'All open tickets' })
+            : data.total === 1
+              ? t('terminal:jiraCard.resultOne', { defaultValue: '1 result' })
+              : t('terminal:jiraCard.resultMany', { defaultValue: '{{total}} results', total: data.total })}</span>
         </div>
         <span className="jira-tickets-card__count">{data.count}</span>
         {data.actions.refresh && (
@@ -318,7 +329,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
             className="jira-tickets-card__refresh"
             disabled={loading}
             onClick={() => void invoke(data.actions.refresh!)}
-            title="Actualizar tickets"
+            title={t('terminal:jiraCard.refresh', { defaultValue: 'Refresh tickets' })}
           >
             <Icon name="arrow-clockwise" size={12} className={loading ? 'is-spinning' : undefined} />
           </button>
@@ -331,11 +342,13 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por clave (PROJ-123) o texto…"
-            aria-label="Buscar ticket de Jira"
+            placeholder={t('terminal:jiraCard.searchPlaceholder', { defaultValue: 'Search by key (PROJ-123) or text…' })}
+            aria-label={t('terminal:jiraCard.searchAria', { defaultValue: 'Search Jira tickets' })}
           />
           <button type="submit" disabled={loading || !query.trim()}>
-            {loading ? 'Buscando…' : 'Buscar'}
+            {loading
+              ? t('terminal:jiraCard.searching', { defaultValue: 'Searching…' })
+              : t('common:buttons.search')}
           </button>
         </form>
       )}
@@ -345,8 +358,10 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
       {data.items.length === 0 ? (
         <div className="jira-tickets-card__empty">
           <Icon name="check" size={17} />
-          <strong>Sin tickets</strong>
-          <span>{data.mode === 'pending' ? 'No hay tickets pendientes visibles para esta cuenta.' : 'No se encontraron coincidencias.'}</span>
+          <strong>{t('terminal:jiraCard.emptyTitle', { defaultValue: 'No tickets' })}</strong>
+          <span>{data.mode === 'pending'
+            ? t('terminal:jiraCard.emptyPending', { defaultValue: 'No visible pending tickets for this account.' })
+            : t('terminal:jiraCard.emptySearch', { defaultValue: 'No matching tickets found.' })}</span>
         </div>
       ) : (
         <div className="jira-tickets-card__items">
@@ -370,7 +385,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                     <span className="jira-ticket__priority">{ticket.priority || ''}</span>
                     <span className="jira-ticket__title">{ticket.summary}</span>
                     <span className="jira-ticket__owner">
-                      {[ticket.project, ticket.assignee || 'Sin asignar'].filter(Boolean).join(' · ')}
+                      {[ticket.project, ticket.assignee || t('terminal:jiraCard.unassigned', { defaultValue: 'Unassigned' })].filter(Boolean).join(' · ')}
                     </span>
                     {updated && <time dateTime={ticket.updated}>{updated}</time>}
                     <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
@@ -380,8 +395,8 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                     href={ticket.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={`Abrir ${ticket.key} en Jira`}
-                    aria-label={`Abrir ${ticket.key} en Jira`}
+                    title={t('terminal:jiraCard.openInJira', { defaultValue: 'Open {{key}} in Jira', key: ticket.key })}
+                    aria-label={t('terminal:jiraCard.openInJira', { defaultValue: 'Open {{key}} in Jira', key: ticket.key })}
                   >
                     <Icon name="open-external" size={11} />
                   </a>
@@ -391,7 +406,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                   <div className="jira-ticket__details">
                     {detailsLoading.has(ticket.key) && (
                       <div className="jira-ticket__details-loading">
-                        <span className="jira-ticket__spinner" /> Cargando descripción, comentarios y archivos…
+                        <span className="jira-ticket__spinner" /> {t('terminal:jiraCard.detailsLoading', { defaultValue: 'Loading description, comments and files…' })}
                       </div>
                     )}
                     {detailError && (
@@ -405,39 +420,39 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                             return next;
                           });
                           void loadDetails(ticket);
-                        }}>Reintentar</button>
+                        }}>{t('common:buttons.retry')}</button>
                       </div>
                     )}
                     {details && (
                       <>
                         <div className="jira-ticket__facts">
-                          {fullTicket.project && <span><strong>Proyecto</strong>{fullTicket.project}</span>}
-                          {fullTicket.issueType && <span><strong>Tipo</strong>{fullTicket.issueType}</span>}
-                          <span><strong>Asignado</strong>{fullTicket.assignee || 'Sin asignar'}</span>
-                          {fullTicket.reporter && <span><strong>Reportó</strong>{fullTicket.reporter}</span>}
-                          {fullTicket.dueDate && <span><strong>Vence</strong>{fullTicket.dueDate}</span>}
-                          {fullTicket.resolution && <span><strong>Resolución</strong>{fullTicket.resolution}</span>}
-                          {fullTicket.components.length > 0 && <span><strong>Componentes</strong>{fullTicket.components.join(', ')}</span>}
-                          {fullTicket.fixVersions.length > 0 && <span><strong>Versiones</strong>{fullTicket.fixVersions.join(', ')}</span>}
+                          {fullTicket.project && <span><strong>{t('terminal:jiraCard.project', { defaultValue: 'Project' })}</strong>{fullTicket.project}</span>}
+                          {fullTicket.issueType && <span><strong>{t('common:labels.type')}</strong>{fullTicket.issueType}</span>}
+                          <span><strong>{t('terminal:jiraCard.assignee', { defaultValue: 'Assignee' })}</strong>{fullTicket.assignee || t('terminal:jiraCard.unassigned', { defaultValue: 'Unassigned' })}</span>
+                          {fullTicket.reporter && <span><strong>{t('terminal:jiraCard.reporter', { defaultValue: 'Reported by' })}</strong>{fullTicket.reporter}</span>}
+                          {fullTicket.dueDate && <span><strong>{t('terminal:jiraCard.dueDate', { defaultValue: 'Due' })}</strong>{fullTicket.dueDate}</span>}
+                          {fullTicket.resolution && <span><strong>{t('terminal:jiraCard.resolution', { defaultValue: 'Resolution' })}</strong>{fullTicket.resolution}</span>}
+                          {fullTicket.components.length > 0 && <span><strong>{t('terminal:jiraCard.components', { defaultValue: 'Components' })}</strong>{fullTicket.components.join(', ')}</span>}
+                          {fullTicket.fixVersions.length > 0 && <span><strong>{t('terminal:jiraCard.fixVersions', { defaultValue: 'Versions' })}</strong>{fullTicket.fixVersions.join(', ')}</span>}
                         </div>
 
                         <section className="jira-ticket__section">
-                          <h4>Descripción</h4>
+                          <h4>{t('common:labels.description')}</h4>
                           <p className="jira-ticket__description">
-                            {fullTicket.description || '(sin descripción)'}
+                            {fullTicket.description || t('terminal:jiraCard.noDescription', { defaultValue: '(no description)' })}
                           </p>
                         </section>
 
                         <section className="jira-ticket__section">
-                          <h4>Comentarios <span>{details.comments.length}</span></h4>
+                          <h4>{t('terminal:jiraCard.comments', { defaultValue: 'Comments' })} <span>{details.comments.length}</span></h4>
                           {details.comments.length === 0 ? (
-                            <p className="jira-ticket__section-empty">Sin comentarios.</p>
+                            <p className="jira-ticket__section-empty">{t('terminal:jiraCard.noComments', { defaultValue: 'No comments.' })}</p>
                           ) : (
                             <ol className="jira-ticket__comments">
                               {details.comments.map((comment) => (
                                 <li key={comment.id}>
                                   <div><strong>{comment.author}</strong><time dateTime={comment.created}>{formatDate(comment.created)}</time></div>
-                                  <p>{comment.body || '(comentario vacío)'}</p>
+                                  <p>{comment.body || t('terminal:jiraCard.emptyComment', { defaultValue: '(empty comment)' })}</p>
                                 </li>
                               ))}
                             </ol>
@@ -445,9 +460,9 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                         </section>
 
                         <section className="jira-ticket__section">
-                          <h4>Archivos <span>{details.attachments.length}</span></h4>
+                          <h4>{t('terminal:jiraCard.attachments', { defaultValue: 'Files' })} <span>{details.attachments.length}</span></h4>
                           {details.attachments.length === 0 ? (
-                            <p className="jira-ticket__section-empty">Sin archivos adjuntos.</p>
+                            <p className="jira-ticket__section-empty">{t('terminal:jiraCard.noAttachments', { defaultValue: 'No attachments.' })}</p>
                           ) : (
                             <div className="jira-ticket__attachments">
                               {details.attachments.map((attachment) => (
@@ -457,7 +472,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                                     className="jira-ticket__attachment-preview"
                                     disabled={previewingIds.has(attachment.id)}
                                     onClick={() => void previewAttachment(fullTicket.key, attachment)}
-                                    title={`Ver ${attachment.filename} en Tide Commander`}
+                                    title={t('terminal:jiraCard.previewAttachment', { defaultValue: 'View {{filename}} in Tide Commander', filename: attachment.filename })}
                                   >
                                     {previewingIds.has(attachment.id)
                                       ? <span className="jira-ticket__spinner" />
@@ -469,8 +484,8 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
                                     className="jira-ticket__attachment-download"
                                     disabled={downloadingIds.has(attachment.id)}
                                     onClick={() => void downloadAttachment(attachment)}
-                                    title={`Descargar ${attachment.filename}`}
-                                    aria-label={`Descargar ${attachment.filename}`}
+                                    title={t('terminal:jiraCard.downloadAttachment', { defaultValue: 'Download {{filename}}', filename: attachment.filename })}
+                                    aria-label={t('terminal:jiraCard.downloadAttachment', { defaultValue: 'Download {{filename}}', filename: attachment.filename })}
                                   >
                                     {downloadingIds.has(attachment.id)
                                       ? <span className="jira-ticket__spinner" />
@@ -499,7 +514,9 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
 
       {data.total > data.items.length && (
         <footer className="jira-tickets-card__limit">
-          Mostrando {data.items.length} de {data.total}. Usa <code>/jira pending {Math.min(50, data.limit + 10)}</code> para ver más.
+          {t('terminal:jiraCard.showingUpTo', { defaultValue: 'Showing {{shown}} of {{total}}. Use', shown: data.items.length, total: data.total })}{' '}
+          <code>/jira pending {Math.min(50, data.limit + 10)}</code>{' '}
+          {t('terminal:jiraCard.toSeeMore', { defaultValue: 'to see more.' })}
         </footer>
       )}
     </section>
