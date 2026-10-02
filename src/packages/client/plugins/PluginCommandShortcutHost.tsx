@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../components/Icon';
 import { SpotlightCommandResultModal } from '../components/Spotlight/SpotlightCommandResultModal';
 import { runPluginCommand, type SpotlightPluginCommand } from '../components/Spotlight/pluginCommands';
@@ -25,6 +26,7 @@ function toExecutableCommand(command: RegisteredPluginSlashCommand): SpotlightPl
 }
 
 export function PluginCommandShortcutHost() {
+  const { t } = useTranslation(['config']);
   const shortcutMap = usePluginCommandShortcuts();
   const registryRevision = usePluginRegistryRevision();
   const runningRef = useRef(false);
@@ -75,8 +77,8 @@ export function PluginCommandShortcutHost() {
     }}>
       <section className="plugin-shortcut-error-modal" role="alertdialog" aria-modal="true">
         <span className="plugin-shortcut-error-modal__icon"><Icon name="warn" size={18} /></span>
-        <div><strong>Plugin command failed</strong><p>{error}</p></div>
-        <button type="button" onClick={() => setError(null)} aria-label="Close"><Icon name="close" size={13} /></button>
+        <div><strong>{t('config:pluginHost.commandFailed', { defaultValue: 'Plugin command failed' })}</strong><p>{error}</p></div>
+        <button type="button" onClick={() => setError(null)} aria-label={t('common:buttons.close')}><Icon name="close" size={13} /></button>
       </section>
     </div>
   );

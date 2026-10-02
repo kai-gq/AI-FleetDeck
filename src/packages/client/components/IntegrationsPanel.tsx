@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IntegrationInfo, ConfigField } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 
@@ -26,28 +27,8 @@ const INTEGRATION_ICONS: Record<string, string> = {
   docx: '\uD83D\uDCC4',
 };
 
-const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
-  gmail: 'Send and receive emails through Gmail. Supports OAuth 2.0 authentication for secure access to your inbox.',
-  slack: 'Connect to Slack workspaces. Send messages, receive notifications, and integrate with channels.',
-  jira: 'Manage Jira issues and projects. Create tickets, track progress, and handle service desk requests.',
-  'google-calendar': 'Access Google Calendar events. Create, update, and monitor calendar entries.',
-  'google-drive': 'Read, create, and edit files in Google Drive. Search and manage folders.',
-  docx: 'Generate and manipulate DOCX documents. Create reports, templates, and formatted documents.',
-};
-
-const INTEGRATION_REQUIREMENTS: Record<string, string[]> = {
-  gmail: ['Google Cloud Console project', 'OAuth 2.0 credentials (Client ID & Secret)', 'Gmail API enabled'],
-  slack: [
-    'Bot token (xoxb-) with App-Level Token for real-time Socket Mode, OR User token (xoxp-) for polling mode (~30-60s lag, no Slack app config needed)',
-    'For Socket Mode: enable Socket Mode + Event Subscriptions; subscribe to bot events message.channels, message.groups, message.im',
-    'Required scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read',
-    'Polling mode (xoxp-) mirrors all channels/groups/DMs the user is a member of — supports xoxp- user tokens that cannot use Socket Mode',
-  ],
-  jira: ['Jira Cloud instance URL', 'API Token (from Atlassian account)', 'Account email address'],
-  'google-calendar': ['Google Cloud Console project', 'OAuth 2.0 credentials', 'Calendar API enabled'],
-  'google-drive': ['Google Cloud Console project', 'OAuth 2.0 credentials (Client ID & Secret)', 'Google Drive API enabled'],
-  docx: ['No external credentials required', 'Templates directory (optional)'],
-};
+// UI copy for integration descriptions/requirements lives in the component so it
+// can go through i18next (config:integrationsPanel.* locale-only keys).
 
 // ─── Styles ───
 
@@ -229,6 +210,7 @@ const S = {
 // ─── Integration Settings Form ───
 
 function IntegrationSettingsForm({ integration, onSave, onCancel }: { integration: IntegrationInfo; onSave: (config: Record<string, unknown>) => Promise<void>; onCancel: () => void }) {
+  const { t } = useTranslation(['config']);
   const [values, setValues] = useState<Record<string, unknown>>({ ...integration.values });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -252,7 +234,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
     const fieldErrors: Record<string, string> = {};
     for (const field of integration.schema) {
       if (field.required && !values[field.key] && values[field.key] !== 0 && values[field.key] !== false) {
-        fieldErrors[field.key] = `${field.label} is required`;
+        fieldErrors[field.key] = t('config:integrationsPanel.fieldRequired', { defaultValue: '{{field}} is required', field: field.label });
       }
       if (field.validate) {
         const err = field.validate(values[field.key]);
@@ -328,7 +310,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
       case 'select':
         return (
           <select style={inputStyle} value={String(value)} onChange={(e) => handleChange(field.key, e.target.value)}>
-            <option value="">{field.placeholder || 'Select...'}</option>
+            <option value="">{field.placeholder || t('config:integrationsPanel.selectPlaceholder', { defaultValue: 'Select...' })}</option>
             {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         );
@@ -365,9 +347,9 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border, #313244)' }}>
-        <button type="button" onClick={onCancel} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-secondary, #a6adc8)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+        <button type="button" onClick={onCancel} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-secondary, #a6adc8)', fontSize: 13, cursor: 'pointer' }}>{t('common:buttons.cancel')}</button>
         <button type="submit" disabled={saving} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: saveSuccess ? '#a6e3a1' : 'var(--accent, #89b4fa)', color: saveSuccess ? '#1e1e2e' : '#1e1e2e', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-          {saving ? 'Saving...' : saveSuccess ? 'Saved' : 'Save Configuration'}
+          {saving ? t('terminal:fileExplorer.saving') : saveSuccess ? t('config:integrationsPanel.saved', { defaultValue: 'Saved' }) : t('config:integrationsPanel.saveConfiguration', { defaultValue: 'Save Configuration' })}
         </button>
       </div>
     </form>
@@ -385,6 +367,67 @@ interface IntegrationsModalProps {
 }
 
 export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: IntegrationsModalProps) {
+  const { t } = useTranslation(['config']);
+  const descriptionFor = (id: string): string | undefined => {
+    switch (id) {
+      case 'gmail':
+        return t('config:integrationsPanel.descGmail', { defaultValue: 'Send and receive emails through Gmail. Supports OAuth 2.0 authentication for secure access to your inbox.' });
+      case 'slack':
+        return t('config:integrationsPanel.descSlack', { defaultValue: 'Connect to Slack workspaces. Send messages, receive notifications, and integrate with channels.' });
+      case 'jira':
+        return t('config:integrationsPanel.descJira', { defaultValue: 'Manage Jira issues and projects. Create tickets, track progress, and handle service desk requests.' });
+      case 'google-calendar':
+        return t('config:integrationsPanel.descGoogleCalendar', { defaultValue: 'Access Google Calendar events. Create, update, and monitor calendar entries.' });
+      case 'google-drive':
+        return t('config:integrationsPanel.descGoogleDrive', { defaultValue: 'Read, create, and edit files in Google Drive. Search and manage folders.' });
+      case 'docx':
+        return t('config:integrationsPanel.descDocx', { defaultValue: 'Generate and manipulate DOCX documents. Create reports, templates, and formatted documents.' });
+      default:
+        return undefined;
+    }
+  };
+  const requirementsFor = (id: string): string[] => {
+    switch (id) {
+      case 'gmail':
+        return [
+          t('config:integrationsPanel.reqGmailProject', { defaultValue: 'Google Cloud Console project' }),
+          t('config:integrationsPanel.reqGmailCredentials', { defaultValue: 'OAuth 2.0 credentials (Client ID & Secret)' }),
+          t('config:integrationsPanel.reqGmailApi', { defaultValue: 'Gmail API enabled' }),
+        ];
+      case 'slack':
+        return [
+          t('config:integrationsPanel.reqSlackToken', { defaultValue: 'Bot token (xoxb-) with App-Level Token for real-time Socket Mode, OR User token (xoxp-) for polling mode (~30-60s lag, no Slack app config needed)' }),
+          t('config:integrationsPanel.reqSlackSocket', { defaultValue: 'For Socket Mode: enable Socket Mode + Event Subscriptions; subscribe to bot events message.channels, message.groups, message.im' }),
+          t('config:integrationsPanel.reqSlackScopes', { defaultValue: 'Required scopes: channels:history, channels:read, chat:write, groups:history, groups:read, im:history, im:read, users:read' }),
+          t('config:integrationsPanel.reqSlackPolling', { defaultValue: 'Polling mode (xoxp-) mirrors all channels/groups/DMs the user is a member of — supports xoxp- user tokens that cannot use Socket Mode' }),
+        ];
+      case 'jira':
+        return [
+          t('config:integrationsPanel.reqJiraUrl', { defaultValue: 'Jira Cloud instance URL' }),
+          t('config:integrationsPanel.reqJiraToken', { defaultValue: 'API Token (from Atlassian account)' }),
+          t('config:integrationsPanel.reqJiraEmail', { defaultValue: 'Account email address' }),
+        ];
+      case 'google-calendar':
+        return [
+          t('config:integrationsPanel.reqCalendarProject', { defaultValue: 'Google Cloud Console project' }),
+          t('config:integrationsPanel.reqCalendarCredentials', { defaultValue: 'OAuth 2.0 credentials' }),
+          t('config:integrationsPanel.reqCalendarApi', { defaultValue: 'Calendar API enabled' }),
+        ];
+      case 'google-drive':
+        return [
+          t('config:integrationsPanel.reqDriveProject', { defaultValue: 'Google Cloud Console project' }),
+          t('config:integrationsPanel.reqDriveCredentials', { defaultValue: 'OAuth 2.0 credentials (Client ID & Secret)' }),
+          t('config:integrationsPanel.reqDriveApi', { defaultValue: 'Google Drive API enabled' }),
+        ];
+      case 'docx':
+        return [
+          t('config:integrationsPanel.reqDocxNone', { defaultValue: 'No external credentials required' }),
+          t('config:integrationsPanel.reqDocxTemplates', { defaultValue: 'Templates directory (optional)' }),
+        ];
+      default:
+        return [];
+    }
+  };
   const [integrations, setIntegrations] = useState<IntegrationInfo[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(initialTab || null);
   const [loading, setLoading] = useState(true);
@@ -406,7 +449,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
         return tabToUse;
       });
     } catch (err) {
-      setError(`Failed to load integrations: ${err}`);
+      setError(t('config:integrationsPanel.loadFailed', { defaultValue: 'Failed to load integrations: {{error}}', error: String(err) }));
     } finally {
       setLoading(false);
     }
@@ -444,19 +487,19 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
         <div style={S.header}>
           <div style={S.headerTitle}>
             <span>{'\uD83D\uDD0C'}</span>
-            <span>Integrations</span>
+            <span>{t('config:integrationsPanel.title', { defaultValue: 'Integrations' })}</span>
           </div>
-          <button style={S.closeBtn} onClick={onClose} title="Close">&times;</button>
+          <button style={S.closeBtn} onClick={onClose} title={t('common:buttons.close')}>&times;</button>
         </div>
 
         {/* Loading / Error */}
         {loading && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary, #a6adc8)' }}>Loading integrations...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary, #a6adc8)' }}>{t('config:integrationsPanel.loadingIntegrations', { defaultValue: 'Loading integrations...' })}</div>
         )}
         {error && (
           <div style={{ padding: 20, textAlign: 'center' }}>
             <div style={{ color: '#f38ba8', marginBottom: 8 }}>{error}</div>
-            <button onClick={fetchIntegrations} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-primary, #cdd6f4)', cursor: 'pointer', fontSize: 13 }}>Retry</button>
+            <button onClick={fetchIntegrations} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-primary, #cdd6f4)', cursor: 'pointer', fontSize: 13 }}>{t('common:buttons.retry')}</button>
           </div>
         )}
 
@@ -490,17 +533,19 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
                         {active.name}
                         <span style={S.statusBadge(active.status.connected, !!active.status.error)}>
                           {active.status.needsReauth
-                            ? '\u26A0 Token Expired \u2014 Reconnect'
+                            ? t('config:integrationsPanel.statusTokenExpired', { defaultValue: '\u26A0 Token Expired \u2014 Reconnect' })
                             : active.status.error
-                              ? '\u2717 Error'
+                              ? t('config:integrationsPanel.statusError', { defaultValue: '\u2717 Error' })
                               : active.status.connected
-                                ? '\u2713 Connected'
-                                : '\u26A0 Not Configured'}
+                                ? t('config:integrationsPanel.statusConnected', { defaultValue: '\u2713 Connected' })
+                                : t('config:integrationsPanel.statusNotConfigured', { defaultValue: '\u26A0 Not Configured' })}
                         </span>
                         {active.id === 'slack' && (() => {
                           const mode = (active.values?.currentMode as string | undefined) || 'none';
                           if (mode === 'none') return null;
-                          const label = mode === 'polling' ? 'Polling' : 'Socket';
+                          const label = mode === 'polling'
+                            ? t('config:integrationsPanel.pollMode', { defaultValue: 'Polling' })
+                            : t('config:integrationsPanel.socketMode', { defaultValue: 'Socket' });
                           return (
                             <span
                               style={{
@@ -513,7 +558,9 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
                                 color: '#89b4fa',
                                 border: '1px solid rgba(137, 180, 250, 0.3)',
                               }}
-                              title={mode === 'polling' ? 'Web API polling (xoxp- user token)' : 'Real-time Socket Mode (xoxb- bot token)'}
+                              title={mode === 'polling'
+                                ? t('config:integrationsPanel.pollModeTitle', { defaultValue: 'Web API polling (xoxp- user token)' })
+                                : t('config:integrationsPanel.socketModeTitle', { defaultValue: 'Real-time Socket Mode (xoxb- bot token)' })}
                             >
                               {label}
                             </span>
@@ -521,7 +568,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
                         })()}
                       </div>
                       <div style={S.description}>
-                        {INTEGRATION_DESCRIPTIONS[active.id] || active.description}
+                        {descriptionFor(active.id) || active.description}
                       </div>
                     </div>
                   </div>
@@ -529,17 +576,17 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
                   {/* Error detail */}
                   {active.status.error && (
                     <div style={{ ...S.section, borderColor: 'rgba(243, 139, 168, 0.3)', background: 'rgba(243, 139, 168, 0.05)' }}>
-                      <div style={{ ...S.sectionTitle, color: '#f38ba8' }}>Error</div>
+                      <div style={{ ...S.sectionTitle, color: '#f38ba8' }}>{t('common:toast.errorTitle')}</div>
                       <div style={{ fontSize: 12, color: '#f38ba8' }}>{active.status.error}</div>
                     </div>
                   )}
 
                   {/* Requirements */}
-                  {INTEGRATION_REQUIREMENTS[active.id] && (
+                  {requirementsFor(active.id).length > 0 && (
                     <div style={S.section}>
-                      <div style={S.sectionTitle}>Requirements</div>
+                      <div style={S.sectionTitle}>{t('config:integrationsPanel.requirementsTitle', { defaultValue: 'Requirements' })}</div>
                       <ul style={S.requirementList}>
-                        {INTEGRATION_REQUIREMENTS[active.id].map((req, i) => (
+                        {requirementsFor(active.id).map((req, i) => (
                           <li key={i} style={S.requirementItem}>
                             <span style={{ color: 'var(--accent, #89b4fa)' }}>{'\u2022'}</span>
                             {req}
@@ -551,9 +598,9 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
 
                   {/* Configuration Form */}
                   <div style={S.formSection}>
-                    <div style={S.formSectionTitle}>Configuration</div>
+                    <div style={S.formSectionTitle}>{t('common:labels.configuration')}</div>
                     {active.customComponent && customComponents[active.customComponent] ? (
-                      <Suspense fallback={<div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading...</div>}>
+                      <Suspense fallback={<div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t('common:status.loading')}</div>}>
                         {React.createElement(customComponents[active.customComponent], {
                           key: active.id,
                           integration: active,
@@ -576,7 +623,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
         )}
 
         {!loading && !error && integrations.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary, #a6adc8)' }}>No integrations available.</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary, #a6adc8)' }}>{t('config:integrationsPanel.noneAvailable', { defaultValue: 'No integrations available.' })}</div>
         )}
       </div>
     </div>

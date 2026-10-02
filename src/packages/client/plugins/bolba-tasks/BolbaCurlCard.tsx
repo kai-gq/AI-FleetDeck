@@ -177,7 +177,9 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
       case 'health':
         return (
           <div className="bolba-rows"><div className="bolba-meta-line">
-            <span className={`bolba-status bolba-status--${result.ok ? 'open' : 'discarded'}`}>{result.ok ? 'ok' : 'fail'}</span>
+            <span className={`bolba-status bolba-status--${result.ok ? 'open' : 'discarded'}`}>{result.ok
+              ? t('terminal:bolbaCurl.healthOk', { defaultValue: 'ok' })
+              : t('terminal:bolbaCurl.healthFail', { defaultValue: 'fail' })}</span>
             {result.byStatus.map(([status, count]) => <span className="bolba-meta" key={status}>{status}: {count}</span>)}
             {result.dueTodayOrOverdue !== undefined && <span className="bolba-meta bolba-due--overdue">{t('terminal:bolbaCurl.dueTodayOrOverdue', { defaultValue: 'due today or earlier: {{n}}', n: result.dueTodayOrOverdue })}</span>}
           </div></div>

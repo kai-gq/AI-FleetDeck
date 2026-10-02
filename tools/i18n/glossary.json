@@ -10,12 +10,12 @@
       "exclude": { "keyPattern": "^config:buildings\\.terminalProxy$" }
     },
     {
-      "//": "LLM 计量一律写 Token;鉴权 token(config:connection.*、WhatsApp webhook 校验、Claude 账号 OAuth 令牌)译「令牌」,排除在外。",
+      "//": "LLM 计量一律写 Token;鉴权 token 译「令牌」并整体排除:config:connection.*、WhatsApp webhook 校验、Claude 账号 OAuth,以及集成侧 OAuth/API 令牌族(gmailOAuth / googleOAuth / slackSetup / integrationsPanel 的 Gmail、Slack、Jira 令牌)。",
       "id": "llm-token",
       "zh": "Token",
       "forbidden": ["令牌"],
       "scope": { "ns": "*" },
-      "exclude": { "keyPattern": "^(config:connection\\.|config:whatsapp\\.webhookVerifyToken$|terminal:credentials\\.tokenExpires$)" }
+      "exclude": { "keyPattern": "^(config:connection\\.|config:whatsapp\\.webhookVerifyToken$|terminal:credentials\\.tokenExpires$|config:(gmailOAuth|googleOAuth|slackSetup|integrationsPanel)\\.)" }
     },
     {
       "//": "Explorer 是资源管理器,不是浏览器。只看 explorer 相关 key;spawn.browser / openInBrowser 等真浏览器场景不在作用域。",
@@ -41,6 +41,6 @@
     "品牌与技术标识保留英文:Tide Commander、Claude、Codex、Chrome、Bash、Git、Spotlight、2D / 3D、Token(计量)",
     "主题词:智能体(不写「代理」)、子智能体、主管 / 下属、资源管理器(Explorer)、会话、技能、触发器、工作流、插件、定时任务、区域 / 分区(A 与 Z 同现时 Area=区域、Zone=分区)",
     "en 的 spawn 一律译「创建」,deploy 一律译「部署」,一一对应,不混用",
-    "鉴权 token 仅 config:connection.* 译「令牌」;LLM 计量一律写「Token」"
+    "鉴权 token 译「令牌」:connection / whatsapp.webhookVerifyToken / credentials.tokenExpires,及 gmailOAuth / googleOAuth / slackSetup / integrationsPanel 的集成令牌族;LLM 计量一律写「Token」"
   ]
 }

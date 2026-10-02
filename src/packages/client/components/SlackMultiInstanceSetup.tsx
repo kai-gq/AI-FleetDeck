@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IntegrationInfo } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 
@@ -64,13 +65,6 @@ interface InstanceValues {
 // ─── Channel-type checkbox helpers ───
 const ALL_CHANNEL_TYPES = ['public_channel', 'private_channel', 'im', 'mpim'] as const;
 type ChannelType = typeof ALL_CHANNEL_TYPES[number];
-
-const TYPE_LABELS: Record<ChannelType, string> = {
-  public_channel: 'Public channels',
-  private_channel: 'Private channels',
-  im: '1:1 DMs',
-  mpim: 'Group DMs',
-};
 
 function parseChannelTypes(csv: string): Set<ChannelType> {
   const out = new Set<ChannelType>();
@@ -245,6 +239,13 @@ async function deleteInstance(id: string): Promise<void> {
 
 export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integration, onCancel }) => {
   void integration; // we drive everything off /api/slack/instances directly
+  const { t } = useTranslation(['config']);
+  const typeLabels: Record<ChannelType, string> = {
+    public_channel: t('config:slackSetup.typePublic', { defaultValue: 'Public channels' }),
+    private_channel: t('config:slackSetup.typePrivate', { defaultValue: 'Private channels' }),
+    im: t('config:slackSetup.typeIm', { defaultValue: '1:1 DMs' }),
+    mpim: t('config:slackSetup.typeMpim', { defaultValue: 'Group DMs' }),
+  };
   const [instances, setInstances] = useState<InstanceListEntry[]>([]);
   const [activeId, setActiveId] = useState<string>('default');
   const [values, setValues] = useState<InstanceValues | null>(null);
@@ -263,7 +264,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
         setActiveId(list[0].id);
       }
     } catch (err) {
-      setAlert({ kind: 'error', message: `Failed to load instances: ${(err as Error).message}` });
+      setAlert({ kind: 'error', message: t('config:slackSetup.loadInstancesFailed', { defaultValue: 'Failed to load instances: {{error}}', error: (err as Error).message }) });
     }
   }, [activeId]);
 
@@ -277,7 +278,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
       const meta = instances.find((i) => i.id === activeId);
       setLabelDraft(meta?.label ?? activeId);
     } catch (err) {
-      setAlert({ kind: 'error', message: `Failed to load instance: ${(err as Error).message}` });
+      setAlert({ kind: 'error', message: t('config:slackSetup.loadInstanceFailed', { defaultValue: 'Failed to load instance: {{error}}', error: (err as Error).message }) });
     } finally {
       setLoading(false);
     }
@@ -287,14 +288,14 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
   useEffect(() => { void loadActive(); }, [loadActive]);
 
   const handleAdd = async () => {
-    const id = window.prompt('Instance id (kebab-case, e.g. "personal", "team-bot"):');
+    const id = window.prompt(t('config:slackSetup.promptInstanceId', { defaultValue: 'Instance id (kebab-case, e.g. "personal", "team-bot"):' }));
     if (!id) return;
-    const label = window.prompt('Display label:', id) || id;
+    const label = window.prompt(t('config:slackSetup.promptDisplayLabel', { defaultValue: 'Display label:' }), id) || id;
     try {
       await createInstance(id.trim(), label.trim());
       await loadInstances();
       setActiveId(id.trim());
-      setAlert({ kind: 'success', message: `Created "${id}"` });
+      setAlert({ kind: 'success', message: t('config:slackSetup.created', { defaultValue: 'Created "{{id}}"', id }) });
     } catch (err) {
       setAlert({ kind: 'error', message: (err as Error).message });
     }
@@ -302,12 +303,12 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
 
   const handleDelete = async () => {
     if (activeId === 'default') return;
-    if (!window.confirm(`Delete Slack instance "${activeId}"? This disconnects it and removes its config.`)) return;
+    if (!window.confirm(t('config:slackSetup.confirmDelete', { defaultValue: 'Delete Slack instance "{{id}}"? This disconnects it and removes its config.', id: activeId }))) return;
     try {
       await deleteInstance(activeId);
       setActiveId('default');
       await loadInstances();
-      setAlert({ kind: 'success', message: 'Instance deleted' });
+      setAlert({ kind: 'success', message: t('config:slackSetup.instanceDeleted', { defaultValue: 'Instance deleted' }) });
     } catch (err) {
       setAlert({ kind: 'error', message: (err as Error).message });
     }
@@ -334,7 +335,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
         label: labelChanged ? labelDraft.trim() : undefined,
         values: Object.keys(dirty).length > 0 ? dirty : undefined,
       });
-      setAlert({ kind: 'success', message: 'Saved. Slack will reconnect with the new settings.' });
+      setAlert({ kind: 'success', message: t('config:slackSetup.saved', { defaultValue: 'Saved. Slack will reconnect with the new settings.' }) });
       await loadInstances();
       await loadActive();
     } catch (err) {
@@ -352,8 +353,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
   return (
     <div>
       <div style={{ marginBottom: 12, fontSize: 12, color: '#a6adc8' }}>
-        Add multiple Slack connections side-by-side. The default instance maps to your existing
-        bot / token; add more for personal (xoxp-) tokens or additional workspaces.
+        {t('config:slackSetup.intro', { defaultValue: 'Add multiple Slack connections side-by-side. The default instance maps to your existing bot / token; add more for personal (xoxp-) tokens or additional workspaces.' })}
       </div>
       {alert && (
         <div style={{ ...S.alert(alert.kind), marginBottom: 12 }}>{alert.message}</div>
@@ -372,21 +372,25 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                 <div style={S.label}>{meta.label}</div>
                 <div style={S.sub}>
                   <span style={S.badge(mode)}>{mode === 'none' ? '—' : mode}</span>
-                  {meta.status?.connected ? ' • connected' : meta.status?.error ? ' • error' : ' • idle'}
+                  {meta.status?.connected
+                    ? t('config:slackSetup.statusConnected', { defaultValue: ' • connected' })
+                    : meta.status?.error
+                      ? t('config:slackSetup.statusError', { defaultValue: ' • error' })
+                      : t('config:slackSetup.statusIdle', { defaultValue: ' • idle' })}
                 </div>
               </div>
             );
           })}
-          <button type="button" style={S.addBtn} onClick={handleAdd}>+ Add Instance</button>
+          <button type="button" style={S.addBtn} onClick={handleAdd}>{t('config:slackSetup.addInstance', { defaultValue: '+ Add Instance' })}</button>
         </div>
 
         {/* Right pane: editor */}
         <div style={S.editor}>
-          {loading && <div style={{ color: '#6c7086', fontSize: 13 }}>Loading…</div>}
+          {loading && <div style={{ color: '#6c7086', fontSize: 13 }}>{t('config:slackSetup.loading', { defaultValue: 'Loading…' })}</div>}
           {!loading && values && (
             <>
               <div style={S.field}>
-                <span style={S.fieldLabel}>Display label</span>
+                <span style={S.fieldLabel}>{t('config:slackSetup.displayLabel', { defaultValue: 'Display label' })}</span>
                 <input
                   type="text"
                   style={S.input}
@@ -394,7 +398,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   onChange={(e) => setLabelDraft(e.target.value)}
                   disabled={activeId === 'default' && labelDraft === 'Default' ? false : false}
                 />
-                <span style={S.fieldDesc}>Shown in the instance list. Id is fixed: <code>{activeId}</code></span>
+                <span style={S.fieldDesc}>{t('config:slackSetup.labelHelp', { defaultValue: 'Shown in the instance list. Id is fixed:' })} <code>{activeId}</code></span>
               </div>
 
               <div style={S.field}>
@@ -404,9 +408,9 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                     checked={values.enabled}
                     onChange={(e) => setField('enabled', e.target.checked)}
                   />
-                  <span style={S.fieldLabel}>Enabled</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.enabledLabel', { defaultValue: 'Enabled' })}</span>
                 </label>
-                <span style={S.fieldDesc}>Toggle off to disconnect this instance without deleting its config.</span>
+                <span style={S.fieldDesc}>{t('config:slackSetup.enabledHelp', { defaultValue: 'Toggle off to disconnect this instance without deleting its config.' })}</span>
               </div>
 
               <div style={S.field}>
@@ -416,16 +420,15 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                     checked={values.mirrorOwnMessages}
                     onChange={(e) => setField('mirrorOwnMessages', e.target.checked)}
                   />
-                  <span style={S.fieldLabel}>Mirror messages I send too</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.mirrorLabel', { defaultValue: 'Mirror messages I send too' })}</span>
                 </label>
                 <span style={S.fieldDesc}>
-                  Capture your outgoing messages alongside incoming ones (logged as <code>direction:outbound</code>).
-                  Recommended for personal (xoxp-) tokens. Triggers do not fire on your own messages — that would loop.
+                  {t('config:slackSetup.mirrorHelpPrefix', { defaultValue: 'Capture your outgoing messages alongside incoming ones (logged as' })} <code>direction:outbound</code>{t('config:slackSetup.mirrorHelpSuffix', { defaultValue: '). Recommended for personal (xoxp-) tokens. Triggers do not fire on your own messages — that would loop.' })}
                 </span>
               </div>
 
               <div style={S.field}>
-                <span style={S.fieldLabel}>Slack Token</span>
+                <span style={S.fieldLabel}>{t('config:slackSetup.slackToken', { defaultValue: 'Slack Token' })}</span>
                 <input
                   type="password"
                   style={S.input}
@@ -434,13 +437,12 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   onChange={(e) => setField('SLACK_BOT_TOKEN', e.target.value)}
                 />
                 <span style={S.fieldDesc}>
-                  Bot token (xoxb-) → Socket Mode. User token (xoxp-) → Web API polling (~30-60s lag).
-                  Stored encrypted under a per-instance key; leave as <code>********</code> to keep the existing token.
+                  {t('config:slackSetup.slackTokenHelpPrefix', { defaultValue: 'Bot token (xoxb-) → Socket Mode. User token (xoxp-) → Web API polling (~30-60s lag). Stored encrypted under a per-instance key; leave as' })} <code>********</code>{t('config:slackSetup.slackTokenHelpSuffix', { defaultValue: ' to keep the existing token.' })}
                 </span>
               </div>
 
               <div style={S.field}>
-                <span style={S.fieldLabel}>App Token (Socket Mode only)</span>
+                <span style={S.fieldLabel}>{t('config:slackSetup.appToken', { defaultValue: 'App Token (Socket Mode only)' })}</span>
                 <input
                   type="password"
                   style={S.input}
@@ -448,24 +450,24 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   value={values.SLACK_APP_TOKEN}
                   onChange={(e) => setField('SLACK_APP_TOKEN', e.target.value)}
                 />
-                <span style={S.fieldDesc}>Required for xoxb- only. Leave blank for xoxp- (polling mode).</span>
+                <span style={S.fieldDesc}>{t('config:slackSetup.appTokenHelp', { defaultValue: 'Required for xoxb- only. Leave blank for xoxp- (polling mode).' })}</span>
               </div>
 
               <div style={S.rowGap}>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Inbound Mode</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.inboundMode', { defaultValue: 'Inbound Mode' })}</span>
                   <select
                     style={S.input}
                     value={values.authMode}
                     onChange={(e) => setField('authMode', e.target.value as InstanceValues['authMode'])}
                   >
-                    <option value="auto">Auto (from token prefix)</option>
-                    <option value="socket">Socket Mode (xoxb-)</option>
-                    <option value="polling">Polling (xoxp-)</option>
+                    <option value="auto">{t('config:slackSetup.modeAuto', { defaultValue: 'Auto (from token prefix)' })}</option>
+                    <option value="socket">{t('config:slackSetup.modeSocket', { defaultValue: 'Socket Mode (xoxb-)' })}</option>
+                    <option value="polling">{t('config:slackSetup.modePolling', { defaultValue: 'Polling (xoxp-)' })}</option>
                   </select>
                 </div>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Default Channel</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.defaultChannel', { defaultValue: 'Default Channel' })}</span>
                   <input
                     type="text"
                     style={S.input}
@@ -478,7 +480,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
 
               <div style={S.rowGap}>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Polling Interval (s)</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.pollingIntervalSec', { defaultValue: 'Polling Interval (s)' })}</span>
                   <input
                     type="number"
                     style={S.input}
@@ -489,7 +491,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   />
                 </div>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Concurrency</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.concurrency', { defaultValue: 'Concurrency' })}</span>
                   <input
                     type="number"
                     style={S.input}
@@ -500,7 +502,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   />
                 </div>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Backfill Cap (msgs)</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.backfillCap', { defaultValue: 'Backfill Cap (msgs)' })}</span>
                   <input
                     type="number"
                     style={S.input}
@@ -511,7 +513,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   />
                 </div>
                 <div style={{ ...S.field, flex: 1 }}>
-                  <span style={S.fieldLabel}>Min ms between calls</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.minMsBetweenCalls', { defaultValue: 'Min ms between calls' })}</span>
                   <input
                     type="number"
                     style={S.input}
@@ -521,49 +523,49 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                     onChange={(e) => setField('pollingMinMsBetweenCalls', Number(e.target.value))}
                   />
                   <span style={{ ...S.fieldDesc, fontSize: 11 }}>
-                    Throttle. 1500 ≈ 40 req/min. Set 0 to disable.
+                    {t('config:slackSetup.throttleHelp', { defaultValue: 'Throttle. 1500 ≈ 40 req/min. Set 0 to disable.' })}
                   </span>
                 </div>
               </div>
 
               <div style={S.field}>
-                <span style={S.fieldLabel}>Channel Types (poll all of these)</span>
+                <span style={S.fieldLabel}>{t('config:slackSetup.channelTypes', { defaultValue: 'Channel Types (poll all of these)' })}</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-                  {ALL_CHANNEL_TYPES.map((t) => {
+                  {ALL_CHANNEL_TYPES.map((type) => {
                     const set = parseChannelTypes(values.pollingChannelTypes);
-                    const checked = set.has(t);
+                    const checked = set.has(type);
                     return (
-                      <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                      <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={(e) => {
                             const next = new Set(parseChannelTypes(values.pollingChannelTypes));
-                            if (e.target.checked) next.add(t); else next.delete(t);
+                            if (e.target.checked) next.add(type); else next.delete(type);
                             setField('pollingChannelTypes', serializeChannelTypes(next));
                           }}
                         />
-                        <span>{TYPE_LABELS[t]}</span>
+                        <span>{typeLabels[type]}</span>
                       </label>
                     );
                   })}
                 </div>
                 <span style={S.fieldDesc}>
-                  Determines which channel types are polled when the allowlist below is empty. Tick all four for full coverage. Heads-up: hundreds of channels at once can hit Slack's rate limit (~50 req/min) — use the allowlist to narrow down.
+                  {t('config:slackSetup.channelTypesHelp', { defaultValue: 'Determines which channel types are polled when the allowlist below is empty. Tick all four for full coverage. Heads-up: hundreds of channels at once can hit Slack\'s rate limit (~50 req/min) — use the allowlist to narrow down.' })}
                 </span>
               </div>
 
               <div style={S.field}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={S.fieldLabel}>Channel Allowlist (optional)</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.channelAllowlist', { defaultValue: 'Channel Allowlist (optional)' })}</span>
                   {values.pollingChannelAllowlist && (
                     <button
                       type="button"
                       style={{ ...S.btnSecondary, padding: '4px 10px', fontSize: 12 }}
                       onClick={() => setField('pollingChannelAllowlist', '')}
-                      title="Clear the allowlist — fall back to polling all channels per the type checkboxes above."
+                      title={t('config:slackSetup.clearAllowlistTitle', { defaultValue: 'Clear the allowlist — fall back to polling all channels per the type checkboxes above.' })}
                     >
-                      Include all (clear list)
+                      {t('config:slackSetup.clearAllowlist', { defaultValue: 'Include all (clear list)' })}
                     </button>
                   )}
                 </div>
@@ -574,7 +576,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                   onChange={(e) => setField('pollingChannelAllowlist', e.target.value)}
                 />
                 <span style={S.fieldDesc}>
-                  Comma- or newline-separated channel IDs. When set, polling restricts to these channels (plus DMs if "Always include DMs" is on). The Channel Types checkboxes above are ignored while an allowlist is active. Leave blank to fall back to polling all channels per the type checkboxes.
+                  {t('config:slackSetup.allowlistHelp', { defaultValue: 'Comma- or newline-separated channel IDs. When set, polling restricts to these channels (plus DMs if "Always include DMs" is on). The Channel Types checkboxes above are ignored while an allowlist is active. Leave blank to fall back to polling all channels per the type checkboxes.' })}
                 </span>
               </div>
 
@@ -585,21 +587,21 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
                     checked={values.pollingDmsAlways}
                     onChange={(e) => setField('pollingDmsAlways', e.target.checked)}
                   />
-                  <span style={S.fieldLabel}>Always include DMs</span>
+                  <span style={S.fieldLabel}>{t('config:slackSetup.alwaysIncludeDms', { defaultValue: 'Always include DMs' })}</span>
                 </label>
                 <span style={S.fieldDesc}>
-                  When the allowlist is set, still poll all 1:1 DMs (D-prefix). Default on. Turn off for strict allowlist-only mode.
+                  {t('config:slackSetup.alwaysIncludeDmsHelp', { defaultValue: 'When the allowlist is set, still poll all 1:1 DMs (D-prefix). Default on. Turn off for strict allowlist-only mode.' })}
                 </span>
               </div>
 
               <div style={S.buttons}>
                 <button type="button" style={S.btnPrimary} onClick={handleSave} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save & Reconnect'}
+                  {saving ? t('config:slackSetup.saving', { defaultValue: 'Saving…' }) : t('config:slackSetup.saveReconnect', { defaultValue: 'Save & Reconnect' })}
                 </button>
-                <button type="button" style={S.btnSecondary} onClick={onCancel}>Close</button>
+                <button type="button" style={S.btnSecondary} onClick={onCancel}>{t('common:buttons.close')}</button>
                 {activeId !== 'default' && (
                   <button type="button" style={{ ...S.btnDanger, marginLeft: 'auto' }} onClick={handleDelete}>
-                    Delete Instance
+                    {t('config:slackSetup.deleteInstance', { defaultValue: 'Delete Instance' })}
                   </button>
                 )}
               </div>

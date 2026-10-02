@@ -10,7 +10,8 @@
     "config:integrations.whatsapp.title",
     "config:webBundle.apkVersion",
     "terminal:documentViewer.copyMarkdown",
-    "terminal:spawn.workingDirPlaceholder"
+    "terminal:spawn.workingDirPlaceholder",
+    "config:integrationsPanel.socketMode"
   ],
   "noCJK": [
     "common:labels.tokens",
@@ -83,6 +84,17 @@
     "re:^dashboard:agentCards\\.",
     "re:^tools:preview\\.",
     "re:^terminal:taskProgress\\.",
+    "re:^config:gmailOAuth\\.",
+    "re:^config:googleOAuth\\.",
+    "re:^config:slackSetup\\.",
+    "re:^config:integrationsPanel\\.",
+    "config:whatsAppConfig.qrImageAlt",
+    "re:^config:pluginHost\\.",
+    "re:^config:systemPromptModal\\.",
+    "re:^tools:skills\\.(classIconAlt|removeIcon|uploadCustomIcon|instructionsPlaceholder)$",
+    "re:^terminal:fileViewerModal\\.",
+    "re:^terminal:terminalEmbed\\.",
+    "re:^terminal:logViewer\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

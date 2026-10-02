@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IntegrationInfo } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 
@@ -26,6 +27,7 @@ interface GoogleAuthStatus {
 }
 
 export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthSetupProps) {
+  const { t } = useTranslation(['config']);
   const [clientId, setClientId] = useState(
     (integration.values.GOOGLE_CLIENT_ID as string) || ''
   );
@@ -112,7 +114,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     }
     const data = (await resp.json()) as { url: string };
     if (!data.url) {
-      throw new Error('OAuth URL is empty');
+      throw new Error(t('config:googleOAuth.oauthUrlEmpty', { defaultValue: 'OAuth URL is empty' }));
     }
     setAuthUrl(data.url);
     setError(null);
@@ -131,7 +133,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
     try {
       await fetchAuthUrlAndStart();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+      setError(err instanceof Error ? err.message : t('config:googleOAuth.failedOAuthUrl', { defaultValue: 'Failed to get OAuth URL' }));
     } finally {
       setLoading(false);
     }
@@ -139,7 +141,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
   const handleSaveCredentials = async () => {
     if (!clientId.trim()) {
-      setError('Client ID is required');
+      setError(t('config:googleOAuth.clientIdRequired', { defaultValue: 'Client ID is required' }));
       return;
     }
 
@@ -165,7 +167,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
       // Fetch the OAuth consent URL and start polling
       await fetchAuthUrlAndStart();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to get OAuth URL';
+      const errorMsg = err instanceof Error ? err.message : t('config:googleOAuth.failedOAuthUrl', { defaultValue: 'Failed to get OAuth URL' });
       console.error('Error in handleSaveCredentials:', errorMsg, err);
       setError(errorMsg);
     } finally {
@@ -181,25 +183,23 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
       {step === 'credentials' && (
         <div className="google-oauth-section">
-          <h4 className="google-oauth-section-title">Google OAuth Credentials</h4>
+          <h4 className="google-oauth-section-title">{t('config:googleOAuth.googleCredentials', { defaultValue: 'Google OAuth Credentials' })}</h4>
 
           {hasSharedCredentials && !showManualEdit ? (
             <>
               <div className="google-oauth-shared-banner">
                 <div className="google-oauth-shared-title">
                   <span>{'\u2713'}</span>
-                  <span>Credentials already configured</span>
+                  <span>{t('config:googleOAuth.credentialsConfigured', { defaultValue: 'Credentials already configured' })}</span>
                 </div>
                 <div className="google-oauth-shared-body">
-                  Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store —
-                  they&apos;re shared between Gmail, Calendar, and Drive. You may still need to re-authorize
-                  once so the refresh token grants access to this service.
+                  {t('config:googleOAuth.sharedBannerBody', { defaultValue: 'Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store — they\'re shared between Gmail, Calendar, and Drive. You may still need to re-authorize once so the refresh token grants access to this service.' })}
                 </div>
               </div>
 
               <div className="integration-form-actions">
                 <button type="button" className="integration-btn cancel" onClick={onCancel}>
-                  Cancel
+                  {t('common:buttons.cancel')}
                 </button>
                 <button
                   type="button"
@@ -207,7 +207,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                   onClick={() => setShowManualEdit(true)}
                   disabled={loading}
                 >
-                  Edit credentials
+                  {t('config:googleOAuth.editCredentials', { defaultValue: 'Edit credentials' })}
                 </button>
                 <button
                   type="button"
@@ -215,14 +215,14 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                   onClick={handleUseSharedCredentials}
                   disabled={loading}
                 >
-                  {loading ? 'Loading...' : 'Authorize with existing credentials'}
+                  {loading ? t('common:status.loading') : t('config:googleOAuth.authorizeExisting', { defaultValue: 'Authorize with existing credentials' })}
                 </button>
               </div>
             </>
           ) : (
             <>
               <p className="google-oauth-help">
-                Create OAuth2 credentials in the{' '}
+                {t('config:googleOAuth.oauthHelpPrefix', { defaultValue: 'Create OAuth2 credentials in the' })}{' '}
                 <a
                   href="https://console.cloud.google.com/apis/credentials"
                   target="_blank"
@@ -231,7 +231,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                 >
                   Google Cloud Console
                 </a>
-                . Enable the relevant API (Gmail, Calendar, or Drive). Set the redirect URI to:{' '}
+                {t('config:googleOAuth.oauthHelpSuffix', { defaultValue: '. Enable the relevant API (Gmail, Calendar, or Drive). Set the redirect URI to:' })}{' '}
                 <code className="google-oauth-code">
                   {(() => {
                     const path = integration.id === 'gmail' ? '/api/email/auth/callback' :
@@ -247,7 +247,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
               <div className="google-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Client ID <span className="integration-field-required">*</span>
+                  {t('config:googleOAuth.oauthClientId', { defaultValue: 'OAuth Client ID' })} <span className="integration-field-required">*</span>
                 </label>
                 <input
                   type="text"
@@ -260,13 +260,13 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
               <div className="google-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Client Secret <span className="integration-field-required">*</span>
+                  {t('config:googleOAuth.oauthClientSecret', { defaultValue: 'OAuth Client Secret' })} <span className="integration-field-required">*</span>
                 </label>
                 <input
                   type="password"
                   className="integration-field-input"
                   value={clientSecret}
-                  placeholder={integration.values.GOOGLE_CLIENT_SECRET ? '(saved)' : 'Enter client secret'}
+                  placeholder={integration.values.GOOGLE_CLIENT_SECRET ? t('config:googleOAuth.savedPlaceholder', { defaultValue: '(saved)' }) : t('config:googleOAuth.clientSecretPlaceholder', { defaultValue: 'Enter client secret' })}
                   onChange={(e) => setClientSecret(e.target.value)}
                   autoComplete="off"
                 />
@@ -274,7 +274,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
               <div className="google-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Redirect Base URL
+                  {t('config:googleOAuth.redirectBaseUrl', { defaultValue: 'OAuth Redirect Base URL' })}
                 </label>
                 <input
                   type="text"
@@ -285,15 +285,17 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                   autoComplete="off"
                 />
                 <span className="integration-field-description" style={{ display: 'block', marginTop: 7, color: '#7f849c', fontSize: 12 }}>
-                  Override the base URL used to build the OAuth redirect (e.g. <code>http://commander.local:10003</code>).
-                  Shared across Gmail, Calendar, and Drive. Leave empty to use the server&apos;s local address.
-                  Google does not accept raw IPs — use a domain (you can map one in <code>/etc/hosts</code>).
+                  {t('config:googleOAuth.redirectHelpPrefix', { defaultValue: 'Override the base URL used to build the OAuth redirect (e.g.' })}{' '}
+                  <code>http://commander.local:10003</code>
+                  {t('config:googleOAuth.redirectHelpMiddle', { defaultValue: '). Shared across Gmail, Calendar, and Drive. Leave empty to use the server\'s local address. Google does not accept raw IPs — use a domain (you can map one in' })}{' '}
+                  <code>/etc/hosts</code>
+                  {t('config:googleOAuth.redirectHelpSuffix', { defaultValue: ').' })}
                 </span>
               </div>
 
               <div className="integration-form-actions">
                 <button type="button" className="integration-btn cancel" onClick={onCancel}>
-                  Cancel
+                  {t('common:buttons.cancel')}
                 </button>
                 <button
                   type="button"
@@ -301,7 +303,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                   onClick={handleSaveCredentials}
                   disabled={loading || !clientId.trim()}
                 >
-                  {loading ? 'Saving...' : 'Save & Authorize'}
+                  {loading ? t('terminal:fileExplorer.saving') : t('config:googleOAuth.saveAndAuthorize', { defaultValue: 'Save & Authorize' })}
                 </button>
               </div>
             </>
@@ -311,10 +313,9 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
       {step === 'authorize' && (
         <div className="google-oauth-section">
-          <h4 className="google-oauth-section-title">Authorize Google Access</h4>
+          <h4 className="google-oauth-section-title">{t('config:googleOAuth.authorizeTitle', { defaultValue: 'Authorize Google Access' })}</h4>
           <p className="google-oauth-help">
-            Click the link below to authorize Tide Commander to access your Google account.
-            After granting access, you will be redirected back and the connection will be established automatically.
+            {t('config:googleOAuth.authorizeHelp', { defaultValue: 'Click the link below to authorize Tide Commander to access your Google account. After granting access, you will be redirected back and the connection will be established automatically.' })}
           </p>
 
           {authUrl && (
@@ -324,13 +325,13 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
               rel="noopener noreferrer"
               className="google-oauth-authorize-btn"
             >
-              Authorize with Google
+              {t('config:googleOAuth.authorizeWithGoogle', { defaultValue: 'Authorize with Google' })}
             </a>
           )}
 
           <div className="google-oauth-waiting">
             <span className="google-oauth-spinner" />
-            <span>Waiting for authorization to complete...</span>
+            <span>{t('config:googleOAuth.waiting', { defaultValue: 'Waiting for authorization to complete...' })}</span>
           </div>
 
           <div className="integration-form-actions">
@@ -345,7 +346,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                 setStep('credentials');
               }}
             >
-              Back
+              {t('common:buttons.back')}
             </button>
           </div>
         </div>
@@ -353,30 +354,27 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
       {step === 'expired' && (
         <div className="google-oauth-section">
-          <h4 className="google-oauth-section-title">Google Authorization Expired</h4>
+          <h4 className="google-oauth-section-title">{t('config:googleOAuth.expiredTitle', { defaultValue: 'Google Authorization Expired' })}</h4>
 
           <div className="google-oauth-expired-banner">
             <div className="google-oauth-expired-title">
               <span>{'⚠'}</span>
               <span>
                 {authStatus?.tokenState === 'invalid_client'
-                  ? 'OAuth credentials rejected'
-                  : 'Token expired — reconnect required'}
+                  ? t('config:googleOAuth.rejected', { defaultValue: 'OAuth credentials rejected' })
+                  : t('config:googleOAuth.tokenExpired', { defaultValue: 'Token expired — reconnect required' })}
               </span>
             </div>
             <div className="google-oauth-expired-body">
               {authStatus?.tokenState === 'invalid_client' ? (
                 <>
-                  Google rejected the Client ID / Client Secret. Confirm the OAuth client still
-                  exists in the Google Cloud Console, then re-enter the credentials.
+                  {t('config:googleOAuth.rejectedBody', { defaultValue: 'Google rejected the Client ID / Client Secret. Confirm the OAuth client still exists in the Google Cloud Console, then re-enter the credentials.' })}
                 </>
               ) : (
                 <>
-                  Google rejected the stored refresh token, so Gmail, Calendar, and Drive can no
-                  longer act on your account — they all share this one token. This normally happens
-                  when access is revoked, the account password changed, or the OAuth consent screen
-                  is still in <strong>Testing</strong> mode (Google expires those refresh tokens
-                  after 7 days — publish the app to stop it recurring).
+                  {t('config:googleOAuth.expiredBodyPrefix', { defaultValue: 'Google rejected the stored refresh token, so Gmail, Calendar, and Drive can no longer act on your account — they all share this one token. This normally happens when access is revoked, the account password changed, or the OAuth consent screen is still in' })}{' '}
+                  <strong>Testing</strong>{' '}
+                  {t('config:googleOAuth.expiredBodySuffix', { defaultValue: 'mode (Google expires those refresh tokens after 7 days — publish the app to stop it recurring).' })}
                 </>
               )}
             </div>
@@ -387,7 +385,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
           <div className="integration-form-actions">
             <button type="button" className="integration-btn cancel" onClick={onCancel}>
-              Close
+              {t('common:buttons.close')}
             </button>
             <button
               type="button"
@@ -398,7 +396,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
               }}
               disabled={loading}
             >
-              Edit credentials
+              {t('config:googleOAuth.editCredentials', { defaultValue: 'Edit credentials' })}
             </button>
             <button
               type="button"
@@ -409,14 +407,14 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                 try {
                   await fetchAuthUrlAndStart();
                 } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+                  setError(err instanceof Error ? err.message : t('config:googleOAuth.failedOAuthUrl', { defaultValue: 'Failed to get OAuth URL' }));
                 } finally {
                   setLoading(false);
                 }
               }}
               disabled={loading}
             >
-              {loading ? 'Loading...' : 'Reconnect Google'}
+              {loading ? t('common:status.loading') : t('config:googleOAuth.reconnect', { defaultValue: 'Reconnect Google' })}
             </button>
           </div>
         </div>
@@ -424,17 +422,17 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
 
       {step === 'connected' && (
         <div className="google-oauth-section">
-          <h4 className="google-oauth-section-title">Google Connected</h4>
+          <h4 className="google-oauth-section-title">{t('config:googleOAuth.connectedTitle', { defaultValue: 'Google Connected' })}</h4>
 
           <div className="google-oauth-connected-info">
-            <span className="google-oauth-connected-badge">Connected</span>
+            <span className="google-oauth-connected-badge">{t('common:status.connected')}</span>
             {authStatus?.emailAddress && (
               <span className="google-oauth-email">{authStatus.emailAddress}</span>
             )}
           </div>
 
           <p className="google-oauth-help">
-            Your Google account has been successfully connected.
+            {t('config:googleOAuth.connectedHelp', { defaultValue: 'Your Google account has been successfully connected.' })}
           </p>
 
           <div className="integration-form-actions">
@@ -447,7 +445,7 @@ export function GoogleOAuthSetup({ integration, onSave, onCancel }: GoogleOAuthS
                 onCancel();
               }}
             >
-              Close
+              {t('common:buttons.close')}
             </button>
           </div>
         </div>

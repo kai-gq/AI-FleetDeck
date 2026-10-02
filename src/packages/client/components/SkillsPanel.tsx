@@ -1117,7 +1117,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                     <div className="class-icon-preview-container">
                       <img
                         src={classIconPreview}
-                        alt="Class icon"
+                        alt={t('tools:skills.classIconAlt', { defaultValue: 'Class icon' })}
                         className="class-icon-preview-img"
                       />
                       <button
@@ -1135,7 +1135,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                             }
                           }
                         }}
-                        title="Remove icon"
+                        title={t('tools:skills.removeIcon', { defaultValue: 'Remove icon' })}
                       >
                         &times;
                       </button>
@@ -1171,7 +1171,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                   <button
                     className="class-icon-upload-btn"
                     onClick={() => iconFileInputRef.current?.click()}
-                    title="Upload custom icon"
+                    title={t('tools:skills.uploadCustomIcon', { defaultValue: 'Upload custom icon' })}
                   >
                     <span className="class-icon-upload-icon">+</span>
                     <span className="class-icon-upload-label">IMG</span>
@@ -1243,7 +1243,7 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
                   className="form-input"
                   value={classInstructions}
                   onChange={(e) => setClassInstructions(e.target.value)}
-                  placeholder="# Agent Instructions&#10;&#10;You are a specialized agent...&#10;&#10;## Guidelines&#10;- Follow these rules...&#10;- Use best practices..."
+                  placeholder={t('tools:skills.instructionsPlaceholder', { defaultValue: '# Agent Instructions\n\nYou are a specialized agent...\n\n## Guidelines\n- Follow these rules...\n- Use best practices...' })}
                   style={{
                     minHeight: '150px',
                     resize: 'vertical',

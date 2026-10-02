@@ -115,7 +115,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
       setOriginalPrompt(prompt);
       setIsDirty(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save system prompt');
+      setError(err instanceof Error ? err.message : t('config:systemPromptModal.saveFailed', { defaultValue: 'Failed to save system prompt' }));
     }
   };
 
@@ -140,7 +140,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
       setOriginalPrompt('');
       setIsDirty(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear system prompt');
+      setError(err instanceof Error ? err.message : t('config:systemPromptModal.clearFailed', { defaultValue: 'Failed to clear system prompt' }));
     }
   };
 
@@ -198,7 +198,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
         <div className="system-prompt-modal" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
           <div className="modal-header">
             <h2>{t('config:systemPrompt.title')}</h2>
-            <button className="modal-close" onClick={requestClose} aria-label="Close">
+            <button className="modal-close" onClick={requestClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -294,7 +294,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
                 className="btn btn-secondary"
                 onClick={requestClose}
               >
-                Close
+                {t('common:buttons.close')}
               </button>
 
               <button
@@ -322,7 +322,7 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
         title={t('config:systemPrompt.clear')}
         message={t(isGlobal ? 'config:systemPrompt.confirmClearGlobal' : 'config:systemPrompt.confirmClear')}
         confirmLabel={t('config:systemPrompt.clear')}
-        cancelLabel="Cancel"
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { performClear(); }}
         onClose={() => setClearConfirmOpen(false)}
@@ -330,10 +330,10 @@ export function SystemPromptModal({ isOpen, onClose, initialAgentId }: SystemPro
 
       <ConfirmModal
         isOpen={unsavedConfirmOpen}
-        title="Unsaved Changes"
-        message="You have unsaved changes for this agent. Discard them?"
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={t('config:whatsapp.unsavedTitle')}
+        message={t('config:systemPromptModal.unsavedMessage', { defaultValue: 'You have unsaved changes for this agent. Discard them?' })}
+        confirmLabel={t('config:systemPromptModal.discard', { defaultValue: 'Discard' })}
+        cancelLabel={t('config:whatsapp.keepEditing')}
         variant="danger"
         onConfirm={confirmDiscard}
         onClose={() => { setUnsavedConfirmOpen(false); setPendingAgentId(null); }}

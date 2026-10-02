@@ -365,7 +365,7 @@ export function WhatsAppConfigModal({ isOpen, onClose }: WhatsAppConfigModalProp
         >
           <div className="modal-header">
             <h2>{t('config:whatsapp.title')}</h2>
-            <button className="modal-close" onClick={requestClose} aria-label="Close">
+            <button className="modal-close" onClick={requestClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -574,7 +574,7 @@ export function WhatsAppConfigModal({ isOpen, onClose }: WhatsAppConfigModalProp
                       </div>
                       {pairingQr ? (
                         <div className="wa-qr-image">
-                          <img src={pairingQr} alt="WhatsApp pairing QR code" />
+                          <img src={pairingQr} alt={t('config:whatsAppConfig.qrImageAlt', { defaultValue: 'WhatsApp pairing QR code' })} />
                         </div>
                       ) : (
                         <div className="wa-qr-loading">
@@ -683,7 +683,7 @@ export function WhatsAppConfigModal({ isOpen, onClose }: WhatsAppConfigModalProp
         title={t('config:whatsapp.clearKey')}
         message={t('config:whatsapp.confirmClearKey')}
         confirmLabel={t('config:whatsapp.clearKey')}
-        cancelLabel="Cancel"
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { void performClearApiKey(); }}
         onClose={() => setClearKeyConfirmOpen(false)}
@@ -694,7 +694,7 @@ export function WhatsAppConfigModal({ isOpen, onClose }: WhatsAppConfigModalProp
         title={t('config:whatsapp.deleteSession')}
         message={t('config:whatsapp.confirmDeleteSession', { id: pendingDeleteSessionId ?? '' })}
         confirmLabel={t('config:whatsapp.deleteSession')}
-        cancelLabel="Cancel"
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { void performDeleteSession(); }}
         onClose={() => { setDeleteSessionConfirmOpen(false); setPendingDeleteSessionId(null); }}

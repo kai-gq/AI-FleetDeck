@@ -219,7 +219,11 @@
     "skillDescPlaceholder": "描述何时应使用此技能。包含触发短语如 'push code'、'deploy' 等。",
     "skillContentPlaceholder": "执行此技能的分步说明…",
     "customToolPlaceholder": "自定义工具（例如：Bash(make:*)）",
-    "deleteClass": "删除类别"
+    "deleteClass": "删除类别",
+    "classIconAlt": "类别图标",
+    "removeIcon": "移除图标",
+    "uploadCustomIcon": "上传自定义图标",
+    "instructionsPlaceholder": "# 智能体指令\n\n你是一个专用智能体……\n\n## 指南\n- 遵循以下规则……\n- 采用最佳实践……"
   },
   "subagent": {
     "subagentTask": "子智能体任务",

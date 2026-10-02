@@ -1550,7 +1550,29 @@
     "removeArea": "移除区域",
     "clearAreas": "清空",
     "copyAreas": "复制给智能体",
-    "areasCopied": "已复制"
+    "areasCopied": "已复制",
+    "downloadFailed": "下载失败",
+    "matchedInArea": "在区域内匹配：{{area}}",
+    "matchedBySuffix": "根据来自 {{root}} 的后缀匹配",
+    "childAnchor": "在 {{root}} 下的项目文件夹中找到（引用路径相对于该文件夹）",
+    "resolvedVia": "通过 {{strategy}} 解析",
+    "showHtmlSource": "显示 HTML 源码",
+    "renderHtmlTitle": "渲染 HTML 并加载关联的 CSS、脚本和资源",
+    "htmlSource": "源码",
+    "renderedHtml": "渲染 HTML",
+    "exitFullscreen": "退出全屏（Esc）",
+    "viewFullscreen": "全屏查看渲染后的 HTML",
+    "exitFullscreenAria": "退出渲染 HTML 全屏",
+    "backTitle": "后退（Alt+←）",
+    "forwardTitle": "前进（Alt+→）",
+    "forward": "前进",
+    "upTitle": "上一级到 {{path}}（Alt+↑）",
+    "atRoot": "已在根目录",
+    "upOneFolder": "上一级文件夹",
+    "foundMatches": "在项目中找到 {{n}} 个匹配文件：",
+    "dirContents": "目录内容（{{n}} 项）：",
+    "emptyFolder": "此文件夹为空",
+    "renderedPreview": "{{name}} 的渲染预览"
   },
   "audioPlayer": {
     "decoding": "正在读取波形…",
@@ -2463,7 +2485,9 @@
     "result": "结果",
     "hideRaw": "隐藏原始输出",
     "raw": "原始输出",
-    "copy": "复制输出"
+    "copy": "复制输出",
+    "healthOk": "正常",
+    "healthFail": "异常"
   },
   "bolbaView": {
     "requestFailed": "Bolba 请求失败({{status}})",
@@ -3141,5 +3165,34 @@
   },
   "taskProgress": {
     "tasksDone": "已完成 {{done}}/{{total}} 个任务"
+  },
+  "terminalEmbed": {
+    "disconnected": "[终端已断开]",
+    "escape": "Esc 键",
+    "tab": "Tab 键",
+    "ctrl": "Ctrl — 让下一次按键作为控制键输入",
+    "interrupt": "中断（Ctrl+C）",
+    "left": "左方向键",
+    "down": "下方向键",
+    "up": "上方向键",
+    "right": "右方向键",
+    "smaller": "缩小字体",
+    "larger": "放大字体",
+    "paste": "从剪贴板粘贴"
+  },
+  "logViewer": {
+    "liveStreaming": "实时流式输出",
+    "minimize": "最小化 — 停靠到终端输入框下方",
+    "toggleRegex": "切换正则模式",
+    "allLinesTitle": "显示所有行（高亮匹配项）",
+    "contextOnlyTitle": "仅显示匹配项附近的上下文",
+    "allLines": "全部",
+    "contextLines": "上下文",
+    "contextCountTitle": "匹配项前后的上下文行数",
+    "prevMatch": "上一个匹配（Shift+F3）",
+    "nextMatch": "下一个匹配（F3）",
+    "footerScroll": "滚动",
+    "footerTopBottom": "顶部/底部",
+    "footerNextPrev": "下一个/上一个匹配"
   }
 }

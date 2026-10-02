@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IntegrationInfo } from '../../shared/integration-types.js';
 import { apiUrl, authFetch } from '../utils/storage';
 import { Icon } from './Icon';
@@ -30,6 +31,7 @@ interface GmailAuthStatus {
 type AuthMethod = 'oauth2' | 'service_account';
 
 export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSetupProps) {
+  const { t } = useTranslation(['config']);
   const [authMethod, setAuthMethod] = useState<AuthMethod>(
     (integration.values.authMethod as AuthMethod) || 'oauth2'
   );
@@ -130,7 +132,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     }
     const data = (await resp.json()) as { url: string };
     if (!data.url) {
-      throw new Error('OAuth URL is empty');
+      throw new Error(t('config:gmailOAuth.oauthUrlEmpty', { defaultValue: 'OAuth URL is empty' }));
     }
     setAuthUrl(data.url);
     setError(null);
@@ -149,7 +151,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     try {
       await fetchAuthUrlAndStart();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get OAuth URL');
+      setError(err instanceof Error ? err.message : t('config:gmailOAuth.failedOAuthUrl', { defaultValue: 'Failed to get OAuth URL' }));
     } finally {
       setLoading(false);
     }
@@ -158,7 +160,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
   // Save OAuth2 credentials and get OAuth URL
   const handleSaveOAuth = async () => {
     if (!clientId.trim()) {
-      setError('Client ID is required');
+      setError(t('config:gmailOAuth.clientIdRequired', { defaultValue: 'Client ID is required' }));
       return;
     }
 
@@ -183,7 +185,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
       await fetchAuthUrlAndStart();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to get OAuth URL';
+      const errorMsg = err instanceof Error ? err.message : t('config:gmailOAuth.failedOAuthUrl', { defaultValue: 'Failed to get OAuth URL' });
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -193,11 +195,11 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
   // Save Service Account credentials
   const handleSaveServiceAccount = async () => {
     if (!serviceAccountJson.trim()) {
-      setError('Service Account JSON is required');
+      setError(t('config:gmailOAuth.serviceAccountRequired', { defaultValue: 'Service Account JSON is required' }));
       return;
     }
     if (!impersonateEmail.trim()) {
-      setError('Impersonate Email is required');
+      setError(t('config:gmailOAuth.impersonateEmailRequired', { defaultValue: 'Impersonate Email is required' }));
       return;
     }
 
@@ -205,11 +207,11 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
     try {
       const parsed = JSON.parse(serviceAccountJson.trim());
       if (!parsed.client_email || !parsed.private_key) {
-        setError('Service Account JSON must contain client_email and private_key');
+        setError(t('config:gmailOAuth.serviceAccountInvalid', { defaultValue: 'Service Account JSON must contain client_email and private_key' }));
         return;
       }
     } catch {
-      setError('Invalid JSON in Service Account field');
+      setError(t('config:gmailOAuth.invalidJson', { defaultValue: 'Invalid JSON in Service Account field' }));
       return;
     }
 
@@ -229,7 +231,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       await new Promise(resolve => setTimeout(resolve, 1000));
       await fetchStatus();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to save service account';
+      const errorMsg = err instanceof Error ? err.message : t('config:gmailOAuth.saveServiceAccountFailed', { defaultValue: 'Failed to save service account' });
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -246,7 +248,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
         defaultApprovalKeywords: approvalKeywords,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save settings');
+      setError(err instanceof Error ? err.message : t('config:gmailOAuth.saveSettingsFailed', { defaultValue: 'Failed to save settings' }));
     } finally {
       setSaving(false);
     }
@@ -271,7 +273,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       }
       await fetchStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle polling');
+      setError(err instanceof Error ? err.message : t('config:gmailOAuth.togglePollingFailed', { defaultValue: 'Failed to toggle polling' }));
     } finally {
       setTogglingPolling(false);
     }
@@ -288,7 +290,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       setStep('credentials');
       await fetchStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect');
+      setError(err instanceof Error ? err.message : t('config:gmailOAuth.disconnectFailed', { defaultValue: 'Failed to disconnect' }));
     } finally {
       setLoading(false);
     }
@@ -307,7 +309,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
         <div className="gmail-oauth-section">
           {/* Auth Method Selector */}
           <div className="gmail-oauth-field" style={{ marginBottom: 24 }}>
-            <label className="integration-field-label">Authentication Method</label>
+            <label className="integration-field-label">{t('config:gmailOAuth.authMethod', { defaultValue: 'Authentication Method' })}</label>
             <div className="gmail-auth-method-selector">
               <button
                 type="button"
@@ -316,7 +318,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               >
                 <span className="gmail-auth-method-icon"><Icon name="key" size={14} /></span>
                 <span className="gmail-auth-method-label">OAuth 2.0</span>
-                <span className="gmail-auth-method-desc">Browser login flow</span>
+                <span className="gmail-auth-method-desc">{t('config:gmailOAuth.browserLoginFlow', { defaultValue: 'Browser login flow' })}</span>
               </button>
               <button
                 type="button"
@@ -324,8 +326,8 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 onClick={() => { setAuthMethod('service_account'); setError(null); }}
               >
                 <span className="gmail-auth-method-icon"><Icon name="robot" size={14} /></span>
-                <span className="gmail-auth-method-label">Service Account</span>
-                <span className="gmail-auth-method-desc">Domain-wide delegation</span>
+                <span className="gmail-auth-method-label">{t('config:gmailOAuth.serviceAccountType', { defaultValue: 'Service Account' })}</span>
+                <span className="gmail-auth-method-desc">{t('config:gmailOAuth.delegationDesc', { defaultValue: 'Domain-wide delegation' })}</span>
               </button>
             </div>
           </div>
@@ -333,16 +335,14 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           {/* OAuth2 — shared-credentials shortcut */}
           {authMethod === 'oauth2' && hasSharedCredentials && !showManualEdit && (
             <>
-              <h4 className="gmail-oauth-section-title">Google OAuth Credentials</h4>
+              <h4 className="gmail-oauth-section-title">{t('config:gmailOAuth.googleCredentials', { defaultValue: 'Google OAuth Credentials' })}</h4>
               <div className="gmail-oauth-shared-banner">
                 <div className="gmail-oauth-shared-title">
                   <span>{'\u2713'}</span>
-                  <span>Credentials already configured</span>
+                  <span>{t('config:gmailOAuth.credentialsConfigured', { defaultValue: 'Credentials already configured' })}</span>
                 </div>
                 <div className="gmail-oauth-shared-body">
-                  Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store —
-                  they&apos;re shared between Gmail, Calendar, and Drive. You may still need to re-authorize
-                  once so the refresh token grants Gmail access.
+                  {t('config:gmailOAuth.sharedBannerBody', { defaultValue: 'Existing Google OAuth credentials (Client ID and Secret) are saved in your secrets store — they\'re shared between Gmail, Calendar, and Drive. You may still need to re-authorize once so the refresh token grants Gmail access.' })}
                 </div>
               </div>
             </>
@@ -351,9 +351,9 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           {/* OAuth2 — manual credentials form */}
           {authMethod === 'oauth2' && (!hasSharedCredentials || showManualEdit) && (
             <>
-              <h4 className="gmail-oauth-section-title">Google OAuth Credentials</h4>
+              <h4 className="gmail-oauth-section-title">{t('config:gmailOAuth.googleCredentials', { defaultValue: 'Google OAuth Credentials' })}</h4>
               <p className="gmail-oauth-help">
-                Create OAuth2 credentials in the{' '}
+                {t('config:gmailOAuth.oauthHelpPrefix', { defaultValue: 'Create OAuth2 credentials in the' })}{' '}
                 <a
                   href="https://console.cloud.google.com/apis/credentials"
                   target="_blank"
@@ -362,7 +362,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 >
                   Google Cloud Console
                 </a>
-                . Enable the Gmail API and (optionally) the Calendar API. Set the redirect URI to:{' '}
+                {t('config:gmailOAuth.oauthHelpSuffix', { defaultValue: '. Enable the Gmail API and (optionally) the Calendar API. Set the redirect URI to:' })}{' '}
                 <code className="gmail-oauth-code">
                   {redirectBaseUrl.trim()
                     ? `${redirectBaseUrl.trim().replace(/\/$/, '')}/api/email/auth/callback`
@@ -372,7 +372,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
               <div className="gmail-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Client ID <span className="integration-field-required">*</span>
+                  {t('config:gmailOAuth.oauthClientId', { defaultValue: 'OAuth Client ID' })} <span className="integration-field-required">*</span>
                 </label>
                 <input
                   type="text"
@@ -385,13 +385,13 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
               <div className="gmail-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Client Secret <span className="integration-field-required">*</span>
+                  {t('config:gmailOAuth.oauthClientSecret', { defaultValue: 'OAuth Client Secret' })} <span className="integration-field-required">*</span>
                 </label>
                 <input
                   type="password"
                   className="integration-field-input"
                   value={clientSecret}
-                  placeholder={integration.values.clientSecret ? '(saved)' : 'Enter client secret'}
+                  placeholder={integration.values.clientSecret ? t('config:gmailOAuth.savedPlaceholder', { defaultValue: '(saved)' }) : t('config:gmailOAuth.clientSecretPlaceholder', { defaultValue: 'Enter client secret' })}
                   onChange={(e) => setClientSecret(e.target.value)}
                   autoComplete="off"
                 />
@@ -399,7 +399,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
               <div className="gmail-oauth-field">
                 <label className="integration-field-label">
-                  OAuth Redirect Base URL
+                  {t('config:gmailOAuth.redirectBaseUrl', { defaultValue: 'OAuth Redirect Base URL' })}
                 </label>
                 <input
                   type="text"
@@ -410,9 +410,11 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                   autoComplete="off"
                 />
                 <span className="integration-field-description">
-                  Override the base URL used to build the OAuth redirect (e.g. <code>http://commander.local:10003</code>).
-                  Leave empty to use the server&apos;s local address. Google does not accept raw IPs — use a domain
-                  (you can map one in <code>/etc/hosts</code>).
+                  {t('config:gmailOAuth.redirectHelpPrefix', { defaultValue: 'Override the base URL used to build the OAuth redirect (e.g.' })}{' '}
+                  <code>http://commander.local:10003</code>
+                  {t('config:gmailOAuth.redirectHelpMiddle', { defaultValue: '). Leave empty to use the server\'s local address. Google does not accept raw IPs — use a domain (you can map one in' })}{' '}
+                  <code>/etc/hosts</code>
+                  {t('config:gmailOAuth.redirectHelpSuffix', { defaultValue: ').' })}
                 </span>
               </div>
             </>
@@ -421,40 +423,40 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           {/* Service Account Fields */}
           {authMethod === 'service_account' && (
             <>
-              <h4 className="gmail-oauth-section-title">Service Account Credentials</h4>
+              <h4 className="gmail-oauth-section-title">{t('config:gmailOAuth.serviceAccountCredentials', { defaultValue: 'Service Account Credentials' })}</h4>
               <p className="gmail-oauth-help">
-                Use a Google service account with{' '}
+                {t('config:gmailOAuth.saHelpPrefix', { defaultValue: 'Use a Google service account with' })}{' '}
                 <a
                   href="https://admin.google.com/ac/owl/domainwidedelegation"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="gmail-oauth-link"
                 >
-                  domain-wide delegation
+                  {t('config:gmailOAuth.delegationLink', { defaultValue: 'domain-wide delegation' })}
                 </a>
-                {' '}enabled. The service account must be authorized for Gmail scopes in Google Workspace Admin.
+                {' '}{t('config:gmailOAuth.saHelpSuffix', { defaultValue: 'enabled. The service account must be authorized for Gmail scopes in Google Workspace Admin.' })}
               </p>
 
               <div className="gmail-oauth-field">
                 <label className="integration-field-label">
-                  Service Account JSON <span className="integration-field-required">*</span>
+                  {t('config:gmailOAuth.serviceAccountJsonLabel', { defaultValue: 'Service Account JSON' })} <span className="integration-field-required">*</span>
                 </label>
                 <textarea
                   className="integration-field-input integration-field-textarea"
                   value={serviceAccountJson}
-                  placeholder={hasServiceAccountSaved ? '(saved — paste new JSON to replace)' : 'Paste the full service account JSON key file contents'}
+                  placeholder={hasServiceAccountSaved ? t('config:gmailOAuth.saJsonSavedPlaceholder', { defaultValue: '(saved — paste new JSON to replace)' }) : t('config:gmailOAuth.saJsonPlaceholder', { defaultValue: 'Paste the full service account JSON key file contents' })}
                   onChange={(e) => setServiceAccountJson(e.target.value)}
                   rows={6}
                   spellCheck={false}
                 />
                 <span className="integration-field-description">
-                  The JSON key file downloaded from Google Cloud Console containing client_email and private_key.
+                  {t('config:gmailOAuth.saJsonHelp', { defaultValue: 'The JSON key file downloaded from Google Cloud Console containing client_email and private_key.' })}
                 </span>
               </div>
 
               <div className="gmail-oauth-field">
                 <label className="integration-field-label">
-                  Impersonate Email <span className="integration-field-required">*</span>
+                  {t('config:gmailOAuth.impersonateEmailLabel', { defaultValue: 'Impersonate Email' })} <span className="integration-field-required">*</span>
                 </label>
                 <input
                   type="email"
@@ -464,7 +466,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                   onChange={(e) => setImpersonateEmail(e.target.value)}
                 />
                 <span className="integration-field-description">
-                  The email address to impersonate via domain-wide delegation. Must be a user in your Google Workspace domain.
+                  {t('config:gmailOAuth.impersonateEmailHelp', { defaultValue: 'The email address to impersonate via domain-wide delegation. Must be a user in your Google Workspace domain.' })}
                 </span>
               </div>
             </>
@@ -472,7 +474,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
           {/* Shared fields */}
           <div className="gmail-oauth-field">
-            <label className="integration-field-label">Polling Interval (ms)</label>
+            <label className="integration-field-label">{t('config:gmailOAuth.pollingInterval', { defaultValue: 'Polling Interval (ms)' })}</label>
             <input
               type="number"
               className="integration-field-input"
@@ -480,12 +482,12 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               onChange={(e) => setPollingInterval(e.target.value)}
             />
             <span className="integration-field-description">
-              How often to check for new emails. Default: 30000 (30s).
+              {t('config:gmailOAuth.pollingIntervalHelp', { defaultValue: 'How often to check for new emails. Default: 30000 (30s).' })}
             </span>
           </div>
 
           <div className="gmail-oauth-field">
-            <label className="integration-field-label">Approval Keywords</label>
+            <label className="integration-field-label">{t('config:gmailOAuth.approvalKeywords', { defaultValue: 'Approval Keywords' })}</label>
             <textarea
               className="integration-field-input integration-field-textarea"
               value={approvalKeywords}
@@ -493,13 +495,13 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               rows={2}
             />
             <span className="integration-field-description">
-              Comma-separated keywords that indicate email approval.
+              {t('config:gmailOAuth.approvalKeywordsHelp', { defaultValue: 'Comma-separated keywords that indicate email approval.' })}
             </span>
           </div>
 
           <div className="integration-form-actions">
             <button type="button" className="integration-btn cancel" onClick={onCancel}>
-              Cancel
+              {t('common:buttons.cancel')}
             </button>
             {authMethod === 'oauth2' && hasSharedCredentials && !showManualEdit ? (
               <>
@@ -509,7 +511,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                   onClick={() => setShowManualEdit(true)}
                   disabled={loading}
                 >
-                  Edit credentials
+                  {t('config:gmailOAuth.editCredentials', { defaultValue: 'Edit credentials' })}
                 </button>
                 <button
                   type="button"
@@ -517,7 +519,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                   onClick={handleUseSharedCredentials}
                   disabled={loading}
                 >
-                  {loading ? 'Loading...' : 'Authorize with existing credentials'}
+                  {loading ? t('common:status.loading') : t('config:gmailOAuth.authorizeExisting', { defaultValue: 'Authorize with existing credentials' })}
                 </button>
               </>
             ) : authMethod === 'oauth2' ? (
@@ -527,7 +529,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 onClick={handleSaveOAuth}
                 disabled={loading || !clientId.trim()}
               >
-                {loading ? 'Saving...' : 'Save & Authorize'}
+                {loading ? t('terminal:fileExplorer.saving') : t('config:gmailOAuth.saveAndAuthorize', { defaultValue: 'Save & Authorize' })}
               </button>
             ) : (
               <button
@@ -536,7 +538,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 onClick={handleSaveServiceAccount}
                 disabled={loading || !impersonateEmail.trim() || (!serviceAccountJson.trim() && !hasServiceAccountSaved)}
               >
-                {loading ? 'Connecting...' : 'Save & Connect'}
+                {loading ? t('config:gmailOAuth.connecting', { defaultValue: 'Connecting...' }) : t('config:gmailOAuth.saveAndConnect', { defaultValue: 'Save & Connect' })}
               </button>
             )}
           </div>
@@ -546,10 +548,9 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       {/* Step 2: OAuth Authorization (OAuth2 only) */}
       {step === 'authorize' && (
         <div className="gmail-oauth-section">
-          <h4 className="gmail-oauth-section-title">Authorize Gmail Access</h4>
+          <h4 className="gmail-oauth-section-title">{t('config:gmailOAuth.authorizeTitle', { defaultValue: 'Authorize Gmail Access' })}</h4>
           <p className="gmail-oauth-help">
-            Click the link below to authorize Tide Commander to access your Gmail account.
-            After granting access, you will be redirected back and the connection will be established automatically.
+            {t('config:gmailOAuth.authorizeHelp', { defaultValue: 'Click the link below to authorize Tide Commander to access your Gmail account. After granting access, you will be redirected back and the connection will be established automatically.' })}
           </p>
 
           {authUrl && (
@@ -559,13 +560,13 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               rel="noopener noreferrer"
               className="gmail-oauth-authorize-btn"
             >
-              Authorize with Google
+              {t('config:gmailOAuth.authorizeWithGoogle', { defaultValue: 'Authorize with Google' })}
             </a>
           )}
 
           <div className="gmail-oauth-waiting">
             <span className="gmail-oauth-spinner" />
-            <span>Waiting for authorization to complete...</span>
+            <span>{t('config:gmailOAuth.waiting', { defaultValue: 'Waiting for authorization to complete...' })}</span>
           </div>
 
           <div className="integration-form-actions">
@@ -580,7 +581,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
                 setStep('credentials');
               }}
             >
-              Back
+              {t('common:buttons.back')}
             </button>
           </div>
         </div>
@@ -589,36 +590,36 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
       {/* Step 3: Connected */}
       {step === 'connected' && (
         <div className="gmail-oauth-section">
-          <h4 className="gmail-oauth-section-title">Gmail Connected</h4>
+          <h4 className="gmail-oauth-section-title">{t('config:gmailOAuth.connectedTitle', { defaultValue: 'Gmail Connected' })}</h4>
 
           <div className="gmail-oauth-connected-info">
-            <span className="gmail-oauth-connected-badge">Connected</span>
+            <span className="gmail-oauth-connected-badge">{t('common:status.connected')}</span>
             {authStatus?.emailAddress && (
               <span className="gmail-oauth-email">{authStatus.emailAddress}</span>
             )}
             <span className="gmail-oauth-auth-type">
-              {authMethod === 'service_account' ? 'Service Account' : 'OAuth 2.0'}
+              {authMethod === 'service_account' ? t('config:gmailOAuth.serviceAccountType', { defaultValue: 'Service Account' }) : 'OAuth 2.0'}
             </span>
           </div>
 
           <div className="gmail-polling-toggle-row">
             <div className="gmail-polling-toggle-info">
-              <div className="gmail-polling-toggle-label">Automatic Polling</div>
+              <div className="gmail-polling-toggle-label">{t('config:gmailOAuth.automaticPolling', { defaultValue: 'Automatic Polling' })}</div>
               <div className="gmail-polling-toggle-status">
                 {authStatus?.pollingActive ? (
                   <>
                     <span className="gmail-polling-dot active" />
-                    Active
+                    {t('common:labels.active')}
                     {authStatus.lastChecked && (
                       <span className="gmail-polling-last">
-                        — last checked {new Date(authStatus.lastChecked).toLocaleTimeString()}
+                        {t('config:gmailOAuth.lastChecked', { defaultValue: '— last checked {{time}}', time: new Date(authStatus.lastChecked).toLocaleTimeString() })}
                       </span>
                     )}
                   </>
                 ) : (
                   <>
                     <span className="gmail-polling-dot paused" />
-                    Paused — new emails will not be ingested
+                    {t('config:gmailOAuth.paused', { defaultValue: 'Paused — new emails will not be ingested' })}
                   </>
                 )}
               </div>
@@ -627,7 +628,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               type="button"
               role="switch"
               aria-checked={!!authStatus?.pollingActive}
-              aria-label="Toggle automatic polling"
+              aria-label={t('config:gmailOAuth.togglePollingAria', { defaultValue: 'Toggle automatic polling' })}
               className={`gmail-polling-switch ${authStatus?.pollingActive ? 'on' : 'off'}`}
               onClick={handleTogglePolling}
               disabled={togglingPolling}
@@ -637,7 +638,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           </div>
 
           <div className="gmail-oauth-field">
-            <label className="integration-field-label">Polling Interval (ms)</label>
+            <label className="integration-field-label">{t('config:gmailOAuth.pollingInterval', { defaultValue: 'Polling Interval (ms)' })}</label>
             <input
               type="number"
               className="integration-field-input"
@@ -647,7 +648,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
           </div>
 
           <div className="gmail-oauth-field">
-            <label className="integration-field-label">Approval Keywords</label>
+            <label className="integration-field-label">{t('config:gmailOAuth.approvalKeywords', { defaultValue: 'Approval Keywords' })}</label>
             <textarea
               className="integration-field-input integration-field-textarea"
               value={approvalKeywords}
@@ -658,7 +659,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
 
           <div className="integration-form-actions">
             <button type="button" className="integration-btn cancel" onClick={onCancel}>
-              Close
+              {t('common:buttons.close')}
             </button>
             <button
               type="button"
@@ -667,7 +668,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               onClick={handleDisconnect}
               disabled={loading}
             >
-              {loading ? 'Disconnecting...' : 'Disconnect'}
+              {loading ? t('config:gmailOAuth.disconnecting', { defaultValue: 'Disconnecting...' }) : t('config:gmailOAuth.disconnect', { defaultValue: 'Disconnect' })}
             </button>
             <button
               type="button"
@@ -675,7 +676,7 @@ export function GmailOAuthSetup({ integration, onSave, onCancel }: GmailOAuthSet
               onClick={handleSaveSettings}
               disabled={saving}
             >
-              {saving ? 'Saving...' : 'Save Settings'}
+              {saving ? t('terminal:fileExplorer.saving') : t('config:gmailOAuth.saveSettings', { defaultValue: 'Save Settings' })}
             </button>
           </div>
         </div>

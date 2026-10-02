@@ -15,6 +15,7 @@
  */
 
 import React, { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import { authUrl, getApiBaseUrl } from '../utils/storage';
@@ -199,6 +200,7 @@ function dragHasFiles(dt: DataTransfer | null): boolean {
 }
 
 const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: TerminalEmbedProps) {
+  const { t } = useTranslation(['terminal']);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -593,7 +595,7 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       ws.onclose = (ev) => {
         log('WebSocket CLOSED, code:', ev.code, 'reason:', ev.reason, 'wasClean:', ev.wasClean, 'totalMessages:', msgCount);
         if (term && !destroyed) {
-          term.write('\r\n\x1b[90m[Terminal disconnected]\x1b[0m\r\n');
+          term.write('\r\n\x1b[90m' + t('terminal:terminalEmbed.disconnected', { defaultValue: '[Terminal disconnected]' }) + '\x1b[0m\r\n');
         }
       };
 
@@ -625,7 +627,7 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [visible, terminalUrl, sendInput, sendResize, applyFontSize, setCtrlLatch]);
+  }, [visible, terminalUrl, sendInput, sendResize, applyFontSize, setCtrlLatch, t]);
 
   // Re-fit when visibility changes
   useEffect(() => {
@@ -652,26 +654,26 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       <div ref={containerRef} className="terminal-embed-mount" />
       {showKeyBar && (
         <div className="terminal-key-bar">
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x1b')} title="Escape">Esc</button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\t')} title="Tab">Tab</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x1b')} title={t('terminal:terminalEmbed.escape', { defaultValue: 'Escape' })}>Esc</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\t')} title={t('terminal:terminalEmbed.tab', { defaultValue: 'Tab' })}>Tab</button>
           <button
             className={`terminal-key-btn ${ctrlLatched ? 'latched' : ''}`}
             onPointerDown={keepFocus}
             onClick={() => setCtrlLatch(!ctrlLatchRef.current)}
-            title="Ctrl — arms the next typed key as a control key"
+            title={t('terminal:terminalEmbed.ctrl', { defaultValue: 'Ctrl — arms the next typed key as a control key' })}
           >
             Ctrl
           </button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x03')} title="Interrupt (Ctrl+C)">^C</button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('D')} title="Left">←</button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('B')} title="Down">↓</button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('A')} title="Up">↑</button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('C')} title="Right">→</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendInput('\x03')} title={t('terminal:terminalEmbed.interrupt', { defaultValue: 'Interrupt (Ctrl+C)' })}>^C</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('D')} title={t('terminal:terminalEmbed.left', { defaultValue: 'Left' })}>←</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('B')} title={t('terminal:terminalEmbed.down', { defaultValue: 'Down' })}>↓</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('A')} title={t('terminal:terminalEmbed.up', { defaultValue: 'Up' })}>↑</button>
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={() => sendArrow('C')} title={t('terminal:terminalEmbed.right', { defaultValue: 'Right' })}>→</button>
           <button
             className="terminal-key-btn"
             onPointerDown={keepFocus}
             onClick={() => applyFontSize((termRef.current?.options.fontSize ?? FONT_SIZE_DEFAULT) - 1)}
-            title="Smaller text"
+            title={t('terminal:terminalEmbed.smaller', { defaultValue: 'Smaller text' })}
           >
             A−
           </button>
@@ -679,11 +681,11 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
             className="terminal-key-btn"
             onPointerDown={keepFocus}
             onClick={() => applyFontSize((termRef.current?.options.fontSize ?? FONT_SIZE_DEFAULT) + 1)}
-            title="Larger text"
+            title={t('terminal:terminalEmbed.larger', { defaultValue: 'Larger text' })}
           >
             A+
           </button>
-          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={pasteFromClipboard} title="Paste from clipboard">
+          <button className="terminal-key-btn" onPointerDown={keepFocus} onClick={pasteFromClipboard} title={t('terminal:terminalEmbed.paste', { defaultValue: 'Paste from clipboard' })}>
             <Icon name="clipboard" size={14} />
           </button>
         </div>

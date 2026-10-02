@@ -335,7 +335,7 @@ export function LogViewerModal({
             <span className="modal-icon">{icon}</span>
             <span className="modal-title" title={title}>{title}</span>
             {isStreaming && (
-              <span className="streaming-indicator" title="Live streaming">
+              <span className="streaming-indicator" title={t('terminal:logViewer.liveStreaming', { defaultValue: 'Live streaming' })}>
                 <span className="pulse"></span>
                 {streamingIndicatorLabel || t('terminal:logs.live')}
               </span>
@@ -345,7 +345,7 @@ export function LogViewerModal({
           <div className="header-right">
             <span className="line-count">{t('terminal:logs.lines', { count: lines.length })}</span>
             {onMinimize && (
-              <button className="modal-close" onClick={onMinimize} title="Minimize — dock below the terminal input">
+              <button className="modal-close" onClick={onMinimize} title={t('terminal:logViewer.minimize', { defaultValue: 'Minimize — dock below the terminal input' })}>
                 <Icon name="arrow-down" size={14} />
               </button>
             )}
@@ -422,18 +422,22 @@ export function LogViewerModal({
             <button
               className={`toolbar-btn small ${useRegex ? 'active' : ''}`}
               onClick={() => setUseRegex(!useRegex)}
-              title="Toggle regex mode"
+              title={t('terminal:logViewer.toggleRegex', { defaultValue: 'Toggle regex mode' })}
             >
               .*
             </button>
             <button
               className={`toolbar-btn small ${showAllLines ? 'active' : ''}`}
               onClick={() => setShowAllLines(!showAllLines)}
-              title={showAllLines ? "Show all lines (highlight matches)" : "Show only context around matches"}
+              title={showAllLines
+                ? t('terminal:logViewer.allLinesTitle', { defaultValue: 'Show all lines (highlight matches)' })
+                : t('terminal:logViewer.contextOnlyTitle', { defaultValue: 'Show only context around matches' })}
             >
-              {showAllLines ? 'All' : 'Ctx'}
+              {showAllLines
+                ? t('terminal:logViewer.allLines', { defaultValue: 'All' })
+                : t('terminal:logViewer.contextLines', { defaultValue: 'Ctx' })}
             </button>
-            <div className={`context-control ${showAllLines ? 'hidden' : ''}`} title="Lines of context around matches">
+            <div className={`context-control ${showAllLines ? 'hidden' : ''}`} title={t('terminal:logViewer.contextCountTitle', { defaultValue: 'Lines of context around matches' })}>
               <label>&#177;</label>
               <input
                 type="number"
@@ -453,7 +457,7 @@ export function LogViewerModal({
                 scrollToLine(searchMatches[prev]);
               }}
               disabled={searchMatches.length === 0}
-              title="Previous match (Shift+F3)"
+              title={t('terminal:logViewer.prevMatch', { defaultValue: 'Previous match (Shift+F3)' })}
             >
               &#9650;
             </button>
@@ -466,7 +470,7 @@ export function LogViewerModal({
                 scrollToLine(searchMatches[next]);
               }}
               disabled={searchMatches.length === 0}
-              title="Next match (F3)"
+              title={t('terminal:logViewer.nextMatch', { defaultValue: 'Next match (F3)' })}
             >
               &#9660;
             </button>
@@ -580,12 +584,12 @@ export function LogViewerModal({
 
         {/* Footer with keyboard shortcuts */}
         <div className="pm2-logs-modal-footer">
-          <span className="shortcut"><kbd>j</kbd>/<kbd>k</kbd> Scroll</span>
-          <span className="shortcut"><kbd>g</kbd>/<kbd>G</kbd> Top/Bottom</span>
-          <span className="shortcut"><kbd>/</kbd> Search</span>
-          <span className="shortcut"><kbd>n</kbd>/<kbd>N</kbd> Next/Prev match</span>
-          <span className="shortcut"><kbd>Ctrl+G</kbd> Go to line</span>
-          <span className="shortcut"><kbd>Esc</kbd> Close</span>
+          <span className="shortcut"><kbd>j</kbd>/<kbd>k</kbd> {t('terminal:logViewer.footerScroll', { defaultValue: 'Scroll' })}</span>
+          <span className="shortcut"><kbd>g</kbd>/<kbd>G</kbd> {t('terminal:logViewer.footerTopBottom', { defaultValue: 'Top/Bottom' })}</span>
+          <span className="shortcut"><kbd>/</kbd> {t('common:buttons.search')}</span>
+          <span className="shortcut"><kbd>n</kbd>/<kbd>N</kbd> {t('terminal:logViewer.footerNextPrev', { defaultValue: 'Next/Prev match' })}</span>
+          <span className="shortcut"><kbd>Ctrl+G</kbd> {t('terminal:logs.goToLine')}</span>
+          <span className="shortcut"><kbd>Esc</kbd> {t('common:buttons.close')}</span>
           {extraFooter}
         </div>
       </div>

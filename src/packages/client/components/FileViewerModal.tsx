@@ -1207,14 +1207,14 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       await downloadServerFile(url, filename, mimeType);
       setDownloadStatus('idle');
     } catch (err: any) {
-      setDownloadError(err?.message || 'Download failed');
+      setDownloadError(err?.message || t('terminal:fileViewerModal.downloadFailed', { defaultValue: 'Download failed' }));
       setDownloadStatus('error');
       setTimeout(() => {
         setDownloadStatus('idle');
         setDownloadError(null);
       }, 4000);
     }
-  }, [effectivePath, baseDirParam, fileData?.path, fileData?.filename, fileData?.extension]);
+  }, [t, effectivePath, baseDirParam, fileData?.path, fileData?.filename, fileData?.extension]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -1304,12 +1304,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 className={`file-viewer-strategy-badge file-viewer-strategy-${fileData.strategy}`}
                 title={
                   fileData.areaName
-                    ? `matched in area: ${fileData.areaName}`
+                    ? t('terminal:fileViewerModal.matchedInArea', { defaultValue: 'matched in area: {{area}}', area: fileData.areaName })
                     : fileData.strategy === 'suffix-match'
-                      ? `matched by suffix from ${searchRoot ?? 'agent cwd'}`
+                      ? t('terminal:fileViewerModal.matchedBySuffix', { defaultValue: 'matched by suffix from {{root}}', root: searchRoot ?? 'agent cwd' })
                       : fileData.strategy === 'child-anchor'
-                        ? `found inside a project folder under ${searchRoot ?? 'agent cwd'} (the reference was relative to it)`
-                      : `resolved via ${fileData.strategy}`
+                        ? t('terminal:fileViewerModal.childAnchor', { defaultValue: 'found inside a project folder under {{root}} (the reference was relative to it)', root: searchRoot ?? 'agent cwd' })
+                      : t('terminal:fileViewerModal.resolvedVia', { defaultValue: 'resolved via {{strategy}}', strategy: fileData.strategy })
                 }
               >
                 {fileData.strategy}
@@ -1359,18 +1359,26 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                       return !current;
                     });
                   }}
-                  title={renderHtml ? 'Show HTML source' : 'Render HTML with linked CSS, scripts and assets'}
+                  title={renderHtml
+                    ? t('terminal:fileViewerModal.showHtmlSource', { defaultValue: 'Show HTML source' })
+                    : t('terminal:fileViewerModal.renderHtmlTitle', { defaultValue: 'Render HTML with linked CSS, scripts and assets' })}
                 >
                   <Icon name={renderHtml ? 'file-code' : 'monitor'} size={12} />
-                  {renderHtml ? 'Source' : 'Rendered HTML'}
+                  {renderHtml
+                    ? t('terminal:fileViewerModal.htmlSource', { defaultValue: 'Source' })
+                    : t('terminal:fileViewerModal.renderedHtml', { defaultValue: 'Rendered HTML' })}
                 </button>
                 {renderHtml && (
                   <button
                     type="button"
                     className={`file-viewer-reveal-explorer-btn${htmlFullscreen ? ' active' : ''}`}
                     onClick={() => setHtmlFullscreen((current) => !current)}
-                    title={htmlFullscreen ? 'Exit full screen (Esc)' : 'View rendered HTML full screen'}
-                    aria-label={htmlFullscreen ? 'Exit rendered HTML full screen' : 'View rendered HTML full screen'}
+                    title={htmlFullscreen
+                      ? t('terminal:fileViewerModal.exitFullscreen', { defaultValue: 'Exit full screen (Esc)' })
+                      : t('terminal:fileViewerModal.viewFullscreen', { defaultValue: 'View rendered HTML full screen' })}
+                    aria-label={htmlFullscreen
+                      ? t('terminal:fileViewerModal.exitFullscreenAria', { defaultValue: 'Exit rendered HTML full screen' })
+                      : t('terminal:fileViewerModal.viewFullscreen', { defaultValue: 'View rendered HTML full screen' })}
                   >
                     <Icon name="fullscreen" size={14} />
                   </button>
@@ -1478,8 +1486,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               className="file-viewer-nav-btn"
               onClick={goBack}
               disabled={!canGoBack}
-              title="Back (Alt+←)"
-              aria-label="Back"
+              title={t('terminal:fileViewerModal.backTitle', { defaultValue: 'Back (Alt+←)' })}
+              aria-label={t('common:buttons.back')}
             >
               <Icon name="arrow-left" size={12} />
             </button>
@@ -1488,8 +1496,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               className="file-viewer-nav-btn"
               onClick={goForward}
               disabled={!canGoForward}
-              title="Forward (Alt+→)"
-              aria-label="Forward"
+              title={t('terminal:fileViewerModal.forwardTitle', { defaultValue: 'Forward (Alt+→)' })}
+              aria-label={t('terminal:fileViewerModal.forward', { defaultValue: 'Forward' })}
             >
               <Icon name="arrow-right" size={12} />
             </button>
@@ -1498,8 +1506,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
               className="file-viewer-nav-btn"
               onClick={goUp}
               disabled={!parentFolder}
-              title={parentFolder ? `Up to ${parentFolder} (Alt+↑)` : 'Already at the root'}
-              aria-label="Up one folder"
+              title={parentFolder
+                ? t('terminal:fileViewerModal.upTitle', { defaultValue: 'Up to {{path}} (Alt+↑)', path: parentFolder })
+                : t('terminal:fileViewerModal.atRoot', { defaultValue: 'Already at the root' })}
+              aria-label={t('terminal:fileViewerModal.upOneFolder', { defaultValue: 'Up one folder' })}
             >
               <Icon name="arrow-up" size={12} />
             </button>
@@ -1561,7 +1571,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           {resolvedCandidates.length > 0 && (
             <div className="file-viewer-resolve-results">
               <div className="file-viewer-resolve-header">
-                Found {resolvedCandidates.length} matching file{resolvedCandidates.length > 1 ? 's' : ''} in project:
+                {t('terminal:fileViewerModal.foundMatches', {
+                  defaultValue: 'Found {{n}} matching file{{s}} in project:',
+                  n: resolvedCandidates.length,
+                  s: resolvedCandidates.length > 1 ? 's' : '',
+                })}
               </div>
               <div className="file-viewer-resolve-list">
                 {resolvedCandidates.map((candidate) => (
@@ -1588,8 +1602,12 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
             <div className="file-viewer-resolve-results">
               <div className="file-viewer-resolve-header">
                 {directoryEntries.length > 0
-                  ? `Directory contents (${directoryEntries.length} item${directoryEntries.length === 1 ? '' : 's'}):`
-                  : 'This folder is empty'}
+                  ? t('terminal:fileViewerModal.dirContents', {
+                      defaultValue: 'Directory contents ({{n}} item{{s}}):',
+                      n: directoryEntries.length,
+                      s: directoryEntries.length === 1 ? '' : 's',
+                    })
+                  : t('terminal:fileViewerModal.emptyFolder', { defaultValue: 'This folder is empty' })}
               </div>
               <div className="file-viewer-resolve-list">
                 {directoryPath !== '/' && (
@@ -1633,7 +1651,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                 ref={htmlPreviewRef}
                 className="file-viewer-html-preview"
                 src={htmlPreviewUrl}
-                title={`Rendered preview of ${fileData.filename}`}
+                title={t('terminal:fileViewerModal.renderedPreview', { defaultValue: 'Rendered preview of {{name}}', name: fileData.filename })}
                 sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
               />
             ) : isImage && imageUrl ? (

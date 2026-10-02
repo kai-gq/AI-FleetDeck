@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../components/Icon';
 import { hasModalsAbove, useModalStackRegistration } from '../hooks/useModalStack';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -14,6 +15,7 @@ function MountedPluginModal({
   data?: unknown;
   close: () => void;
 }) {
+  const { t } = useTranslation(['config']);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!registration.mount || !ref.current) return;
@@ -33,18 +35,19 @@ function MountedPluginModal({
         cleanup = nextCleanup;
       }
     }).catch((error) => {
-      if (ref.current) ref.current.textContent = `Plugin modal failed: ${error instanceof Error ? error.message : String(error)}`;
+      if (ref.current) ref.current.textContent = t('config:pluginHost.modalFailed', { defaultValue: 'Plugin modal failed: {{error}}', error: error instanceof Error ? error.message : String(error) });
     });
     return () => {
       disposed = true;
       if (typeof cleanup === 'function') cleanup();
       if (ref.current) ref.current.replaceChildren();
     };
-  }, [close, data, registration]);
+  }, [close, data, registration, t]);
   return <div ref={ref} className="plugin-modal__mount" />;
 }
 
 export function PluginModalHost() {
+  const { t } = useTranslation(['config']);
   const open = useOpenPluginModal();
   const registrations = usePluginModals();
   const registration = useMemo(() => open
@@ -91,7 +94,7 @@ export function PluginModalHost() {
       >
         <header className="plugin-modal__header">
           <span><Icon name="plug" size={14} />{registration.title}</span>
-          <button type="button" onClick={close} aria-label="Close"><Icon name="close" size={14} /></button>
+          <button type="button" onClick={close} aria-label={t('common:buttons.close')}><Icon name="close" size={14} /></button>
         </header>
         <div className="plugin-modal__body">
           {Component
