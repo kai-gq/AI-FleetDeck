@@ -14,7 +14,7 @@
       "zh": "Token",
       "forbidden": ["令牌"],
       "scope": { "ns": "*" },
-      "exclude": { "keyPattern": "^config:connection\\." }
+      "exclude": { "keyPattern": "^(config:connection\\.|config:whatsapp\\.webhookVerifyToken$)" }
     },
     {
       "//": "Explorer 是资源管理器,不是浏览器。只看 explorer 相关 key;spawn.browser / openInBrowser 等真浏览器场景不在作用域。",
