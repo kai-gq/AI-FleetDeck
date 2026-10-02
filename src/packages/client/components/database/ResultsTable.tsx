@@ -945,7 +945,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                               dateFormat="yyyy-MM-dd HH:mm:ss"
                               className="results-table__cell-input results-table__cell-input--datetime"
                               disabled={editingCell.isUpdating}
-                              placeholderText="Select date and time"
+                              placeholderText={t('terminal:resultsTable.selectDateTime', { defaultValue: 'Select date and time' })}
                               autoFocus
                             />
                           ) : (

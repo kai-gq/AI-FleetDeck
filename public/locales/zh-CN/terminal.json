@@ -1409,7 +1409,10 @@
     "originalHead": "原始（HEAD）",
     "modifiedContent": "修改后的内容",
     "fileContent": "文件内容",
-    "modifiedWorking": "修改后（工作区）"
+    "modifiedWorking": "修改后（工作区）",
+    "previousResult": "上一个结果",
+    "nextResult": "下一个结果",
+    "copyMarkdownSource": "复制 Markdown 源码"
   },
   "buildingAction": {
     "start": "启动",
@@ -3066,5 +3069,8 @@
     "switchingWorkspace": "正在切换工作区…",
     "sidebarView": "侧边栏视图",
     "showAgentBar": "显示智能体栏"
+  },
+  "resultsTable": {
+    "selectDateTime": "选择日期和时间"
   }
 }

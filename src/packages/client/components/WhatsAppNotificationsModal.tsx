@@ -54,7 +54,7 @@ function draftEquals(a: Draft, b: Draft): boolean {
 }
 
 export function WhatsAppNotificationsModal({ isOpen, onClose }: WhatsAppNotificationsModalProps) {
-  const { t } = useTranslation(['config']);
+  const { t } = useTranslation(['config', 'common']);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [original, setOriginal] = useState<Draft>(EMPTY_DRAFT);
@@ -173,7 +173,7 @@ export function WhatsAppNotificationsModal({ isOpen, onClose }: WhatsAppNotifica
         >
           <div className="modal-header">
             <h2>{t('config:whatsappNotifications.title')}</h2>
-            <button className="modal-close" onClick={requestClose} aria-label="Close">
+            <button className="modal-close" onClick={requestClose} aria-label={t('common:buttons.close')}>
               <Icon name="close" size={16} />
             </button>
           </div>
@@ -298,7 +298,7 @@ export function WhatsAppNotificationsModal({ isOpen, onClose }: WhatsAppNotifica
         title={t('config:whatsappNotifications.resetToDefaults')}
         message={t('config:whatsappNotifications.confirmReset')}
         confirmLabel={t('config:whatsappNotifications.resetToDefaults')}
-        cancelLabel="Cancel"
+        cancelLabel={t('common:buttons.cancel')}
         variant="danger"
         onConfirm={() => { void performResetToDefaults(); setResetConfirmOpen(false); }}
         onClose={() => setResetConfirmOpen(false)}

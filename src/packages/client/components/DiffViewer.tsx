@@ -911,7 +911,7 @@ export function DiffViewer({
         <div className="diff-viewer-nav">
           {readOnly && searchMatchLines.length > 0 && (
             <>
-              <Tooltip content="Previous result" position="bottom">
+              <Tooltip content={t('terminal:diffViewer.previousResult', { defaultValue: 'Previous result' })} position="bottom">
                 <button
                   className="diff-nav-btn"
                   onClick={() => goToSearchResult(currentSearchIndex - 1)}
@@ -923,7 +923,7 @@ export function DiffViewer({
               <span className="diff-nav-counter">
                 {currentSearchIndex + 1} / {searchMatchLines.length}
               </span>
-              <Tooltip content="Next result" position="bottom">
+              <Tooltip content={t('terminal:diffViewer.nextResult', { defaultValue: 'Next result' })} position="bottom">
                 <button
                   className="diff-nav-btn"
                   onClick={() => goToSearchResult(currentSearchIndex + 1)}
@@ -1013,7 +1013,7 @@ export function DiffViewer({
             </Tooltip>
           )}
           {isMarkdown && viewOnlyModified && (
-            <Tooltip content="Copy as markdown source" position="bottom">
+            <Tooltip content={t('terminal:diffViewer.copyMarkdownSource', { defaultValue: 'Copy as markdown source' })} position="bottom">
               <button
                 className={`diff-copy-btn ${copyMarkdownStatus}`}
                 onClick={handleCopyMarkdown}
