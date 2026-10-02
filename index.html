@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- Keep browser translators (Chrome etc.) away: their DOM rewrites break React's insertBefore on live-updating panels (local patch) -->
+    <meta name="google" content="notranslate" />
     <!-- Disable bfcache to prevent memory leaks on page reload (especially in Brave) -->
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
