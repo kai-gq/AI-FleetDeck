@@ -52,6 +52,7 @@
     "re:^config:(workflows|triggers|monitoring|statistics)\\.",
     "re:^config:experimental\\.(2dViewTitle|voiceAssistantTitle|ttsTitle|echoPromptTitle)$",
     "re:^config:monitoringModal\\.",
-    "re:^config:bulkManage\\."
+    "re:^config:bulkManage\\.",
+    "re:^config:workflowPanel\\."
   ]
 }

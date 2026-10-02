@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../utils/storage';
 import type { WorkflowDefinition, WorkflowTransition, WorkflowStateType, WorkflowInstanceStatus } from '../../shared/workflow-types';
 
@@ -74,6 +75,7 @@ function fmtDate(ts: number): string {
 // ─── Main Component ───
 
 export function WorkflowPanel({ agentId, onClose }: WorkflowPanelProps) {
+  const { t } = useTranslation(['config', 'common']);
   const [definitions, setDefinitions] = useState<WorkflowDefinition[]>([]);
   const [instances, setInstances] = useState<ApiInstance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,31 +145,31 @@ export function WorkflowPanel({ agentId, onClose }: WorkflowPanelProps) {
       <div className="guake-git-header">
         <div className="guake-git-title">
           <span style={{ padding: '0 12px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Workflow
+            {t('config:workflowPanel.title', { defaultValue: 'Workflow' })}
           </span>
           {agentInstances.length > 0 && (
             <span style={S.headerBadge}>{agentInstances.length}</span>
           )}
         </div>
         <div className="guake-git-header-actions">
-          <button className="guake-git-refresh" onClick={fetchData} title="Refresh" disabled={loading}>
+          <button className="guake-git-refresh" onClick={fetchData} title={t('common:buttons.refresh')} disabled={loading}>
             {loading ? '\u23F3' : '\u21BB'}
           </button>
-          <button className="guake-git-close" onClick={onClose} title="Close">&times;</button>
+          <button className="guake-git-close" onClick={onClose} title={t('common:buttons.close')}>&times;</button>
         </div>
       </div>
 
       <div className="guake-git-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         {loading && agentInstances.length === 0 && (
           <div style={S.emptyState}>
-            <span style={S.loadingText}>Loading workflows...</span>
+            <span style={S.loadingText}>{t('config:workflowPanel.loading', { defaultValue: 'Loading workflows...' })}</span>
           </div>
         )}
 
         {!loading && agentInstances.length === 0 && (
           <div style={S.emptyState}>
             <span style={S.emptyIcon}>{'\u2298'}</span>
-            <span>No workflow instances for this agent</span>
+            <span>{t('config:workflowPanel.noInstances', { defaultValue: 'No workflow instances for this agent' })}</span>
           </div>
         )}
 
@@ -191,7 +193,7 @@ export function WorkflowPanel({ agentId, onClose }: WorkflowPanelProps) {
                     <span style={{ ...S.statusDot, backgroundColor: STATUS_COLORS[inst.status] || '#6c7086' }} />
                     <span style={S.instanceName}>{inst.workflowName}</span>
                     <span style={{ ...S.instanceStatus, color: STATUS_COLORS[inst.status] || '#6c7086' }}>
-                      {inst.status}
+                      {t(`config:workflowPanel.status.${inst.status}`, { defaultValue: inst.status })}
                     </span>
                   </div>
                   <div style={S.instanceRowBottom}>
@@ -226,6 +228,7 @@ function InstanceView({ definition, instance, onRefresh }: {
   instance: ApiInstance;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation(['config']);
   const currentState = definition.states.find(s => s.id === instance.currentStateId);
   const [tab, setTab] = useState<'states' | 'timeline' | 'variables'>('states');
 
@@ -234,10 +237,10 @@ function InstanceView({ definition, instance, onRefresh }: {
       {/* Status bar */}
       <div style={S.statusBar}>
         <span style={{ ...S.statusBadge, color: STATUS_COLORS[instance.status] || '#6c7086', borderColor: STATUS_COLORS[instance.status] || '#6c7086' }}>
-          {instance.status}
+          {t(`config:workflowPanel.status.${instance.status}`, { defaultValue: instance.status })}
         </span>
         <span style={S.currentLabel}>
-          Current: <strong>{currentState?.name || instance.currentStateId}</strong>
+          {t('config:workflowPanel.current', { defaultValue: 'Current:' })} <strong>{currentState?.name || instance.currentStateId}</strong>
         </span>
       </div>
 
@@ -246,13 +249,15 @@ function InstanceView({ definition, instance, onRefresh }: {
 
       {/* Tabs */}
       <div style={S.tabs}>
-        {(['states', 'timeline', 'variables'] as const).map(t => (
+        {(['states', 'timeline', 'variables'] as const).map(tabId => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{ ...S.tab, ...(tab === t ? S.tabActive : {}) }}
+            key={tabId}
+            onClick={() => setTab(tabId)}
+            style={{ ...S.tab, ...(tab === tabId ? S.tabActive : {}) }}
           >
-            {t === 'states' ? 'States' : t === 'timeline' ? 'Timeline' : 'Variables'}
+            {t(`config:workflowPanel.tab.${tabId}`, {
+              defaultValue: tabId === 'states' ? 'States' : tabId === 'timeline' ? 'Timeline' : 'Variables',
+            })}
           </button>
         ))}
       </div>
@@ -274,6 +279,7 @@ function TransitionControls({ definition, instance, onRefresh }: {
   instance: ApiInstance;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation(['config']);
   const [transitions, setTransitions] = useState<AvailableTransition[]>([]);
   const [loading, setLoading] = useState(false);
   const [transitioning, setTransitioning] = useState<string | null>(null);
@@ -311,44 +317,52 @@ function TransitionControls({ definition, instance, onRefresh }: {
       const res = await authFetch(apiUrl(`/api/workflows/instances/${instance.id}/transition`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetStateId, reason: 'Transitioned via UI panel' }),
+        body: JSON.stringify({
+          targetStateId,
+          reason: t('config:workflowPanel.transitionReason', { defaultValue: 'Transitioned via UI panel' }),
+        }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Transition failed' }));
-        setError(data.error || 'Transition failed');
+        const fallback = t('config:workflowPanel.transitionFailed', { defaultValue: 'Transition failed' });
+        const data = await res.json().catch(() => ({ error: fallback }));
+        setError(data.error || fallback);
       } else {
         setTimeout(() => { fetchTransitions(); onRefresh(); }, 500);
       }
     } catch {
-      setError('Network error');
+      setError(t('config:workflowPanel.networkError', { defaultValue: 'Network error' }));
     } finally {
       setTransitioning(null);
     }
-  }, [instance.id, fetchTransitions, onRefresh]);
+  }, [t, instance.id, fetchTransitions, onRefresh]);
 
   if (instance.status !== 'running') return null;
   if (loading && transitions.length === 0) {
-    return <div style={S.transitionSection}><span style={S.loadingText}>Loading transitions...</span></div>;
+    return (
+      <div style={S.transitionSection}>
+        <span style={S.loadingText}>{t('config:workflowPanel.loadingTransitions', { defaultValue: 'Loading transitions...' })}</span>
+      </div>
+    );
   }
   if (transitions.length === 0) return null;
 
   return (
     <div style={S.transitionSection}>
-      <div style={S.transitionLabel}>Available Transitions</div>
+      <div style={S.transitionLabel}>{t('config:workflowPanel.availableTransitions', { defaultValue: 'Available Transitions' })}</div>
       <div style={S.transitionButtons}>
-        {transitions.map(t => (
+        {transitions.map(transition => (
           <button
-            key={t.id}
-            onClick={() => handleTransition(t.targetStateId)}
+            key={transition.id}
+            onClick={() => handleTransition(transition.targetStateId)}
             disabled={transitioning !== null}
             style={{
               ...S.transitionBtn,
-              opacity: transitioning === t.targetStateId ? 0.6 : 1,
+              opacity: transitioning === transition.targetStateId ? 0.6 : 1,
             }}
-            title={`${t.name} \u2192 ${t.targetStateName || t.targetStateId}`}
+            title={`${transition.name} \u2192 ${transition.targetStateName || transition.targetStateId}`}
           >
-            {transitioning === t.targetStateId ? '...' : t.name}
-            <span style={S.transitionArrow}>{'\u2192'} {t.targetStateName || t.targetStateId}</span>
+            {transitioning === transition.targetStateId ? '...' : transition.name}
+            <span style={S.transitionArrow}>{'\u2192'} {transition.targetStateName || transition.targetStateId}</span>
           </button>
         ))}
       </div>
@@ -363,6 +377,7 @@ function StatesTab({ definition, currentStateId }: {
   definition: WorkflowDefinition;
   currentStateId: string;
 }) {
+  const { t } = useTranslation(['config']);
   return (
     <div style={S.stateList}>
       {definition.states.map(state => {
@@ -382,10 +397,14 @@ function StatesTab({ definition, currentStateId }: {
                 color: STATE_TYPE_COLORS[state.type],
                 borderColor: `${STATE_TYPE_COLORS[state.type]}44`,
               }}>
-                {state.type}
+                {t(`config:workflowPanel.stateType.${state.type}`, { defaultValue: state.type })}
               </span>
               <span style={S.stateName}>{state.name}</span>
-              {isCurrent && <span style={S.currentBadge}>CURRENT</span>}
+              {isCurrent && (
+                <span style={S.currentBadge}>
+                  {t('config:workflowPanel.currentBadge', { defaultValue: 'CURRENT' })}
+                </span>
+              )}
             </div>
             {state.description && (
               <div style={S.stateDescription}>{state.description}</div>
@@ -412,8 +431,9 @@ function TimelineTab({ definition, instance }: {
   definition: WorkflowDefinition;
   instance: ApiInstance;
 }) {
+  const { t } = useTranslation(['config']);
   if (!instance.history || instance.history.length === 0) {
-    return <div style={S.emptyState}>No timeline events yet</div>;
+    return <div style={S.emptyState}>{t('config:workflowPanel.noTimeline', { defaultValue: 'No timeline events yet' })}</div>;
   }
 
   return (
@@ -428,7 +448,9 @@ function TimelineTab({ definition, instance }: {
               <div style={S.timelineHeader}>
                 <span style={S.timelineTime}>{fmtTime(entry.timestamp)}</span>
                 {entry.transitionName && (
-                  <span style={S.timelineTransition}>via {entry.transitionName}</span>
+                  <span style={S.timelineTransition}>
+                    {t('config:workflowPanel.via', { defaultValue: 'via {{name}}', name: entry.transitionName })}
+                  </span>
                 )}
               </div>
               <div style={S.timelineStates}>
@@ -456,10 +478,11 @@ function TimelineTab({ definition, instance }: {
 // ─── Variables Tab ───
 
 function VariablesTab({ variables }: { variables: Record<string, unknown> }) {
+  const { t } = useTranslation(['config']);
   const entries = Object.entries(variables);
 
   if (entries.length === 0) {
-    return <div style={S.emptyState}>No variables set</div>;
+    return <div style={S.emptyState}>{t('config:workflowPanel.noVariables', { defaultValue: 'No variables set' })}</div>;
   }
 
   const userVars = entries.filter(([k]) => !k.startsWith('wi_'));
@@ -469,7 +492,7 @@ function VariablesTab({ variables }: { variables: Record<string, unknown> }) {
     <div style={S.variablesSection}>
       {userVars.length > 0 && (
         <div style={S.varGroup}>
-          <div style={S.varGroupLabel}>Variables</div>
+          <div style={S.varGroupLabel}>{t('config:workflowPanel.variables', { defaultValue: 'Variables' })}</div>
           {userVars.map(([key, value]) => (
             <div key={key} style={S.varRow}>
               <span style={S.varKey}>{key}</span>
@@ -482,7 +505,7 @@ function VariablesTab({ variables }: { variables: Record<string, unknown> }) {
       )}
       {internalVars.length > 0 && (
         <div style={S.varGroup}>
-          <div style={S.varGroupLabel}>Internal</div>
+          <div style={S.varGroupLabel}>{t('config:workflowPanel.internal', { defaultValue: 'Internal' })}</div>
           {internalVars.map(([key, value]) => (
             <div key={key} style={S.varRow}>
               <span style={{ ...S.varKey, opacity: 0.6 }}>{key}</span>

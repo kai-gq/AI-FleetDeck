@@ -1152,5 +1152,40 @@
     "moveArea": {
       "unassign": "取消区域分配"
     }
+  },
+  "workflowPanel": {
+    "title": "工作流",
+    "loading": "正在加载工作流…",
+    "noInstances": "此智能体没有工作流实例",
+    "status": {
+      "running": "运行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "current": "当前：",
+    "tab": {
+      "states": "状态",
+      "timeline": "时间线",
+      "variables": "变量"
+    },
+    "transitionReason": "通过界面面板触发转移",
+    "transitionFailed": "转移失败",
+    "networkError": "网络错误",
+    "loadingTransitions": "正在加载转移…",
+    "availableTransitions": "可用转移",
+    "stateType": {
+      "action": "操作",
+      "wait": "等待",
+      "decision": "判定",
+      "end": "结束"
+    },
+    "currentBadge": "当前",
+    "noTimeline": "还没有时间线事件",
+    "via": "经由「{{name}}」",
+    "noVariables": "未设置任何变量",
+    "variables": "变量",
+    "internal": "内部变量"
   }
 }
