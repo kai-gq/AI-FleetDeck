@@ -14,6 +14,7 @@
  */
 
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import type { Agent } from '../../../shared/types';
@@ -58,6 +59,7 @@ export const GuakeTaskBanner = memo(function GuakeTaskBanner({
   agent: Agent;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation('terminal');
   if (agent.status !== 'working') return null;
   const task = pickCurrentTask(agent);
   if (!task) return null;
@@ -67,13 +69,18 @@ export const GuakeTaskBanner = memo(function GuakeTaskBanner({
       type="button"
       className="guake-task-banner"
       onClick={onClick}
-      title={onClick ? `${task.text}\n\n(click for the task board)` : task.text}
+      title={onClick
+        ? t('terminal:guakeTaskBanner.clickForTaskBoard', { defaultValue: '{{text}}\n\n(click for the task board)', text: task.text })
+        : task.text}
     >
       <ActivityGlyph animated size={12} className="guake-task-banner-spinner" />
-      <span className="guake-task-banner-label">Working on</span>
+      <span className="guake-task-banner-label">{t('terminal:guakeTaskBanner.workingOn', { defaultValue: 'Working on' })}</span>
       <span className="guake-task-banner-text">{task.text}</span>
       {task.progress && task.progress.total > 1 && (
-        <span className="guake-task-banner-progress" title={`${task.progress.done} of ${task.progress.total} tasks done`}>
+        <span
+          className="guake-task-banner-progress"
+          title={t('terminal:guakeTaskBanner.progressTitle', { defaultValue: '{{done}} of {{total}} tasks done', done: task.progress.done, total: task.progress.total })}
+        >
           {task.progress.done}/{task.progress.total}
         </span>
       )}

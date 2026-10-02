@@ -15,6 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAgentsArray, useAgentsWithUnseenOutput, useCustomAgentClassesArray, useViewMode, store } from '../../store';
 import { STORAGE_KEYS, getStorage, setStorage } from '../../utils/storage';
 import { isAgentVisibleInWorkspace, useWorkspaceFilter } from '../WorkspaceSwitcher';
@@ -34,6 +35,7 @@ interface AgentActivityDockProps {
 }
 
 export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivityDockProps) {
+  const { t } = useTranslation('terminal');
   const allAgents = useAgentsArray();
   const [activeWorkspace] = useWorkspaceFilter();
   const agentsWithUnseenOutput = useAgentsWithUnseenOutput();
@@ -132,7 +134,7 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
     <div
       className={`aop-working-strip${workingIds.size === 0 ? ' no-working' : ''}${expanded ? '' : ' collapsed'}`}
       role="toolbar"
-      aria-label="Recent and working agents"
+      aria-label={t('terminal:agentDock.recentWorkingAria', { defaultValue: 'Recent and working agents' })}
       onPointerEnter={(e) => { if (e.pointerType === 'mouse') lockRosterForPointer(); }}
       onPointerDownCapture={handlePointerDown}
       onPointerUpCapture={releaseAfterPointer}
@@ -140,7 +142,9 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
       onPointerLeave={releaseImmediately}
     >
       <Tooltip
-        content={expanded ? 'Hide agent activity dock' : 'Show agent activity dock'}
+        content={expanded
+          ? t('terminal:agentDock.hideDock', { defaultValue: 'Hide agent activity dock' })
+          : t('terminal:agentDock.showDock', { defaultValue: 'Show agent activity dock' })}
         position="top"
         delay={120}
         triggerStyle={{ display: 'contents' }}
@@ -149,7 +153,9 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
           type="button"
           className="aop-working-strip-toggle"
           onClick={toggleExpanded}
-          aria-label={expanded ? 'Hide agent activity dock' : 'Show agent activity dock'}
+          aria-label={expanded
+            ? t('terminal:agentDock.hideDock', { defaultValue: 'Hide agent activity dock' })
+            : t('terminal:agentDock.showDock', { defaultValue: 'Show agent activity dock' })}
           aria-expanded={expanded}
         >
           <Icon name={expanded ? 'caret-down' : 'caret-up'} size={11} />
@@ -178,10 +184,12 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
                 <div className="aop-dock-tooltip">
                   <strong>{agent.name}</strong>
                   <span className={`aop-dock-tooltip-status ${isWorking ? 'working' : 'recent'}`}>
-                    {isWorking ? 'Working now' : 'Recently active'}
+                    {isWorking
+                      ? t('terminal:agentDock.workingNow', { defaultValue: 'Working now' })
+                      : t('terminal:agentDock.recentlyActive', { defaultValue: 'Recently active' })}
                   </span>
                   <small>{agent.provider}{area?.name ? ` · ${area.name}` : ''}</small>
-                  {hasUnread && <span className="aop-dock-tooltip-unread">Unread output</span>}
+                  {hasUnread && <span className="aop-dock-tooltip-unread">{t('terminal:agentDock.unreadOutput', { defaultValue: 'Unread output' })}</span>}
                 </div>
               )}
             >
@@ -190,7 +198,9 @@ export function AgentActivityDock({ activeAgentId, onSelectAgent }: AgentActivit
                 data-agent-id={agent.id}
                 className={`aop-working-thumb${isWorking ? '' : ' recent'}${isActive ? ' active' : ''}${isExiting ? ' exiting' : ''}`}
                 style={areaColor ? ({ '--aop-thumb-area': areaColor } as React.CSSProperties) : undefined}
-                aria-label={`Open ${agent.name}, ${isWorking ? 'working' : 'recently active'}`}
+                aria-label={isWorking
+                  ? t('terminal:agentDock.openWorkingAria', { defaultValue: 'Open {{name}}, working', name: agent.name })
+                  : t('terminal:agentDock.openRecentAria', { defaultValue: 'Open {{name}}, recently active', name: agent.name })}
                 onClick={() => handleThumbClick(agent.id)}
                 onMouseEnter={() => prefetchAgentHistory(agent.id)}
               >

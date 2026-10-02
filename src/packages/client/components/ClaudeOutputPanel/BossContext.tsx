@@ -464,7 +464,7 @@ interface DelegationBlockProps {
 }
 
 export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }: DelegationBlockProps) {
-  const { t } = useTranslation(['tools']);
+  const { t } = useTranslation(['tools', 'common']);
   const targetAgent = useAgent(delegation.selectedAgentId);
   const taskProgressMap = useAgentTaskProgress(bossId ?? null);
   const matchingProgress = taskProgressMap.get(delegation.selectedAgentId);
@@ -515,7 +515,7 @@ export function DelegationBlock({ delegation, bossId, onFileClick, onBashClick }
           <Icon name={confidenceIcon[delegation.confidence]} size={12} /> {delegation.confidence}
         </span>
         {canExpand && (
-          <span className="delegation-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+          <span className="delegation-toggle" aria-label={isExpanded ? t('common:buttons.collapse') : t('common:buttons.expand')}>
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
@@ -646,6 +646,7 @@ interface DelegatedTaskMessageProps {
 }
 
 export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: DelegatedTaskMessageProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const bossAgent = useAgent(bossId);
   const preview = truncateMarkdownPreview(taskCommand, PREVIEW_CHAR_LIMIT);
   const isTruncated = preview.truncated;
@@ -673,9 +674,9 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
     >
       <div className="delegated-task-message-badge">
         <span className="delegated-task-message-icon" aria-hidden="true"><Icon name="envelope" size={14} /></span>
-        <span className="delegated-task-message-chip">Task Delegated</span>
+        <span className="delegated-task-message-chip">{t('tools:delegation.taskDelegated')}</span>
         <span className="delegated-task-message-label">
-          <span className="delegated-task-message-from">from</span>
+          <span className="delegated-task-message-from">{t('tools:bossContext.from', { defaultValue: 'from' })}</span>
           {bossAgent && (
             <AgentIcon
               agent={bossAgent}
@@ -694,7 +695,7 @@ export function DelegatedTaskMessage({ bossName, bossId, taskCommand }: Delegate
         </span>
         <span className="delegated-task-message-id" title={bossId}>{bossId.slice(0, 8)}</span>
         {isTruncated && (
-          <span className="delegated-task-message-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+          <span className="delegated-task-message-toggle" aria-label={isExpanded ? t('common:buttons.collapse') : t('common:buttons.expand')}>
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
@@ -720,6 +721,7 @@ interface TaskReportHeaderProps {
 }
 
 export function TaskReportHeader({ agentName, agentId, status, summary }: TaskReportHeaderProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const isCompleted = status === 'COMPLETED';
   const reporterAgent = useAgent(agentId);
 
@@ -767,11 +769,13 @@ export function TaskReportHeader({ agentName, agentId, status, summary }: TaskRe
               store.selectAgent(agentId);
               store.setTerminalOpen(true);
             }}
-          >{agentName}</strong> — Task {isCompleted ? 'Completed' : 'Failed'}
+          >{agentName}</strong>{' '}{isCompleted
+            ? t('tools:bossContext.taskCompleted', { defaultValue: '— Task Completed' })
+            : t('tools:bossContext.taskFailed', { defaultValue: '— Task Failed' })}
         </span>
         <span className="task-report-id">{agentId.slice(0, 8)}</span>
         {canExpand && (
-          <span className="task-report-toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+          <span className="task-report-toggle" aria-label={isExpanded ? t('common:buttons.collapse') : t('common:buttons.expand')}>
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}
@@ -797,6 +801,7 @@ interface SubagentNotificationDisplayProps {
 }
 
 export function SubagentNotificationDisplay({ agentId, status }: SubagentNotificationDisplayProps) {
+  const { t } = useTranslation(['tools']);
   const statusEntries = Object.entries(status);
   const isError = statusEntries.some(([key]) => key === 'errored' || key === 'error' || key === 'failed');
   const isCompleted = statusEntries.some(([key]) => key === 'completed');
@@ -814,7 +819,7 @@ export function SubagentNotificationDisplay({ agentId, status }: SubagentNotific
       <span className="subagent-notification__icon">
         <Icon name={isError ? 'warn' : isCompleted ? 'check' : 'dna'} size={12} />
       </span>
-      <span className="subagent-notification__label">Subagent</span>
+      <span className="subagent-notification__label">{t('tools:metadata.subagent', { defaultValue: 'Subagent' })}</span>
       <span className="subagent-notification__id">{shortAgentId}</span>
       <span className="subagent-notification__status">
         {statusEntries.map(([key]) => key).join(', ')}
@@ -857,6 +862,7 @@ function formatTaskDuration(ms: number): string {
 }
 
 export function TaskNotificationDisplay({ taskId, status, summary, result, tokens, toolUses, durationMs }: TaskNotificationDisplayProps) {
+  const { t } = useTranslation(['tools', 'common']);
   const normalized = status.toLowerCase();
   const isError = ['failed', 'error', 'errored', 'killed', 'cancelled', 'canceled', 'timeout'].includes(normalized);
   const isCompleted = ['completed', 'success', 'succeeded', 'done'].includes(normalized);
@@ -874,10 +880,19 @@ export function TaskNotificationDisplay({ taskId, status, summary, result, token
   };
 
   const bodyText = preview && preview.truncated && !isExpanded ? preview.text : body;
-  const title = summary || (isError ? 'Background task failed' : 'Background task completed');
+  const title = summary || (isError
+    ? t('tools:bossContext.backgroundTaskFailed', { defaultValue: 'Background task failed' })
+    : t('tools:bossContext.backgroundTaskCompleted', { defaultValue: 'Background task completed' }));
 
   const stats: Array<{ icon: IconName; text: string }> = [];
-  if (typeof toolUses === 'number') stats.push({ icon: 'tool', text: `${toolUses} ${toolUses === 1 ? 'tool' : 'tools'}` });
+  if (typeof toolUses === 'number') {
+    stats.push({
+      icon: 'tool',
+      text: toolUses === 1
+        ? t('tools:bossContext.toolCountOne', { defaultValue: '{{n}} tool', n: toolUses })
+        : t('tools:bossContext.toolCountMany', { defaultValue: '{{n}} tools', n: toolUses }),
+    });
+  }
   if (typeof tokens === 'number') stats.push({ icon: 'sparkle', text: formatTokenCount(tokens) });
   if (typeof durationMs === 'number') stats.push({ icon: 'hourglass', text: formatTaskDuration(durationMs) });
 
@@ -890,7 +905,7 @@ export function TaskNotificationDisplay({ taskId, status, summary, result, token
     >
       <div className="task-notification__head">
         <span className="task-notification__icon"><Icon name={isError ? 'failure' : 'success'} size={14} /></span>
-        <span className="task-notification__label">Task</span>
+        <span className="task-notification__label">{t('common:labels.task')}</span>
         <span className="task-notification__title">{title}</span>
         {taskId && <span className="task-notification__id">{taskId.slice(0, 8)}</span>}
         {stats.length > 0 && (
@@ -903,7 +918,7 @@ export function TaskNotificationDisplay({ taskId, status, summary, result, token
           </span>
         )}
         {canExpand && (
-          <span className="task-notification__toggle" aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+          <span className="task-notification__toggle" aria-label={isExpanded ? t('common:buttons.collapse') : t('common:buttons.expand')}>
             <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={10} />
           </span>
         )}

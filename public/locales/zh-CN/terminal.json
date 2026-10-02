@@ -2780,5 +2780,54 @@
     "refreshProcess": "刷新进程输出",
     "copyProcess": "复制进程输出",
     "loadProcessFailed": "加载进程输出失败"
+  },
+  "trackingBoard": {
+    "columnWaitingSubordinates": "等待下属",
+    "columnNeedReview": "待审阅",
+    "columnBlocked": "受阻",
+    "columnCanClearContext": "可清除上下文",
+    "clickAgainToConfirm": "再次点击以确认",
+    "clearContextForAllOne": "清除全部 {{n}} 个智能体的上下文",
+    "clearContextForAllMany": "清除全部 {{n}} 个智能体的上下文",
+    "clearContextAllAria": "清除此列所有智能体的上下文",
+    "clearingEllipsis": "正在清除…",
+    "confirmQuestion": "确认？",
+    "ctxCount": "上下文（{{n}}）",
+    "clearStatusForAllTitle": "清除此列所有智能体的跟踪状态",
+    "clearingDots": "正在清除…",
+    "clearAll": "全部清除",
+    "pendingReadTitle": "待读",
+    "unreadOutputAria": "未读输出",
+    "clearContextForAgent": "清除 {{name}} 的上下文",
+    "clearTrackingStatus": "清除跟踪状态",
+    "noDetailProvided": "暂无详情"
+  },
+  "agentDock": {
+    "recentWorkingAria": "最近活跃和正在工作的智能体",
+    "hideDock": "隐藏智能体活动栏",
+    "showDock": "显示智能体活动栏",
+    "workingNow": "正在工作",
+    "recentlyActive": "最近活跃",
+    "unreadOutput": "未读输出",
+    "openWorkingAria": "打开 {{name}}，正在工作",
+    "openRecentAria": "打开 {{name}}，最近活跃"
+  },
+  "backgroundTasks": {
+    "waitingForOutput": "（等待输出…）",
+    "asyncSubagentStreams": "异步子智能体 — 其活动会显示在对话中。",
+    "noOutputYet": "暂无输出…",
+    "loadingOutput": "正在加载输出…",
+    "noOutputYetParen": "（暂无输出）",
+    "countOne": "{{n}} 个后台任务正在运行",
+    "countMany": "{{n}} 个后台任务正在运行",
+    "header": "后台任务",
+    "asyncSubagent": "异步子智能体",
+    "backgroundTask": "后台任务",
+    "stopThisExec": "停止此任务"
+  },
+  "guakeTaskBanner": {
+    "clickForTaskBoard": "{{text}}\n\n（点击打开任务看板）",
+    "workingOn": "正在处理",
+    "progressTitle": "已完成 {{done}}/{{total}} 个任务"
   }
 }

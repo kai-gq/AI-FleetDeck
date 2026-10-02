@@ -253,7 +253,14 @@
   },
   "bossContext": {
     "teamContext": "团队上下文",
-    "injectedInstructions": "注入的智能体指令"
+    "injectedInstructions": "注入的智能体指令",
+    "from": "来自",
+    "taskCompleted": "— 任务已完成",
+    "taskFailed": "— 任务失败",
+    "backgroundTaskFailed": "后台任务失败",
+    "backgroundTaskCompleted": "后台任务已完成",
+    "toolCountOne": "{{n}} 个工具",
+    "toolCountMany": "{{n}} 个工具"
   },
   "delegation": {
     "taskDelegated": "任务已委派",

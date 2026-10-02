@@ -16,6 +16,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AgentBackgroundTask, ExecTask } from '../../../shared/types';
 import { store, useBackgroundTasksForAgent, useExecTasks } from '../../store';
 import { fetchBackgroundTaskOutput } from '../../api/background-tasks';
@@ -42,11 +43,11 @@ function formatElapsed(startedAt: number, now: number): string {
   return `${Math.floor(min / 60)}h ${min % 60}m`;
 }
 
-function taskTitle(task: AgentBackgroundTask): string {
+function taskTitle(task: AgentBackgroundTask, asyncSubagentLabel: string, backgroundTaskLabel: string): string {
   if (task.description) return task.description;
   if (task.command) return task.command;
-  if (task.toolName === 'Task' || task.toolName === 'Agent') return 'Async subagent';
-  return 'Background task';
+  if (task.toolName === 'Task' || task.toolName === 'Agent') return asyncSubagentLabel;
+  return backgroundTaskLabel;
 }
 
 /**
@@ -73,6 +74,7 @@ function TaskOutputTail({ agentId, task, linkedExec }: {
   task: AgentBackgroundTask;
   linkedExec?: ExecTask;
 }) {
+  const { t } = useTranslation('terminal');
   const [output, setOutput] = useState<string | null>(null);
   const [exists, setExists] = useState(true);
   const preRef = useRef<HTMLPreElement | null>(null);
@@ -119,7 +121,7 @@ function TaskOutputTail({ agentId, task, linkedExec }: {
     return (
       <pre className="bg-task-output" ref={preRef}>
         {lines.length === 0
-          ? '(waiting for output…)'
+          ? t('terminal:backgroundTasks.waitingForOutput', { defaultValue: '(waiting for output…)' })
           : lines.map((line, idx) => (
             <div key={idx} dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
           ))}
@@ -127,22 +129,23 @@ function TaskOutputTail({ agentId, task, linkedExec }: {
     );
   }
   if (isSubagent) {
-    return <div className="bg-task-output-note">Async subagent — its activity streams in the conversation.</div>;
+    return <div className="bg-task-output-note">{t('terminal:backgroundTasks.asyncSubagentStreams', { defaultValue: 'Async subagent — its activity streams in the conversation.' })}</div>;
   }
   if (!exists) {
-    return <div className="bg-task-output-note">No output yet…</div>;
+    return <div className="bg-task-output-note">{t('terminal:backgroundTasks.noOutputYet', { defaultValue: 'No output yet…' })}</div>;
   }
   if (output === null) {
-    return <div className="bg-task-output-note">Loading output…</div>;
+    return <div className="bg-task-output-note">{t('terminal:backgroundTasks.loadingOutput', { defaultValue: 'Loading output…' })}</div>;
   }
   return (
-    <pre className="bg-task-output" ref={preRef}>{output || '(no output yet)'}</pre>
+    <pre className="bg-task-output" ref={preRef}>{output || t('terminal:backgroundTasks.noOutputYetParen', { defaultValue: '(no output yet)' })}</pre>
   );
 }
 
 // Memo: props are (agentId, ref) — the parent list re-renders per live chunk
 // while this rail only needs its own store subscriptions.
 export const BackgroundTasksRail = React.memo(function BackgroundTasksRail({ agentId, scrollContainerRef }: BackgroundTasksRailProps) {
+  const { t } = useTranslation('terminal');
   const tasks = useBackgroundTasksForAgent(agentId);
   const execTasks = useExecTasks(agentId);
   const [open, setOpen] = useState(false);
@@ -209,7 +212,9 @@ export const BackgroundTasksRail = React.memo(function BackgroundTasksRail({ age
         type="button"
         className="bg-tasks-dots"
         style={{ bottom: EDGE_PADDING }}
-        aria-label={`${tasks.length} background task${tasks.length === 1 ? '' : 's'} running`}
+        aria-label={tasks.length === 1
+          ? t('terminal:backgroundTasks.countOne', { defaultValue: '{{n}} background task running', n: tasks.length })
+          : t('terminal:backgroundTasks.countMany', { defaultValue: '{{n}} background tasks running', n: tasks.length })}
         onMouseEnter={openPanel}
         onMouseLeave={scheduleClose}
         onClick={() => (open ? setOpen(false) : openPanel())}
@@ -226,24 +231,29 @@ export const BackgroundTasksRail = React.memo(function BackgroundTasksRail({ age
           onMouseLeave={scheduleClose}
         >
           <div className="bg-tasks-panel-header">
-            Background tasks
+            {t('terminal:backgroundTasks.header', { defaultValue: 'Background tasks' })}
             <span className="bg-tasks-panel-count">{tasks.length}</span>
           </div>
           {tasks.map((task) => {
             const linkedExec = findLinkedExecTask(task, execTasks);
+            const resolvedTitle = taskTitle(
+              task,
+              t('terminal:backgroundTasks.asyncSubagent', { defaultValue: 'Async subagent' }),
+              t('terminal:backgroundTasks.backgroundTask', { defaultValue: 'Background task' }),
+            );
             return (
               <div key={task.key} className="bg-task-item">
                 <div className="bg-task-item-header">
                   <span className="bg-task-dot" />
-                  <span className="bg-task-title" title={task.command || taskTitle(task)}>
-                    {linkedExec ? (linkedExec.command || taskTitle(task)) : taskTitle(task)}
+                  <span className="bg-task-title" title={task.command || resolvedTitle}>
+                    {linkedExec ? (linkedExec.command || resolvedTitle) : resolvedTitle}
                   </span>
                   {linkedExec && <span className="bg-task-exec-badge">exec</span>}
                   <span className="bg-task-elapsed">{formatElapsed(task.startedAt, now)}</span>
                   {linkedExec && (
                     <button
                       className="bg-task-stop"
-                      title="Stop this exec"
+                      title={t('terminal:backgroundTasks.stopThisExec', { defaultValue: 'Stop this exec' })}
                       onClick={(e) => { e.stopPropagation(); void store.stopExecTask(linkedExec.taskId); }}
                     >
                       ■

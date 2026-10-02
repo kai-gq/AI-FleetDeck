@@ -17,8 +17,6 @@ interface TrackingBoardProps {
 
 type TrackingColumn = {
   key: AgentTrackingStatus;
-  title: string;
-  emptyLabel: string;
   toneClass: string;
 };
 
@@ -29,12 +27,12 @@ type AgentWithArea = {
 };
 
 const TRACKING_COLUMNS: TrackingColumn[] = [
-  { key: 'thinking', title: 'Thinking', emptyLabel: 'No agents', toneClass: 'thinking' },
-  { key: 'working', title: 'Working', emptyLabel: 'No agents', toneClass: 'working' },
-  { key: 'waiting-subordinates', title: 'Waiting Subordinates', emptyLabel: 'No agents', toneClass: 'waiting-subordinates' },
-  { key: 'need-review', title: 'Need Review', emptyLabel: 'No agents', toneClass: 'need-review' },
-  { key: 'blocked', title: 'Blocked', emptyLabel: 'No agents', toneClass: 'blocked' },
-  { key: 'can-clear-context', title: 'Can Clear Context', emptyLabel: 'No agents', toneClass: 'can-clear-context' },
+  { key: 'thinking', toneClass: 'thinking' },
+  { key: 'working', toneClass: 'working' },
+  { key: 'waiting-subordinates', toneClass: 'waiting-subordinates' },
+  { key: 'need-review', toneClass: 'need-review' },
+  { key: 'blocked', toneClass: 'blocked' },
+  { key: 'can-clear-context', toneClass: 'can-clear-context' },
 ];
 
 export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSelectAgent }: TrackingBoardProps) {
@@ -46,6 +44,14 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
   const [clearingAgentIds, setClearingAgentIds] = useState<Set<string>>(new Set());
   const { isPending: isConfirmPending, arm: armConfirm, cancel: clearConfirm } = useTwoClickConfirm();
   const justNowLabel = t('common:time.justNow', { defaultValue: 'just now' });
+  const columnTitles: Record<AgentTrackingStatus, string> = {
+    'thinking': t('tools:display.thinking'),
+    'working': t('terminal:trackingStatus.working'),
+    'waiting-subordinates': t('terminal:trackingBoard.columnWaitingSubordinates', { defaultValue: 'Waiting Subordinates' }),
+    'need-review': t('terminal:trackingBoard.columnNeedReview', { defaultValue: 'Need Review' }),
+    'blocked': t('terminal:trackingBoard.columnBlocked', { defaultValue: 'Blocked' }),
+    'can-clear-context': t('terminal:trackingBoard.columnCanClearContext', { defaultValue: 'Can Clear Context' }),
+  };
 
   const columns = useMemo(() => {
     return TRACKING_COLUMNS.map((column) => {
@@ -183,7 +189,7 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
         <section key={column.key} className={`tracking-board-column tracking-board-column--${column.toneClass}`}>
           <header className="tracking-board-column-header">
             <span className="tracking-board-column-indicator" />
-            <span className="tracking-board-column-title">{column.title}</span>
+            <span className="tracking-board-column-title">{columnTitles[column.key]}</span>
             {column.agents.length > 0 && (column.key === 'need-review' || column.key === 'can-clear-context') && (() => {
               const confirmId = `column-ctx:${column.key}`;
               const isPending = isConfirmPending(confirmId);
@@ -204,16 +210,18 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
                   disabled={isClearing}
                   title={
                     isPending
-                      ? 'Click again to confirm'
-                      : `Clear context for all ${column.agents.length} agent${column.agents.length === 1 ? '' : 's'}`
+                      ? t('terminal:trackingBoard.clickAgainToConfirm', { defaultValue: 'Click again to confirm' })
+                      : column.agents.length === 1
+                        ? t('terminal:trackingBoard.clearContextForAllOne', { defaultValue: 'Clear context for all {{n}} agent', n: column.agents.length })
+                        : t('terminal:trackingBoard.clearContextForAllMany', { defaultValue: 'Clear context for all {{n}} agents', n: column.agents.length })
                   }
-                  aria-label="Clear context for all agents in this column"
+                  aria-label={t('terminal:trackingBoard.clearContextAllAria', { defaultValue: 'Clear context for all agents in this column' })}
                 >
                   {isClearing
-                    ? 'Clearing…'
+                    ? t('terminal:trackingBoard.clearingEllipsis', { defaultValue: 'Clearing…' })
                     : isPending
-                      ? 'Confirm?'
-                      : <><Icon name="clear" size={12} /> Ctx ({column.agents.length})</>}
+                      ? t('terminal:trackingBoard.confirmQuestion', { defaultValue: 'Confirm?' })
+                      : <><Icon name="clear" size={12} /> {t('terminal:trackingBoard.ctxCount', { defaultValue: 'Ctx ({{n}})', n: column.agents.length })}</>}
                 </button>
               );
             })()}
@@ -228,9 +236,11 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
                     void handleClearColumn(column.key, column.agents.map((entry) => entry.agent));
                   }}
                   disabled={isClearing}
-                  title="Clear status for all agents in this column"
+                  title={t('terminal:trackingBoard.clearStatusForAllTitle', { defaultValue: 'Clear status for all agents in this column' })}
                 >
-                  {isClearing ? 'Clearing...' : 'Clear all'}
+                  {isClearing
+                    ? t('terminal:trackingBoard.clearingDots', { defaultValue: 'Clearing...' })
+                    : t('terminal:trackingBoard.clearAll', { defaultValue: 'Clear all' })}
                 </button>
               );
             })()}
@@ -239,7 +249,7 @@ export const TrackingBoard = memo(function TrackingBoard({ activeAgentId, onSele
 
           <div className="tracking-board-column-body">
             {column.agents.length === 0 ? (
-              <div className="tracking-board-empty">{column.emptyLabel}</div>
+              <div className="tracking-board-empty">{t('terminal:overview.noAgents')}</div>
             ) : (
               column.agents.map(({ agent, areaName, areaColor }) => (
                 <TrackingBoardCard
@@ -301,6 +311,7 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
   onCancelClearContextConfirm,
   timeLabel,
 }: TrackingBoardCardProps) {
+  const { t } = useTranslation(['terminal', 'tools']);
   const customClasses = useCustomAgentClassesArray();
   const classConfig = getClassConfig(agent.class, customClasses);
   const isCompacting = useAgentCompacting(agent.id);
@@ -338,7 +349,11 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
             )}
           </span>
           {hasPendingRead && (
-            <span className="tracking-board-card-pending-read" title="Pending read" aria-label="Unread output">!</span>
+            <span
+              className="tracking-board-card-pending-read"
+              title={t('terminal:trackingBoard.pendingReadTitle', { defaultValue: 'Pending read' })}
+              aria-label={t('terminal:trackingBoard.unreadOutputAria', { defaultValue: 'Unread output' })}
+            >!</span>
           )}
           <span className="tracking-board-card-time">{timeLabel}</span>
           {showClearContext && (
@@ -356,8 +371,10 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
                 }
               }}
               disabled={isClearing}
-              title={isClearContextConfirming ? 'Click again to confirm' : `Clear context for ${agent.name}`}
-              aria-label={`Clear context for ${agent.name}`}
+              title={isClearContextConfirming
+                ? t('terminal:trackingBoard.clickAgainToConfirm', { defaultValue: 'Click again to confirm' })
+                : t('terminal:trackingBoard.clearContextForAgent', { defaultValue: 'Clear context for {{name}}', name: agent.name })}
+              aria-label={t('terminal:trackingBoard.clearContextForAgent', { defaultValue: 'Clear context for {{name}}', name: agent.name })}
             >
               {isClearContextConfirming ? '?' : <Icon name="clear" size={12} />}
             </button>
@@ -370,8 +387,8 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
               void onClearStatus(agent);
             }}
             disabled={isClearing}
-            title="Clear tracking status"
-            aria-label="Clear tracking status"
+            title={t('terminal:trackingBoard.clearTrackingStatus', { defaultValue: 'Clear tracking status' })}
+            aria-label={t('terminal:trackingBoard.clearTrackingStatus', { defaultValue: 'Clear tracking status' })}
           >
             ×
           </button>
@@ -385,13 +402,13 @@ const TrackingBoardCard = memo(function TrackingBoardCard({
 
         <div className="tracking-board-card-detail">
           {agent.trackingStatus === 'thinking' && (
-            <span className="tracking-board-typing" aria-label="Thinking">
+            <span className="tracking-board-typing" aria-label={t('tools:display.thinking')}>
               <span className="tracking-board-typing-dot" />
               <span className="tracking-board-typing-dot" />
               <span className="tracking-board-typing-dot" />
             </span>
           )}
-          {agent.trackingStatusDetail || agent.currentTask || 'No detail provided'}
+          {agent.trackingStatusDetail || agent.currentTask || t('terminal:trackingBoard.noDetailProvided', { defaultValue: 'No detail provided' })}
         </div>
       </div>
     </article>
