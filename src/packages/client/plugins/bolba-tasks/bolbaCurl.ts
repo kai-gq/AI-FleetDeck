@@ -21,23 +21,24 @@ export interface BolbaTasksCall {
   actor?: string;
 }
 
+/** English labels; BolbaCurlCard translates them via `terminal:bolbaCurl.verb.<action>`. */
 const BOLBA_VERBS: Record<BolbaTasksAction, { verb: string; icon: string }> = {
-  board: { verb: 'Tablero', icon: 'list-checks' },
-  task: { verb: 'Tarea', icon: 'task' },
-  search: { verb: 'Búsqueda', icon: 'search' },
-  duplicates: { verb: 'Duplicados', icon: 'copy' },
+  board: { verb: 'Board', icon: 'list-checks' },
+  task: { verb: 'Task', icon: 'task' },
+  search: { verb: 'Search', icon: 'search' },
+  duplicates: { verb: 'Duplicates', icon: 'copy' },
   stats: { verb: 'Stats', icon: 'chart-line' },
-  health: { verb: 'Salud', icon: 'health' },
-  create: { verb: 'Nueva tarea', icon: 'plus' },
-  update: { verb: 'Actualizar', icon: 'edit' },
-  timeline: { verb: 'Eventos', icon: 'history' },
-  close: { verb: 'Cerrar', icon: 'check' },
-  reopen: { verb: 'Reabrir', icon: 'arrow-clockwise' },
-  delete: { verb: 'Borrar', icon: 'trash' },
+  health: { verb: 'Health', icon: 'health' },
+  create: { verb: 'New task', icon: 'plus' },
+  update: { verb: 'Update', icon: 'edit' },
+  timeline: { verb: 'Events', icon: 'history' },
+  close: { verb: 'Close', icon: 'check' },
+  reopen: { verb: 'Reopen', icon: 'arrow-clockwise' },
+  delete: { verb: 'Delete', icon: 'trash' },
   render: { verb: 'Re-render', icon: 'refresh' },
   sync: { verb: 'Sync', icon: 'arrow-clockwise' },
   config: { verb: 'Config', icon: 'gear' },
-  other: { verb: 'Llamada', icon: 'plant' },
+  other: { verb: 'Call', icon: 'plant' },
 };
 
 const BOLBA_FILTER_KEYS = new Set(['status', 'proj', 'type', 'due', 'stale', 'from', 'coti', 'limit', 'scope']);

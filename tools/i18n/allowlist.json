@@ -15,7 +15,8 @@
   "noCJK": [
     "common:labels.tokens",
     "tools:display.tokens",
-    "config:workflowEditor.variableType.json"
+    "config:workflowEditor.variableType.json",
+    "terminal:bolbaRecommended.aiBadge"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -66,6 +67,9 @@
     "re:^terminal:gmailCard\\.",
     "re:^terminal:usagesCard\\.",
     "re:^terminal:jiraCard\\.",
-    "re:^terminal:taskList\\."
+    "re:^terminal:taskList\\.",
+    "re:^terminal:bolbaCurl\\.",
+    "re:^terminal:bolbaView\\.",
+    "re:^terminal:bolbaRecommended\\."
   ]
 }

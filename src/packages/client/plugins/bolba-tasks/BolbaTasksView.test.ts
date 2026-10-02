@@ -38,7 +38,7 @@ describe('Bolba task detail navigation', () => {
   it('recognizes and summarizes the internal AI recommendation request', () => {
     const prompt = '[BOLBA_TASK_RECOMMENDATIONS_REQUEST]\nAnaliza y elige exactamente 7 para completar hoy (2026-08-25).';
     expect(parseBolbaRecommendationRequest(prompt)).toEqual({ count: 7, day: '2026-08-25' });
-    expect(bolbaRecommendationRequestPreview(prompt)).toBe('Bolba · IA analizando 7 recomendaciones…');
+    expect(bolbaRecommendationRequestPreview(prompt)).toBe('Bolba · AI analyzing 7 recommendations…');
     expect(parseBolbaRecommendationRequest('Recomienda tareas')).toBeNull();
   });
 

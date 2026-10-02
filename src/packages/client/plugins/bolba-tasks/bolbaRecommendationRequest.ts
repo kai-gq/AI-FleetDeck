@@ -1,3 +1,5 @@
+import { bolbaT } from './bolbaI18n';
+
 export const BOLBA_RECOMMENDATION_REQUEST_MARKER = '[BOLBA_TASK_RECOMMENDATIONS_REQUEST]';
 
 export interface BolbaRecommendationRequestInfo {
@@ -18,5 +20,7 @@ export function parseBolbaRecommendationRequest(text: string | null | undefined)
 export function bolbaRecommendationRequestPreview(text: string | null | undefined): string | null {
   const request = parseBolbaRecommendationRequest(text);
   if (!request) return null;
-  return `Bolba · IA analizando${request.count ? ` ${request.count}` : ''} recomendaciones…`;
+  return request.count
+    ? bolbaT('bolbaRecommended.previewCount', 'Bolba · AI analyzing {{n}} recommendations…', { n: request.count })
+    : bolbaT('bolbaRecommended.preview', 'Bolba · AI analyzing recommendations…');
 }

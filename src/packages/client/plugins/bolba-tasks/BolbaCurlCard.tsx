@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { classifyBolbaTasksOutput, type BolbaTaskRow } from './bolbaTasksOutput';
 import type { BolbaTasksCall } from './bolbaCurl';
@@ -75,6 +76,7 @@ function TaskRow({ row }: { row: BolbaTaskRow }) {
 }
 
 export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRendererProps<BolbaTasksCall>) {
+  const { t } = useTranslation('terminal');
   const [showAll, setShowAll] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const result = useMemo(() => classifyBolbaTasksOutput(output), [output]);
@@ -93,9 +95,15 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
     : call.filters ?? (call.action === 'create' && bodyTitle ? truncateMiddle(bodyTitle, 56) : undefined);
 
   let countLabel: string | undefined;
-  if (result?.kind === 'list') countLabel = `${result.count} tarea${result.count === 1 ? '' : 's'}`;
-  else if (result?.kind === 'mutation' && result.added !== undefined) countLabel = `+${result.added} evento${result.added === 1 ? '' : 's'}`;
-  else if (result?.kind === 'mutation' && result.createdId !== undefined) countLabel = `#${result.createdId}`;
+  if (result?.kind === 'list') {
+    countLabel = result.count === 1
+      ? t('terminal:bolbaCurl.taskOne', { defaultValue: '1 task' })
+      : t('terminal:bolbaCurl.taskMany', { defaultValue: '{{n}} tasks', n: result.count });
+  } else if (result?.kind === 'mutation' && result.added !== undefined) {
+    countLabel = result.added === 1
+      ? t('terminal:bolbaCurl.eventOne', { defaultValue: '+1 event' })
+      : t('terminal:bolbaCurl.eventMany', { defaultValue: '+{{n}} events', n: result.added });
+  } else if (result?.kind === 'mutation' && result.createdId !== undefined) countLabel = `#${result.createdId}`;
 
   const renderResult = (): React.ReactNode => {
     if (!result) return null;
@@ -108,14 +116,14 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
             <div className="bolba-rows">{rows.map((row, index) => <TaskRow key={row.id ?? index} row={row} />)}</div>
             {hidden > 0 && (
               <button type="button" className="tc-api-more-btn" onClick={(event) => { event.stopPropagation(); setShowAll(true); }}>
-                +{hidden} más
+                {t('terminal:bolbaCurl.more', { defaultValue: '+{{n}} more', n: hidden })}
               </button>
             )}
             {showAll && result.count > result.tasks.length && (
-              <div className="tc-api-truncation-note">…y {result.count - result.tasks.length} más (ver salida cruda)</div>
+              <div className="tc-api-truncation-note">{t('terminal:bolbaCurl.moreInRaw', { defaultValue: '…and {{n}} more (see raw output)', n: result.count - result.tasks.length })}</div>
             )}
             {showAll && hidden <= 0 && result.tasks.length > VISIBLE_ROWS && (
-              <button type="button" className="tc-api-more-btn" onClick={(event) => { event.stopPropagation(); setShowAll(false); }}>Ver menos</button>
+              <button type="button" className="tc-api-more-btn" onClick={(event) => { event.stopPropagation(); setShowAll(false); }}>{t('terminal:bolbaCurl.showLess', { defaultValue: 'Show less' })}</button>
             )}
           </>
         );
@@ -127,14 +135,14 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
             <TaskRow row={task} />
             {(task.real !== undefined || task.section || task.done || task.lastEvent) && (
               <div className="bolba-meta-line">
-                {task.done && <span className="bolba-meta">done: {task.done}</span>}
-                {task.section && <span className="bolba-meta">sección: {task.section}</span>}
-                {task.real !== undefined && <span className="bolba-meta">⏱ {task.real} min</span>}
+                {task.done && <span className="bolba-meta">{t('terminal:bolbaCurl.done', { defaultValue: 'done: {{done}}', done: task.done })}</span>}
+                {task.section && <span className="bolba-meta">{t('terminal:bolbaCurl.section', { defaultValue: 'section: {{section}}', section: task.section })}</span>}
+                {task.real !== undefined && <span className="bolba-meta">{t('terminal:bolbaCurl.minutes', { defaultValue: '⏱ {{n}} min', n: task.real })}</span>}
                 {task.lastEvent && <span className="bolba-meta bolba-meta--event" title={task.lastEvent}>{truncateMiddle(task.lastEvent, 96)}</span>}
               </div>
             )}
             {result.reimported.length > 0 && (
-              <div className="bolba-note"><Icon name="arrow-clockwise" size={11} /><span>reimportado de disco: {result.reimported.join(', ')}</span></div>
+              <div className="bolba-note"><Icon name="arrow-clockwise" size={11} /><span>{t('terminal:bolbaCurl.reimported', { defaultValue: 'reimported from disk: {{items}}', items: result.reimported.join(', ') })}</span></div>
             )}
             {result.warnings.map((warning, index) => (
               <div className="bolba-warning" key={index}><Icon name="warn" size={11} /><span>{warning}</span></div>
@@ -161,17 +169,17 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
         return (
           <div className="bolba-rows">
             <div className="bolba-error"><Icon name="cross" size={11} /><span>{result.error}</span></div>
-            {result.valid && result.valid.length > 0 && <div className="bolba-note"><span>válidos: {result.valid.join(', ')}</span></div>}
+            {result.valid && result.valid.length > 0 && <div className="bolba-note"><span>{t('terminal:bolbaCurl.valid', { defaultValue: 'valid: {{items}}', items: result.valid.join(', ') })}</span></div>}
           </div>
         );
       case 'deleted':
-        return <div className="bolba-rows"><div className="bolba-note"><Icon name="trash" size={11} /><span>tarea #{result.id} borrada</span></div></div>;
+        return <div className="bolba-rows"><div className="bolba-note"><Icon name="trash" size={11} /><span>{t('terminal:bolbaCurl.deleted', { defaultValue: 'task #{{id}} deleted', id: result.id })}</span></div></div>;
       case 'health':
         return (
           <div className="bolba-rows"><div className="bolba-meta-line">
             <span className={`bolba-status bolba-status--${result.ok ? 'open' : 'discarded'}`}>{result.ok ? 'ok' : 'fail'}</span>
             {result.byStatus.map(([status, count]) => <span className="bolba-meta" key={status}>{status}: {count}</span>)}
-            {result.dueTodayOrOverdue !== undefined && <span className="bolba-meta bolba-due--overdue">vencen hoy o antes: {result.dueTodayOrOverdue}</span>}
+            {result.dueTodayOrOverdue !== undefined && <span className="bolba-meta bolba-due--overdue">{t('terminal:bolbaCurl.dueTodayOrOverdue', { defaultValue: 'due today or earlier: {{n}}', n: result.dueTodayOrOverdue })}</span>}
           </div></div>
         );
       case 'text': {
@@ -182,14 +190,16 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
             <pre className="tc-api-text-pre">{visible.join('\n')}</pre>
             {lines.length > TEXT_VISIBLE_LINES && (
               <button type="button" className="tc-api-more-btn" onClick={(event) => { event.stopPropagation(); setShowAll((value) => !value); }}>
-                {showAll ? 'Ver menos' : `+${lines.length - TEXT_VISIBLE_LINES} líneas más`}
+                {showAll
+                  ? t('terminal:bolbaCurl.showLess', { defaultValue: 'Show less' })
+                  : t('terminal:bolbaCurl.textMoreLines', { defaultValue: '+{{n}} more lines', n: lines.length - TEXT_VISIBLE_LINES })}
               </button>
             )}
           </>
         );
       }
       case 'json':
-        return <div className="tc-api-result-line"><Icon name="check" size={11} /><code title="Resultado">{result.preview}</code></div>;
+        return <div className="tc-api-result-line"><Icon name="check" size={11} /><code title={t('terminal:bolbaCurl.result', { defaultValue: 'Result' })}>{result.preview}</code></div>;
     }
   };
 
@@ -199,7 +209,7 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
         <span className="bolba-brand-icon"><Icon name="plant" size={13} /></span>
         <span className="bolba-brand">Bolba</span>
         <span className={`curl-method method-${call.method.toLowerCase()}`}>{call.method}</span>
-        <span className="bolba-verb"><Icon name={call.icon as React.ComponentProps<typeof Icon>['name']} size={12} />{call.verb}</span>
+        <span className="bolba-verb"><Icon name={call.icon as React.ComponentProps<typeof Icon>['name']} size={12} />{t(`terminal:bolbaCurl.verb.${call.action}`, { defaultValue: call.verb })}</span>
         {call.taskId && <span className="bolba-task-id">#{call.taskId}</span>}
         {detail && <span className="bolba-detail" title={call.query ?? call.filters ?? bodyTitle}>{detail}</span>}
         <span className="tc-api-spacer" />
@@ -207,7 +217,7 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
         {result?.kind === 'mutation' && result.warnings.length > 0 && <span className="bolba-warn-count">{result.warnings.length} ⚠</span>}
         {countLabel && <span className="bolba-count">{countLabel}</span>}
         {output && (
-          <button type="button" className="curl-expand-btn" onClick={toggleRaw} aria-expanded={showRaw} title={showRaw ? 'Ocultar salida cruda' : 'Salida cruda'}>
+          <button type="button" className="curl-expand-btn" onClick={toggleRaw} aria-expanded={showRaw} title={showRaw ? t('terminal:bolbaCurl.hideRaw', { defaultValue: 'Hide raw output' }) : t('terminal:bolbaCurl.raw', { defaultValue: 'Raw output' })}>
             <Icon name={showRaw ? 'caret-down' : 'caret-right'} size={12} />
           </button>
         )}
@@ -216,7 +226,7 @@ export function BolbaCurlCard({ rawCommand, output, match: call }: PluginCurlRen
       {showRaw && output && (
         <div className="curl-card-row curl-body-row"><div className="curl-body-block">
           {rawPretty !== null ? <pre className="curl-body-pre" dangerouslySetInnerHTML={{ __html: rawPretty }} /> : <pre className="curl-body-pre">{output}</pre>}
-          <CopyButton value={output} title="Copiar salida" />
+          <CopyButton value={output} title={t('terminal:bolbaCurl.copy', { defaultValue: 'Copy output' })} />
         </div></div>
       )}
     </div>

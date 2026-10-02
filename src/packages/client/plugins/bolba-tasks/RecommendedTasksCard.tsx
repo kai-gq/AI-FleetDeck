@@ -1,7 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { getLocaleTag } from '../../utils/formatting';
 import { openPluginModal } from '../registry';
+import { bolbaT } from './bolbaI18n';
 import type {
   PluginOutputRendererProps,
   PluginRecommendedTask,
@@ -31,8 +34,8 @@ function extractRecommendedData(body: unknown): PluginRecommendedTasksData | nul
 }
 
 function formatGeneratedAt(value: number | undefined): string {
-  if (!value) return 'pendiente';
-  return new Intl.DateTimeFormat('es-MX', {
+  if (!value) return bolbaT('bolbaRecommended.pending', 'pending');
+  return new Intl.DateTimeFormat(getLocaleTag(), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -52,13 +55,18 @@ function dueLabel(value?: string): { label: string; tone: 'overdue' | 'today' | 
     const parsed = new Date(`${due}T12:00:00`);
     const current = new Date(`${today}T12:00:00`);
     const days = Math.max(1, Math.round((current.getTime() - parsed.getTime()) / 86_400_000));
-    return { label: `${days}d vencida`, tone: 'overdue' };
+    return { label: bolbaT('bolbaRecommended.overdue', '{{n}}d overdue', { n: days }), tone: 'overdue' };
   }
-  if (due === today) return { label: 'Hoy', tone: 'today' };
+  if (due === today) return { label: bolbaT('bolbaRecommended.today', 'Today'), tone: 'today' };
   const parsed = new Date(`${due}T12:00:00`);
   const current = new Date(`${today}T12:00:00`);
   const days = Math.max(1, Math.round((parsed.getTime() - current.getTime()) / 86_400_000));
-  return { label: days === 1 ? 'Mañana' : `En ${days}d`, tone: days <= 7 ? 'soon' : 'future' };
+  return {
+    label: days === 1
+      ? bolbaT('bolbaRecommended.tomorrow', 'Tomorrow')
+      : bolbaT('bolbaRecommended.inDays', 'In {{n}}d', { n: days }),
+    tone: days <= 7 ? 'soon' : 'future',
+  };
 }
 
 function displayTaskTitle(value: string): string {
@@ -71,10 +79,10 @@ function displayTaskTitle(value: string): string {
 
 function urgencyLabel(item: PluginRecommendedTask): string {
   switch (item.urgency) {
-    case 'critical': return 'Crítica';
-    case 'high': return 'Alta';
-    case 'medium': return 'Media';
-    default: return 'Sugerida';
+    case 'critical': return bolbaT('bolbaRecommended.urgencyCritical', 'Critical');
+    case 'high': return bolbaT('bolbaRecommended.urgencyHigh', 'High');
+    case 'medium': return bolbaT('bolbaRecommended.urgencyMedium', 'Medium');
+    default: return bolbaT('bolbaRecommended.urgencyLow', 'Suggested');
   }
 }
 
@@ -82,6 +90,7 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
   output,
   agentId,
 }: PluginOutputRendererProps) {
+  const { t } = useTranslation('terminal');
   const initial = isRecommendedTasksData(output.data) ? output.data : null;
   const [data, setData] = useState<PluginRecommendedTasksData | null>(initial);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,11 +135,11 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
       if (!response.ok) {
         const message = body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
           ? (body as { error: string }).error
-          : `Bolba request failed (${response.status})`;
+          : t('terminal:bolbaRecommended.requestFailed', { defaultValue: 'Bolba request failed ({{status}})', status: response.status });
         throw new Error(message);
       }
       const next = extractRecommendedData(body);
-      if (!next) throw new Error('Bolba devolvió recomendaciones inválidas');
+      if (!next) throw new Error(t('terminal:bolbaRecommended.invalidRecommendations', { defaultValue: 'Bolba returned invalid recommendations' }));
       setData(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -138,14 +147,14 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
       setRefreshing(false);
       setBusyTaskId(null);
     }
-  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId]);
+  }, [agentId, data, output.instanceId, output.pluginId, output.rendererId, t]);
 
   const navigationTasks = useMemo(() => data?.items.map((item) => item.task) ?? [], [data]);
 
   if (!data) {
     return (
       <section className="bolba-recommended-card bolba-recommended-card--invalid">
-        <Icon name="warn" size={13} /> No se pudieron interpretar las recomendaciones.
+        <Icon name="warn" size={13} /> {t('terminal:bolbaRecommended.unreadable', { defaultValue: 'Could not interpret the recommendations.' })}
       </section>
     );
   }
@@ -155,19 +164,20 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
       <header className="bolba-recommended-card__header">
         <span className="bolba-recommended-card__brand"><Icon name="plant" size={15} /></span>
         <div className="bolba-recommended-card__heading">
-          <span className="bolba-recommended-card__eyebrow"><Icon name="sparkle" size={9} /> Bolba recomienda</span>
+          <span className="bolba-recommended-card__eyebrow"><Icon name="sparkle" size={9} /> {t('terminal:bolbaRecommended.eyebrow', { defaultValue: 'Bolba recommends' })}</span>
           <strong>{data.title}</strong>
           <small>{data.subtitle}</small>
         </div>
-        <div className="bolba-recommended-card__summary" title={`${data.count} de ${data.totalCandidates} tareas abiertas`}>
-          <strong>{data.status === 'generating' ? 'IA' : data.count}</strong><span>{data.status === 'generating' ? 'analizando' : `de ${data.totalCandidates}`}</span>
+        <div className="bolba-recommended-card__summary" title={t('terminal:bolbaRecommended.summaryTitle', { defaultValue: '{{n}} of {{total}} open tasks', n: data.count, total: data.totalCandidates })}>
+          <strong>{data.status === 'generating' ? t('terminal:bolbaRecommended.aiBadge', { defaultValue: 'AI' }) : data.count}</strong>
+          <span>{data.status === 'generating' ? t('terminal:bolbaRecommended.analyzingBadge', { defaultValue: 'analyzing' }) : t('terminal:bolbaRecommended.summaryOf', { defaultValue: 'of {{total}}', total: data.totalCandidates })}</span>
         </div>
         <button
           type="button"
           className="bolba-recommended-card__refresh"
           disabled={refreshing || data.status === 'generating'}
           onClick={() => void invoke(data.actions.refresh)}
-          title="Recalcular recomendaciones"
+          title={t('terminal:bolbaRecommended.recalculate', { defaultValue: 'Recalculate recommendations' })}
         >
           <Icon name="arrow-clockwise" size={12} className={refreshing ? 'is-spinning' : undefined} />
         </button>
@@ -178,24 +188,24 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
       {data.status === 'generating' ? (
         <div className="bolba-recommended-card__generating">
           <span className="spotlight-loading-spinner" />
-          <div><strong>La IA está analizando todas las tareas…</strong><span>Comparando urgencia, impacto, seguridad, esfuerzo y dependencias.</span></div>
+          <div><strong>{t('terminal:bolbaRecommended.generatingTitle', { defaultValue: 'The AI is analyzing all the tasks…' })}</strong><span>{t('terminal:bolbaRecommended.generatingHint', { defaultValue: 'Comparing urgency, impact, safety, effort and dependencies.' })}</span></div>
         </div>
       ) : data.status === 'error' ? (
         <div className="bolba-recommended-card__generation-error">
           <Icon name="brain" size={17} />
-          <strong>El análisis todavía no está listo</strong>
-          <span>Puedes recalcularlo con el botón de actualizar.</span>
+          <strong>{t('terminal:bolbaRecommended.notReadyTitle', { defaultValue: 'The analysis is not ready yet' })}</strong>
+          <span>{t('terminal:bolbaRecommended.notReadyHint', { defaultValue: 'You can recalculate it with the refresh button.' })}</span>
         </div>
       ) : <>
       {data.analysisSummary && (
-        <div className="bolba-recommended-card__analysis"><Icon name="brain" size={11} /><span><small>Criterio de la IA</small>{data.analysisSummary}</span></div>
+        <div className="bolba-recommended-card__analysis"><Icon name="brain" size={11} /><span><small>{t('terminal:bolbaRecommended.criteria', { defaultValue: 'AI criteria' })}</small>{data.analysisSummary}</span></div>
       )}
       <div className="bolba-recommended-card__items">
         {data.items.length === 0 ? (
           <div className="bolba-recommended-card__empty">
             <Icon name="check" size={16} />
-            <strong>Todo bajo control</strong>
-            <span>No hay tareas abiertas para recomendar.</span>
+            <strong>{t('terminal:bolbaRecommended.allClear', { defaultValue: 'All under control' })}</strong>
+            <span>{t('terminal:bolbaRecommended.noOpenTasks', { defaultValue: 'No open tasks to recommend.' })}</span>
           </div>
         ) : data.items.map((item) => {
           const due = dueLabel(item.task.due);
@@ -219,7 +229,7 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
                     data,
                   },
                 })}
-                title={`Abrir detalle de #${item.task.id}`}
+                title={t('terminal:bolbaRecommended.openDetails', { defaultValue: 'Open details for #{{id}}', id: item.task.id })}
               >
                 <span className="bolba-recommended-task__meta">
                   <span className={`bolba-recommended-task__urgency is-${item.urgency}`}>
@@ -239,11 +249,11 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
                 className="bolba-recommended-task__complete"
                 disabled={busy}
                 onClick={() => void invoke(data.actions.complete, item)}
-                aria-label={`Completar ${title}`}
-                title="Marcar como completada"
+                aria-label={t('terminal:bolbaRecommended.completeAria', { defaultValue: 'Complete {{title}}', title })}
+                title={t('terminal:bolbaRecommended.markCompleted', { defaultValue: 'Mark as completed' })}
               >
                 {busy ? <span className="plugin-task-row__spinner" /> : <Icon name="check" size={12} />}
-                <span>Completar</span>
+                <span>{t('terminal:bolbaRecommended.complete', { defaultValue: 'Complete' })}</span>
               </button>
             </article>
           );
@@ -252,8 +262,10 @@ export const RecommendedTasksCard = memo(function RecommendedTasksCard({
       </>}
 
       <footer className="bolba-recommended-card__footer">
-        <span><Icon name="history" size={10} /> {data.status === 'ready' ? `Analizado ${formatGeneratedAt(data.generatedAt)}` : 'Análisis con IA en proceso'}</span>
-        <span>Priorización realizada por IA</span>
+        <span><Icon name="history" size={10} /> {data.status === 'ready'
+          ? t('terminal:bolbaRecommended.analyzed', { defaultValue: 'Analyzed {{time}}', time: formatGeneratedAt(data.generatedAt) })
+          : t('terminal:bolbaRecommended.inProgress', { defaultValue: 'AI analysis in progress' })}</span>
+        <span>{t('terminal:bolbaRecommended.prioritizedByAi', { defaultValue: 'Prioritized by AI' })}</span>
       </footer>
     </section>
   );

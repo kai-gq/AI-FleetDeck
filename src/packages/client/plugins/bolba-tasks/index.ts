@@ -8,6 +8,7 @@ import {
 } from '../registry';
 import { BolbaCurlCard } from './BolbaCurlCard';
 import { detectBolbaTasksCall } from './bolbaCurl';
+import { bolbaT } from './bolbaI18n';
 import { BolbaTaskDetailsModal, BolbaTasksSidebarView } from './BolbaTasksView';
 import { RecommendedTasksCard } from './RecommendedTasksCard';
 
@@ -46,14 +47,15 @@ export function registerBolbaTasksPlugin(): void {
   registerPluginSidebarView({
     pluginId: PLUGIN_ID,
     id: 'pending-tasks',
-    title: 'Tasks',
+    // Getter: the tab label is read at render time so it follows the UI language.
+    get title() { return bolbaT('bolbaView.sidebarTitle', 'Tasks'); },
     icon: 'plant',
     component: BolbaTasksSidebarView,
   });
   registerPluginModal({
     pluginId: PLUGIN_ID,
     id: 'openDetails',
-    title: 'Detalle de tarea',
+    get title() { return bolbaT('bolbaView.modalTitle', 'Task details'); },
     component: BolbaTaskDetailsModal,
   });
   registerPluginCurlRenderer({
