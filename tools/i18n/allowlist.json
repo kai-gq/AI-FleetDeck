@@ -81,6 +81,8 @@
     "re:^terminal:plantUml\\.",
     "re:^tools:defaultSkills\\.",
     "re:^dashboard:agentCards\\.",
+    "re:^tools:preview\\.",
+    "re:^terminal:taskProgress\\.",
     "re:^terminal:search\\.role\\.",
     "re:^tools:metadata\\.(uuid|hash|agent|time|epoch|index|text|state|flag|tool|toolIn|toolOut|subagent|none|unknown|chars)$",
     "re:^terminal:header\\.",

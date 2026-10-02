@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { AgentTodoItem } from '../../../shared/types';
 
 interface TaskProgressDotsProps {
@@ -34,6 +35,7 @@ export function TaskProgressDots({ todos, maxDots = 12 }: TaskProgressDotsProps)
 }
 
 export function TaskProgressTooltipContent({ todos }: { todos: AgentTodoItem[] }) {
+  const { t } = useTranslation(['terminal']);
   if (!todos || todos.length === 0) return null;
   const completed = todos.filter((todo) => todo.status === 'completed').length;
   const total = todos.length;
@@ -41,7 +43,7 @@ export function TaskProgressTooltipContent({ todos }: { todos: AgentTodoItem[] }
   return (
     <div className="task-progress-tooltip">
       <div className="task-progress-tooltip-header">
-        {completed}/{total} tasks done
+        {t('terminal:taskProgress.tasksDone', { defaultValue: '{{done}}/{{total}} tasks done', done: completed, total })}
       </div>
       <ul className="task-progress-tooltip-list">
         {todos.map((todo, idx) => (

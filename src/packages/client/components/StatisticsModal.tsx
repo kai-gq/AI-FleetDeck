@@ -175,6 +175,7 @@ function truncateChartLabel(value: string, maxLength = 28): string {
 }
 
 function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) {
+  const { t } = useTranslation(['terminal']);
   const [hover, setHover] = React.useState<UsageLineHover | null>(null);
   const days = summary.days;
   const series = buildUsageLineSeries(summary);
@@ -243,7 +244,7 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <title>{`${line.name}: ${line.peak.toLocaleString()} peak daily tokens`}</title>
+            <title>{t('terminal:statistics.peakDailyTokens', { defaultValue: '{{name}}: {{peak}} peak daily tokens', name: line.name, peak: line.peak.toLocaleString() })}</title>
           </polyline>
         ))}
 
@@ -333,7 +334,7 @@ function DailyUsageLineChart({ summary }: { summary: ClaudeUsageByDaySummary }) 
           <div
             key={line.id}
             className="statistics-line-chart__legend-item"
-            title={`${line.name}: peak ${line.peak.toLocaleString()} daily tokens, ${line.total.toLocaleString()} period tokens`}
+            title={t('terminal:statistics.legendTokens', { defaultValue: '{{name}}: peak {{peak}} daily tokens, {{total}} period tokens', name: line.name, peak: line.peak.toLocaleString(), total: line.total.toLocaleString() })}
           >
             <span className="statistics-line-chart__legend-swatch" style={{ backgroundColor: line.color }} />
             <span>{line.name}</span>

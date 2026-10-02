@@ -316,7 +316,8 @@
     "noDiff": "（无可用差异）",
     "diffTruncated": "差异已截断…",
     "moreLines": "还有 {{count}} 行",
-    "skippedLines": "… 已跳过 {{count}} 行 …"
+    "skippedLines": "… 已跳过 {{count}} 行 …",
+    "unchangedLines": "{{n}} 行未更改"
   },
   "thinkingBlock": {
     "collapse": "收起思考",

@@ -212,6 +212,7 @@ function CodeLine({ text, language }: { text: string; language: string }) {
 }
 
 function DiffRows({ preview, language }: { preview: EditPreview; language: string }) {
+  const { t } = useTranslation(['tools']);
   return (
     <div className="tool-preview-diff">
       {preview.rows.map((row, i) => {
@@ -220,7 +221,7 @@ function DiffRows({ preview, language }: { preview: EditPreview; language: strin
             <div key={`gap-${i}`} className="tool-preview-diff-row is-gap">
               <span className="tool-preview-diff-marker">⋯</span>
               <span className="tool-preview-code">
-                {row.skipped > 0 ? `${row.skipped} unchanged lines` : ''}
+                {row.skipped > 0 ? t('tools:preview.unchangedLines', { defaultValue: '{{n}} unchanged lines', n: row.skipped }) : ''}
               </span>
             </div>
           );

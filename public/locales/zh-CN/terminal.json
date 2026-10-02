@@ -2006,7 +2006,9 @@
     "window": "时间范围：{{since}} 至 {{until}}",
     "dailyUsage": "各智能体每日用量",
     "dailyUsageSubtitle": "按天统计的总 Token 用量，并为每个 Claude 智能体单独列出曲线。",
-    "dailyEmpty": "最近几天没有找到 Claude Token 用量记录。"
+    "dailyEmpty": "最近几天没有找到 Claude Token 用量记录。",
+    "peakDailyTokens": "{{name}}：单日峰值 {{peak}} Token",
+    "legendTokens": "{{name}}：单日峰值 {{peak}} Token，周期内共 {{total}} Token"
   },
   "gitPanel": {
     "discardBtnDeleteFile": "删除文件",
@@ -2407,7 +2409,8 @@
     "previewAttachment": "在 Tide Commander 中查看 {{filename}}",
     "downloadAttachment": "下载 {{filename}}",
     "showingUpTo": "显示 {{total}} 条中的 {{shown}} 条。使用",
-    "toSeeMore": "查看更多。"
+    "toSeeMore": "查看更多。",
+    "invalidResponse": "Jira 插件返回了无效响应"
   },
   "taskList": {
     "actionFailed": "插件操作失败({{status}})",
@@ -3135,5 +3138,8 @@
     "renderFailedStatus": "渲染失败（{{status}}）",
     "invalidSvg": "SVG 输出无效",
     "renderFailed": "图表渲染失败"
+  },
+  "taskProgress": {
+    "tasksDone": "已完成 {{done}}/{{total}} 个任务"
   }
 }

@@ -166,7 +166,7 @@ export const JiraTicketsCard = memo(function JiraTicketsCard({
         throw new Error(message);
       }
       const updated = extractUpdatedData(body);
-      if (!updated) throw new Error('Jira plugin returned an invalid response');
+      if (!updated) throw new Error(t('terminal:jiraCard.invalidResponse', { defaultValue: 'Jira plugin returned an invalid response' }));
       setData(updated);
       if (updated.mode !== 'pending') setQuery(updated.query ?? searchQuery ?? '');
     } catch (cause) {
