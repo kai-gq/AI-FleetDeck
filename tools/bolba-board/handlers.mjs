@@ -138,7 +138,7 @@ export function createHandlers(ctx) {
     }
     const added = store.addEvents(row.id, timeline.entries, { actor: req.actor });
     if (added) safeExport();
-    const body = { task: text.toApiTask(store.getTask(row.id)), added };
+    const body = { task: text.toApiTask(store.getTask(row.id)), added, reimported: reimportedList(req) };
     if (timeline.warnings.length) body.warnings = timeline.warnings;
     return { status: 200, body };
   }

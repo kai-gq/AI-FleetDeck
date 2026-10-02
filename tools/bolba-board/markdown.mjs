@@ -45,6 +45,19 @@ function stripLeadingEmoji(value) {
   return chars.slice(i).join('');
 }
 
+/**
+ * Recover a hand-typed project from the head line ("🚢 BOL — 🛠️ **Title**")
+ * when the block has no explicit `proj::` field. Returns '' when the head
+ * carries no project (e.g. it starts straight with the type emoji/title).
+ */
+function projFromHead(headerRest) {
+  const s = String(headerRest ?? '').trim();
+  const dash = s.indexOf(' — ');
+  if (dash === -1) return '';
+  const name = stripLeadingEmoji(s.slice(0, dash)).trim();
+  return !name || name.includes('**') ? '' : name;
+}
+
 /** Extract the title from a block's checkbox line. */
 function extractTitle(headerRest) {
   const s = String(headerRest ?? '').trim();
@@ -163,6 +176,10 @@ export function createSync({ store, text, validate, mdPath, enabled = true, log 
         case 'real': case 'real_minutes': patch.real_minutes = Number.parseInt(value, 10) || 0; break;
         default: break; // id/status/timeline handled elsewhere
       }
+    }
+    if (patch.proj === undefined) {
+      const fromHead = projFromHead(block.headerRest);
+      if (fromHead) patch.proj = fromHead;
     }
     return patch;
   }

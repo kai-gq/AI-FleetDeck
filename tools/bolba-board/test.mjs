@@ -299,6 +299,18 @@ describe('bolba-board HTTP contract', () => {
     assert.match(after.done, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 
+  it('markdown: un bloque escrito a mano con proj solo en el head', async () => {
+    const before = (await call('GET', '/tasks?q=manual%20head%20proj')).json.count;
+    assert.equal(before, 0);
+    fs.appendFileSync(mdPath, '\n- [ ] 🚀 XYZ — 🛠️ **tarea manual head proj**\n  - due:: 2026-12-01\n', 'utf8');
+    fs.utimesSync(mdPath, new Date(Date.now() + 5000), new Date(Date.now() + 5000));
+    await call('POST', '/sync');
+    const found = (await call('GET', '/tasks?q=manual%20head%20proj')).json.tasks[0];
+    assert.equal(found.proj, 'XYZ');
+    assert.equal(found.due, '2026-12-01');
+    return found.id;
+  });
+
   it('markdown: borrar un bloque solo genera drift, no borra', async () => {
     const doomed = (await call('GET', '/search?q=vieja%202')).json.tasks[0];
     const lines = fs.readFileSync(mdPath, 'utf8').split('\n');
