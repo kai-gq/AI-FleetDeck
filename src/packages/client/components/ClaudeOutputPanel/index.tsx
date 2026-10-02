@@ -852,12 +852,12 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
         })
         .catch((err: unknown) => {
           if (cancelled) return;
-          const message = err instanceof Error ? err.message : 'Failed to start terminal';
+          const message = err instanceof Error ? err.message : t('terminal:bottomPanel.startFailed', { defaultValue: 'Failed to start terminal' });
           setAreaTerminalErrors((prev) => (prev[areaId] === message ? prev : { ...prev, [areaId]: message }));
         });
     }
     return () => { cancelled = true; };
-  }, [bottomPanels]);
+  }, [bottomPanels, t]);
 
   // Start PM2 log streaming for newly added PM2 panels
   const prevPm2PanelIdsRef = useRef<Set<string>>(new Set());
@@ -1512,13 +1512,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           <div className="guake-tracking-board-header">
             <div className="guake-tracking-board-title">
               <span className="guake-tracking-board-icon"><Icon name="list" size={14} /></span>
-              <span>Tracking Board</span>
+              <span>{t('common:sidebar.trackingBoard')}</span>
             </div>
             <button
               type="button"
               className="guake-tracking-board-close"
               onClick={() => store.setTrackingBoardVisible(false)}
-              title="Close tracking board"
+              title={t('terminal:bottomPanel.closeTrackingBoard', { defaultValue: 'Close tracking board' })}
             >
               <Icon name="close" size={14} />
             </button>
@@ -1711,11 +1711,11 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                 {branchInfo && (
                   <>
                     <span className="guake-agent-area-branch"> <Icon name="git-branch" size={10} /> {branchInfo.branch}</span>
-                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={`${branchInfo.ahead} ahead`}><Icon name="arrow-up" size={9} />{branchInfo.ahead}</span>}
-                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={`${branchInfo.behind} behind`}><Icon name="arrow-down" size={9} />{branchInfo.behind}</span>}
+                    {branchInfo.ahead > 0 && <span className="guake-branch-ahead" title={t('terminal:bottomPanel.aheadCount', { defaultValue: '{{n}} ahead', n: branchInfo.ahead })}><Icon name="arrow-up" size={9} />{branchInfo.ahead}</span>}
+                    {branchInfo.behind > 0 && <span className="guake-branch-behind" title={t('terminal:bottomPanel.behindCount', { defaultValue: '{{n}} behind', n: branchInfo.behind })}><Icon name="arrow-down" size={9} />{branchInfo.behind}</span>}
                     <span
                       className={`guake-area-fetch-btn ${isFetching ? 'fetching' : ''}`}
-                      title="Git fetch"
+                      title={t('terminal:bottomPanel.gitFetch', { defaultValue: 'Git fetch' })}
                       onClick={(e) => { e.stopPropagation(); fetchGitRemote(dir); }}
                     >
                       <Icon name={isFetching ? 'hourglass' : 'download'} size={12} />
@@ -1777,7 +1777,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                       <button
                         key={tb.id}
                         className={`guake-status-terminal-btn default ${isActive ? 'active' : ''}`}
-                        title={`${isActive ? 'Hide' : 'Show'} area terminal: ${tb.name}`}
+                        title={isActive ? t('terminal:bottomPanel.hideAreaTerminalTitle', { defaultValue: 'Hide area terminal: {{name}}', name: tb.name }) : t('terminal:bottomPanel.showAreaTerminalTitle', { defaultValue: 'Show area terminal: {{name}}', name: tb.name })}
                         onClick={() => {
                           if (isActive) {
                             const panel = bottomPanels.find(p => p.buildingId === tb.id);
@@ -1802,7 +1802,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     <button
                       key={tb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''} ${!tb.hasUrl ? 'offline' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} terminal: ${tb.name}${!tb.hasUrl ? ' (starting...)' : ''}`}
+                      title={(isActive ? t('terminal:bottomPanel.hideTerminalTitle', { defaultValue: 'Hide terminal: {{name}}', name: tb.name }) : t('terminal:bottomPanel.showTerminalTitle', { defaultValue: 'Show terminal: {{name}}', name: tb.name })) + (!tb.hasUrl ? t('terminal:bottomPanel.startingSuffix', { defaultValue: ' (starting...)' }) : '')}
                       onClick={() => {
                         if (isActive) {
                           // Close just this panel
@@ -1840,7 +1840,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     <button
                       key={sb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} logs: ${sb.name}`}
+                      title={isActive ? t('terminal:bottomPanel.hideLogsTitle', { defaultValue: 'Hide logs: {{name}}', name: sb.name }) : t('terminal:bottomPanel.showLogsTitle', { defaultValue: 'Show logs: {{name}}', name: sb.name })}
                       onClick={() => {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === sb.id);
@@ -1874,7 +1874,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     <button
                       key={db.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} database: ${db.name}`}
+                      title={isActive ? t('terminal:bottomPanel.hideDatabaseTitle', { defaultValue: 'Hide database: {{name}}', name: db.name }) : t('terminal:bottomPanel.showDatabaseTitle', { defaultValue: 'Show database: {{name}}', name: db.name })}
                       onClick={() => {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === db.id);
@@ -1910,7 +1910,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     <button
                       key={hb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} HTTP requests: ${hb.name}`}
+                      title={isActive ? t('terminal:bottomPanel.hideHttpRequestsTitle', { defaultValue: 'Hide HTTP requests: {{name}}', name: hb.name }) : t('terminal:bottomPanel.showHttpRequestsTitle', { defaultValue: 'Show HTTP requests: {{name}}', name: hb.name })}
                       onClick={() => {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === hb.id);
@@ -1945,7 +1945,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                     <button
                       key={tb.id}
                       className={`guake-status-terminal-btn ${isActive ? 'active' : ''}`}
-                      title={`${isActive ? 'Hide' : 'Show'} tests: ${tb.name}`}
+                      title={isActive ? t('terminal:bottomPanel.hideTestsTitle', { defaultValue: 'Hide tests: {{name}}', name: tb.name }) : t('terminal:bottomPanel.showTestsTitle', { defaultValue: 'Show tests: {{name}}', name: tb.name })}
                       onClick={() => {
                         if (isActive) {
                           const panel = bottomPanels.find(p => p.buildingId === tb.id);
@@ -1980,7 +1980,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           if (splitContextMenu) {
             splitActions.push({
               id: 'open',
-              label: 'Open',
+              label: t('terminal:bottomPanel.open', { defaultValue: 'Open' }),
               icon: <Icon name="arrow-down" size={14} />,
               onClick: () => openBottomPanel(splitContextMenu.buildingId, splitContextMenu.type),
             });
@@ -1988,7 +1988,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             if (!isAreaTerminalId(splitContextMenu.buildingId)) {
               splitActions.push({
                 id: 'open-modal',
-                label: 'Open as modal',
+                label: t('terminal:bottomPanel.openAsModal', { defaultValue: 'Open as modal' }),
                 icon: <Icon name="fullscreen" size={14} />,
                 onClick: () => expandBuilding(splitContextMenu.buildingId),
               });
@@ -1996,13 +1996,13 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             if (activeAreaPanels.length > 0) {
               splitActions.push({
                 id: 'split-right',
-                label: 'Split Right',
+                label: t('terminal:bottomPanel.splitRight', { defaultValue: 'Split Right' }),
                 icon: <Icon name="arrows-horizontal" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'horizontal'),
               });
               splitActions.push({
                 id: 'split-below',
-                label: 'Split Below',
+                label: t('terminal:bottomPanel.splitBelow', { defaultValue: 'Split Below' }),
                 icon: <Icon name="arrows-vertical" size={14} />,
                 onClick: () => splitBottomPanel(splitContextMenu.buildingId, splitContextMenu.type, 'vertical'),
               });
@@ -2045,8 +2045,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 
                 const panelContent = (() => {
                   if (panel.type === 'terminal') {
+                    const areaTermName = areaTerminalBuildings.find((b) => b.id === panel.buildingId)?.name ?? t('terminal:bottomPanel.areaFallbackName', { defaultValue: 'area' });
                     const termName = isAreaDefault
-                      ? `Terminal — ${areaTerminalBuildings.find((b) => b.id === panel.buildingId)?.name ?? 'area'}`
+                      ? t('terminal:bottomPanel.areaTerminalTitle', { defaultValue: 'Terminal — {{name}}', name: areaTermName })
                       : building?.name ?? '';
                     const termUrl = isAreaDefault
                       ? areaTerminalUrls[areaIdFromTerminalId(panel.buildingId)]
@@ -2058,14 +2059,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                       return (
                         <div key={panel.id} className="guake-bottom-panel" style={{ flex: ratio }}>
                           <div className="guake-bottom-terminal-header">
-                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {termName} (starting...)</span>
+                            <span className="guake-bottom-terminal-title"><Icon name="terminal" size={12} /> {termName}{t('terminal:bottomPanel.startingSuffix', { defaultValue: ' (starting...)' })}</span>
                             <button className="guake-bottom-terminal-close" onClick={() => closeBottomPanel(panel.id)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                               </svg>
                             </button>
                           </div>
-                          <div className="guake-bottom-terminal-starting"><span>{startError ?? 'Starting terminal...'}</span></div>
+                          <div className="guake-bottom-terminal-starting"><span>{startError ?? t('terminal:bottomPanel.startingTerminal', { defaultValue: 'Starting terminal...' })}</span></div>
                         </div>
                       );
                     }
@@ -2081,7 +2082,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                   closeBottomPanel(panel.id);
                                   expandBuilding(panel.buildingId);
                                 }}
-                                title="Maximize — open as modal"
+                                title={t('terminal:bottomPanel.maximizeAsModal', { defaultValue: 'Maximize — open as modal' })}
                               >
                                 <Icon name="fullscreen" size={12} />
                               </button>
@@ -2126,8 +2127,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                   return { ...prev, [panel.id]: nextValue };
                                 });
                               }}
-                              placeholder="Filter logs"
-                              aria-label={`Filter logs for ${building.name}`}
+                              placeholder={t('terminal:bottomPanel.filterLogs', { defaultValue: 'Filter logs' })}
+                              aria-label={t('terminal:bottomPanel.filterLogsFor', { defaultValue: 'Filter logs for {{name}}', name: building.name })}
                               spellCheck={false}
                             />
                             <select
@@ -2138,18 +2139,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                 setBottomPm2LogRetention(nextValue);
                                 writeBottomPm2LogRetention(nextValue);
                               }}
-                              aria-label={`Max log retention for ${building.name}`}
+                              aria-label={t('terminal:bottomPanel.maxLogRetentionFor', { defaultValue: 'Max log retention for {{name}}', name: building.name })}
                             >
                               {BOTTOM_PM2_LOG_RETENTION_OPTIONS.map((option) => (
                                 <option key={option === null ? 'unlimited' : option} value={option === null ? 'unlimited' : String(option)}>
-                                  {option === null ? 'Unlimited' : `${option.toLocaleString()} lines`}
+                                  {option === null ? t('terminal:bottomPanel.unlimited', { defaultValue: 'Unlimited' }) : t('terminal:bottomPanel.linesCount', { defaultValue: '{{n}} lines', n: option.toLocaleString() })}
                                 </option>
                               ))}
                             </select>
                             <button
                               className="guake-bottom-terminal-close"
                               onClick={() => store.clearStreamingLogs(panel.buildingId)}
-                              title="Clear logs"
+                              title={t('terminal:bottomPanel.clearLogs', { defaultValue: 'Clear logs' })}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
@@ -2158,7 +2159,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                             <button
                               className="guake-bottom-terminal-close"
                               onClick={() => store.sendBuildingCommand(panel.buildingId, 'restart')}
-                              title="Restart"
+                              title={t('terminal:logs.restart')}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 105.64-11.36L3 10" />
@@ -2170,7 +2171,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                 closeBottomPanel(panel.id);
                                 expandBuilding(panel.buildingId);
                               }}
-                              title="Maximize — open as modal"
+                              title={t('terminal:bottomPanel.maximizeAsModal', { defaultValue: 'Maximize — open as modal' })}
                             >
                               <Icon name="fullscreen" size={12} />
                             </button>
@@ -2202,7 +2203,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                 closeBottomPanel(panel.id);
                                 expandBuilding(panel.buildingId);
                               }}
-                              title="Maximize — open as modal"
+                              title={t('terminal:bottomPanel.maximizeAsModal', { defaultValue: 'Maximize — open as modal' })}
                             >
                               <Icon name="fullscreen" size={12} />
                             </button>
@@ -2232,7 +2233,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                                 closeBottomPanel(panel.id);
                                 expandBuilding(panel.buildingId);
                               }}
-                              title="Maximize — open as modal"
+                              title={t('terminal:bottomPanel.maximizeAsModal', { defaultValue: 'Maximize — open as modal' })}
                             >
                               <Icon name="fullscreen" size={12} />
                             </button>
@@ -2262,7 +2263,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
                               closeBottomPanel(panel.id);
                               expandBuilding(panel.buildingId);
                             }}
-                            title="Maximize — open as modal"
+                            title={t('terminal:bottomPanel.maximizeAsModal', { defaultValue: 'Maximize — open as modal' })}
                           >
                             <Icon name="fullscreen" size={12} />
                           </button>
