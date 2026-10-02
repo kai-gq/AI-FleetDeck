@@ -353,6 +353,7 @@ interface TreeNodeProps {
 }
 
 function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onFolderContextMenu, onDiscard, repoDir, filter }: TreeNodeProps) {
+  const { t } = useTranslation('terminal');
   if (node.isDirectory) {
     const isExpanded = expandedDirs.has(node.path);
     const folderIconSrc = isExpanded
@@ -413,7 +414,7 @@ function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onC
       {onDiscard && (
         <button
           className="guake-git-discard-btn"
-          title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
+          title={file.status === 'untracked' || file.status === 'added' ? t('gitPanel.discardBtnDeleteFile', { defaultValue: 'Delete file' }) : t('gitPanel.discardBtnDiscardChanges', { defaultValue: 'Discard changes' })}
           onClick={(e) => onDiscard(e, file, repoDir)}
         >
           <Icon name="revert" size={12} />
@@ -1258,11 +1259,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     } catch (error) {
       showToast(
         'error',
-        'Reveal Failed',
-        error instanceof Error ? error.message : 'Could not open the system file explorer',
+        _t('gitPanel.toast.revealFailed', { defaultValue: 'Reveal Failed' }),
+        error instanceof Error ? error.message : _t('gitPanel.couldNotOpenFileExplorer', { defaultValue: 'Could not open the system file explorer' }),
       );
     }
-  }, [showToast]);
+  }, [showToast, _t]);
 
   // Delete file with confirmation dialog
   const executeDelete = useCallback(async (pending: { path: string; name: string; status: GitFileStatusType; repoDir: string }) => {
@@ -1310,16 +1311,16 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+        const data = await res.json().catch(() => ({ error: _t('gitPanel.unknownError', { defaultValue: 'Unknown error' }) }));
+        showToast('error', _t('gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), data.error || _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       }
       refresh();
     } catch (err) {
-      showToast('error', 'Discard Failed', err instanceof Error ? err.message : 'Could not discard changes');
+      showToast('error', _t('gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), err instanceof Error ? err.message : _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
     } finally {
       setPendingDiscard(null);
     }
-  }, [refresh, showToast]);
+  }, [refresh, showToast, _t]);
 
   // Discard ALL uncommitted changes in a single repo (server runs
   // `git reset --hard HEAD` + `git clean -fd`, scoped to that repo).
@@ -1332,19 +1333,23 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         body: JSON.stringify({ directory: pending.repoDir }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-        showToast('error', 'Discard All Failed', data.error || 'Could not discard changes');
+        const data = await res.json().catch(() => ({ error: _t('gitPanel.unknownError', { defaultValue: 'Unknown error' }) }));
+        showToast('error', _t('gitPanel.toast.discardAllFailed', { defaultValue: 'Discard All Failed' }), data.error || _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       } else {
         const data = await res.json().catch(() => ({ discarded: pending.count }));
-        showToast('success', 'Changes Discarded', `Reverted ${data.discarded ?? pending.count} change(s) in ${pending.dirName}`);
+        showToast(
+          'success',
+          _t('gitPanel.toast.changesDiscarded', { defaultValue: 'Changes Discarded' }),
+          _t('gitPanel.changesDiscardedMsg', { defaultValue: 'Reverted {{count}} change(s) in {{name}}', count: data.discarded ?? pending.count, name: pending.dirName }),
+        );
       }
       refresh();
     } catch (err) {
-      showToast('error', 'Discard All Failed', err instanceof Error ? err.message : 'Could not discard changes');
+      showToast('error', _t('gitPanel.toast.discardAllFailed', { defaultValue: 'Discard All Failed' }), err instanceof Error ? err.message : _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
     } finally {
       setPendingDiscardAll(null);
     }
-  }, [refresh, showToast]);
+  }, [refresh, showToast, _t]);
 
   // Discard every changed file under one folder subtree (reuses the batch
   // /git-discard endpoint — mixed statuses handled server-side: modified files
@@ -1358,20 +1363,24 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         body: JSON.stringify({ files: pending.files, directory: pending.repoDir }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-        showToast('error', 'Discard Failed', data.error || 'Could not discard changes');
+        const data = await res.json().catch(() => ({ error: _t('gitPanel.unknownError', { defaultValue: 'Unknown error' }) }));
+        showToast('error', _t('gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), data.error || _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
       } else {
         const data = await res.json().catch(() => ({ discarded: pending.files.length }));
-        showToast('success', 'Changes Discarded', `Reverted ${data.discarded ?? pending.files.length} change(s) in ${pending.folderName}`);
+        showToast(
+          'success',
+          _t('gitPanel.toast.changesDiscarded', { defaultValue: 'Changes Discarded' }),
+          _t('gitPanel.changesDiscardedMsg', { defaultValue: 'Reverted {{count}} change(s) in {{name}}', count: data.discarded ?? pending.files.length, name: pending.folderName }),
+        );
       }
       refresh();
       if (panelMode === 'explorer') fileTree.loadTree();
     } catch (err) {
-      showToast('error', 'Discard Failed', err instanceof Error ? err.message : 'Could not discard changes');
+      showToast('error', _t('gitPanel.toast.discardFailed', { defaultValue: 'Discard Failed' }), err instanceof Error ? err.message : _t('gitPanel.couldNotDiscardChanges', { defaultValue: 'Could not discard changes' }));
     } finally {
       setPendingDiscardFolder(null);
     }
-  }, [refresh, showToast, panelMode, fileTree]);
+  }, [refresh, showToast, panelMode, fileTree, _t]);
 
   // Delete an entire folder from disk (recursive). Destructive — removes the
   // real directory and everything in it, not just git-changed files. Confirmed first.
@@ -1384,19 +1393,19 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         body: JSON.stringify({ path: pending.folderPath, recursive: true }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
-        showToast('error', 'Delete Failed', data.error || 'Could not delete folder');
+        const data = await res.json().catch(() => ({ error: _t('gitPanel.unknownError', { defaultValue: 'Unknown error' }) }));
+        showToast('error', _t('gitPanel.toast.deleteFailed', { defaultValue: 'Delete Failed' }), data.error || _t('gitPanel.couldNotDeleteFolder', { defaultValue: 'Could not delete folder' }));
       } else {
-        showToast('success', 'Folder Deleted', `Deleted ${pending.folderName}`);
+        showToast('success', _t('gitPanel.toast.folderDeleted', { defaultValue: 'Folder Deleted' }), _t('gitPanel.folderDeletedMsg', { defaultValue: 'Deleted {{name}}', name: pending.folderName }));
       }
       refresh();
       if (panelMode === 'explorer') fileTree.loadTree();
     } catch (err) {
-      showToast('error', 'Delete Failed', err instanceof Error ? err.message : 'Could not delete folder');
+      showToast('error', _t('gitPanel.toast.deleteFailed', { defaultValue: 'Delete Failed' }), err instanceof Error ? err.message : _t('gitPanel.couldNotDeleteFolder', { defaultValue: 'Could not delete folder' }));
     } finally {
       setPendingDeleteFolder(null);
     }
-  }, [refresh, showToast, panelMode, fileTree]);
+  }, [refresh, showToast, panelMode, fileTree, _t]);
 
   const handleInlineDiscard = useCallback((e: React.MouseEvent, file: GitFileStatus, repoDir: string) => {
     e.stopPropagation();
@@ -1420,13 +1429,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     // View diff/content
     actions.push({
       id: 'view',
-      label: hasDiff(file.status) ? 'View Diff' : 'View File',
+      label: hasDiff(file.status) ? _t('gitPanel.viewDiff', { defaultValue: 'View Diff' }) : _t('gitPanel.viewFile', { defaultValue: 'View File' }),
       icon: <Icon name={hasDiff(file.status) ? 'git-diff' : 'file-text'} size={14} />,
       onClick: () => handleFileClick(file, repoDir),
     });
     actions.push({
       id: 'reveal-folder',
-      label: 'Reveal in Folder',
+      label: _t('gitPanel.revealInFolder', { defaultValue: 'Reveal in Folder' }),
       icon: <Icon name="folder-open" size={14} />,
       // Deleted entries cannot be selected because they no longer exist; open
       // their containing directory instead. Existing files are selected.
@@ -1438,13 +1447,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     // Copy paths
     actions.push({
       id: 'copy-path',
-      label: 'Copy Full Path',
+      label: _t('gitPanel.copyFullPath', { defaultValue: 'Copy Full Path' }),
       icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(fullPath); },
     });
     actions.push({
       id: 'copy-rel',
-      label: 'Copy Relative Path',
+      label: _t('gitPanel.copyRelativePath', { defaultValue: 'Copy Relative Path' }),
       icon: <Icon name="copy" size={14} />,
       onClick: () => { navigator.clipboard.writeText(file.path); },
     });
@@ -1455,13 +1464,13 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'download',
-        label: 'Download File',
+        label: _t('gitPanel.downloadFile', { defaultValue: 'Download File' }),
         icon: <Icon name="download" size={14} />,
         onClick: () => downloadFile(fullPath, file.name),
       });
       actions.push({
         id: 'open-editor',
-        label: 'Open in Editor',
+        label: _t('gitPanel.openInEditor', { defaultValue: 'Open in Editor' }),
         icon: <Icon name="edit" size={14} />,
         onClick: async () => {
           try {
@@ -1480,7 +1489,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({ id: 'div3', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'discard',
-        label: 'Discard Changes',
+        label: _t('gitPanel.discardChanges', { defaultValue: 'Discard Changes' }),
         icon: <Icon name="revert" size={14} />,
         danger: true,
         // Route through the confirmation dialog — discarding is irreversible.
@@ -1495,7 +1504,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       }
       actions.push({
         id: 'delete',
-        label: 'Delete File',
+        label: _t('gitPanel.deleteFile', { defaultValue: 'Delete File' }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => setPendingDelete({ path: fullPath, name: file.name, status: file.status, repoDir }),
@@ -1503,7 +1512,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleFileClick, revealPath]);
+  }, [handleFileClick, revealPath, _t]);
 
   // Context menu for a folder node in the Changes-tab tree view.
   // Offers "Discard Changes" (all changed files under the folder) and
@@ -1523,20 +1532,20 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
     actions.push({
       id: 'copy-path',
-      label: 'Copy Full Path',
+      label: _t('gitPanel.copyFullPath', { defaultValue: 'Copy Full Path' }),
       icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(folderPath); },
     });
     actions.push({
       id: 'reveal-folder',
-      label: 'Reveal in Folder',
+      label: _t('gitPanel.revealInFolder', { defaultValue: 'Reveal in Folder' }),
       icon: <Icon name="folder-open" size={14} />,
       onClick: () => { void revealPath(folderPath); },
     });
 
     actions.push({
       id: 'download-folder',
-      label: 'Download Folder (.zip)',
+      label: _t('gitPanel.downloadFolderZip', { defaultValue: 'Download Folder (.zip)' }),
       icon: <Icon name="download" size={14} />,
       onClick: () => downloadFolder(folderPath, node.name),
     });
@@ -1546,7 +1555,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     if (absFiles.length > 0) {
       actions.push({
         id: 'discard-folder',
-        label: `Discard Changes (${absFiles.length})`,
+        label: _t('gitPanel.discardChangesCount', { defaultValue: 'Discard Changes ({{count}})', count: absFiles.length }),
         icon: <Icon name="revert" size={14} />,
         danger: true,
         onClick: () => setPendingDiscardFolder({ folderName: node.name, repoDir, files: absFiles }),
@@ -1555,14 +1564,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
     actions.push({
       id: 'delete-folder',
-      label: 'Delete Folder',
+      label: _t('gitPanel.deleteFolder', { defaultValue: 'Delete Folder' }),
       icon: <Icon name="trash" size={14} />,
       danger: true,
       onClick: () => setPendingDeleteFolder({ folderPath, folderName: node.name, repoDir }),
     });
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [revealPath]);
+  }, [revealPath, _t]);
 
   // Context menu for explorer tree nodes
   const handleExplorerContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
@@ -1574,7 +1583,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       // View file
       actions.push({
         id: 'view',
-        label: 'View File',
+        label: _t('gitPanel.viewFile', { defaultValue: 'View File' }),
         icon: <Icon name="file-text" size={14} />,
         onClick: () => handleExplorerFileSelect(node),
       });
@@ -1584,7 +1593,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     // Copy path
     actions.push({
       id: 'copy-path',
-      label: 'Copy Full Path',
+      label: _t('gitPanel.copyFullPath', { defaultValue: 'Copy Full Path' }),
       icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(node.path); },
     });
@@ -1595,14 +1604,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         : node.path;
       actions.push({
         id: 'copy-rel',
-        label: 'Copy Relative Path',
+        label: _t('gitPanel.copyRelativePath', { defaultValue: 'Copy Relative Path' }),
         icon: <Icon name="copy" size={14} />,
         onClick: () => { navigator.clipboard.writeText(relPath); },
       });
     }
     actions.push({
       id: 'reveal-folder',
-      label: 'Reveal in Folder',
+      label: _t('gitPanel.revealInFolder', { defaultValue: 'Reveal in Folder' }),
       icon: <Icon name="folder-open" size={14} />,
       onClick: () => { void revealPath(node.path); },
     });
@@ -1610,7 +1619,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     actions.push({ id: 'div-download', label: '', divider: true, onClick: () => {} });
     actions.push({
       id: 'download',
-      label: node.isDirectory ? 'Download Folder (.zip)' : 'Download File',
+      label: node.isDirectory ? _t('gitPanel.downloadFolderZip', { defaultValue: 'Download Folder (.zip)' }) : _t('gitPanel.downloadFile', { defaultValue: 'Download File' }),
       icon: <Icon name="download" size={14} />,
       onClick: () => {
         if (node.isDirectory) downloadFolder(node.path, node.name);
@@ -1622,7 +1631,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({ id: 'div2', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'open-editor',
-        label: 'Open in Editor',
+        label: _t('gitPanel.openInEditor', { defaultValue: 'Open in Editor' }),
         icon: <Icon name="edit" size={14} />,
         onClick: async () => {
           try {
@@ -1639,7 +1648,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       actions.push({ id: 'div-del', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete',
-        label: 'Delete File',
+        label: _t('gitPanel.deleteFile', { defaultValue: 'Delete File' }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => setPendingDelete({ path: node.path, name: node.name, status: (node.gitStatus as GitFileStatusType) || 'untracked', repoDir: explorerFolder || '' }),
@@ -1651,7 +1660,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       if (changed.length > 0 && explorerFolder) {
         actions.push({
           id: 'discard-folder',
-          label: `Discard Changes (${changed.length})`,
+          label: _t('gitPanel.discardChangesCount', { defaultValue: 'Discard Changes ({{count}})', count: changed.length }),
           icon: <Icon name="revert" size={14} />,
           danger: true,
           onClick: () => setPendingDiscardFolder({ folderName: node.name, repoDir: explorerFolder, files: changed }),
@@ -1659,7 +1668,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       }
       actions.push({
         id: 'delete-folder',
-        label: 'Delete Folder',
+        label: _t('gitPanel.deleteFolder', { defaultValue: 'Delete Folder' }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => setPendingDeleteFolder({ folderPath: node.path, folderName: node.name, repoDir: explorerFolder || '' }),
@@ -1667,7 +1676,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleExplorerFileSelect, explorerFolder, revealPath]);
+  }, [handleExplorerFileSelect, explorerFolder, revealPath, _t]);
 
   const totalFiles = repos.reduce((sum, r) => sum + r.totalFiles, 0);
 
@@ -1751,11 +1760,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     {pendingDelete && (
       <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDelete(null)}>
         <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
-          <p>Delete <strong>{pendingDelete.name}</strong>?</p>
+          <p>{_t('gitPanel.confirm.deleteFile', { defaultValue: 'Delete {{name}}?', name: pendingDelete.name })}</p>
           <p className="guake-git-delete-path">{pendingDelete.path}</p>
           <div className="guake-git-delete-actions">
-            <button className="guake-git-delete-cancel" onClick={() => setPendingDelete(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete)}>Delete</button>
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDelete(null)}>{_t('common:buttons.cancel')}</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDelete(pendingDelete)}>{_t('common:buttons.delete')}</button>
           </div>
         </div>
       </div>
@@ -1765,11 +1774,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     {pendingDiscard && (
       <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscard(null)}>
         <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
-          <p>Discard changes to <strong>{pendingDiscard.name}</strong>?</p>
+          <p>{_t('gitPanel.confirm.discardFile', { defaultValue: 'Discard changes to {{name}}?', name: pendingDiscard.name })}</p>
           <p className="guake-git-delete-path">{pendingDiscard.path}</p>
           <div className="guake-git-delete-actions">
-            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscard(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDiscard(pendingDiscard)}>Discard</button>
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscard(null)}>{_t('common:buttons.cancel')}</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscard(pendingDiscard)}>{_t('gitPanel.btnDiscard', { defaultValue: 'Discard' })}</button>
           </div>
         </div>
       </div>
@@ -1780,21 +1789,36 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscardAll(null)}>
         <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
           <p>
-            Permanently discard <strong>{pendingDiscardAll.count}</strong> uncommitted change{pendingDiscardAll.count === 1 ? '' : 's'} in <strong>{pendingDiscardAll.dirName}</strong>?
+            {_t('gitPanel.confirm.discardAll', {
+              defaultValue: 'Permanently discard {{count}} uncommitted change{{plural}} in {{dirName}}?',
+              count: pendingDiscardAll.count,
+              plural: pendingDiscardAll.count === 1 ? '' : 's',
+              dirName: pendingDiscardAll.dirName,
+            })}
           </p>
           <p className="guake-git-delete-path">
             {/* On a truncated repo the untracked tally only covers the capped
                 slice — never quote a number that understates what gets deleted. */}
-            Resets all tracked files to HEAD
-            {pendingDiscardAll.truncated
-              ? ' and deletes every untracked file'
-              : pendingDiscardAll.untracked > 0
-                ? ` and deletes ${pendingDiscardAll.untracked} untracked file${pendingDiscardAll.untracked === 1 ? '' : 's'}`
-                : ''}. This cannot be undone.
+            {_t(
+              pendingDiscardAll.truncated
+                ? 'gitPanel.confirm.discardAllNoteTruncated'
+                : pendingDiscardAll.untracked > 0
+                  ? 'gitPanel.confirm.discardAllNoteCount'
+                  : 'gitPanel.confirm.discardAllNoteOnly',
+              {
+                defaultValue: pendingDiscardAll.truncated
+                  ? 'Resets all tracked files to HEAD and deletes every untracked file. This cannot be undone.'
+                  : pendingDiscardAll.untracked > 0
+                    ? 'Resets all tracked files to HEAD and deletes {{count}} untracked file{{plural}}. This cannot be undone.'
+                    : 'Resets all tracked files to HEAD. This cannot be undone.',
+                count: pendingDiscardAll.untracked,
+                plural: pendingDiscardAll.untracked === 1 ? '' : 's',
+              },
+            )}
           </p>
           <div className="guake-git-delete-actions">
-            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardAll(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDiscardAll(pendingDiscardAll)}>Discard all</button>
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardAll(null)}>{_t('common:buttons.cancel')}</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscardAll(pendingDiscardAll)}>{_t('gitPanel.btnDiscardAll', { defaultValue: 'Discard all' })}</button>
           </div>
         </div>
       </div>
@@ -1805,14 +1829,19 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDiscardFolder(null)}>
         <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
           <p>
-            Discard <strong>{pendingDiscardFolder.files.length}</strong> change{pendingDiscardFolder.files.length === 1 ? '' : 's'} in <strong>{pendingDiscardFolder.folderName}</strong>?
+            {_t('gitPanel.confirm.discardFolder', {
+              defaultValue: 'Discard {{count}} change{{plural}} in {{folderName}}?',
+              count: pendingDiscardFolder.files.length,
+              plural: pendingDiscardFolder.files.length === 1 ? '' : 's',
+              folderName: pendingDiscardFolder.folderName,
+            })}
           </p>
           <p className="guake-git-delete-path">
-            Reverts tracked files to HEAD and removes any untracked/new files in this folder. This cannot be undone.
+            {_t('gitPanel.confirm.discardFolderNote', { defaultValue: 'Reverts tracked files to HEAD and removes any untracked/new files in this folder. This cannot be undone.' })}
           </p>
           <div className="guake-git-delete-actions">
-            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardFolder(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDiscardFolder(pendingDiscardFolder)}>Discard</button>
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDiscardFolder(null)}>{_t('common:buttons.cancel')}</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDiscardFolder(pendingDiscardFolder)}>{_t('gitPanel.btnDiscard', { defaultValue: 'Discard' })}</button>
           </div>
         </div>
       </div>
@@ -1822,14 +1851,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     {pendingDeleteFolder && (
       <div className="guake-git-diff-modal-overlay" onClick={() => setPendingDeleteFolder(null)}>
         <div className="guake-git-delete-confirm" onClick={(e) => e.stopPropagation()}>
-          <p>Delete folder <strong>{pendingDeleteFolder.folderName}</strong>?</p>
+          <p>{_t('gitPanel.confirm.deleteFolder', { defaultValue: 'Delete folder {{name}}?', name: pendingDeleteFolder.folderName })}</p>
           <p className="guake-git-delete-path">{pendingDeleteFolder.folderPath}</p>
           <p className="guake-git-delete-path">
-            Permanently removes this folder and everything inside it from disk. This cannot be undone.
+            {_t('gitPanel.confirm.deleteFolderNote', { defaultValue: 'Permanently removes this folder and everything inside it from disk. This cannot be undone.' })}
           </p>
           <div className="guake-git-delete-actions">
-            <button className="guake-git-delete-cancel" onClick={() => setPendingDeleteFolder(null)}>Cancel</button>
-            <button className="guake-git-delete-btn" onClick={() => executeDeleteFolder(pendingDeleteFolder)}>Delete folder</button>
+            <button className="guake-git-delete-cancel" onClick={() => setPendingDeleteFolder(null)}>{_t('common:buttons.cancel')}</button>
+            <button className="guake-git-delete-btn" onClick={() => executeDeleteFolder(pendingDeleteFolder)}>{_t('gitPanel.btnDeleteFolder', { defaultValue: 'Delete folder' })}</button>
           </div>
         </div>
       </div>
@@ -1846,7 +1875,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   className="guake-git-diff-nav-btn"
                   onClick={() => navigateModal(-1)}
                   disabled={currentFileIndex <= 0}
-                  title="Previous file"
+                  title={_t('gitPanel.previousFile', { defaultValue: 'Previous file' })}
                 >
                   <Icon name="caret-right" size={14} style={{ transform: 'rotate(180deg)' }} />
                 </button>
@@ -1854,7 +1883,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   className="guake-git-diff-nav-btn"
                   onClick={() => navigateModal(1)}
                   disabled={currentFileIndex < 0 || currentFileIndex >= allChangedFiles.length - 1}
-                  title="Next file"
+                  title={_t('gitPanel.nextFile', { defaultValue: 'Next file' })}
                 >
                   <Icon name="caret-right" size={14} />
                 </button>
@@ -1870,8 +1899,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 className="guake-git-diff-nav-btn"
                 onClick={() => goHistory(-1)}
                 disabled={!canHistoryBack}
-                title="Back (Alt+←)"
-                aria-label="Back"
+                title={_t('gitPanel.modalBackTitle', { defaultValue: 'Back (Alt+←)' })}
+                aria-label={_t('common:buttons.back')}
               >
                 <Icon name="arrow-left" size={13} />
               </button>
@@ -1879,8 +1908,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 className="guake-git-diff-nav-btn"
                 onClick={() => goHistory(1)}
                 disabled={!canHistoryForward}
-                title="Forward (Alt+→)"
-                aria-label="Forward"
+                title={_t('gitPanel.modalForwardTitle', { defaultValue: 'Forward (Alt+→)' })}
+                aria-label={_t('gitPanel.modalForward', { defaultValue: 'Forward' })}
               >
                 <Icon name="arrow-right" size={13} />
               </button>
@@ -1889,9 +1918,9 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 onClick={goUpFromModal}
                 disabled={!modalParentFolder}
                 title={modalParentFolder
-                  ? `Up to ${modalParentFolder} — opens it in the file viewer (Alt+↑)`
-                  : 'Already at the root'}
-                aria-label="Up one folder"
+                  ? _t('gitPanel.modalUpTo', { defaultValue: 'Up to {{folder}} — opens it in the file viewer (Alt+↑)', folder: modalParentFolder })
+                  : _t('gitPanel.modalAtRoot', { defaultValue: 'Already at the root' })}
+                aria-label={_t('gitPanel.modalUpOneFolder', { defaultValue: 'Up one folder' })}
               >
                 <Icon name="arrow-up" size={13} />
               </button>
@@ -1901,8 +1930,8 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 value={modalPathDraft}
                 spellCheck={false}
                 autoComplete="off"
-                title={`${modalState.data.filePath}\nEdit and press Enter to open another file`}
-                aria-label="File path — edit and press Enter to open"
+                title={`${modalState.data.filePath}\n${_t('gitPanel.editPathHint', { defaultValue: 'Edit and press Enter to open another file' })}`}
+                aria-label={_t('gitPanel.filePathInputLabel', { defaultValue: 'File path — edit and press Enter to open' })}
                 onChange={(e) => setModalPathDraft(e.target.value)}
                 onFocus={(e) => { setModalPathFocused(true); e.target.select(); }}
                 // Blur reverts instead of loading: only Enter navigates, so a
@@ -1924,10 +1953,10 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                 }}
               />
               {modalState.type === 'content' && modalState.isNewFile && (
-                <span className="guake-git-content-badge">new file</span>
+                <span className="guake-git-content-badge">{_t('gitPanel.newFileBadge', { defaultValue: 'new file' })}</span>
               )}
             </div>
-            <button className="guake-git-close" onClick={closeModal} title="Close (Esc)"><Icon name="close" size={14} /></button>
+            <button className="guake-git-close" onClick={closeModal} title={_t('gitPanel.closeEsc', { defaultValue: 'Close (Esc)' })}><Icon name="close" size={14} /></button>
           </div>
           <div className="guake-git-diff-content">
             {diffLoading && (
@@ -1980,7 +2009,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         <div
           className="guake-side-panel-resize right guake-git-panel__resize"
           onMouseDown={onResizeStart}
-          title="Drag to resize"
+          title={_t('gitPanel.dragToResize', { defaultValue: 'Drag to resize' })}
         />
       )}
       <div className="guake-git-header">
@@ -1990,14 +2019,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               className={`guake-git-tab ${panelMode === 'changes' ? 'active' : ''}`}
               onClick={() => setPanelMode('changes')}
             >
-              <Icon name="git-branch" size={14} /> Changes
+              <Icon name="git-branch" size={14} /> {_t('gitPanel.tabChanges', { defaultValue: 'Changes' })}
               {totalFiles > 0 && <span className="guake-git-badge">{totalFiles}</span>}
             </button>
             <button
               className={`guake-git-tab ${panelMode === 'explorer' ? 'active' : ''}`}
               onClick={() => setPanelMode('explorer')}
             >
-              <Icon name="folder" size={14} /> Files
+              <Icon name="folder" size={14} /> {_t('gitPanel.tabFiles', { defaultValue: 'Files' })}
             </button>
           </div>
         </div>
@@ -2005,7 +2034,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
           <button
             className={`guake-git-fetch-btn ${fetchingDirs.size > 0 ? 'fetching' : ''}`}
             onClick={gitFetchAll}
-            title="Git fetch"
+            title={_t('gitPanel.gitFetch', { defaultValue: 'Git fetch' })}
             disabled={fetchingDirs.size > 0}
           >
             {fetchingDirs.size > 0 ? <Icon name="status-starting" size={14} /> : <Icon name="arrow-down" size={14} />}
@@ -2015,39 +2044,39 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               <button
                 className={`guake-git-view-toggle ${viewMode === 'flat' ? 'active' : ''}`}
                 onClick={() => setViewMode('flat')}
-                title="Flat view"
+                title={_t('gitPanel.flatView', { defaultValue: 'Flat view' })}
               ><Icon name="list" size={14} /></button>
               <button
                 className={`guake-git-view-toggle ${viewMode === 'tree' ? 'active' : ''}`}
                 onClick={() => setViewMode('tree')}
-                title="Tree view"
+                title={_t('gitPanel.treeView', { defaultValue: 'Tree view' })}
               ><Icon name="tree" size={14} /></button>
               {viewMode === 'tree' && (
-                <button className="guake-git-refresh" onClick={collapseAllTree} title="Collapse all">
+                <button className="guake-git-refresh" onClick={collapseAllTree} title={_t('gitPanel.collapseAll', { defaultValue: 'Collapse all' })}>
                   <Icon name="caret-double-up" size={14} />
                 </button>
               )}
-              <button className="guake-git-refresh" onClick={refresh} title="Refresh" disabled={loading}>
+              <button className="guake-git-refresh" onClick={refresh} title={_t('common:buttons.refresh')} disabled={loading}>
                 {loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
               </button>
             </>
           )}
           {panelMode === 'explorer' && (
             <>
-              <button className="guake-git-refresh" onClick={collapseAllTree} title="Collapse all">
+              <button className="guake-git-refresh" onClick={collapseAllTree} title={_t('gitPanel.collapseAll', { defaultValue: 'Collapse all' })}>
                 <Icon name="caret-double-up" size={14} />
               </button>
-              <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title="Refresh" disabled={fileTree.loading}>
+              <button className="guake-git-refresh" onClick={() => fileTree.loadTree()} title={_t('common:buttons.refresh')} disabled={fileTree.loading}>
                 {fileTree.loading ? <Icon name="status-starting" size={14} /> : <Icon name="refresh" size={14} />}
               </button>
             </>
           )}
-          <button className="guake-git-close" onClick={onClose} title="Close"><Icon name="close" size={14} /></button>
+          <button className="guake-git-close" onClick={onClose} title={_t('common:buttons.close')}><Icon name="close" size={14} /></button>
         </div>
       </div>
 
       {((panelMode === 'changes' && repos.length > 0) || (panelMode === 'explorer' && !!explorerFolder)) && (
-        <div className="guake-git-filter" title={FILTER_HELP}>
+        <div className="guake-git-filter" title={_t('gitPanel.filterHelp', { defaultValue: FILTER_HELP })}>
           <span className="guake-git-filter-icon"><Icon name="search" size={12} /></span>
           <input
             className="guake-git-filter-input"
@@ -2055,7 +2084,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             onKeyDown={handleFilterKeyDown}
-            placeholder="Filter files —  src/  .tsx  !test  status:mod"
+            placeholder={_t('gitPanel.filterPlaceholder', { defaultValue: 'Filter files —  src/  .tsx  !test  status:mod' })}
             spellCheck={false}
             autoComplete="off"
             data-escape-local="true"
@@ -2071,7 +2100,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             <button
               className="guake-git-filter-clear"
               onClick={() => setFilterQuery('')}
-              title="Clear filter (Esc)"
+              title={_t('gitPanel.clearFilterEsc', { defaultValue: 'Clear filter (Esc)' })}
             >
               <Icon name="close" size={12} />
             </button>
@@ -2084,18 +2113,18 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         {panelMode === 'changes' && (
           <>
             {loading && repos.length === 0 && (
-              <div className="guake-git-loading">Loading git status...</div>
+              <div className="guake-git-loading">{_t('gitPanel.loadingGitStatus', { defaultValue: 'Loading git status...' })}</div>
             )}
 
             {!loading && repos.length === 0 && (
-              <div className="guake-git-empty">No git changes found</div>
+              <div className="guake-git-empty">{_t('gitPanel.noGitChanges', { defaultValue: 'No git changes found' })}</div>
             )}
 
             {repos.length > 0 && displayRepos.length === 0 && (
               <div className="guake-git-empty">
-                No changed file matches <code>{filterQuery.trim()}</code>
+                {_t('gitPanel.noChangedFileMatches', { defaultValue: 'No changed file matches {{query}}', query: filterQuery.trim() })}
                 <button className="guake-git-filter-reset" onClick={() => setFilterQuery('')}>
-                  Clear filter
+                  {_t('gitPanel.clearFilter', { defaultValue: 'Clear filter' })}
                 </button>
               </div>
             )}
@@ -2121,7 +2150,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   </span>
                   <button
                     className="git-discard-all-btn"
-                    title="Discard all changes in this repo"
+                    title={_t('gitPanel.discardAllInRepo', { defaultValue: 'Discard all changes in this repo' })}
                     onClick={(e) => {
                       e.stopPropagation();
                       setPendingDiscardAll({
@@ -2139,15 +2168,21 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
 
                 {expanded && truncated && (
                   <div className="guake-git-truncated-notice">
-                    Showing {gitStatus.files.length} of {repoTotalFiles} changes. Add the
-                    generated paths to .gitignore to see the rest.
+                    {_t('gitPanel.truncatedNotice', {
+                      defaultValue: 'Showing {{shown}} of {{total}} changes. Add the generated paths to .gitignore to see the rest.',
+                      shown: gitStatus.files.length,
+                      total: repoTotalFiles,
+                    })}
                   </div>
                 )}
 
                 {expanded && hiddenMatches > 0 && (
                   <div className="guake-git-truncated-notice">
-                    Showing the top {FILTER_RENDER_CAP} of {matchCount} matches — refine the filter
-                    to narrow it down.
+                    {_t('gitPanel.topMatchesNotice', {
+                      defaultValue: 'Showing the top {{cap}} of {{count}} matches — refine the filter to narrow it down.',
+                      cap: FILTER_RENDER_CAP,
+                      count: matchCount,
+                    })}
                   </div>
                 )}
 
@@ -2180,7 +2215,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           </span>
                           <button
                             className="guake-git-discard-btn"
-                            title={file.status === 'untracked' || file.status === 'added' ? 'Delete file' : 'Discard changes'}
+                            title={file.status === 'untracked' || file.status === 'added' ? _t('gitPanel.discardBtnDeleteFile', { defaultValue: 'Delete file' }) : _t('gitPanel.discardBtnDiscardChanges', { defaultValue: 'Discard changes' })}
                             onClick={(e) => handleInlineDiscard(e, file, dir)}
                           >
                             <Icon name="revert" size={12} />
@@ -2243,11 +2278,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
             )}
 
             {fileTree.loading && fileTree.tree.length === 0 && (
-              <div className="guake-git-loading">Loading files...</div>
+              <div className="guake-git-loading">{_t('gitPanel.loadingFiles', { defaultValue: 'Loading files...' })}</div>
             )}
 
             {!fileTree.loading && fileTree.tree.length === 0 && !filterActive && (
-              <div className="guake-git-empty">No files found</div>
+              <div className="guake-git-empty">{_t('gitPanel.noFilesFound', { defaultValue: 'No files found' })}</div>
             )}
 
             {/* Filtering flattens the tree into ranked results: the folder is
@@ -2257,11 +2292,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
               <div className="guake-git-file-list">
                 {explorerMatches.length === 0 ? (
                   <div className="guake-git-empty">
-                    {explorerSearching ? 'Searching…' : (
+                    {explorerSearching ? _t('gitPanel.searching', { defaultValue: 'Searching…' }) : (
                       <>
-                        No file matches <code>{filterQuery.trim()}</code>
+                        {_t('gitPanel.noFileMatches', { defaultValue: 'No file matches {{query}}', query: filterQuery.trim() })}
                         <button className="guake-git-filter-reset" onClick={() => setFilterQuery('')}>
-                          Clear filter
+                          {_t('gitPanel.clearFilter', { defaultValue: 'Clear filter' })}
                         </button>
                       </>
                     )}
@@ -2302,8 +2337,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                     })}
                     {explorerMatches.length > FILTER_RENDER_CAP && (
                       <div className="guake-git-truncated-notice">
-                        Showing the top {FILTER_RENDER_CAP} of {explorerMatches.length} matches —
-                        refine the filter to narrow it down.
+                        {_t('gitPanel.topMatchesNotice', {
+                          defaultValue: 'Showing the top {{cap}} of {{count}} matches — refine the filter to narrow it down.',
+                          cap: FILTER_RENDER_CAP,
+                          count: explorerMatches.length,
+                        })}
                       </div>
                     )}
                   </>
@@ -2338,11 +2376,11 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                   className="guake-git-recents-header"
                   onClick={toggleRecents}
                   aria-expanded={recentsOpen}
-                  title="Folders of your most recently used agents"
+                  title={_t('gitPanel.recentFoldersTooltip', { defaultValue: 'Folders of your most recently used agents' })}
                 >
                   <Icon name={recentsOpen ? 'caret-down' : 'caret-right'} size={10} />
                   <Icon name="history" size={12} />
-                  <span className="guake-git-recents-title">Recent Folders</span>
+                  <span className="guake-git-recents-title">{_t('gitPanel.recentFolders', { defaultValue: 'Recent Folders' })}</span>
                   <span className="guake-git-recents-count">{recentFolders.length}</span>
                 </button>
                 {recentsOpen && (
@@ -2366,19 +2404,19 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                               actions: [
                                 {
                                   id: 'copy-path',
-                                  label: 'Copy Full Path',
+                                  label: _t('gitPanel.copyFullPath', { defaultValue: 'Copy Full Path' }),
                                   icon: <Icon name="pin" size={14} />,
                                   onClick: () => { navigator.clipboard.writeText(dir); },
                                 },
                                 {
                                   id: 'reveal-folder',
-                                  label: 'Reveal in Folder',
+                                  label: _t('gitPanel.revealInFolder', { defaultValue: 'Reveal in Folder' }),
                                   icon: <Icon name="folder-open" size={14} />,
                                   onClick: () => { void revealPath(dir); },
                                 },
                                 {
                                   id: 'download',
-                                  label: 'Download Folder (.zip)',
+                                  label: _t('gitPanel.downloadFolderZip', { defaultValue: 'Download Folder (.zip)' }),
                                   icon: <Icon name="download" size={14} />,
                                   onClick: () => downloadFolder(dir, name),
                                 },
@@ -2389,7 +2427,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                           // whole project onto Finder as a .zip.
                           draggable
                           onDragStart={(e) => setNativeFileDrag(e.dataTransfer, { path: dir, name, isDirectory: true })}
-                          title={`${dir}\nLast used by ${agentName}`}
+                          title={`${dir}\n${_t('gitPanel.lastUsedBy', { defaultValue: 'Last used by {{agentName}}', agentName })}`}
                         >
                           <Icon name="folder-open" size={12} />
                           <span className="guake-git-recent-name">{name}</span>

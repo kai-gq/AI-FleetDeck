@@ -35,6 +35,7 @@
     "re:^terminal:input\\.(pendingMessage|pendingMessages|removeQueuedMessage)$",
     "re:^terminal:fileViewer\\.(downloadPdfTitle|pathInputLabel|pathInputTitle)$",
     "re:^terminal:fileGitHistory\\.",
-    "re:^terminal:statistics\\."
+    "re:^terminal:statistics\\.",
+    "re:^terminal:gitPanel\\."
   ]
 }
