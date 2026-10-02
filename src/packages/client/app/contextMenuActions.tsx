@@ -9,6 +9,24 @@ import { Icon } from '../components/Icon';
 import type { Agent, DrawingArea as Area, Building } from '../../shared/types';
 import { organizeArea } from '../api/area-layout';
 import type { OrganizeResult } from '../api/area-layout';
+import { getI18nInstance } from '../utils/formatting';
+
+// Loose signature so the bound i18n.t fits without pulling i18next types in.
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Translate a key outside React: the English `defaultValue` keeps en output
+ * byte-identical, zh values live in public/locales/zh-CN (locale-only keys).
+ * Before i18n init (unit tests) the default is returned with its `{{vars}}`
+ * interpolated so callers never see raw placeholders.
+ */
+function tr(key: string, options: { defaultValue: string } & Record<string, unknown>): string {
+  const i18n = getI18nInstance();
+  const t = i18n?.t?.bind(i18n) as Translate | undefined;
+  if (t) return t(key, options);
+  const { defaultValue, ...vars } = options;
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
+}
 
 export interface ContextMenuTarget {
   type: 'ground' | 'agent' | 'area' | 'building';
@@ -76,7 +94,7 @@ export function buildContextMenuActions(
     if (agent) {
       actions.push({
         id: 'select-agent',
-        label: `Select ${agent.name}`,
+        label: tr('terminal:sceneMenu.selectAgent', { defaultValue: 'Select {{name}}', name: agent.name }),
         icon: <Icon name="hand-point" size={14} />,
         onClick: () => {
           store.selectAgent(target.id!);
@@ -85,7 +103,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'focus-agent',
-        label: 'Focus Camera',
+        label: tr('terminal:sceneMenu.focusCamera', { defaultValue: 'Focus Camera' }),
         icon: <Icon name="target" size={14} />,
         onClick: () => {
           callbacks.sceneRef.current?.focusAgent(target.id!);
@@ -93,7 +111,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'open-terminal',
-        label: 'Open Terminal',
+        label: tr('terminal:controls.shortcuts.open-terminal.name', { defaultValue: 'Open Terminal' }),
         icon: <Icon name="chat" size={14} />,
         onClick: () => {
           store.selectAgent(target.id!);
@@ -102,7 +120,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'edit-agent',
-        label: 'Edit Agent',
+        label: tr('terminal:overview.editAgent', { defaultValue: 'Edit Agent' }),
         icon: <Icon name="edit" size={14} />,
         onClick: () => {
           callbacks.openAgentEditModal(target.id!);
@@ -110,32 +128,44 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'clone-agent',
-        label: 'Clone Agent',
+        label: tr('terminal:overview.cloneAgent', { defaultValue: 'Clone Agent' }),
         icon: <Icon name="clipboard" size={14} />,
         onClick: () => {
           store.cloneAgent(target.id!);
-          callbacks.showToast('success', 'Agent Cloned', `Created a copy of ${agent.name}`);
+          callbacks.showToast(
+            'success',
+            tr('terminal:sceneMenu.agentCloned', { defaultValue: 'Agent Cloned' }),
+            tr('terminal:sceneMenu.agentClonedMsg', { defaultValue: 'Created a copy of {{name}}', name: agent.name })
+          );
         },
       });
       actions.push({
         id: 'fork-agent',
-        label: 'Fork Agent (with history)',
+        label: tr('terminal:overview.forkAgent', { defaultValue: 'Fork Agent (with history)' }),
         icon: <Icon name="git-branch" size={14} />,
         onClick: () => {
           store.forkAgent(target.id!);
-          callbacks.showToast('success', 'Agent Forked', `Forked ${agent.name} — continues its conversation`);
+          callbacks.showToast(
+            'success',
+            tr('terminal:sceneMenu.agentForked', { defaultValue: 'Agent Forked' }),
+            tr('terminal:sceneMenu.agentForkedMsg', { defaultValue: 'Forked {{name}} — continues its conversation', name: agent.name })
+          );
         },
       });
       actions.push({ id: 'divider-agent', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-agent',
-        label: `Remove ${agent.name}`,
+        label: tr('terminal:sceneMenu.removeAgent', { defaultValue: 'Remove {{name}}', name: agent.name }),
         icon: <Icon name="failure" size={14} />,
         danger: true,
         onClick: () => {
           store.removeAgentFromServer(target.id!);
           callbacks.sceneRef.current?.removeAgent(target.id!);
-          callbacks.showToast('info', 'Agent Removed', `${agent.name} removed from view`);
+          callbacks.showToast(
+            'info',
+            tr('terminal:sceneMenu.agentRemoved', { defaultValue: 'Agent Removed' }),
+            tr('notifications:agent.removed', { defaultValue: '{{name}} removed from view', name: agent.name })
+          );
         },
       });
       return actions;
@@ -148,7 +178,7 @@ export function buildContextMenuActions(
     if (area) {
       actions.push({
         id: 'select-area',
-        label: `Select "${area.name}"`,
+        label: tr('terminal:sceneMenu.selectArea', { defaultValue: 'Select "{{name}}"', name: area.name }),
         icon: <Icon name="class-architect" size={14} />,
         onClick: () => {
           store.selectArea(target.id!);
@@ -158,7 +188,7 @@ export function buildContextMenuActions(
       if (area.directories && area.directories.length > 0) {
         actions.push({
           id: 'open-explorer',
-          label: 'Open File Explorer',
+          label: tr('terminal:sceneMenu.openFileExplorer', { defaultValue: 'Open File Explorer' }),
           icon: <Icon name="folder" size={14} />,
           onClick: () => {
             callbacks.openExplorerModal(target.id!);
@@ -167,7 +197,7 @@ export function buildContextMenuActions(
       }
       actions.push({
         id: 'spawn-in-area',
-        label: 'Spawn Agent',
+        label: tr('terminal:spawn.spawnAgent', { defaultValue: 'Spawn Agent' }),
         icon: <Icon name="robot" size={14} />,
         onClick: () => {
           window.dispatchEvent(
@@ -179,7 +209,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'spawn-boss-in-area',
-        label: 'Spawn Boss',
+        label: tr('terminal:sceneMenu.spawnBoss', { defaultValue: 'Spawn Boss' }),
         icon: <Icon name="crown" size={14} />,
         onClick: () => {
           window.dispatchEvent(
@@ -191,7 +221,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'new-building-in-area',
-        label: 'Place Building',
+        label: tr('terminal:sceneMenu.placeBuilding', { defaultValue: 'Place Building' }),
         icon: <Icon name="buildings" size={14} />,
         onClick: () => {
           window.dispatchEvent(
@@ -204,7 +234,7 @@ export function buildContextMenuActions(
       actions.push({ id: 'divider-area-layer', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'bring-to-front',
-        label: 'Bring to Front',
+        label: tr('terminal:sceneMenu.bringToFront', { defaultValue: 'Bring to Front' }),
         icon: <Icon name="arrow-up" size={14} />,
         onClick: () => {
           store.bringAreaToFront(target.id!);
@@ -213,7 +243,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'send-to-back',
-        label: 'Send to Back',
+        label: tr('terminal:sceneMenu.sendToBack', { defaultValue: 'Send to Back' }),
         icon: <Icon name="arrow-down" size={14} />,
         onClick: () => {
           store.sendAreaToBack(target.id!);
@@ -224,17 +254,38 @@ export function buildContextMenuActions(
       if (area.assignedAgentIds.length > 0) {
         actions.push({
           id: 'organize-area',
-          label: 'Organize Area',
+          label: tr('terminal:sceneMenu.organizeArea', { defaultValue: 'Organize Area' }),
           icon: <Icon name="sparkle" size={14} />,
           onClick: () => {
             organizeArea(target.id!)
               .then((result) => {
                 applyOrganizeResult(result, callbacks.sceneRef);
-                callbacks.showToast('success', 'Area Organized', `Arranged ${result.organized.length} agent${result.organized.length !== 1 ? 's' : ''} in "${area.name}"`);
+                const organizedCount = result.organized.length;
+                const organizedMsg =
+                  organizedCount === 1
+                    ? tr('terminal:sceneMenu.areaOrganizedMsgOne', {
+                        defaultValue: 'Arranged {{n}} agent in "{{name}}"',
+                        n: organizedCount,
+                        name: area.name,
+                      })
+                    : tr('terminal:sceneMenu.areaOrganizedMsgMany', {
+                        defaultValue: 'Arranged {{n}} agents in "{{name}}"',
+                        n: organizedCount,
+                        name: area.name,
+                      });
+                callbacks.showToast(
+                  'success',
+                  tr('terminal:sceneMenu.areaOrganized', { defaultValue: 'Area Organized' }),
+                  organizedMsg
+                );
               })
               .catch((err) => {
                 console.error('organize area error:', err);
-                callbacks.showToast('error', 'Organize Failed', err.message || 'Failed to organize area');
+                callbacks.showToast(
+                  'error',
+                  tr('terminal:sceneMenu.organizeFailed', { defaultValue: 'Organize Failed' }),
+                  err.message || tr('terminal:sceneMenu.organizeFailedMsg', { defaultValue: 'Failed to organize area' })
+                );
               });
           },
         });
@@ -242,7 +293,7 @@ export function buildContextMenuActions(
       actions.push({ id: 'divider-area', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'archive-area',
-        label: `Archive "${area.name}"`,
+        label: tr('terminal:sceneMenu.archiveArea', { defaultValue: 'Archive "{{name}}"', name: area.name }),
         icon: <Icon name="package" size={14} />,
         onClick: () => {
           const agentCount = area.assignedAgentIds.length;
@@ -250,19 +301,43 @@ export function buildContextMenuActions(
           store.archiveArea(target.id!, (agentId) => store.stopAgent(agentId));
           callbacks.sceneRef.current?.syncAreas();
           callbacks.sceneRef.current?.syncAgents(Array.from(store.getState().agents.values()));
-          const agentMsg = agentCount > 0 ? ` (${agentCount} agent${agentCount > 1 ? 's' : ''} stopped)` : '';
-          callbacks.showToast('info', 'Zone Archived', `"${area.name}" has been archived${agentMsg}`);
+          let archivedMsg = tr('terminal:sceneMenu.zoneArchivedMsg', {
+            defaultValue: '"{{name}}" has been archived',
+            name: area.name,
+          });
+          if (agentCount === 1) {
+            archivedMsg = tr('terminal:sceneMenu.zoneArchivedMsgOneStopped', {
+              defaultValue: '"{{name}}" has been archived ({{n}} agent stopped)',
+              name: area.name,
+              n: agentCount,
+            });
+          } else if (agentCount > 1) {
+            archivedMsg = tr('terminal:sceneMenu.zoneArchivedMsgManyStopped', {
+              defaultValue: '"{{name}}" has been archived ({{n}} agents stopped)',
+              name: area.name,
+              n: agentCount,
+            });
+          }
+          callbacks.showToast(
+            'info',
+            tr('terminal:sceneMenu.zoneArchived', { defaultValue: 'Zone Archived' }),
+            archivedMsg
+          );
         },
       });
       actions.push({
         id: 'delete-area',
-        label: `Delete "${area.name}"`,
+        label: tr('terminal:sceneMenu.deleteArea', { defaultValue: 'Delete "{{name}}"', name: area.name }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
           store.deleteArea(target.id!);
           callbacks.sceneRef.current?.syncAreas();
-          callbacks.showToast('info', 'Area Deleted', `"${area.name}" has been deleted`);
+          callbacks.showToast(
+            'info',
+            tr('terminal:sceneMenu.areaDeleted', { defaultValue: 'Area Deleted' }),
+            tr('terminal:sceneMenu.areaDeletedMsg', { defaultValue: '"{{name}}" has been deleted', name: area.name })
+          );
         },
       });
       return actions;
@@ -275,7 +350,7 @@ export function buildContextMenuActions(
     if (building) {
       actions.push({
         id: 'select-building',
-        label: `Select "${building.name}"`,
+        label: tr('terminal:sceneMenu.selectBuilding', { defaultValue: 'Select "{{name}}"', name: building.name }),
         icon: <Icon name="buildings" size={14} />,
         onClick: () => {
           store.selectBuilding(target.id!);
@@ -284,7 +359,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'edit-building',
-        label: 'Edit Building',
+        label: tr('terminal:sceneMenu.editBuilding', { defaultValue: 'Edit Building' }),
         icon: <Icon name="edit" size={14} />,
         onClick: () => {
           callbacks.openBuildingModal(target.id!);
@@ -292,7 +367,7 @@ export function buildContextMenuActions(
       });
       actions.push({
         id: 'clone-building',
-        label: 'Clone Building',
+        label: tr('terminal:sceneMenu.cloneBuilding', { defaultValue: 'Clone Building' }),
         icon: <Icon name="clipboard" size={14} />,
         onClick: () => {
           // Clone the building with offset position
@@ -318,13 +393,17 @@ export function buildContextMenuActions(
             subordinateBuildingIds: building.subordinateBuildingIds,
           };
           store.createBuilding(cloneData);
-          callbacks.showToast('success', 'Building Cloned', `Created "${cloneData.name}"`);
+          callbacks.showToast(
+            'success',
+            tr('terminal:sceneMenu.buildingCloned', { defaultValue: 'Building Cloned' }),
+            tr('terminal:sceneMenu.buildingClonedMsg', { defaultValue: 'Created "{{name}}"', name: cloneData.name })
+          );
         },
       });
       if (building.type === 'slash-command') {
         actions.push({
           id: 'run-slash-command',
-          label: 'Run Slash Command',
+          label: tr('terminal:sceneMenu.runSlashCommand', { defaultValue: 'Run Slash Command' }),
           icon: <Icon name="bolt" size={14} />,
           onClick: () => {
             window.dispatchEvent(new CustomEvent('tide:open-slash-command-building', {
@@ -336,7 +415,7 @@ export function buildContextMenuActions(
       if (building.type === 'folder' && building.folderPath) {
         actions.push({
           id: 'open-folder',
-          label: 'Open Folder',
+          label: tr('terminal:sceneMenu.openFolder', { defaultValue: 'Open Folder' }),
           icon: <Icon name="folder" size={14} />,
           onClick: () => {
             store.openFileExplorer(building.folderPath!);
@@ -346,7 +425,7 @@ export function buildContextMenuActions(
       if (building.type === 'tests' && building.folderPath) {
         actions.push({
           id: 'open-tests',
-          label: 'Open Tests',
+          label: tr('terminal:sceneMenu.openTests', { defaultValue: 'Open Tests' }),
           icon: <Icon name="flask" size={14} />,
           onClick: () => {
             store.openTestsBuilding(building.id);
@@ -356,7 +435,7 @@ export function buildContextMenuActions(
       if (building.type === 'http' && building.folderPath) {
         actions.push({
           id: 'open-http-requests',
-          label: 'Open Requests',
+          label: tr('terminal:sceneMenu.openRequests', { defaultValue: 'Open Requests' }),
           icon: <Icon name="globe" size={14} />,
           onClick: () => {
             store.openHttpBuilding(building.id);
@@ -366,7 +445,7 @@ export function buildContextMenuActions(
       actions.push({ id: 'divider-building', label: '', divider: true, onClick: () => {} });
       actions.push({
         id: 'delete-building',
-        label: `Delete "${building.name}"`,
+        label: tr('terminal:sceneMenu.deleteBuilding', { defaultValue: 'Delete "{{name}}"', name: building.name }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
@@ -380,7 +459,7 @@ export function buildContextMenuActions(
   // Ground actions (default) - spawn, draw, etc.
   actions.push({
     id: 'spawn-agent',
-    label: 'Spawn Agent Here',
+    label: tr('terminal:sceneMenu.spawnAgentHere', { defaultValue: 'Spawn Agent Here' }),
     icon: <Icon name="robot" size={14} />,
     shortcut: 'N',
     onClick: () => {
@@ -390,7 +469,7 @@ export function buildContextMenuActions(
   });
   actions.push({
     id: 'spawn-boss',
-    label: 'Spawn Boss Here',
+    label: tr('terminal:sceneMenu.spawnBossHere', { defaultValue: 'Spawn Boss Here' }),
     icon: <Icon name="crown" size={14} />,
     onClick: () => {
       callbacks.setSpawnPosition(worldPos);
@@ -400,19 +479,23 @@ export function buildContextMenuActions(
   actions.push({ id: 'divider-1', label: '', divider: true, onClick: () => {} });
   actions.push({
     id: 'draw-area',
-    label: 'Draw Area',
+    label: tr('terminal:sceneMenu.drawArea', { defaultValue: 'Draw Area' }),
     icon: <Icon name="class-architect" size={14} />,
     onClick: () => {
       callbacks.sceneRef.current?.setDrawingTool('rectangle');
       if (typeof window !== 'undefined' && (window as any).__tideScene2D_setDrawingTool) {
         (window as any).__tideScene2D_setDrawingTool('rectangle');
       }
-      callbacks.showToast('info', 'Rectangle Tool', 'Click and drag on the battlefield to draw an area');
+      callbacks.showToast(
+        'info',
+        tr('notifications:drawing.rectangleTool', { defaultValue: 'Rectangle Tool' }),
+        tr('notifications:drawing.clickAndDrag', { defaultValue: 'Click and drag on the battlefield to draw an area' })
+      );
     },
   });
   actions.push({
     id: 'new-building',
-    label: 'Place Building',
+    label: tr('terminal:sceneMenu.placeBuilding', { defaultValue: 'Place Building' }),
     icon: <Icon name="buildings" size={14} />,
     onClick: () => {
       callbacks.openBuildingModal(null);
@@ -423,7 +506,7 @@ export function buildContextMenuActions(
   if (archivedCount > 0) {
     actions.push({
       id: 'restore-archived',
-      label: `Restore Archived Zone (${archivedCount})`,
+      label: tr('terminal:sceneMenu.restoreArchived', { defaultValue: 'Restore Archived Zone ({{n}})', n: archivedCount }),
       icon: <Icon name="package" size={14} />,
       onClick: () => {
         callbacks.openRestoreArchivedModal(worldPos);
@@ -433,7 +516,7 @@ export function buildContextMenuActions(
   actions.push({ id: 'divider-2', label: '', divider: true, onClick: () => {} });
   actions.push({
     id: 'open-settings',
-    label: 'Settings',
+    label: tr('common:buttons.settings', { defaultValue: 'Settings' }),
     icon: <Icon name="gear" size={14} />,
     onClick: () => {
       callbacks.openToolboxModal();
@@ -441,7 +524,7 @@ export function buildContextMenuActions(
   });
   actions.push({
     id: 'open-commander',
-    label: 'Commander View',
+    label: tr('common:floatingButtons.commanderView', { defaultValue: 'Commander View' }),
     icon: <Icon name="dashboard" size={14} />,
     shortcut: 'Tab',
     onClick: () => {

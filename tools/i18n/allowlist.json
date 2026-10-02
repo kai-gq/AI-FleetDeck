@@ -75,6 +75,7 @@
     "re:^terminal:spotlight\\.(cmd\\.|settingsSection|areaSubtitle|buildingType\\.|type\\.|runCommand|completeCommand)",
     "re:^terminal:spotlightItem\\.",
     "re:^terminal:spotlightCommand\\.",
-    "re:^terminal:spotlightFile\\."
+    "re:^terminal:spotlightFile\\.",
+    "re:^terminal:sceneMenu\\."
   ]
 }
