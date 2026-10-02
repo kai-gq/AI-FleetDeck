@@ -364,15 +364,15 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const handleSave = async () => {
     if (isRuntimeChange) {
       if (hasNonTransferChanges) {
-        setTransferError('Save your other agent edits before converting the runtime.');
+        setTransferError(t('terminal:spawn.saveBeforeConvert', { defaultValue: 'Save your other agent edits before converting the runtime.' }));
         return;
       }
       if (effectiveTransferMode !== 'fresh' && !agent.sessionId) {
-        setTransferError(`This agent has no saved ${sourceLabel} session. Choose Fresh Start.`);
+        setTransferError(t('terminal:spawn.noSavedSession', { defaultValue: 'This agent has no saved {{provider}} session. Choose Fresh Start.', provider: sourceLabel }));
         return;
       }
       if (agentIsActive && !stopActiveForTransfer) {
-        setTransferError('Confirm that Commander may stop the active task before converting.');
+        setTransferError(t('terminal:spawn.confirmStopActive', { defaultValue: 'Confirm that Commander may stop the active task before converting.' }));
         return;
       }
       setTransferLoading(true);
@@ -393,14 +393,14 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
           agentId: response.agent.id,
           agentName: response.agent.name,
           message: response.transfer.targetSessionId
-            ? `Converted ${from} session to ${to} (${response.transfer.importedTurnCount} imported turns)`
-            : `Changed ${from} runtime to ${to} with a fresh session`,
+            ? t('terminal:spawn.activityConverted', { defaultValue: 'Converted {{from}} session to {{to}} ({{count}} imported turns)', from, to, count: response.transfer.importedTurnCount })
+            : t('terminal:spawn.activityFresh', { defaultValue: 'Changed {{from}} runtime to {{to}} with a fresh session', from, to }),
           timestamp: Date.now(),
         });
         store.requestSessionHistory(response.agent.id);
         onClose();
       } catch (error) {
-        setTransferError(error instanceof Error ? error.message : `Failed to convert session to ${targetLabel}`);
+        setTransferError(error instanceof Error ? error.message : t('terminal:spawn.convertFailed', { defaultValue: 'Failed to convert session to {{provider}}', provider: targetLabel }));
       } finally {
         setTransferLoading(false);
       }
@@ -535,14 +535,14 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
     const parsed = parseShortcutString(shortcut);
     return {
       id: `agent-terminal-shortcut-${agent.id}`,
-      name: 'Terminal Shortcut',
-      description: 'Open terminal for this agent',
+      name: t('terminal:spawn.terminalShortcut', { defaultValue: 'Terminal Shortcut' }),
+      description: t('terminal:spawn.shortcutDescription', { defaultValue: 'Open terminal for this agent' }),
       key: parsed?.key || '',
       modifiers: parsed?.modifiers || {},
       enabled: true,
       context: 'global',
     };
-  }, [agent.id, shortcut]);
+  }, [agent.id, shortcut, t]);
 
   if (!isOpen) return null;
 
@@ -576,7 +576,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 <input
                   type="text"
                   className="spawn-input class-search-input"
-                  placeholder="Filter classes..."
+                  placeholder={t('terminal:spawn.filterClasses')}
                   value={classSearch}
                   onChange={(e) => setClassSearch(e.target.value)}
                 />
@@ -604,7 +604,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     </button>
                   ))}
                   {filteredCustomClasses.length === 0 && filteredBuiltInClasses.length === 0 && (
-                    <div className="class-search-empty">No classes match "{classSearch}"</div>
+                    <div className="class-search-empty">{t('terminal:spawn.noClassesMatch', { query: classSearch })}</div>
                   )}
                 </div>
               </div>
@@ -643,7 +643,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               <div className="custom-class-notice">
                 <div className="custom-class-notice-header" onClick={() => setEditingInstructions(!editingInstructions)} style={{ cursor: 'pointer' }}>
                   <span><Icon name="task" size={14} /></span>
-                  <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : 'Add custom instructions'}</span>
+                  <span>{selectedCustomClass.instructions ? t('terminal:spawn.hasCustomInstructions') : t('terminal:spawn.addCustomInstructions', { defaultValue: 'Add custom instructions' })}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}><Icon name={editingInstructions ? 'caret-up' : 'caret-down'} size={11} /></span>
                 </div>
                 {!editingInstructions && selectedCustomClass.instructions && (
@@ -656,7 +656,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     <textarea
                       value={instructionsText}
                       onChange={(e) => setInstructionsText(e.target.value)}
-                      placeholder="CLAUDE.md instructions for this agent class..."
+                      placeholder={t('terminal:spawn.classInstructionsPlaceholder', { defaultValue: 'CLAUDE.md instructions for this agent class...' })}
                       rows={6}
                       style={{ width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 12, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--text-primary)', padding: '6px 8px', outline: 'none' }}
                     />
@@ -668,7 +668,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         }}
                         style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'rgba(0,200,200,0.2)', color: 'var(--accent-cyan)', border: '1px solid rgba(0,200,200,0.3)' }}
                       >
-                        Save
+                        {t('common:buttons.save')}
                       </button>
                       <button
                         onClick={() => {
@@ -677,11 +677,11 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                         }}
                         style={{ padding: '2px 10px', borderRadius: 4, fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)' }}
                       >
-                        Cancel
+                        {t('common:buttons.cancel')}
                       </button>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                      These instructions are injected as system prompt for all agents of this class.
+                      {t('terminal:spawn.classInstructionsHint', { defaultValue: 'These instructions are injected as system prompt for all agents of this class.' })}
                     </div>
                   </div>
                 )}
@@ -817,7 +817,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       inputId="edit-pi-model"
                     />
                     <div className="spawn-inline-hint">
-                      Change between Anthropic, OpenAI Codex, or any Pi provider without clearing this conversation.
+                      {t('terminal:spawn.piSwitchHint', { defaultValue: 'Change between Anthropic, OpenAI Codex, or any Pi provider without clearing this conversation.' })}
                     </div>
                   </>
                 ) : (
@@ -838,19 +838,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             {isRuntimeChange && (
               <div className="runtime-transfer-panel">
                 <div className="runtime-transfer-panel__title">
-                  <Icon name="arrow-right" size={14} /> Convert {sourceLabel} conversation to {targetLabel}
+                  <Icon name="arrow-right" size={14} /> {t('terminal:spawn.convertTitle', { defaultValue: 'Convert {{from}} conversation to {{to}}', from: sourceLabel, to: targetLabel })}
                 </div>
                 <div className="spawn-inline-hint">
                   {targetSupportsImport
-                    ? `Commander creates and validates a new ${targetLabel} session. The original ${sourceLabel} session remains archived for rollback.`
-                    : `Commander cannot write ${targetLabel} sessions yet, so the agent starts ${targetLabel} fresh. The original ${sourceLabel} session remains archived for rollback.`}
+                    ? t('terminal:spawn.convertImportHint', { defaultValue: 'Commander creates and validates a new {{target}} session. The original {{source}} session remains archived for rollback.', target: targetLabel, source: sourceLabel })
+                    : t('terminal:spawn.convertFreshHint', { defaultValue: 'Commander cannot write {{target}} sessions yet, so the agent starts {{target}} fresh. The original {{source}} session remains archived for rollback.', target: targetLabel, source: sourceLabel })}
                 </div>
                 {targetSupportsImport && (
                   <div className="runtime-transfer-mode-grid">
                     {([
-                      ['smart', 'Smart Context', 'First request, useful history, changed files, and recent turns.'],
-                      ['full', 'Visible Transcript', 'Import visible user/assistant turns and safe tool activity up to the context budget.'],
-                      ['fresh', 'Fresh Start', `Archive the ${sourceLabel} session but start ${targetLabel} without importing its conversation.`],
+                      ['smart', t('terminal:spawn.transferModeSmart', { defaultValue: 'Smart Context' }), t('terminal:spawn.transferModeSmartDesc', { defaultValue: 'First request, useful history, changed files, and recent turns.' })],
+                      ['full', t('terminal:spawn.transferModeFull', { defaultValue: 'Visible Transcript' }), t('terminal:spawn.transferModeFullDesc', { defaultValue: 'Import visible user/assistant turns and safe tool activity up to the context budget.' })],
+                      ['fresh', t('terminal:spawn.transferModeFresh', { defaultValue: 'Fresh Start' }), t('terminal:spawn.transferModeFreshDesc', { defaultValue: 'Archive the {{source}} session but start {{target}} without importing its conversation.', target: targetLabel, source: sourceLabel })],
                     ] as Array<[SessionTransferMode, string, string]>).map(([mode, label, description]) => (
                       <button
                         type="button"
@@ -866,12 +866,12 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 )}
                 {!agent.sessionId && effectiveTransferMode !== 'fresh' && (
                   <div className="model-change-notice warning">
-                    This agent has no saved {sourceLabel} session. Choose Fresh Start.
+                    {t('terminal:spawn.noSavedSession', { defaultValue: 'This agent has no saved {{provider}} session. Choose Fresh Start.', provider: sourceLabel })}
                   </div>
                 )}
                 {hasNonTransferChanges && (
                   <div className="model-change-notice warning">
-                    Save your other agent edits before converting the runtime.
+                    {t('terminal:spawn.saveBeforeConvert', { defaultValue: 'Save your other agent edits before converting the runtime.' })}
                   </div>
                 )}
                 {agentIsActive && (
@@ -881,7 +881,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       checked={stopActiveForTransfer}
                       onChange={(event) => setStopActiveForTransfer(event.target.checked)}
                     />
-                    <span>Stop the active task before taking the transfer snapshot</span>
+                    <span>{t('terminal:spawn.stopActiveForTransfer', { defaultValue: 'Stop the active task before taking the transfer snapshot' })}</span>
                   </label>
                 )}
                 {transferError && (
@@ -893,14 +893,14 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             <div className="spawn-form-row">
               {(selectedProvider === 'claude' || selectedProvider === 'grok' || selectedProvider === 'pi') && (
                 <div className="spawn-field">
-                  <label className="spawn-label">Effort</label>
+                  <label className="spawn-label">{t('terminal:spawn.effort', { defaultValue: 'Effort' })}</label>
                   <div className="spawn-select-row spawn-select-row--effort">
                     <button
                       className={`spawn-select-btn spawn-select-btn--compact ${selectedEffort === undefined ? 'selected' : ''}`}
                       onClick={() => setSelectedEffort(undefined)}
-                      title="Use default effort level"
+                      title={t('terminal:spawn.effortDefaultTitle', { defaultValue: 'Use default effort level' })}
                     >
-                      <span>Default</span>
+                      <span>{t('common:labels.default')}</span>
                     </button>
                     {(Object.keys(CLAUDE_EFFORTS) as ClaudeEffort[])
                       // Grok tiers vary per model (4.5 has no xhigh, none have max).
@@ -1045,7 +1045,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       onClick={() => !isReadOnly && toggleSkill(skill.id)}
                       title={
                         isWildcard
-                          ? 'Applied to all agents (assigned via "*" wildcard — not editable per-agent)'
+                          ? t('terminal:spawn.wildcardSkillTitle', { defaultValue: 'Applied to all agents (assigned via "*" wildcard — not editable per-agent)' })
                           : isClassBased
                           ? t('terminal:spawn.assignedViaClass')
                           : skill.name
@@ -1055,9 +1055,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       <span className="skill-chip-name">{skill.name}</span>
                       {skill.builtin && <span className="skill-chip-badge builtin">TC</span>}
                       {isWildcard ? (
-                        <span className="skill-chip-badge">all</span>
+                        <span className="skill-chip-badge">{t('terminal:spawn.skillBadgeAll', { defaultValue: 'all' })}</span>
                       ) : isClassBased ? (
-                        <span className="skill-chip-badge">class</span>
+                        <span className="skill-chip-badge">{t('terminal:spawn.skillBadgeClass', { defaultValue: 'class' })}</span>
                       ) : null}
                     </button>
                   );
@@ -1068,16 +1068,16 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
           {/* Advanced: instructions, shortcut, auto-collapse */}
           <details className="spawn-advanced">
-            <summary>Advanced options</summary>
+            <summary>{t('terminal:spawn.advancedOptions', { defaultValue: 'Advanced options' })}</summary>
             <div className="spawn-advanced-body">
               <div className="spawn-form-row">
                 <div className="spawn-field">
-                  <label className="spawn-label">Custom Instructions</label>
+                  <label className="spawn-label">{t('terminal:spawn.customInstructions')}</label>
                   <textarea
                     className="spawn-input spawn-textarea"
                     value={customInstructions}
                     onChange={(e) => setCustomInstructions(e.target.value)}
-                    placeholder="Additional instructions appended to this agent's system prompt..."
+                    placeholder={t('terminal:spawn.editCustomInstructionsPlaceholder', { defaultValue: 'Additional instructions appended to this agent\'s system prompt...' })}
                     rows={5}
                     style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
                   />
@@ -1086,14 +1086,14 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
               <div className="spawn-form-row">
                 <div className="spawn-field">
-                  <label className="spawn-label">Terminal Shortcut</label>
+                  <label className="spawn-label">{t('terminal:spawn.terminalShortcut', { defaultValue: 'Terminal Shortcut' })}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <KeyCaptureInput
                       shortcut={shortcutConfig}
                       onUpdate={(updates) => setShortcut(shortcutValueToString(updates))}
                     />
                     <div className="spawn-inline-hint">
-                      {shortcut ? `Opens this agent terminal with ${formatShortcutString(shortcut)}` : 'Capture a global shortcut for this agent terminal'}
+                      {shortcut ? t('terminal:spawn.shortcutActiveHint', { defaultValue: 'Opens this agent terminal with {{keys}}', keys: formatShortcutString(shortcut) }) : t('terminal:spawn.shortcutEmptyHint', { defaultValue: 'Capture a global shortcut for this agent terminal' })}
                     </div>
                   </div>
                 </div>
@@ -1106,13 +1106,13 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     checked={soundsMuted}
                     onChange={(e) => setSoundsMuted(e.target.checked)}
                   />
-                  <span>Mute sounds from this agent</span>
+                  <span>{t('terminal:spawn.muteSounds', { defaultValue: 'Mute sounds from this agent' })}</span>
                 </label>
               </div>
               <div className="spawn-inline-hint" style={{ marginTop: -4 }}>
                 {soundsMuted
-                  ? 'Audio only: no chime, completion cue or repeating question alert. Notifications still appear on screen.'
-                  : 'Silence a chatty agent without hiding it — its notifications keep showing, just without sound.'}
+                  ? t('terminal:spawn.muteSoundsOnHint', { defaultValue: 'Audio only: no chime, completion cue or repeating question alert. Notifications still appear on screen.' })
+                  : t('terminal:spawn.muteSoundsOffHint', { defaultValue: 'Silence a chatty agent without hiding it — its notifications keep showing, just without sound.' })}
               </div>
 
               <div className="spawn-form-row spawn-options-row">
@@ -1122,26 +1122,26 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                     checked={autoCollapse}
                     onChange={(e) => setAutoCollapse(e.target.checked)}
                   />
-                  <span>Auto-collapse context on a schedule</span>
+                  <span>{t('terminal:spawn.autoCollapse', { defaultValue: 'Auto-collapse context on a schedule' })}</span>
                 </label>
               </div>
               {autoCollapse && (
                 <div className="spawn-form-row">
                   <div className="spawn-field">
-                    <label className="spawn-label">Collapse schedule (cron)</label>
+                    <label className="spawn-label">{t('terminal:spawn.autoCollapseSchedule', { defaultValue: 'Collapse schedule (cron)' })}</label>
                     <input
                       type="text"
                       className="spawn-input"
                       value={autoCollapseCron}
                       onChange={(e) => setAutoCollapseCron(e.target.value)}
-                      placeholder="0 3 * * *  (every day at 3:00 AM)"
+                      placeholder={t('terminal:spawn.autoCollapseCronPlaceholder', { defaultValue: '0 3 * * *  (every day at 3:00 AM)' })}
                       style={{ fontFamily: 'monospace' }}
                     />
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                       {[
-                        { label: 'Nightly 3am', cron: '0 3 * * *' },
-                        { label: 'Every 6h', cron: '0 */6 * * *' },
-                        { label: 'Weekdays 2am', cron: '0 2 * * MON-FRI' },
+                        { label: t('terminal:spawn.autoCollapsePresetNightly', { defaultValue: 'Nightly 3am' }), cron: '0 3 * * *' },
+                        { label: t('terminal:spawn.autoCollapsePresetEvery6h', { defaultValue: 'Every 6h' }), cron: '0 */6 * * *' },
+                        { label: t('terminal:spawn.autoCollapsePresetWeekdays', { defaultValue: 'Weekdays 2am' }), cron: '0 2 * * MON-FRI' },
                       ].map(p => (
                         <button
                           key={p.cron}
@@ -1160,9 +1160,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       ))}
                     </div>
                     <div className="spawn-inline-hint">
-                      5-field cron (minute hour day month weekday). Collapse waits for the agent to be idle before running.
+                      {t('terminal:spawn.autoCollapseCronHint', { defaultValue: '5-field cron (minute hour day month weekday). Collapse waits for the agent to be idle before running.' })}
                     </div>
-                    <label className="spawn-label" style={{ marginTop: 10 }}>Timezone</label>
+                    <label className="spawn-label" style={{ marginTop: 10 }}>{t('terminal:spawn.autoCollapseTz', { defaultValue: 'Timezone' })}</label>
                     <input
                       type="text"
                       className="spawn-input"
@@ -1172,19 +1172,19 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                       style={{ fontFamily: 'monospace' }}
                     />
                     <div className="spawn-inline-hint">
-                      IANA timezone. Leave blank to use this browser's zone ({browserTz}).
+                      {t('terminal:spawn.autoCollapseTzHint', { defaultValue: 'IANA timezone. Leave blank to use this browser\'s zone ({{tz}}).', tz: browserTz })}
                     </div>
-                    <label className="spawn-label" style={{ marginTop: 10 }}>Post-collapse prompt (optional)</label>
+                    <label className="spawn-label" style={{ marginTop: 10 }}>{t('terminal:spawn.autoCollapsePrompt', { defaultValue: 'Post-collapse prompt (optional)' })}</label>
                     <textarea
                       className="spawn-input"
                       value={autoCollapsePrompt}
                       onChange={(e) => setAutoCollapsePrompt(e.target.value)}
-                      placeholder="Prompt sent to the agent after each scheduled collapse completes..."
+                      placeholder={t('terminal:spawn.autoCollapsePromptPlaceholder', { defaultValue: 'Prompt sent to the agent after each scheduled collapse completes...' })}
                       rows={3}
                       style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
                     />
                     <div className="spawn-inline-hint">
-                      Sent as a new task once the /compact finishes — use it to re-seed instructions after the context is wiped.
+                      {t('terminal:spawn.autoCollapsePromptHint', { defaultValue: 'Sent as a new task once the /compact finishes — use it to re-seed instructions after the context is wiped.' })}
                     </div>
                   </div>
                 </div>
@@ -1203,9 +1203,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
             disabled={transferLoading || (!isRuntimeChange && !hasChanges)}
           >
             {transferLoading
-              ? 'Converting…'
+              ? t('terminal:spawn.converting', { defaultValue: 'Converting…' })
               : isRuntimeChange
-                ? `Convert to ${targetLabel}`
+                ? t('terminal:spawn.convertTo', { defaultValue: 'Convert to {{provider}}', provider: targetLabel })
                 : t('common:buttons2.saveChanges')}
           </button>
         </div>
