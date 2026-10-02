@@ -25,6 +25,20 @@ import type { DashboardViewProps, GroupingMode, StatusFilter } from './types';
 import { Icon } from '../Icon';
 import './DashboardView.scss';
 
+// Non-zone group labels are built as stable English data in utils.ts (they also
+// feed the collapse keys), so they are translated here at render time via
+// `t(key, { defaultValue: label })` — en output is byte-identical to the label.
+const ZONE_LABEL_KEY: Record<string, string> = {
+  'Unassigned': 'zone.unassigned',
+  'Errors': 'zone.errors',
+  'Working & Unseen': 'zone.workingUnseen',
+  'Idle': 'zone.idle',
+  'Just Now (< 5m)': 'zone.justNow',
+  'Recent (5m - 1h)': 'zone.recent',
+  'Stale (1h - 1d)': 'zone.stale',
+  'Very Stale (> 1d)': 'zone.veryStale',
+};
+
 export function DashboardView({
   onSelectAgent,
   onFocusAgent,
@@ -498,6 +512,7 @@ export function DashboardView({
           const sorted = group.sortedAgents;
           const workingCount = group.agents.filter(a => a.status === 'working' || a.status === 'waiting' || a.status === 'waiting_permission').length;
           const unseenCount = group.agents.filter(a => agentsWithUnseenOutput.has(a.id)).length;
+          const labelKey = ZONE_LABEL_KEY[group.label];
 
           return (
             <div
@@ -519,11 +534,11 @@ export function DashboardView({
                     className="dashboard-view__zone-dot"
                     style={{ backgroundColor: group.color }}
                   />
-                  <span className="dashboard-view__zone-name">{group.label}</span>
+                  <span className="dashboard-view__zone-name">{labelKey ? t(labelKey, { defaultValue: group.label }) : group.label}</span>
                   <span className="dashboard-view__zone-count">
                     {t('agentCount', { count: group.agents.length })}
                     {workingCount > 0 && <span className="dashboard-view__zone-working"> · {workingCount} {t('working')}</span>}
-                    {unseenCount > 0 && <span className="dashboard-view__zone-unseen"> · {unseenCount} Unseen</span>}
+                    {unseenCount > 0 && <span className="dashboard-view__zone-unseen"> · {unseenCount} {t('zone.unseen', { defaultValue: 'Unseen' })}</span>}
                   </span>
                 </div>
                 {group.area && onFocusZone && (

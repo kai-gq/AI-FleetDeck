@@ -38,6 +38,7 @@
     "re:^terminal:database\\.(cellActions|editCell|setNull|editThisCell|clickToCancelEditing|editable|readOnly[A-Za-z]+|toastUpdateFailed|toastNoRowsUpdated|toastRowUpdated|toastUpdateTimeout)$",
     "re:^terminal:history\\.(emptyMessage|clickToExpandCollapse|stopSpeaking|speakSpanish|viewAsMarkdown|openFileWithDiff)$",
     "re:^terminal:header\\.",
+    "re:^dashboard:zone\\.",
     "re:^terminal:bottomPanel\\.",
     "re:^terminal:pinnedBar\\.",
     "re:^terminal:input\\.(pendingMessage|pendingMessages|removeQueuedMessage)$",
