@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import {
   cancelShellCommandSudoPrompt,
@@ -8,6 +9,7 @@ import {
 } from './execution';
 
 export function ShellCommandExecutionHost() {
+  const { t } = useTranslation(['terminal', 'common']);
   const { prompt, backgroundError } = useShellCommandExecutionState();
   const [password, setPassword] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,18 +43,18 @@ export function ShellCommandExecutionHost() {
           <header>
             <span className="shell-command-sudo-modal__icon"><Icon name="lock" size={18} /></span>
             <div>
-              <h2 id="shell-sudo-title">Sudo authorization</h2>
-              <p>This script may invoke sudo on the Commander host.</p>
+              <h2 id="shell-sudo-title">{t('terminal:shellHost.sudoAuthorization', { defaultValue: 'Sudo authorization' })}</h2>
+              <p>{t('terminal:shellHost.scriptMayInvokeSudo', { defaultValue: 'This script may invoke sudo on the Commander host.' })}</p>
             </div>
           </header>
           <code>{prompt.invocation}</code>
           {prompt.insecureRemoteTransport && (
             <div className="shell-command-sudo-modal__transport-warning" role="alert">
               <Icon name="warn" size={13} />
-              <span><strong>HTTP connection</strong>Your password will be sent without HTTPS transport encryption. Continue only if you trust this network or VPN.</span>
+              <span><strong>{t('terminal:shellSudo.httpConnection', { defaultValue: 'HTTP connection' })}</strong>{t('terminal:shellSudo.insecureWarning', { defaultValue: 'Your password will be sent without HTTPS transport encryption. Continue only if you trust this network or VPN.' })}</span>
             </div>
           )}
-          <label htmlFor="shell-command-sudo-password">Password</label>
+          <label htmlFor="shell-command-sudo-password">{t('terminal:building.dbPassword')}</label>
           <input
             ref={inputRef}
             id="shell-command-sudo-password"
@@ -65,12 +67,12 @@ export function ShellCommandExecutionHost() {
           />
           {prompt.error && <div className="shell-command-sudo-modal__error"><Icon name="warn" size={12} /> {prompt.error}</div>}
           <div className="shell-command-sudo-modal__security">
-            <Icon name="shield" size={11} /> The password uses a private sudo channel and is never persisted, logged, or streamed.
+            <Icon name="shield" size={11} /> {t('terminal:shellHost.passwordChannelNote', { defaultValue: 'The password uses a private sudo channel and is never persisted, logged, or streamed.' })}
           </div>
           <footer>
-            <button type="button" disabled={prompt.busy} onClick={cancelShellCommandSudoPrompt}>Cancel</button>
+            <button type="button" disabled={prompt.busy} onClick={cancelShellCommandSudoPrompt}>{t('common:buttons.cancel')}</button>
             <button type="submit" className="is-primary" disabled={prompt.busy || !password}>
-              {prompt.busy ? 'Authorizing…' : 'Authorize and run'}
+              {prompt.busy ? t('terminal:shellSudo.authorizing', { defaultValue: 'Authorizing…' }) : t('terminal:shellSudo.authorizeAndRun', { defaultValue: 'Authorize and run' })}
             </button>
           </footer>
         </form>
@@ -82,8 +84,8 @@ export function ShellCommandExecutionHost() {
   return (
     <div className="shell-command-error-toast" role="alert">
       <Icon name="failure" size={15} />
-      <div><strong>Shell command failed</strong><span>{backgroundError}</span></div>
-      <button type="button" onClick={dismissShellCommandExecutionError} aria-label="Close"><Icon name="close" size={12} /></button>
+      <div><strong>{t('terminal:shellHost.shellCommandFailed', { defaultValue: 'Shell command failed' })}</strong><span>{backgroundError}</span></div>
+      <button type="button" onClick={dismissShellCommandExecutionError} aria-label={t('common:buttons.close')}><Icon name="close" size={12} /></button>
     </div>
   );
 }

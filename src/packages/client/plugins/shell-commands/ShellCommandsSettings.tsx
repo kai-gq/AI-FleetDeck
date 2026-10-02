@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { apiUrl, authFetch } from '../../utils/storage';
 import type { PluginShellCommandDefinition, PluginShellCommandInput } from '../types';
@@ -21,6 +22,7 @@ function errorMessage(body: unknown, fallback: string): string {
 }
 
 export function ShellCommandsSettings() {
+  const { t } = useTranslation(['terminal', 'common']);
   const [commands, setCommands] = useState<PluginShellCommandDefinition[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PluginShellCommandInput>(EMPTY_COMMAND);
@@ -76,7 +78,7 @@ export function ShellCommandsSettings() {
         body: JSON.stringify(draft),
       });
       const body = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(errorMessage(body, 'Unable to save command script'));
+      if (!response.ok) throw new Error(errorMessage(body, t('terminal:shellCommands.saveFailed', { defaultValue: 'Unable to save command script' })));
       setEditingId(null);
       setDraft({ ...EMPTY_COMMAND });
       await load();
@@ -88,7 +90,7 @@ export function ShellCommandsSettings() {
   };
 
   const remove = async (command: PluginShellCommandDefinition) => {
-    if (!window.confirm(`Delete ${command.name}?`)) return;
+    if (!window.confirm(t('terminal:building.deleteConfirm', { name: command.name }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -96,7 +98,7 @@ export function ShellCommandsSettings() {
         method: 'DELETE',
       });
       const body = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(errorMessage(body, 'Unable to delete command script'));
+      if (!response.ok) throw new Error(errorMessage(body, t('terminal:shellCommands.deleteFailed', { defaultValue: 'Unable to delete command script' })));
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -115,7 +117,7 @@ export function ShellCommandsSettings() {
         body: JSON.stringify({ ...command, enabled: !command.enabled }),
       });
       const body = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(errorMessage(body, 'Unable to update command script'));
+      if (!response.ok) throw new Error(errorMessage(body, t('terminal:shellCommands.updateFailed', { defaultValue: 'Unable to update command script' })));
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -128,12 +130,12 @@ export function ShellCommandsSettings() {
     <section className="shell-commands-settings">
       <header className="shell-commands-settings__header">
         <div>
-          <span className="shell-commands-settings__eyebrow"><Icon name="terminal" size={11} /> Streamed exec</span>
-          <h3>Slash command scripts</h3>
-          <p>Register trusted Bash scripts that run locally without invoking an LLM.</p>
+          <span className="shell-commands-settings__eyebrow"><Icon name="terminal" size={11} /> {t('terminal:shellCommands.streamedExec', { defaultValue: 'Streamed exec' })}</span>
+          <h3>{t('terminal:shellCommands.title', { defaultValue: 'Slash command scripts' })}</h3>
+          <p>{t('terminal:shellCommands.subtitle', { defaultValue: 'Register trusted Bash scripts that run locally without invoking an LLM.' })}</p>
         </div>
         <button type="button" onClick={beginCreate} disabled={Boolean(editingId) || busy}>
-          <Icon name="plus" size={12} /> Add command
+          <Icon name="plus" size={12} /> {t('terminal:shellCommands.addCommand', { defaultValue: 'Add command' })}
         </button>
       </header>
 
@@ -143,7 +145,7 @@ export function ShellCommandsSettings() {
         <div className="shell-command-editor">
           <div className="shell-command-editor__grid">
             <label>
-              <span>Slash command</span>
+              <span>{t('terminal:shellCommands.slashCommand', { defaultValue: 'Slash command' })}</span>
               <input
                 value={draft.name}
                 onChange={(event) => setDraft({ ...draft, name: event.target.value })}
@@ -153,17 +155,17 @@ export function ShellCommandsSettings() {
               />
             </label>
             <label>
-              <span>Description</span>
+              <span>{t('common:labels.description')}</span>
               <input
                 value={draft.summary}
                 onChange={(event) => setDraft({ ...draft, summary: event.target.value })}
-                placeholder="Deploy the current project"
+                placeholder={t('terminal:shellCommands.descriptionPlaceholder', { defaultValue: 'Deploy the current project' })}
                 autoComplete="off"
               />
             </label>
           </div>
           <label>
-            <span>Working directory <em>optional · defaults to the active agent workspace</em></span>
+            <span>{t('terminal:spawn.workingDir')} <em>{t('terminal:shellCommands.workingDirectoryHint', { defaultValue: 'optional · defaults to the active agent workspace' })}</em></span>
             <input
               value={draft.cwd ?? ''}
               onChange={(event) => setDraft({ ...draft, cwd: event.target.value })}
@@ -173,7 +175,7 @@ export function ShellCommandsSettings() {
             />
           </label>
           <label>
-            <span>Bash script <em>slash arguments are available as $1, $2, …</em></span>
+            <span>{t('terminal:shellCommands.bashScript', { defaultValue: 'Bash script' })} <em>{t('terminal:shellCommands.bashScriptHint', { defaultValue: 'slash arguments are available as $1, $2, …' })}</em></span>
             <textarea
               value={draft.script}
               onChange={(event) => setDraft({ ...draft, script: event.target.value })}
@@ -185,26 +187,26 @@ export function ShellCommandsSettings() {
           <div className="shell-command-editor__options">
             <label>
               <input type="checkbox" checked={draft.runAsSudo === true} onChange={(event) => setDraft({ ...draft, runAsSudo: event.target.checked })} />
-              <span><strong>Allow sudo</strong><small>Ask once; only sudo lines run as root</small></span>
+              <span><strong>{t('terminal:shellCommands.allowSudo', { defaultValue: 'Allow sudo' })}</strong><small>{t('terminal:shellCommands.allowSudoHint', { defaultValue: 'Ask once; only sudo lines run as root' })}</small></span>
             </label>
             <label>
               <input type="checkbox" checked={draft.pty !== false} onChange={(event) => setDraft({ ...draft, pty: event.target.checked })} />
-              <span><strong>PTY output</strong><small>Stream interactive progress and colors</small></span>
+              <span><strong>{t('terminal:shellCommands.ptyOutput', { defaultValue: 'PTY output' })}</strong><small>{t('terminal:shellCommands.ptyOutputHint', { defaultValue: 'Stream interactive progress and colors' })}</small></span>
             </label>
             <label>
               <input type="checkbox" checked={draft.enabled !== false} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
-              <span><strong>Enabled</strong><small>Show in slash command results</small></span>
+              <span><strong>{t('common:labels.enabled')}</strong><small>{t('terminal:shellCommands.enabledHint', { defaultValue: 'Show in slash command results' })}</small></span>
             </label>
           </div>
           {draft.runAsSudo && (
             <div className="shell-command-editor__sudo-note">
-              <Icon name="lock" size={11} /> Tide passes the password to nested sudo calls over a private per-run channel. The script itself keeps running as the normal user.
+              <Icon name="lock" size={11} /> {t('terminal:shellCommands.sudoNote', { defaultValue: 'Tide passes the password to nested sudo calls over a private per-run channel. The script itself keeps running as the normal user.' })}
             </div>
           )}
           <footer>
-            <button type="button" onClick={() => setEditingId(null)} disabled={busy}>Cancel</button>
+            <button type="button" onClick={() => setEditingId(null)} disabled={busy}>{t('common:buttons.cancel')}</button>
             <button type="button" className="is-primary" onClick={() => void save()} disabled={busy || !draft.name.trim() || !draft.summary.trim() || !draft.script.trim()}>
-              <Icon name="save" size={11} /> {busy ? 'Saving…' : 'Save command'}
+              <Icon name="save" size={11} /> {busy ? t('terminal:shellCommands.saving', { defaultValue: 'Saving…' }) : t('terminal:shellCommands.saveCommand', { defaultValue: 'Save command' })}
             </button>
           </footer>
         </div>
@@ -212,27 +214,27 @@ export function ShellCommandsSettings() {
 
       <div className="shell-command-list">
         {loading && commands.length === 0 ? (
-          <div className="shell-command-list__empty">Loading command scripts…</div>
+          <div className="shell-command-list__empty">{t('terminal:shellCommands.loading', { defaultValue: 'Loading command scripts…' })}</div>
         ) : commands.length === 0 ? (
           <div className="shell-command-list__empty">
             <Icon name="terminal" size={18} />
-            <strong>No command scripts registered</strong>
-            <span>Add one to expose it in Spotlight and the Commander terminal.</span>
+            <strong>{t('terminal:shellCommands.emptyTitle', { defaultValue: 'No command scripts registered' })}</strong>
+            <span>{t('terminal:shellCommands.emptyHint', { defaultValue: 'Add one to expose it in Spotlight and the Commander terminal.' })}</span>
           </div>
         ) : commands.map((command) => (
           <article className={command.enabled ? 'is-enabled' : 'is-disabled'} key={command.id}>
             <div className="shell-command-list__identity">
               <code>{command.name}</code>
-              <div><strong>{command.summary}</strong><span>{command.cwd || 'Active agent workspace'}</span></div>
+              <div><strong>{command.summary}</strong><span>{command.cwd || t('terminal:shellCommands.activeWorkspace', { defaultValue: 'Active agent workspace' })}</span></div>
             </div>
             <div className="shell-command-list__badges">
               {command.runAsSudo && <em className="is-sudo"><Icon name="lock" size={9} /> sudo</em>}
-              <em><Icon name="bolt" size={9} /> streamed</em>
+              <em><Icon name="bolt" size={9} /> {t('terminal:shellCommands.streamedBadge', { defaultValue: 'streamed' })}</em>
             </div>
             <div className="shell-command-list__actions">
-              <button type="button" onClick={() => beginEdit(command)} disabled={busy || Boolean(editingId)} aria-label={`Edit ${command.name}`}><Icon name="edit" size={11} /></button>
-              <button type="button" onClick={() => void remove(command)} disabled={busy} aria-label={`Delete ${command.name}`}><Icon name="trash" size={11} /></button>
-              <label title={command.enabled ? 'Disable command' : 'Enable command'}>
+              <button type="button" onClick={() => beginEdit(command)} disabled={busy || Boolean(editingId)} aria-label={t('terminal:shellCommands.editCommand', { defaultValue: 'Edit {{name}}', name: command.name })}><Icon name="edit" size={11} /></button>
+              <button type="button" onClick={() => void remove(command)} disabled={busy} aria-label={t('terminal:shellCommands.deleteCommand', { defaultValue: 'Delete {{name}}', name: command.name })}><Icon name="trash" size={11} /></button>
+              <label title={command.enabled ? t('terminal:shellCommands.disableCommand', { defaultValue: 'Disable command' }) : t('terminal:shellCommands.enableCommand', { defaultValue: 'Enable command' })}>
                 <input type="checkbox" checked={command.enabled} disabled={busy} onChange={() => void toggleEnabled(command)} />
                 <span />
               </label>

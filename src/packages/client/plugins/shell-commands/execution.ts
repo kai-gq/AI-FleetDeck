@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import i18n from '../../i18n';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { getPluginSlashCommands } from '../registry';
 import type { PluginShellCommandPrepareResult, RegisteredPluginSlashCommand } from '../types';
@@ -51,10 +52,10 @@ export function useShellCommandExecutionState(): ExecutionSnapshot {
   return useSyncExternalStore(subscribe, () => snapshot, () => snapshot);
 }
 
-function responseError(body: unknown, status: number, fallback: string): string {
+function responseError(body: unknown, fallback: string): string {
   return body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
     ? (body as { error: string }).error
-    : `${fallback} (${status})`;
+    : fallback;
 }
 
 export function usesInsecureRemoteTransport(): boolean {
@@ -84,7 +85,7 @@ async function prepareExecution(
   });
   const body = await response.json().catch(() => null) as { prepared?: PluginShellCommandPrepareResult } | null;
   if (!response.ok || !body?.prepared) {
-    throw new Error(responseError(body, response.status, 'Unable to prepare shell command'));
+    throw new Error(responseError(body, i18n.t('terminal:shellExec.prepareFailed', { defaultValue: 'Unable to prepare shell command ({{status}})', status: response.status })));
   }
   return body.prepared;
 }
@@ -111,7 +112,7 @@ export function startStreamedExec(
   }).then(async (response) => {
     if (response.ok) return;
     const body = await response.json().catch(() => null);
-    emit({ ...snapshot, backgroundError: responseError(body, response.status, 'Shell command failed to start') });
+    emit({ ...snapshot, backgroundError: responseError(body, i18n.t('terminal:shellExec.startFailed', { defaultValue: 'Shell command failed to start ({{status}})', status: response.status })) });
   }).catch((error) => {
     emit({ ...snapshot, backgroundError: error instanceof Error ? error.message : String(error) });
   });
@@ -123,15 +124,15 @@ export async function executeShellSlashCommand(
   explicitAgentId?: string,
 ): Promise<ShellCommandExecutionResult> {
   const agentId = explicitAgentId ?? '';
-  if (!agentId) throw new Error('Select an active agent before running this command');
-  if (pendingPrompt) throw new Error('Finish the current sudo authorization first');
+  if (!agentId) throw new Error(i18n.t('terminal:shellExec.selectAgent', { defaultValue: 'Select an active agent before running this command' }));
+  if (pendingPrompt) throw new Error(i18n.t('terminal:shellExec.pendingSudo', { defaultValue: 'Finish the current sudo authorization first' }));
 
   const prepared = await prepareExecution(commandId, invocation, agentId);
   if (!prepared.requiresSudo) {
     startStreamedExec(prepared, agentId);
     return { kind: 'started', command: prepared.invocation };
   }
-  if (!prepared.challengeId) throw new Error('Server returned an invalid sudo challenge');
+  if (!prepared.challengeId) throw new Error(i18n.t('terminal:shellExec.invalidChallenge', { defaultValue: 'Server returned an invalid sudo challenge' }));
 
   return new Promise<ShellCommandExecutionResult>((resolve, reject) => {
     pendingPrompt = { prepared, agentId, resolve, reject };
@@ -154,7 +155,7 @@ export async function submitShellCommandSudoPassword(password: string): Promise<
   const pending = pendingPrompt;
   if (!pending || !snapshot.prompt) return;
   if (!password) {
-    emit({ ...snapshot, prompt: { ...snapshot.prompt, error: 'Enter your sudo password' } });
+    emit({ ...snapshot, prompt: { ...snapshot.prompt, error: i18n.t('terminal:shellSudo.enterPassword', { defaultValue: 'Enter your sudo password' }) } });
     return;
   }
   emit({ ...snapshot, prompt: { ...snapshot.prompt, busy: true, error: undefined } });
@@ -166,7 +167,7 @@ export async function submitShellCommandSudoPassword(password: string): Promise<
     });
     const body = await response.json().catch(() => null) as { authorizationId?: string } | null;
     if (!response.ok || !body?.authorizationId) {
-      throw new Error(responseError(body, response.status, 'Sudo authorization failed'));
+      throw new Error(responseError(body, i18n.t('terminal:shellSudo.authFailed', { defaultValue: 'Sudo authorization failed ({{status}})', status: response.status })));
     }
     pendingPrompt = null;
     emit({ ...snapshot, prompt: null });
@@ -188,7 +189,7 @@ export function cancelShellCommandSudoPrompt(): void {
   const pending = pendingPrompt;
   pendingPrompt = null;
   emit({ ...snapshot, prompt: null });
-  pending?.reject(new Error('Shell command execution cancelled'));
+  pending?.reject(new Error(i18n.t('terminal:shellExec.cancelled', { defaultValue: 'Shell command execution cancelled' })));
 }
 
 export function reportShellCommandExecutionError(error: unknown): void {

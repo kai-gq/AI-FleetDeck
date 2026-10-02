@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { store } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -23,10 +24,10 @@ function isSudoRequestData(value: unknown): value is PluginShellCommandSudoReque
     && (data.grep === undefined || typeof data.grep === 'string');
 }
 
-function responseError(body: unknown, status: number): string {
+function responseError(body: unknown, fallback: string): string {
   return body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
     ? (body as { error: string }).error
-    : `Sudo authorization failed (${status})`;
+    : fallback;
 }
 
 function argsTextFromInvocation(invocation: string): string {
@@ -36,6 +37,7 @@ function argsTextFromInvocation(invocation: string): string {
 }
 
 export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRendererProps) {
+  const { t } = useTranslation(['terminal', 'tools']);
   const data = isSudoRequestData(output.data) ? output.data : null;
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,7 +45,7 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
   const [error, setError] = useState<string | null>(null);
   const insecureTransport = useMemo(usesInsecureRemoteTransport, []);
 
-  if (!data) return <div className="shell-command-exec-missing">Invalid sudo request</div>;
+  if (!data) return <div className="shell-command-exec-missing">{t('terminal:shellSudo.invalidRequest', { defaultValue: 'Invalid sudo request' })}</div>;
   const dismiss = () => {
     if (agentId) store.dismissPluginOutput(agentId, output.instanceId);
   };
@@ -51,11 +53,11 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
   const authorize = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!agentId) {
-      setError('The requesting agent is no longer available');
+      setError(t('terminal:shellSudo.agentUnavailable', { defaultValue: 'The requesting agent is no longer available' }));
       return;
     }
     if (!password) {
-      setError('Enter your sudo password');
+      setError(t('terminal:shellSudo.enterPassword', { defaultValue: 'Enter your sudo password' }));
       return;
     }
     setBusy(true);
@@ -98,14 +100,14 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
         } | null;
         const refreshed = refreshBody?.prepared;
         if (!refreshResponse.ok || !refreshed?.challengeId) {
-          throw new Error(responseError(refreshBody, refreshResponse.status));
+          throw new Error(responseError(refreshBody, t('terminal:shellSudo.authFailed', { defaultValue: 'Sudo authorization failed ({{status}})', status: refreshResponse.status })));
         }
         prepared = refreshed;
         authorization = await authorizeChallenge(refreshed.challengeId);
       }
 
       if (!authorization.response.ok || !authorization.body?.authorizationId) {
-        throw new Error(responseError(authorization.body, authorization.response.status));
+        throw new Error(responseError(authorization.body, t('terminal:shellSudo.authFailed', { defaultValue: 'Sudo authorization failed ({{status}})', status: authorization.response.status })));
       }
       startStreamedExec(prepared, agentId, authorization.body.authorizationId, {
         ...(data.tail ? { tail: data.tail } : {}),
@@ -125,15 +127,15 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
       <header>
         <span className="shell-command-sudo-request__icon"><Icon name={started ? 'check' : 'lock'} size={15} /></span>
         <div>
-          <strong>{started ? 'Execution started' : 'Sudo authorization requested'}</strong>
-          <span>{started ? 'Output is streaming in a new command card.' : 'An agent requested this trusted slash command.'}</span>
+          <strong>{started ? t('terminal:shellSudo.executionStarted', { defaultValue: 'Execution started' }) : t('terminal:shellSudo.sudoRequested', { defaultValue: 'Sudo authorization requested' })}</strong>
+          <span>{started ? t('terminal:shellSudo.outputStreaming', { defaultValue: 'Output is streaming in a new command card.' }) : t('terminal:shellSudo.agentRequested', { defaultValue: 'An agent requested this trusted slash command.' })}</span>
         </div>
-        <button type="button" onClick={dismiss} aria-label="Dismiss sudo request"><Icon name="close" size={11} /></button>
+        <button type="button" onClick={dismiss} aria-label={t('terminal:shellSudo.dismissRequest', { defaultValue: 'Dismiss sudo request' })}><Icon name="close" size={11} /></button>
       </header>
       <code>{data.invocation}</code>
       {(data.grep || data.tail) && (
         <div className="shell-command-sudo-request__filters">
-          <Icon name="search" size={10} /> Result only:
+          <Icon name="search" size={10} /> {t('terminal:shellSudo.resultOnly', { defaultValue: 'Result only:' })}
           {data.grep && <code>grep {JSON.stringify(data.grep)}</code>}
           {data.tail && <code>tail -{data.tail}</code>}
         </div>
@@ -143,10 +145,10 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
           {insecureTransport && (
             <div className="shell-command-sudo-request__warning" role="alert">
               <Icon name="warn" size={12} />
-              <span><strong>HTTP connection</strong>Your password will be sent without HTTPS transport encryption. Continue only if you trust this network or VPN.</span>
+              <span><strong>{t('terminal:shellSudo.httpConnection', { defaultValue: 'HTTP connection' })}</strong>{t('terminal:shellSudo.insecureWarning', { defaultValue: 'Your password will be sent without HTTPS transport encryption. Continue only if you trust this network or VPN.' })}</span>
             </div>
           )}
-          <label htmlFor={`shell-command-sudo-${data.challengeId}`}>Password</label>
+          <label htmlFor={`shell-command-sudo-${data.challengeId}`}>{t('terminal:building.dbPassword')}</label>
           <input
             id={`shell-command-sudo-${data.challengeId}`}
             type="password"
@@ -167,12 +169,12 @@ export function ShellCommandSudoRequestCard({ output, agentId }: PluginOutputRen
           />
           {error && <div className="shell-command-sudo-request__error"><Icon name="warn" size={11} /> {error}</div>}
           <div className="shell-command-sudo-request__security">
-            <Icon name="shield" size={10} /> The password is handled only by Commander and is never exposed to the agent.
+            <Icon name="shield" size={10} /> {t('terminal:shellSudo.securityNote', { defaultValue: 'The password is handled only by Commander and is never exposed to the agent.' })}
           </div>
           <footer>
-            <button type="button" onClick={dismiss} disabled={busy}>Dismiss</button>
+            <button type="button" onClick={dismiss} disabled={busy}>{t('tools:exec.dismiss')}</button>
             <button type="submit" className="is-primary" disabled={busy || !password}>
-              {busy ? 'Authorizing…' : 'Authorize and run'}
+              {busy ? t('terminal:shellSudo.authorizing', { defaultValue: 'Authorizing…' }) : t('terminal:shellSudo.authorizeAndRun', { defaultValue: 'Authorize and run' })}
             </button>
           </footer>
         </form>

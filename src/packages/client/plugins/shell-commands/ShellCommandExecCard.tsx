@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useExecTasks, store } from '../../store';
 import { ExecTaskIndicator } from '../../components/ClaudeOutputPanel/ExecTaskIndicator';
 import { Icon } from '../../components/Icon';
@@ -11,15 +12,16 @@ function isExecData(value: unknown): value is PluginShellCommandExecData {
 }
 
 export function ShellCommandExecCard({ output, agentId }: PluginOutputRendererProps) {
+  const { t } = useTranslation('terminal');
   const tasks = useExecTasks(agentId ?? '');
-  if (!isExecData(output.data)) return <div className="shell-command-exec-missing">Invalid shell command output</div>;
+  if (!isExecData(output.data)) return <div className="shell-command-exec-missing">{t('terminal:shellExec.invalidOutput', { defaultValue: 'Invalid shell command output' })}</div>;
   const data = output.data;
   const task = tasks.find((candidate) => candidate.taskId === data.taskId);
   if (!task) {
     return (
       <div className="shell-command-exec-pending">
         <Icon name="hourglass" size={14} />
-        <div><strong>{data.invocation}</strong><span>Waiting for the execution stream…</span></div>
+        <div><strong>{data.invocation}</strong><span>{t('terminal:shellExec.waiting', { defaultValue: 'Waiting for the execution stream…' })}</span></div>
       </div>
     );
   }

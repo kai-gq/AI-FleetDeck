@@ -1,3 +1,4 @@
+import i18n from '../../i18n';
 import { apiUrl, authFetch } from '../../utils/storage';
 import {
   registerBuiltinPlugin,
@@ -16,7 +17,7 @@ export async function refreshShellSlashCommands(): Promise<PluginShellCommandDef
   const response = await authFetch(apiUrl('/api/plugins/shell-commands'));
   const body = await response.json().catch(() => null) as { commands?: PluginShellCommandDefinition[] } | null;
   if (!response.ok || !Array.isArray(body?.commands)) {
-    throw new Error(`Failed to load command scripts (${response.status})`);
+    throw new Error(i18n.t('terminal:shellCommands.loadFailed', { defaultValue: 'Failed to load command scripts ({{status}})', status: response.status }));
   }
 
   for (const cleanup of commandCleanups.values()) cleanup();
