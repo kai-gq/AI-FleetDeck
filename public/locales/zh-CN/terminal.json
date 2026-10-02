@@ -2345,5 +2345,22 @@
     "analyzed": "分析于 {{time}}",
     "inProgress": "AI 分析进行中",
     "prioritizedByAi": "由 AI 排序"
+  },
+  "gmailBubble": {
+    "today": "今天 · {{time}}",
+    "noSubject": "(无主题)",
+    "emptyBody": "(正文为空)",
+    "showLess": "收起",
+    "showMore": "展开",
+    "sent": "已发送",
+    "received": "已接收",
+    "from": "发件人",
+    "to": "收件人",
+    "attachmentOne": "1 个附件",
+    "attachmentMany": "{{n}} 个附件",
+    "hideQuoted": "隐藏引用内容",
+    "showQuoted": "查看引用内容",
+    "openInGmail": "在 Gmail 中打开",
+    "viewInGmail": "在 Gmail 中查看"
   }
 }

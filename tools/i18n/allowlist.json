@@ -65,6 +65,7 @@
     "re:^terminal:sudoCard\\.",
     "re:^terminal:shellResult\\.",
     "re:^terminal:gmailCard\\.",
+    "re:^terminal:gmailBubble\\.",
     "re:^terminal:usagesCard\\.",
     "re:^terminal:jiraCard\\.",
     "re:^terminal:taskList\\.",

@@ -100,7 +100,7 @@ export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProp
   const handleLoadCCTemplate = () => {
     const ccWorkflow: WorkflowDefinition = {
       id: `wf-cc-${Date.now()}`,
-      name: 'CC (Control de Cambios)',
+      name: 'CC (Change Control)',
       description: 'Full CC process: intake, Jira ticket, document, approval, release',
       version: 1,
       variables: [...CC_WORKFLOW_VARIABLES],

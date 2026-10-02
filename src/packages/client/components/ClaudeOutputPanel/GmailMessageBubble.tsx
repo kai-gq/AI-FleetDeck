@@ -9,7 +9,9 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
+import { getI18nInstance } from '../../utils/formatting';
 import { renderBodyWithAttachments } from './AttachmentChip';
 
 export interface EmailAddress {
@@ -169,7 +171,11 @@ function formatEmailDate(date: Date | null): string {
   if (!date) return '';
   const now = new Date();
   const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  if (isSameDay(date, now)) return `Hoy · ${time}`;
+  if (isSameDay(date, now)) {
+    const i18n = getI18nInstance();
+    const t = i18n?.t?.bind(i18n);
+    return t ? t('terminal:gmailBubble.today', { defaultValue: 'Today · {{time}}', time }) : `Today · ${time}`;
+  }
   const ymd = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
   return `${ymd} · ${time}`;
 }
@@ -225,8 +231,9 @@ interface GmailMessageBubbleProps {
 }
 
 export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.ReactElement {
+  const { t } = useTranslation('terminal');
   const dateLabel = formatEmailDate(msg.date);
-  const subject = msg.subject || '(sin asunto)';
+  const subject = msg.subject || t('terminal:gmailBubble.noSubject', { defaultValue: '(no subject)' });
 
   const topNeedsCollapse = useMemo(() => {
     const lines = msg.topBody.split('\n').length;
@@ -264,7 +271,9 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
             <Icon name="envelope" size={12} weight="fill" />
           </span>
           <span className="gmail-bubble-direction">
-            {msg.direction === 'outbound' ? 'Enviado' : 'Recibido'}
+            {msg.direction === 'outbound'
+              ? t('terminal:gmailBubble.sent', { defaultValue: 'Sent' })
+              : t('terminal:gmailBubble.received', { defaultValue: 'Received' })}
           </span>
           {msg.labels.map(label => (
             <span key={label} className="gmail-bubble-label">{label}</span>
@@ -278,7 +287,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
           <div className="gmail-bubble-person">
             <span className="gmail-bubble-avatar gmail-bubble-avatar-from">{fromInitials}</span>
             <div className="gmail-bubble-person-text">
-              <span className="gmail-bubble-person-role">De</span>
+              <span className="gmail-bubble-person-role">{t('terminal:gmailBubble.from', { defaultValue: 'From' })}</span>
               <span className="gmail-bubble-person-name" title={msg.from.raw}>{fromLabel}</span>
               {msg.from.email && msg.from.name && (
                 <span className="gmail-bubble-person-email">{msg.from.email}</span>
@@ -291,7 +300,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
           <div className="gmail-bubble-person">
             <span className="gmail-bubble-avatar gmail-bubble-avatar-to">{initialsFor(msg.to)}</span>
             <div className="gmail-bubble-person-text">
-              <span className="gmail-bubble-person-role">Para</span>
+              <span className="gmail-bubble-person-role">{t('terminal:gmailBubble.to', { defaultValue: 'To' })}</span>
               <span className="gmail-bubble-person-name" title={msg.to.raw}>{toLabel}</span>
               {msg.to.email && msg.to.name && (
                 <span className="gmail-bubble-person-email">{msg.to.email}</span>
@@ -310,7 +319,9 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
             >
               <Icon name="paperclip" size={11} />
               <span>
-                {msg.uniqueAttachments.length} adjunto{msg.uniqueAttachments.length === 1 ? '' : 's'}
+                {msg.uniqueAttachments.length === 1
+                  ? t('terminal:gmailBubble.attachmentOne', { defaultValue: '1 attachment' })
+                  : t('terminal:gmailBubble.attachmentMany', { defaultValue: '{{n}} attachments', n: msg.uniqueAttachments.length })}
                 {msg.attachments.length !== msg.uniqueAttachments.length
                   && ` · ${msg.attachments.length} ref.`}
               </span>
@@ -332,7 +343,7 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
         <div className="gmail-bubble-body">
           {msg.topBody
             ? renderBodyWithAttachments(topPreview, 'gmail-bubble-link')
-            : <span className="gmail-bubble-empty">(cuerpo vacío)</span>}
+            : <span className="gmail-bubble-empty">{t('terminal:gmailBubble.emptyBody', { defaultValue: '(empty body)' })}</span>}
           {topNeedsCollapse && (
             <button
               type="button"
@@ -340,7 +351,9 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
               onClick={() => setTopExpanded(v => !v)}
               aria-expanded={topExpanded}
             >
-              {topExpanded ? 'Mostrar menos' : 'Mostrar más'}
+              {topExpanded
+                ? t('terminal:gmailBubble.showLess', { defaultValue: 'Show less' })
+                : t('terminal:gmailBubble.showMore', { defaultValue: 'Show more' })}
             </button>
           )}
         </div>
@@ -354,7 +367,9 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
               aria-expanded={quotedExpanded}
             >
               <Icon name={quotedExpanded ? 'caret-down' : 'caret-right'} size={10} />
-              <span>{quotedExpanded ? 'Ocultar hilo previo' : 'Ver hilo previo'}</span>
+              <span>{quotedExpanded
+                ? t('terminal:gmailBubble.hideQuoted', { defaultValue: 'Hide quoted thread' })
+                : t('terminal:gmailBubble.showQuoted', { defaultValue: 'Show quoted thread' })}</span>
             </button>
             {quotedExpanded && (
               <blockquote className="gmail-bubble-quoted-body">
@@ -373,10 +388,10 @@ export function GmailMessageBubble({ msg }: GmailMessageBubbleProps): React.Reac
                 href={gmailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Abrir en Gmail"
+                title={t('terminal:gmailBubble.openInGmail', { defaultValue: 'Open in Gmail' })}
               >
                 <Icon name="open-external" size={10} />
-                <span>Ver en Gmail</span>
+                <span>{t('terminal:gmailBubble.viewInGmail', { defaultValue: 'View in Gmail' })}</span>
               </a>
             )}
             {msg.thread && (
