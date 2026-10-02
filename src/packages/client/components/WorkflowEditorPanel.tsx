@@ -8,6 +8,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch } from '../utils/storage';
 import { useAgents } from '../store';
 import type {
@@ -34,14 +36,14 @@ const STATE_TYPE_LABELS: Record<WorkflowStateType, string> = {
   wait: 'Wait',
   end: 'End',
 };
-const CONDITION_LABELS: Record<string, string> = {
-  agent_complete: 'Agent Complete',
-  trigger_fired: 'Trigger Fired',
-  variable_check: 'Variable Check',
-  timeout: 'Timeout',
-  manual: 'Manual',
-  cron: 'Cron',
+const STATE_TYPE_KEYS: Record<WorkflowStateType, string> = {
+  action: 'config:workflowEditor.stateType.action',
+  decision: 'config:workflowEditor.stateType.decision',
+  wait: 'config:workflowEditor.stateType.wait',
+  end: 'config:workflowEditor.stateType.end',
 };
+const stateTypeLabel = (t: TFunction, type: WorkflowStateType) =>
+  t(STATE_TYPE_KEYS[type], { defaultValue: STATE_TYPE_LABELS[type] });
 
 interface WorkflowEditorPanelProps {
   isOpen: boolean;
@@ -51,6 +53,7 @@ interface WorkflowEditorPanelProps {
 // ─── Main Component ───
 
 export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProps) {
+  const { t } = useTranslation(['config', 'common']);
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowDefinition | null>(null);
   const [view, setView] = useState<'list' | 'editor'>('list');
@@ -65,11 +68,11 @@ export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProp
         setWorkflows(await resp.json());
       }
     } catch {
-      setError('Failed to load workflows');
+      setError(t('config:workflowEditor.loadFailed', { defaultValue: 'Failed to load workflows' }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen) fetchWorkflows();
@@ -78,13 +81,13 @@ export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProp
   const handleCreate = () => {
     const newWorkflow: WorkflowDefinition = {
       id: `wf-${Date.now()}`,
-      name: 'New Workflow',
+      name: t('config:workflowEditor.newWorkflow', { defaultValue: 'New Workflow' }),
       description: '',
       version: 1,
       variables: [],
       states: [
-        { id: 'start', name: 'Start', type: 'action', transitions: [], position: { x: 300, y: 60 } },
-        { id: 'end', name: 'End', type: 'end', transitions: [], position: { x: 300, y: 260 } },
+        { id: 'start', name: t('config:workflowEditor.defaultStartState', { defaultValue: 'Start' }), type: 'action', transitions: [], position: { x: 300, y: 60 } },
+        { id: 'end', name: t('config:workflowEditor.defaultEndState', { defaultValue: 'End' }), type: 'end', transitions: [], position: { x: 300, y: 260 } },
       ],
       initialStateId: 'start',
       createdAt: Date.now(),
@@ -128,7 +131,7 @@ export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProp
       }
       await fetchWorkflows();
     } catch {
-      setError('Failed to save workflow');
+      setError(t('config:workflowEditor.saveFailed', { defaultValue: 'Failed to save workflow' }));
     }
   };
 
@@ -139,15 +142,17 @@ export function WorkflowEditorPanel({ isOpen, onClose }: WorkflowEditorPanelProp
       <div style={styles.panel}>
         <div style={styles.header}>
           <h2 style={styles.title}>
-            {view === 'list' ? 'Workflow Definitions' : activeWorkflow?.name || 'Editor'}
+            {view === 'list'
+              ? t('config:workflowEditor.definitionsTitle', { defaultValue: 'Workflow Definitions' })
+              : activeWorkflow?.name || t('config:workflowEditor.editorTitle', { defaultValue: 'Editor' })}
           </h2>
           <div style={{ display: 'flex', gap: 8 }}>
             {view === 'editor' && (
               <button style={styles.btnSecondary} onClick={() => setView('list')}>
-                Back to List
+                {t('config:workflowEditor.backToList', { defaultValue: 'Back to List' })}
               </button>
             )}
-            <button style={styles.btnClose} onClick={onClose}>Close</button>
+            <button style={styles.btnClose} onClick={onClose}>{t('common:buttons.close')}</button>
           </div>
         </div>
 
@@ -186,21 +191,28 @@ function WorkflowList({
   onCreate: () => void;
   onLoadCC: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   return (
     <div style={styles.content}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button style={styles.btnPrimary} onClick={onCreate}>New Workflow</button>
-        <button style={styles.btnSecondary} onClick={onLoadCC}>Load CC Template</button>
+        <button style={styles.btnPrimary} onClick={onCreate}>
+          {t('config:workflowEditor.newWorkflow', { defaultValue: 'New Workflow' })}
+        </button>
+        <button style={styles.btnSecondary} onClick={onLoadCC}>
+          {t('config:workflowEditor.loadCcTemplate', { defaultValue: 'Load CC Template' })}
+        </button>
       </div>
 
-      {loading && <div style={{ color: '#a6adc8' }}>Loading...</div>}
+      {loading && <div style={{ color: '#a6adc8' }}>{t('common:status.loading')}</div>}
       {error && <div style={{ color: '#f38ba8' }}>{error}</div>}
 
       {workflows.map((wf) => (
         <div key={wf.id} style={styles.card} onClick={() => onSelect(wf)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: '#cdd6f4', fontWeight: 600, fontSize: 14 }}>{wf.name}</span>
-            <span style={{ color: '#a6adc8', fontSize: 11 }}>v{wf.version} | {wf.states.length} states</span>
+            <span style={{ color: '#a6adc8', fontSize: 11 }}>
+              v{wf.version} | {t('config:workflowEditor.statesCount', { defaultValue: '{{num}} states', num: wf.states.length })}
+            </span>
           </div>
           {wf.description && <div style={{ color: '#a6adc8', fontSize: 12, marginTop: 4 }}>{wf.description}</div>}
         </div>
@@ -208,7 +220,7 @@ function WorkflowList({
 
       {!loading && workflows.length === 0 && (
         <div style={{ color: '#6c7086', textAlign: 'center', padding: 40 }}>
-          No workflows yet. Create one or load the CC template.
+          {t('config:workflowEditor.noWorkflows', { defaultValue: 'No workflows yet. Create one or load the CC template.' })}
         </div>
       )}
     </div>
@@ -224,6 +236,7 @@ function WorkflowEditor({
   onChange: (wf: WorkflowDefinition) => void;
   onSave: (wf: WorkflowDefinition) => Promise<void>;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const [selectedStateId, setSelectedStateId] = useState<string | null>(null);
   const [selectedTransitionId, setSelectedTransitionId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<'none' | 'state' | 'transition' | 'variables' | 'settings'>('none');
@@ -240,8 +253,8 @@ function WorkflowEditor({
   // Find transition by ID across all states
   const findTransition = useCallback((): { state: WorkflowState; transition: WorkflowTransition } | null => {
     for (const s of workflow.states) {
-      const t = s.transitions.find((tr) => tr.id === selectedTransitionId);
-      if (t) return { state: s, transition: t };
+      const found = s.transitions.find((tr) => tr.id === selectedTransitionId);
+      if (found) return { state: s, transition: found };
     }
     return null;
   }, [workflow, selectedTransitionId]);
@@ -260,7 +273,7 @@ function WorkflowEditor({
     const id = `state-${Date.now()}`;
     const newState: WorkflowState = {
       id,
-      name: `New ${STATE_TYPE_LABELS[type]}`,
+      name: t('config:workflowEditor.newStateName', { defaultValue: 'New {{type}}', type: stateTypeLabel(t, type) }),
       type,
       transitions: [],
       position: { x: 300, y: (workflow.states.length) * 100 + 60 },
@@ -276,7 +289,7 @@ function WorkflowEditor({
       .filter((s) => s.id !== stateId)
       .map((s) => ({
         ...s,
-        transitions: s.transitions.filter((t) => t.targetStateId !== stateId),
+        transitions: s.transitions.filter((tr) => tr.targetStateId !== stateId),
       }));
     updateStates(newStates);
     setSelectedStateId(null);
@@ -293,7 +306,7 @@ function WorkflowEditor({
         ...s,
         transitions: [
           ...s.transitions,
-          { id, name: 'New Transition', targetStateId: toStateId, condition: { type: 'agent_complete' as const } },
+          { id, name: t('config:workflowEditor.newTransition', { defaultValue: 'New Transition' }), targetStateId: toStateId, condition: { type: 'agent_complete' as const } },
         ],
       };
     }));
@@ -306,7 +319,7 @@ function WorkflowEditor({
       if (s.id !== stateId) return s;
       return {
         ...s,
-        transitions: s.transitions.map((t) => (t.id === transitionId ? { ...t, ...updates } : t)),
+        transitions: s.transitions.map((tr) => (tr.id === transitionId ? { ...tr, ...updates } : tr)),
       };
     }));
   };
@@ -314,7 +327,7 @@ function WorkflowEditor({
   const deleteTransition = (stateId: string, transitionId: string) => {
     updateStates(workflow.states.map((s) => {
       if (s.id !== stateId) return s;
-      return { ...s, transitions: s.transitions.filter((t) => t.id !== transitionId) };
+      return { ...s, transitions: s.transitions.filter((tr) => tr.id !== transitionId) };
     }));
     setSelectedTransitionId(null);
     setSidePanel('none');
@@ -369,42 +382,50 @@ function WorkflowEditor({
       {/* Toolbar */}
       <div style={styles.toolbar}>
         <div style={{ marginBottom: 16 }}>
-          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>Add State</div>
+          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>
+            {t('config:workflowEditor.addState', { defaultValue: 'Add State' })}
+          </div>
           {(['action', 'decision', 'wait', 'end'] as WorkflowStateType[]).map((type) => (
             <button
               key={type}
               style={{ ...styles.toolBtn, borderLeft: `3px solid ${STATE_TYPE_COLORS[type]}` }}
               onClick={() => addState(type)}
             >
-              {STATE_TYPE_LABELS[type]}
+              {stateTypeLabel(t, type)}
             </button>
           ))}
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>Tools</div>
+          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>
+            {t('config:workflowEditor.tools', { defaultValue: 'Tools' })}
+          </div>
           <button
             style={{ ...styles.toolBtn, background: drawingFrom ? '#45475a' : 'transparent' }}
             onClick={() => setDrawingFrom(drawingFrom ? null : (selectedStateId || null))}
-            title="Click a source state, then click a target state"
+            title={t('config:workflowEditor.drawHint', { defaultValue: 'Click a source state, then click a target state' })}
           >
-            {drawingFrom ? 'Drawing... (click target)' : 'Draw Transition'}
+            {drawingFrom
+              ? t('config:workflowEditor.drawing', { defaultValue: 'Drawing... (click target)' })
+              : t('config:workflowEditor.drawTransition', { defaultValue: 'Draw Transition' })}
           </button>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>Panels</div>
+          <div style={{ color: '#a6adc8', fontSize: 10, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>
+            {t('config:workflowEditor.panels', { defaultValue: 'Panels' })}
+          </div>
           <button style={styles.toolBtn} onClick={() => setSidePanel(sidePanel === 'variables' ? 'none' : 'variables')}>
-            Variables ({workflow.variables.length})
+            {t('config:workflowEditor.variablesCount', { defaultValue: 'Variables ({{num}})', num: workflow.variables.length })}
           </button>
           <button style={styles.toolBtn} onClick={() => setSidePanel(sidePanel === 'settings' ? 'none' : 'settings')}>
-            Settings
+            {t('common:buttons.settings')}
           </button>
         </div>
 
         <div style={{ marginTop: 'auto' }}>
           <button style={styles.btnPrimary} onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common:status.saving', { defaultValue: 'Saving...' }) : t('common:buttons.save')}
           </button>
         </div>
       </div>
@@ -488,6 +509,7 @@ function EditorCanvas({
   onTransitionClick: (id: string) => void;
   selectedTransitionId: string | null;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   // Ref to always call the latest onStateDrag, avoiding stale closure in event listeners
   const onStateDragRef = useRef(onStateDrag);
   onStateDragRef.current = onStateDrag;
@@ -567,8 +589,8 @@ function EditorCanvas({
           </marker>
         </defs>
         {states.flatMap((fromState) =>
-          fromState.transitions.map((t) => {
-            const toState = states.find((s) => s.id === t.targetStateId);
+          fromState.transitions.map((tr) => {
+            const toState = states.find((s) => s.id === tr.targetStateId);
             if (!toState) return null;
 
             const x1 = cx(fromState);
@@ -576,11 +598,11 @@ function EditorCanvas({
             const x2 = cx(toState);
             const y2 = toState.position?.y ?? 0;
 
-            const isSelected = t.id === selectedTransitionId;
+            const isSelected = tr.id === selectedTransitionId;
             const midY = (y1 + y2) / 2;
 
             return (
-              <g key={t.id} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} onClick={() => onTransitionClick(t.id)}>
+              <g key={tr.id} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} onClick={() => onTransitionClick(tr.id)}>
                 <path
                   d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
                   fill="none"
@@ -596,7 +618,7 @@ function EditorCanvas({
                   fontSize={10}
                   dominantBaseline="middle"
                 >
-                  {t.name}
+                  {tr.name}
                 </text>
               </g>
             );
@@ -637,11 +659,11 @@ function EditorCanvas({
           >
             {isInitial && (
               <div style={{ position: 'absolute', top: -8, left: 8, fontSize: 9, color: '#a6e3a1', fontWeight: 600, background: '#1e1e2e', padding: '0 4px', borderRadius: 3 }}>
-                START
+                {t('config:workflowEditor.startBadge', { defaultValue: 'START' })}
               </div>
             )}
             <div style={{ color, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {STATE_TYPE_LABELS[state.type]}
+              {stateTypeLabel(t, state.type)}
             </div>
             <div style={{ color: '#cdd6f4', fontSize: 12, fontWeight: 600, textAlign: 'center', padding: '0 8px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: STATE_W - 16 }}>
               {state.name}
@@ -667,6 +689,7 @@ function StateEditor({
   onStartDrawing: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const action = state.action;
 
   const updateAction = (updates: Partial<WorkflowAction>) => {
@@ -677,13 +700,13 @@ function StateEditor({
     <div>
       <div style={styles.sidePanelHeader}>
         <span style={{ color: STATE_TYPE_COLORS[state.type], fontWeight: 600 }}>
-          {STATE_TYPE_LABELS[state.type]} State
+          {t('config:workflowEditor.stateHeader', { defaultValue: '{{type}} State', type: stateTypeLabel(t, state.type) })}
         </span>
         <button style={styles.btnClose} onClick={onClose}>x</button>
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Name</label>
+        <label style={styles.fieldLabel}>{t('common:labels.name')}</label>
         <input
           style={styles.fieldInput}
           value={state.name}
@@ -692,7 +715,7 @@ function StateEditor({
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Description</label>
+        <label style={styles.fieldLabel}>{t('common:labels.description')}</label>
         <textarea
           style={{ ...styles.fieldInput, height: 60, resize: 'vertical' }}
           value={state.description || ''}
@@ -701,14 +724,14 @@ function StateEditor({
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Type</label>
+        <label style={styles.fieldLabel}>{t('common:labels.type')}</label>
         <select
           style={styles.fieldInput}
           value={state.type}
           onChange={(e) => onUpdate({ type: e.target.value as WorkflowStateType })}
         >
-          {Object.entries(STATE_TYPE_LABELS).map(([val, label]) => (
-            <option key={val} value={val}>{label}</option>
+          {(Object.keys(STATE_TYPE_LABELS) as WorkflowStateType[]).map((val) => (
+            <option key={val} value={val}>{stateTypeLabel(t, val)}</option>
           ))}
         </select>
       </div>
@@ -717,11 +740,11 @@ function StateEditor({
       {state.type !== 'end' && (
         <>
           <div style={{ ...styles.fieldLabel, marginTop: 12, marginBottom: 8, fontSize: 11, color: '#a6adc8', textTransform: 'uppercase', letterSpacing: 1 }}>
-            Action
+            {t('config:workflowEditor.actionSection', { defaultValue: 'Action' })}
           </div>
 
           <div style={styles.fieldGroup}>
-            <label style={styles.fieldLabel}>Action Type</label>
+            <label style={styles.fieldLabel}>{t('config:workflowEditor.actionType', { defaultValue: 'Action Type' })}</label>
             <select
               style={styles.fieldInput}
               value={action?.type || 'agent_task'}
@@ -733,39 +756,39 @@ function StateEditor({
                 else if (type === 'trigger_setup') onUpdate({ action: { type: 'trigger_setup', triggerConfig: {} } });
               }}
             >
-              <option value="agent_task">Agent Task</option>
-              <option value="wait_for_trigger">Wait for Trigger</option>
-              <option value="set_variables">Set Variables</option>
-              <option value="trigger_setup">Trigger Setup</option>
+              <option value="agent_task">{t('config:workflowEditor.actionKind.agentTask', { defaultValue: 'Agent Task' })}</option>
+              <option value="wait_for_trigger">{t('config:workflowEditor.actionKind.waitForTrigger', { defaultValue: 'Wait for Trigger' })}</option>
+              <option value="set_variables">{t('config:workflowEditor.actionKind.setVariables', { defaultValue: 'Set Variables' })}</option>
+              <option value="trigger_setup">{t('config:workflowEditor.actionKind.triggerSetup', { defaultValue: 'Trigger Setup' })}</option>
             </select>
           </div>
 
           {action?.type === 'agent_task' && (
             <>
               <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel}>Agent</label>
+                <label style={styles.fieldLabel}>{t('common:labels.agent')}</label>
                 <select
                   style={styles.fieldInput}
                   value={action.agentId}
                   onChange={(e) => updateAction({ agentId: e.target.value })}
                 >
-                  <option value="">Select agent...</option>
+                  <option value="">{t('config:workflowEditor.selectAgent', { defaultValue: 'Select agent...' })}</option>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
               </div>
               <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel}>Prompt Template</label>
+                <label style={styles.fieldLabel}>{t('config:workflowEditor.promptTemplate', { defaultValue: 'Prompt Template' })}</label>
                 <textarea
                   style={{ ...styles.fieldInput, height: 120, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
                   value={action.promptTemplate}
                   onChange={(e) => updateAction({ promptTemplate: e.target.value })}
-                  placeholder="Use {{variable}} for interpolation"
+                  placeholder={t('config:workflowEditor.promptPlaceholder', { defaultValue: 'Use {{variable}} for interpolation', variable: '{{variable}}' })}
                 />
               </div>
               <div style={styles.fieldGroup}>
-                <label style={styles.fieldLabel}>Skills (comma-separated)</label>
+                <label style={styles.fieldLabel}>{t('config:workflowEditor.skillsLabel', { defaultValue: 'Skills (comma-separated)' })}</label>
                 <input
                   style={styles.fieldInput}
                   value={(action.skills || []).join(', ')}
@@ -778,7 +801,7 @@ function StateEditor({
 
           {action?.type === 'wait_for_trigger' && (
             <div style={styles.fieldGroup}>
-              <label style={styles.fieldLabel}>Timeout (ms)</label>
+              <label style={styles.fieldLabel}>{t('config:workflowEditor.timeoutMs', { defaultValue: 'Timeout (ms)' })}</label>
               <input
                 type="number"
                 style={styles.fieldInput}
@@ -790,7 +813,7 @@ function StateEditor({
 
           {action?.type === 'set_variables' && (
             <div style={styles.fieldGroup}>
-              <label style={styles.fieldLabel}>Assignments (JSON)</label>
+              <label style={styles.fieldLabel}>{t('config:workflowEditor.assignmentsJson', { defaultValue: 'Assignments (JSON)' })}</label>
               <textarea
                 style={{ ...styles.fieldInput, height: 80, fontFamily: 'monospace', fontSize: 11 }}
                 value={JSON.stringify(action.assignments || {}, null, 2)}
@@ -804,10 +827,18 @@ function StateEditor({
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-        {!isInitial && <button style={styles.btnSecondary} onClick={onSetInitial}>Set as Start</button>}
-        <button style={styles.btnSecondary} onClick={onStartDrawing}>Add Transition From Here</button>
+        {!isInitial && (
+          <button style={styles.btnSecondary} onClick={onSetInitial}>
+            {t('config:workflowEditor.setAsStart', { defaultValue: 'Set as Start' })}
+          </button>
+        )}
+        <button style={styles.btnSecondary} onClick={onStartDrawing}>
+          {t('config:workflowEditor.addTransitionFromHere', { defaultValue: 'Add Transition From Here' })}
+        </button>
         {state.type !== 'end' && !isInitial && (
-          <button style={{ ...styles.btnSecondary, color: '#f38ba8', borderColor: '#f38ba8' }} onClick={onDelete}>Delete</button>
+          <button style={{ ...styles.btnSecondary, color: '#f38ba8', borderColor: '#f38ba8' }} onClick={onDelete}>
+            {t('common:buttons.delete')}
+          </button>
         )}
       </div>
     </div>
@@ -827,27 +858,28 @@ function TransitionEditor({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const condition = transition.condition;
 
   return (
     <div>
       <div style={styles.sidePanelHeader}>
-        <span style={{ color: '#89b4fa', fontWeight: 600 }}>Transition</span>
+        <span style={{ color: '#89b4fa', fontWeight: 600 }}>{t('config:workflowEditor.transitionHeader', { defaultValue: 'Transition' })}</span>
         <button style={styles.btnClose} onClick={onClose}>x</button>
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Name</label>
+        <label style={styles.fieldLabel}>{t('common:labels.name')}</label>
         <input style={styles.fieldInput} value={transition.name} onChange={(e) => onUpdate({ name: e.target.value })} />
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>From</label>
+        <label style={styles.fieldLabel}>{t('config:workflowEditor.from', { defaultValue: 'From' })}</label>
         <div style={{ color: '#cdd6f4', fontSize: 12, padding: '6px 0' }}>{parentState.name}</div>
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Target State</label>
+        <label style={styles.fieldLabel}>{t('config:workflowEditor.targetState', { defaultValue: 'Target State' })}</label>
         <select
           style={styles.fieldInput}
           value={transition.targetStateId}
@@ -860,11 +892,11 @@ function TransitionEditor({
       </div>
 
       <div style={{ ...styles.fieldLabel, marginTop: 12, marginBottom: 8, fontSize: 11, color: '#a6adc8', textTransform: 'uppercase', letterSpacing: 1 }}>
-        Condition
+        {t('config:workflowEditor.conditionSection', { defaultValue: 'Condition' })}
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Condition Type</label>
+        <label style={styles.fieldLabel}>{t('config:workflowEditor.conditionType', { defaultValue: 'Condition Type' })}</label>
         <select
           style={styles.fieldInput}
           value={condition.type}
@@ -878,35 +910,38 @@ function TransitionEditor({
             else if (type === 'cron') onUpdate({ condition: { type: 'cron', expression: '* * * * *' } });
           }}
         >
-          {Object.entries(CONDITION_LABELS).map(([val, label]) => (
-            <option key={val} value={val}>{label}</option>
-          ))}
+          <option value="agent_complete">{t('config:workflowEditor.condition.agentComplete', { defaultValue: 'Agent Complete' })}</option>
+          <option value="trigger_fired">{t('config:workflowEditor.condition.triggerFired', { defaultValue: 'Trigger Fired' })}</option>
+          <option value="variable_check">{t('config:workflowEditor.condition.variableCheck', { defaultValue: 'Variable Check' })}</option>
+          <option value="timeout">{t('config:workflowEditor.condition.timeout', { defaultValue: 'Timeout' })}</option>
+          <option value="manual">{t('config:workflowEditor.condition.manual', { defaultValue: 'Manual' })}</option>
+          <option value="cron">{t('config:workflowEditor.condition.cron', { defaultValue: 'Cron' })}</option>
         </select>
       </div>
 
       {condition.type === 'variable_check' && (
         <>
           <div style={styles.fieldGroup}>
-            <label style={styles.fieldLabel}>Variable</label>
+            <label style={styles.fieldLabel}>{t('config:workflowEditor.variable', { defaultValue: 'Variable' })}</label>
             <select style={styles.fieldInput} value={condition.variable} onChange={(e) => onUpdate({ condition: { ...condition, variable: e.target.value } })}>
-              <option value="">Select...</option>
+              <option value="">{t('config:workflowEditor.selectPlaceholder', { defaultValue: 'Select...' })}</option>
               {variables.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
           </div>
           <div style={styles.fieldGroup}>
-            <label style={styles.fieldLabel}>Operator</label>
+            <label style={styles.fieldLabel}>{t('config:workflowEditor.operatorLabel', { defaultValue: 'Operator' })}</label>
             <select style={styles.fieldInput} value={condition.operator} onChange={(e) => onUpdate({ condition: { ...condition, operator: e.target.value as any } })}>
-              <option value="equals">Equals</option>
-              <option value="not_equals">Not Equals</option>
-              <option value="contains">Contains</option>
-              <option value="greater_than">Greater Than</option>
-              <option value="less_than">Less Than</option>
-              <option value="is_true">Is True</option>
+              <option value="equals">{t('config:workflowEditor.operator.equals', { defaultValue: 'Equals' })}</option>
+              <option value="not_equals">{t('config:workflowEditor.operator.notEquals', { defaultValue: 'Not Equals' })}</option>
+              <option value="contains">{t('config:workflowEditor.operator.contains', { defaultValue: 'Contains' })}</option>
+              <option value="greater_than">{t('config:workflowEditor.operator.greaterThan', { defaultValue: 'Greater Than' })}</option>
+              <option value="less_than">{t('config:workflowEditor.operator.lessThan', { defaultValue: 'Less Than' })}</option>
+              <option value="is_true">{t('config:workflowEditor.operator.isTrue', { defaultValue: 'Is True' })}</option>
             </select>
           </div>
           {condition.operator !== 'is_true' && (
             <div style={styles.fieldGroup}>
-              <label style={styles.fieldLabel}>Value</label>
+              <label style={styles.fieldLabel}>{t('config:workflowEditor.value', { defaultValue: 'Value' })}</label>
               <input style={styles.fieldInput} value={String(condition.value ?? '')} onChange={(e) => onUpdate({ condition: { ...condition, value: e.target.value } })} />
             </div>
           )}
@@ -915,7 +950,7 @@ function TransitionEditor({
 
       {condition.type === 'timeout' && (
         <div style={styles.fieldGroup}>
-          <label style={styles.fieldLabel}>Timeout (ms)</label>
+          <label style={styles.fieldLabel}>{t('config:workflowEditor.timeoutMs', { defaultValue: 'Timeout (ms)' })}</label>
           <input type="number" style={styles.fieldInput} value={condition.afterMs} onChange={(e) => onUpdate({ condition: { ...condition, afterMs: Number(e.target.value) } })} />
         </div>
       )}
@@ -923,11 +958,11 @@ function TransitionEditor({
       {condition.type === 'cron' && (
         <>
           <div style={styles.fieldGroup}>
-            <label style={styles.fieldLabel}>Cron Expression</label>
+            <label style={styles.fieldLabel}>{t('config:workflowEditor.cronExpression', { defaultValue: 'Cron Expression' })}</label>
             <input style={styles.fieldInput} value={condition.expression} onChange={(e) => onUpdate({ condition: { ...condition, expression: e.target.value } })} placeholder="*/5 * * * *" />
           </div>
           <div style={styles.fieldGroup}>
-            <label style={styles.fieldLabel}>Timezone</label>
+            <label style={styles.fieldLabel}>{t('config:workflowEditor.timezone', { defaultValue: 'Timezone' })}</label>
             <input style={styles.fieldInput} value={condition.timezone || ''} onChange={(e) => onUpdate({ condition: { ...condition, timezone: e.target.value } })} placeholder="UTC" />
           </div>
         </>
@@ -935,13 +970,15 @@ function TransitionEditor({
 
       {condition.type === 'trigger_fired' && (
         <div style={styles.fieldGroup}>
-          <label style={styles.fieldLabel}>Trigger ID (optional)</label>
+          <label style={styles.fieldLabel}>{t('config:workflowEditor.triggerIdOptional', { defaultValue: 'Trigger ID (optional)' })}</label>
           <input style={styles.fieldInput} value={condition.triggerId || ''} onChange={(e) => onUpdate({ condition: { ...condition, triggerId: e.target.value || undefined } })} />
         </div>
       )}
 
       <div style={{ marginTop: 16 }}>
-        <button style={{ ...styles.btnSecondary, color: '#f38ba8', borderColor: '#f38ba8' }} onClick={onDelete}>Delete Transition</button>
+        <button style={{ ...styles.btnSecondary, color: '#f38ba8', borderColor: '#f38ba8' }} onClick={onDelete}>
+          {t('config:workflowEditor.deleteTransition', { defaultValue: 'Delete Transition' })}
+        </button>
       </div>
     </div>
   );
@@ -956,6 +993,7 @@ function VariablesEditor({
   onChange: (vars: WorkflowVariableSchema[]) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const addVariable = () => {
     onChange([...variables, { name: '', type: 'string', description: '' }]);
   };
@@ -971,7 +1009,9 @@ function VariablesEditor({
   return (
     <div>
       <div style={styles.sidePanelHeader}>
-        <span style={{ color: '#cba6f7', fontWeight: 600 }}>Variables ({variables.length})</span>
+        <span style={{ color: '#cba6f7', fontWeight: 600 }}>
+          {t('config:workflowEditor.variablesCount', { defaultValue: 'Variables ({{num}})', num: variables.length })}
+        </span>
         <button style={styles.btnClose} onClick={onClose}>x</button>
       </div>
 
@@ -982,19 +1022,19 @@ function VariablesEditor({
               style={{ ...styles.fieldInput, flex: 1 }}
               value={v.name}
               onChange={(e) => updateVar(i, { name: e.target.value })}
-              placeholder="Variable name"
+              placeholder={t('config:workflowEditor.variableNamePlaceholder', { defaultValue: 'Variable name' })}
             />
             <select
               style={{ ...styles.fieldInput, width: 80 }}
               value={v.type}
               onChange={(e) => updateVar(i, { type: e.target.value as WorkflowVariableType })}
             >
-              <option value="string">string</option>
-              <option value="number">number</option>
-              <option value="boolean">boolean</option>
-              <option value="date">date</option>
-              <option value="email">email</option>
-              <option value="json">json</option>
+              <option value="string">{t('config:workflowEditor.variableType.string', { defaultValue: 'string' })}</option>
+              <option value="number">{t('config:workflowEditor.variableType.number', { defaultValue: 'number' })}</option>
+              <option value="boolean">{t('config:workflowEditor.variableType.boolean', { defaultValue: 'boolean' })}</option>
+              <option value="date">{t('config:workflowEditor.variableType.date', { defaultValue: 'date' })}</option>
+              <option value="email">{t('config:workflowEditor.variableType.email', { defaultValue: 'email' })}</option>
+              <option value="json">{t('config:workflowEditor.variableType.json', { defaultValue: 'json' })}</option>
             </select>
             <button style={{ ...styles.btnClose, padding: '2px 6px' }} onClick={() => deleteVar(i)}>x</button>
           </div>
@@ -1002,16 +1042,18 @@ function VariablesEditor({
             style={{ ...styles.fieldInput, fontSize: 11 }}
             value={v.description || ''}
             onChange={(e) => updateVar(i, { description: e.target.value })}
-            placeholder="Description"
+            placeholder={t('common:labels.description')}
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, color: '#a6adc8', fontSize: 11 }}>
             <input type="checkbox" checked={!!v.required} onChange={(e) => updateVar(i, { required: e.target.checked })} />
-            Required
+            {t('config:workflowEditor.required', { defaultValue: 'Required' })}
           </label>
         </div>
       ))}
 
-      <button style={styles.btnSecondary} onClick={addVariable}>Add Variable</button>
+      <button style={styles.btnSecondary} onClick={addVariable}>
+        {t('config:workflowEditor.addVariable', { defaultValue: 'Add Variable' })}
+      </button>
     </div>
   );
 }
@@ -1025,20 +1067,21 @@ function WorkflowSettings({
   onChange: (wf: WorkflowDefinition) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   return (
     <div>
       <div style={styles.sidePanelHeader}>
-        <span style={{ color: '#cdd6f4', fontWeight: 600 }}>Settings</span>
+        <span style={{ color: '#cdd6f4', fontWeight: 600 }}>{t('common:buttons.settings')}</span>
         <button style={styles.btnClose} onClick={onClose}>x</button>
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Name</label>
+        <label style={styles.fieldLabel}>{t('common:labels.name')}</label>
         <input style={styles.fieldInput} value={workflow.name} onChange={(e) => onChange({ ...workflow, name: e.target.value })} />
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Description</label>
+        <label style={styles.fieldLabel}>{t('common:labels.description')}</label>
         <textarea
           style={{ ...styles.fieldInput, height: 60, resize: 'vertical' }}
           value={workflow.description || ''}
@@ -1047,19 +1090,24 @@ function WorkflowSettings({
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Initial State</label>
+        <label style={styles.fieldLabel}>{t('config:workflowEditor.initialState', { defaultValue: 'Initial State' })}</label>
         <select style={styles.fieldInput} value={workflow.initialStateId} onChange={(e) => onChange({ ...workflow, initialStateId: e.target.value })}>
           {workflow.states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
       <div style={styles.fieldGroup}>
-        <label style={styles.fieldLabel}>Color</label>
+        <label style={styles.fieldLabel}>{t('config:workflowEditor.color', { defaultValue: 'Color' })}</label>
         <input type="color" value={workflow.color || '#89b4fa'} onChange={(e) => onChange({ ...workflow, color: e.target.value })} style={{ width: 40, height: 30, padding: 0, border: 'none', cursor: 'pointer' }} />
       </div>
 
       <div style={{ color: '#6c7086', fontSize: 11, marginTop: 16 }}>
-        Version: {workflow.version} | States: {workflow.states.length} | Transitions: {workflow.states.reduce((n, s) => n + s.transitions.length, 0)}
+        {t('config:workflowEditor.versionSummary', {
+          defaultValue: 'Version: {{version}} | States: {{states}} | Transitions: {{transitions}}',
+          version: workflow.version,
+          states: workflow.states.length,
+          transitions: workflow.states.reduce((n, s) => n + s.transitions.length, 0),
+        })}
       </div>
     </div>
   );

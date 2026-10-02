@@ -14,7 +14,8 @@
   ],
   "noCJK": [
     "common:labels.tokens",
-    "tools:display.tokens"
+    "tools:display.tokens",
+    "config:workflowEditor.variableType.json"
   ],
   "localeOnly": [
     "re:^common:agentBar\\.",
@@ -53,6 +54,7 @@
     "re:^config:experimental\\.(2dViewTitle|voiceAssistantTitle|ttsTitle|echoPromptTitle)$",
     "re:^config:monitoringModal\\.",
     "re:^config:bulkManage\\.",
-    "re:^config:workflowPanel\\."
+    "re:^config:workflowPanel\\.",
+    "re:^config:workflowEditor\\."
   ]
 }
