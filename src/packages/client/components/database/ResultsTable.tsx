@@ -299,21 +299,21 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
   }, [columnTypeMap]);
 
   const editStatusText = useMemo(() => {
-    if (canEdit) return 'Editable';
+    if (canEdit) return t('terminal:database.editable', { defaultValue: 'Editable' });
     if (!dbState.activeConnectionId || !dbState.activeDatabase) {
-      return 'Read-only: no active connection or database';
+      return t('terminal:database.readOnlyNoConnection', { defaultValue: 'Read-only: no active connection or database' });
     }
     if (!tableName) {
-      return 'Read-only: query is not a single-table SELECT';
+      return t('terminal:database.readOnlyNotSingleTable', { defaultValue: 'Read-only: query is not a single-table SELECT' });
     }
     if (!tableSchema) {
-      return 'Read-only: loading table schema';
+      return t('terminal:database.readOnlyLoadingSchema', { defaultValue: 'Read-only: loading table schema' });
     }
     if (primaryKeyColumns.length === 0) {
-      return 'Read-only: table has no primary key';
+      return t('terminal:database.readOnlyNoPrimaryKey', { defaultValue: 'Read-only: table has no primary key' });
     }
-    return 'Read-only: editing unavailable';
-  }, [canEdit, dbState.activeConnectionId, dbState.activeDatabase, tableName, tableSchema, primaryKeyColumns.length]);
+    return t('terminal:database.readOnlyUnavailable', { defaultValue: 'Read-only: editing unavailable' });
+  }, [canEdit, dbState.activeConnectionId, dbState.activeDatabase, tableName, tableSchema, primaryKeyColumns.length, t]);
 
   // Handle sort (skip if resize just finished)
   const handleSort = useCallback((column: string) => {
@@ -456,17 +456,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
     if (silentResult.timestamp < pendingUpdate.startedAt) return;
 
     if (!silentResult.success) {
-      setToast({ message: silentResult.error || 'Update failed on backend', type: 'error' });
+      const updateFailedMsg = silentResult.error || t('terminal:database.toastUpdateFailed', { defaultValue: 'Update failed on backend' });
+      setToast({ message: updateFailedMsg, type: 'error' });
       setTimeout(() => setToast(null), 5000);
-      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: silentResult.error || 'Update failed on backend' } : prev));
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: updateFailedMsg } : prev));
       setPendingUpdate(null);
       return;
     }
 
     if (silentResult.affectedRows === 0) {
-      setToast({ message: 'No rows were updated', type: 'error' });
+      const noRowsMsg = t('terminal:database.toastNoRowsUpdated', { defaultValue: 'No rows were updated' });
+      setToast({ message: noRowsMsg, type: 'error' });
       setTimeout(() => setToast(null), 5000);
-      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: 'No rows were updated' } : prev));
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: noRowsMsg } : prev));
       setPendingUpdate(null);
       return;
     }
@@ -480,7 +482,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
     });
 
     setEditingCell(null);
-    setToast({ message: 'Row updated successfully', type: 'success' });
+    setToast({ message: t('terminal:database.toastRowUpdated', { defaultValue: 'Row updated successfully' }), type: 'success' });
     setTimeout(() => setToast(null), 3000);
 
     if (pendingUpdate.originalQuery && dbState.activeConnectionId && dbState.activeDatabase) {
@@ -490,20 +492,21 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
     }
 
     setPendingUpdate(null);
-  }, [pendingUpdate, dbState.lastSilentQueryResult, dbState.activeConnectionId, dbState.activeDatabase, buildingId]);
+  }, [pendingUpdate, dbState.lastSilentQueryResult, dbState.activeConnectionId, dbState.activeDatabase, buildingId, t]);
 
   // Safety timeout to avoid indefinite waiting if ack is lost or delayed
   useEffect(() => {
     if (!pendingUpdate) return;
     const timeoutId = window.setTimeout(() => {
-      setToast({ message: 'Update timed out waiting for backend', type: 'error' });
+      const timeoutMsg = t('terminal:database.toastUpdateTimeout', { defaultValue: 'Update timed out waiting for backend' });
+      setToast({ message: timeoutMsg, type: 'error' });
       setTimeout(() => setToast(null), 5000);
-      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: 'Update timed out waiting for backend' } : prev));
+      setEditingCell(prev => (prev ? { ...prev, isUpdating: false, error: timeoutMsg } : prev));
       setPendingUpdate(null);
     }, 10000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [pendingUpdate]);
+  }, [pendingUpdate, t]);
 
   // Save cell edit and execute UPDATE
   const handleSaveCell = useCallback(() => {
@@ -536,7 +539,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
     return [
       {
         id: 'editability',
-        label: canEdit ? 'Cell actions' : editStatusText,
+        label: canEdit ? t('terminal:database.cellActions', { defaultValue: 'Cell actions' }) : editStatusText,
         icon: <Icon name={canEdit ? 'square' : 'info'} size={14} />,
         disabled: true,
         onClick: () => {},
@@ -549,7 +552,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
       },
       {
         id: 'edit-cell',
-        label: 'Edit Cell',
+        label: t('terminal:database.editCell', { defaultValue: 'Edit Cell' }),
         icon: <Icon name="edit" size={14} />,
         disabled: actionsDisabled,
         onClick: () => {
@@ -565,7 +568,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
       },
       {
         id: 'set-null',
-        label: 'Set NULL',
+        label: t('terminal:database.setNull', { defaultValue: 'Set NULL' }),
         icon: '∅',
         disabled: actionsDisabled || cellContextMenu.value === null,
         onClick: () => {
@@ -580,7 +583,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
         },
       },
     ];
-  }, [cellContextMenu, canEdit, editingCell, pendingUpdate, tableName, tableSchema, dbState.activeConnectionId, dbState.activeDatabase, editStatusText, executeCellUpdate, getEditorValue]);
+  }, [cellContextMenu, canEdit, editingCell, pendingUpdate, tableName, tableSchema, dbState.activeConnectionId, dbState.activeDatabase, editStatusText, executeCellUpdate, getEditorValue, t]);
 
   // Handle keyboard in edit mode
   const handleCellKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -967,7 +970,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                             <button
                               type="button"
                               className="results-table__cell-feedback results-table__cell-feedback--error results-table__cell-feedback-btn"
-                              title={`${editingCell.error}. Click to cancel editing.`}
+                              title={t('terminal:database.clickToCancelEditing', { defaultValue: '{{error}}. Click to cancel editing.', error: editingCell.error })}
                               onMouseDown={(e) => {
                                 // Prevent input blur from re-triggering save while cancelling.
                                 e.preventDefault();
@@ -1026,7 +1029,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result, buildingId, 
                         });
                       }
                     }}
-                    title="Edit this cell"
+                    title={t('terminal:database.editThisCell', { defaultValue: 'Edit this cell' })}
                   >
                     <Icon name="edit" size={12} />
                   </button>
