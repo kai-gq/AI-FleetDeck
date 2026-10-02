@@ -293,6 +293,7 @@ const ChatView = React.memo(function ChatView({
   const agent = useAgent(agentId);
   const buildings = useBuildings();
   const settings = useSettings();
+  const { t } = useTranslation(['terminal', 'common']);
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
   // The pane owns the conversation data; the modal lives in the parent. Attach
   // the gallery here so the parent's viewer can browse every image.
@@ -356,7 +357,7 @@ const ChatView = React.memo(function ChatView({
       const isActive = !classicTuiOpen && terminalViewMode === mode;
       return {
         id: `view-mode-${mode}`,
-        label: TERMINAL_VIEW_MODE_LABELS[mode],
+        label: t(`flatView.mode.${mode}`, { defaultValue: TERMINAL_VIEW_MODE_LABELS[mode] }),
         icon: <span className="flat-terminal-wrapper__view-mode-icon">{TERMINAL_VIEW_MODE_ICONS[mode]}</span>,
         shortcut: isActive ? '✓' : undefined,
         onClick: () => {
@@ -370,7 +371,7 @@ const ChatView = React.memo(function ChatView({
     if (classicTuiAvailable) {
       actions.push({
         id: 'view-mode-classic-tui',
-        label: 'Classic TUI',
+        label: t('flatView.classicTui', { defaultValue: 'Classic TUI' }),
         icon: <Icon name="terminal" size={13} />,
         shortcut: classicTuiOpen ? '✓' : undefined,
         onClick: () => {
@@ -381,7 +382,7 @@ const ChatView = React.memo(function ChatView({
     }
 
     return actions;
-  }, [classicTuiAvailable, classicTuiOpen, terminalViewMode, onTerminalViewModeChange]);
+  }, [classicTuiAvailable, classicTuiOpen, terminalViewMode, onTerminalViewModeChange, t]);
   // Mobile-only bottom sheet that relocates the header action cluster (search /
   // clear / git / buildings / debug / destructive ops) into a thumb-reachable
   // surface. On phones the top-right cluster is hidden (CSS) and a single
@@ -909,7 +910,7 @@ const ChatView = React.memo(function ChatView({
             e.stopPropagation();
             onHeaderContextMenu({ x: e.clientX, y: e.clientY });
           }}
-          title={agentInfoOpen ? 'Hide agent info' : 'Show agent info'}
+          title={agentInfoOpen ? t('flatView.hideAgentInfo', { defaultValue: 'Hide agent info' }) : t('flatView.showAgentInfo', { defaultValue: 'Show agent info' })}
         >
           <span className={`flat-terminal-wrapper__header-avatar${agent.status === 'working' ? ' is-working' : ''}`}>
             <AgentIcon agent={agent} size={28} />
@@ -979,30 +980,30 @@ const ChatView = React.memo(function ChatView({
                 setViewModeMenu({ x: rect.left, y: rect.bottom + 4 });
               }}
               title={classicTuiOpen
-                ? 'Classic TUI — attach to the live interactive claude session in a terminal'
-                : TERMINAL_VIEW_MODE_DESCRIPTIONS[terminalViewMode]}
+                ? t('flatView.classicTuiTip', { defaultValue: 'Classic TUI — attach to the live interactive claude session in a terminal' })
+                : t(`flatView.modeDesc.${terminalViewMode}`, { defaultValue: TERMINAL_VIEW_MODE_DESCRIPTIONS[terminalViewMode] })}
               aria-haspopup="menu"
               aria-expanded={!!viewModeMenu}
-              aria-label="Message view mode"
+              aria-label={t('flatView.viewModeAria', { defaultValue: 'Message view mode' })}
             >
               <span className="flat-terminal-wrapper__view-mode-icon" aria-hidden="true">
                 {classicTuiOpen ? <Icon name="terminal" size={13} /> : TERMINAL_VIEW_MODE_ICONS[terminalViewMode]}
               </span>
               <span className="flat-terminal-wrapper__view-mode-label">
-                {classicTuiOpen ? 'Classic TUI' : TERMINAL_VIEW_MODE_LABELS[terminalViewMode]}
+                {classicTuiOpen ? t('flatView.classicTui', { defaultValue: 'Classic TUI' }) : t(`flatView.mode.${terminalViewMode}`, { defaultValue: TERMINAL_VIEW_MODE_LABELS[terminalViewMode] })}
               </span>
               <Icon name="caret-down" size={9} />
             </button>
           </div>
           {/* Applicable guake-actions — back/forward, search, clear-context, more-menu */}
-          <div className="flat-terminal-wrapper__actions" role="group" aria-label="Terminal actions">
+          <div className="flat-terminal-wrapper__actions" role="group" aria-label={t('flatView.actionsAria', { defaultValue: 'Terminal actions' })}>
             <button
               type="button"
               className="flat-terminal-wrapper__action-btn"
               onClick={onNavigateBack}
               disabled={!canNavigateBack}
-              title="Back to previous agent"
-              aria-label="Back to previous agent"
+              title={t('flatView.prevAgent', { defaultValue: 'Back to previous agent' })}
+              aria-label={t('flatView.prevAgent', { defaultValue: 'Back to previous agent' })}
             >
               <Icon name="arrow-left" size={14} />
             </button>
@@ -1011,8 +1012,8 @@ const ChatView = React.memo(function ChatView({
               className="flat-terminal-wrapper__action-btn"
               onClick={onNavigateForward}
               disabled={!canNavigateForward}
-              title="Forward to next agent"
-              aria-label="Forward to next agent"
+              title={t('flatView.nextAgent', { defaultValue: 'Forward to next agent' })}
+              aria-label={t('flatView.nextAgent', { defaultValue: 'Forward to next agent' })}
             >
               <Icon name="arrow-right" size={14} />
             </button>
@@ -1020,7 +1021,7 @@ const ChatView = React.memo(function ChatView({
               type="button"
               className={`flat-terminal-wrapper__action-btn ${searchMode ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
               onClick={handleSearchToggle}
-              title={searchMode ? 'Close search' : 'Search messages'}
+              title={searchMode ? t('flatView.closeSearch', { defaultValue: 'Close search' }) : t('flatView.searchMessages', { defaultValue: 'Search messages' })}
               aria-pressed={searchMode}
             >
               <Icon name={searchMode ? 'cross' : 'search'} size={14} />
@@ -1029,8 +1030,8 @@ const ChatView = React.memo(function ChatView({
               type="button"
               className={`flat-terminal-wrapper__action-btn ${showSlashCommandOutputs ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
               onClick={toggleSlashCommandOutputs}
-              title={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
-              aria-label={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+              title={showSlashCommandOutputs ? t('flatView.hideSlashOutput', { defaultValue: 'Hide slash command output' }) : t('flatView.showSlashOutput', { defaultValue: 'Show slash command output' })}
+              aria-label={showSlashCommandOutputs ? t('flatView.hideSlashOutput', { defaultValue: 'Hide slash command output' }) : t('flatView.showSlashOutput', { defaultValue: 'Show slash command output' })}
               aria-pressed={showSlashCommandOutputs}
             >
               <Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={14} />
@@ -1044,7 +1045,7 @@ const ChatView = React.memo(function ChatView({
                   paneRef.current?.historyLoader.clearHistory();
                 })
               }
-              title={isClearArmed ? 'Click again to confirm clear context' : 'Clear context'}
+              title={isClearArmed ? t('flatView.confirmClearTip', { defaultValue: 'Click again to confirm clear context' }) : t('flatView.clearContext', { defaultValue: 'Clear context' })}
             >
               <Icon name={isClearArmed ? 'question' : 'clear'} size={14} />
             </button>
@@ -1052,7 +1053,7 @@ const ChatView = React.memo(function ChatView({
               type="button"
               className={`flat-terminal-wrapper__action-btn ${gitPanelOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
               onClick={toggleGitPanel}
-              title={gitPanelOpen ? 'Hide git panel' : 'Show git changes'}
+              title={gitPanelOpen ? t('flatView.hideGitPanel', { defaultValue: 'Hide git panel' }) : t('flatView.showGitChanges', { defaultValue: 'Show git changes' })}
               aria-pressed={gitPanelOpen}
             >
               <Icon name="git-branch" size={14} />
@@ -1061,7 +1062,7 @@ const ChatView = React.memo(function ChatView({
               type="button"
               className={`flat-terminal-wrapper__action-btn ${buildingsPanelOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
               onClick={toggleBuildingsPanel}
-              title={buildingsPanelOpen ? 'Hide buildings panel' : 'Show area buildings'}
+              title={buildingsPanelOpen ? t('flatView.hideBuildingsPanel', { defaultValue: 'Hide buildings panel' }) : t('flatView.showAreaBuildings', { defaultValue: 'Show area buildings' })}
               aria-pressed={buildingsPanelOpen}
             >
               <Icon name="buildings" size={14} />
@@ -1071,7 +1072,7 @@ const ChatView = React.memo(function ChatView({
                 type="button"
                 className={`flat-terminal-wrapper__action-btn ${menuOpen ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
                 onClick={() => setMenuOpen((o) => !o)}
-                title="More actions"
+                title={t('header.moreActions', { defaultValue: 'More actions' })}
                 aria-expanded={menuOpen}
               >
                 ⋮
@@ -1086,10 +1087,10 @@ const ChatView = React.memo(function ChatView({
                       toggleDebugPanel();
                       setMenuOpen(false);
                     }}
-                    title={debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}
+                    title={debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}
                   >
                     <Icon name="bug" size={14} />
-                    <span>{debugPanelOpen ? 'Hide Debug Panel' : 'Show Debug Panel'}</span>
+                    <span>{debugPanelOpen ? t('terminal:header.hideDebug') : t('terminal:header.showDebug')}</span>
                   </button>
                   <div className="flat-terminal-wrapper__more-divider" />
                   <button
@@ -1101,10 +1102,10 @@ const ChatView = React.memo(function ChatView({
                       setMenuOpen(false);
                     }}
                     disabled={agent.status !== 'idle'}
-                    title={agent.status !== 'idle' ? 'Agent must be idle to collapse context' : 'Collapse context'}
+                    title={agent.status !== 'idle' ? t('flatView.collapseContextIdleTip', { defaultValue: 'Agent must be idle to collapse context' }) : t('flatView.collapseContext', { defaultValue: 'Collapse context' })}
                   >
                     <Icon name="package" size={14} />
-                    <span>Collapse context</span>
+                    <span>{t('flatView.collapseContext', { defaultValue: 'Collapse context' })}</span>
                   </button>
                   {hasSubordinates && (
                     <button
@@ -1121,7 +1122,7 @@ const ChatView = React.memo(function ChatView({
                     >
                       <Icon name="crown" size={14} />
                       <span>
-                        Clear {subordinateCount} subordinate{subordinateCount === 1 ? '' : 's'}
+                        {t('flatView.clearSubordinates', { defaultValue: 'Clear {{count}} subordinate{{plural}}', count: subordinateCount, plural: subordinateCount === 1 ? '' : 's' })}
                       </span>
                     </button>
                   )}
@@ -1136,7 +1137,7 @@ const ChatView = React.memo(function ChatView({
                     }}
                   >
                     <Icon name="cross" size={14} />
-                    <span>Remove agent</span>
+                    <span>{t('flatView.removeAgent', { defaultValue: 'Remove agent' })}</span>
                   </button>
                 </div>
               )}
@@ -1148,8 +1149,8 @@ const ChatView = React.memo(function ChatView({
               inspectorOpen ? 'flat-terminal-wrapper__inspector-toggle--active' : ''
             }`}
             onClick={onToggleInspector}
-            title={inspectorOpen ? 'Hide inspector panel' : 'Show inspector panel'}
-            aria-label={inspectorOpen ? 'Hide inspector panel' : 'Show inspector panel'}
+            title={inspectorOpen ? t('flatView.hideInspector', { defaultValue: 'Hide inspector panel' }) : t('flatView.showInspector', { defaultValue: 'Show inspector panel' })}
+            aria-label={inspectorOpen ? t('flatView.hideInspector', { defaultValue: 'Hide inspector panel' }) : t('flatView.showInspector', { defaultValue: 'Show inspector panel' })}
             aria-pressed={inspectorOpen}
           >
             <span className="flat-terminal-wrapper__inspector-icon" aria-hidden="true">
@@ -1168,14 +1169,14 @@ const ChatView = React.memo(function ChatView({
                 <line x1="10" y1="2.5" x2="10" y2="13.5" />
               </svg>
             </span>
-            <span className="flat-terminal-wrapper__inspector-label">Inspector</span>
+            <span className="flat-terminal-wrapper__inspector-label">{t('common:mobileBottomMenu.inspector')}</span>
           </button>
           <button
             type="button"
             className="flat-terminal-wrapper__close"
             onClick={() => store.deselectAll()}
-            title="Close chat"
-            aria-label="Close chat"
+            title={t('flatView.closeChat', { defaultValue: 'Close chat' })}
+            aria-label={t('flatView.closeChat', { defaultValue: 'Close chat' })}
           >
             <Icon name="cross" size={14} />
           </button>
@@ -1187,7 +1188,7 @@ const ChatView = React.memo(function ChatView({
       {actionsSheetOpen && (
         <div className="flat-chat-actions-sheet-root" role="presentation">
           <div className="flat-chat-actions-sheet__backdrop" onClick={closeActionsSheet} />
-          <div className="flat-chat-actions-sheet" role="menu" aria-label="Chat actions">
+          <div className="flat-chat-actions-sheet" role="menu" aria-label={t('flatView.chatActions', { defaultValue: 'Chat actions' })}>
             <div className="flat-chat-actions-sheet__grabber" aria-hidden="true" />
             <div className="flat-chat-actions-sheet__title-row">
               <span className="flat-chat-actions-sheet__title">{agent.name}</span>
@@ -1196,7 +1197,7 @@ const ChatView = React.memo(function ChatView({
                 className="flat-chat-actions-sheet__done"
                 onClick={closeActionsSheet}
               >
-                Done
+                {t('common:buttons.done')}
               </button>
             </div>
             <div className="flat-chat-actions-sheet__grid">
@@ -1207,7 +1208,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { handleSearchToggle(); closeActionsSheet(); }}
               >
                 <Icon name={searchMode ? 'cross' : 'search'} size={20} />
-                <span>{searchMode ? 'Close search' : 'Search'}</span>
+                <span>{searchMode ? t('flatView.closeSearch', { defaultValue: 'Close search' }) : t('common:buttons.search')}</span>
               </button>
               <button
                 type="button"
@@ -1216,7 +1217,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { toggleSlashCommandOutputs(); closeActionsSheet(); }}
               >
                 <Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={20} />
-                <span>Slash output</span>
+                <span>{t('flatView.slashOutput', { defaultValue: 'Slash output' })}</span>
               </button>
               <button
                 type="button"
@@ -1225,7 +1226,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { toggleGitPanel(); closeActionsSheet(); }}
               >
                 <Icon name="git-branch" size={20} />
-                <span>Git changes</span>
+                <span>{t('flatView.gitChanges', { defaultValue: 'Git changes' })}</span>
               </button>
               <button
                 type="button"
@@ -1234,7 +1235,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { toggleBuildingsPanel(); closeActionsSheet(); }}
               >
                 <Icon name="buildings" size={20} />
-                <span>Buildings</span>
+                <span>{t('flatView.buildings', { defaultValue: 'Buildings' })}</span>
               </button>
               <button
                 type="button"
@@ -1243,7 +1244,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { toggleDebugPanel(); closeActionsSheet(); }}
               >
                 <Icon name="bug" size={20} />
-                <span>Debug</span>
+                <span>{t('flatView.debug', { defaultValue: 'Debug' })}</span>
               </button>
             </div>
             <div className="flat-chat-actions-sheet__list">
@@ -1260,7 +1261,7 @@ const ChatView = React.memo(function ChatView({
                 }
               >
                 <Icon name={isClearArmed ? 'question' : 'clear'} size={18} />
-                <span>{isClearArmed ? 'Tap again to confirm clear' : 'Clear context'}</span>
+                <span>{isClearArmed ? t('flatView.confirmClearTap', { defaultValue: 'Tap again to confirm clear' }) : t('flatView.clearContext', { defaultValue: 'Clear context' })}</span>
               </button>
               <button
                 type="button"
@@ -1270,7 +1271,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { store.collapseContext(agentId); closeActionsSheet(); }}
               >
                 <Icon name="package" size={18} />
-                <span>Collapse context</span>
+                <span>{t('flatView.collapseContext', { defaultValue: 'Collapse context' })}</span>
               </button>
               {hasSubordinates && (
                 <button
@@ -1280,7 +1281,7 @@ const ChatView = React.memo(function ChatView({
                   onClick={() => { onRequestClearSubordinates(agentId, subordinateCount); closeActionsSheet(); }}
                 >
                   <Icon name="crown" size={18} />
-                  <span>Clear {subordinateCount} subordinate{subordinateCount === 1 ? '' : 's'}</span>
+                  <span>{t('flatView.clearSubordinates', { defaultValue: 'Clear {{count}} subordinate{{plural}}', count: subordinateCount, plural: subordinateCount === 1 ? '' : 's' })}</span>
                 </button>
               )}
               <button
@@ -1290,7 +1291,7 @@ const ChatView = React.memo(function ChatView({
                 onClick={() => { store.killAgent(agentId); closeActionsSheet(); }}
               >
                 <Icon name="cross" size={18} />
-                <span>Remove agent</span>
+                <span>{t('flatView.removeAgent', { defaultValue: 'Remove agent' })}</span>
               </button>
             </div>
           </div>

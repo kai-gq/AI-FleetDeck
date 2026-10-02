@@ -1725,5 +1725,48 @@
     "recentFoldersTooltip": "最近使用过的智能体所在文件夹",
     "recentFolders": "最近文件夹",
     "lastUsedBy": "最后使用：{{agentName}}"
+  },
+  "flatView": {
+    "mode": {
+      "simple": "简单",
+      "chat": "聊天",
+      "advanced": "高级"
+    },
+    "modeDesc": {
+      "simple": "简单视图——仅显示干净的消息",
+      "chat": "聊天视图——仅显示助手回复（不含工具调用）",
+      "advanced": "高级视图——显示全部内容（含工具调用）"
+    },
+    "classicTui": "经典 TUI",
+    "classicTuiTip": "经典 TUI——接入终端中正在运行的 claude 交互会话",
+    "hideAgentInfo": "隐藏智能体信息",
+    "showAgentInfo": "显示智能体信息",
+    "viewModeAria": "消息视图模式",
+    "actionsAria": "终端操作",
+    "prevAgent": "返回到上一个智能体",
+    "nextAgent": "前进到下一个智能体",
+    "closeSearch": "关闭搜索",
+    "searchMessages": "搜索消息",
+    "hideSlashOutput": "隐藏斜杠命令输出",
+    "showSlashOutput": "显示斜杠命令输出",
+    "confirmClearTip": "再次点击以确认清除上下文",
+    "clearContext": "清除上下文",
+    "confirmClearTap": "再次点按以确认清除",
+    "hideGitPanel": "隐藏 Git 面板",
+    "showGitChanges": "显示 Git 更改",
+    "hideBuildingsPanel": "隐藏建筑面板",
+    "showAreaBuildings": "显示区域建筑",
+    "collapseContext": "折叠上下文",
+    "collapseContextIdleTip": "智能体需处于空闲状态才能折叠上下文",
+    "clearSubordinates": "清除 {{count}} 个下属",
+    "removeAgent": "移除智能体",
+    "hideInspector": "隐藏检查器面板",
+    "showInspector": "显示检查器面板",
+    "closeChat": "关闭聊天",
+    "chatActions": "聊天操作",
+    "slashOutput": "斜杠输出",
+    "gitChanges": "Git 更改",
+    "buildings": "建筑",
+    "debug": "调试"
   }
 }
