@@ -396,8 +396,11 @@ function main() {
     for (const [k] of enLeaves) {
       if (zhLeaves.has(k)) continue;
       const { stem, suf } = splitPlural(k);
-      if (suf === LEGACY_SUFFIX) { add('WARN', 'legacyPluralMissing', ns, k, `en legacy _plural key not in ${opts.lang} (dead under i18next 26; add a base key instead)`); continue; }
       const cov = zhCover.get(stem);
+      if (suf === LEGACY_SUFFIX) {
+        if (cov && cov.form !== 'plural') { add('INFO', 'coveredByPlural', ns, k, `covered by ${opts.lang} "${cov.key}"`); continue; }
+        add('WARN', 'legacyPluralMissing', ns, k, `en legacy _plural key not in ${opts.lang} (dead under i18next 26; add a base key instead)`); continue;
+      }
       if (cov && cov.form !== 'plural') { add('INFO', 'coveredByPlural', ns, k, `covered by ${opts.lang} "${cov.key}"`); continue; }
       missing.push(k);
     }
