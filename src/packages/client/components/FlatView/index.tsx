@@ -1327,7 +1327,11 @@ const ChatView = React.memo(function ChatView({
         // area-terminal start cache.
         const isAreaDefault = isAreaTerminalId(embeddedPanel.buildingId);
         const panelName = embeddedBuilding?.name
-          ?? `Terminal — ${areaTerminalBuildings.find((b) => b.id === embeddedPanel.buildingId)?.name ?? 'area'}`;
+          ?? t('flatView.terminalPanelName', {
+            defaultValue: 'Terminal — {{name}}',
+            name: areaTerminalBuildings.find((b) => b.id === embeddedPanel.buildingId)?.name
+              ?? t('flatView.areaFallback', { defaultValue: 'area' }),
+          });
         const terminalUrl = isAreaDefault
           ? areaTerminalUrls[areaIdFromTerminalId(embeddedPanel.buildingId)]
           : embeddedBuilding?.terminalStatus?.url;
@@ -2805,7 +2809,7 @@ export function FlatView({
     return [
       {
         id: 'edit-agent',
-        label: 'Edit Agent',
+        label: t('terminal:overview.editAgent', { defaultValue: 'Edit Agent' }),
         icon: <Icon name="edit" size={14} />,
         onClick: () => {
           window.dispatchEvent(new CustomEvent('tide:open-agent-edit', { detail: { agentId: agent.id } }));
@@ -2813,25 +2817,25 @@ export function FlatView({
       },
       {
         id: 'open-chat',
-        label: 'Open Chat',
+        label: t('terminal:flatView.openChat', { defaultValue: 'Open Chat' }),
         icon: <Icon name="chat" size={14} />,
         onClick: () => onAgentClick(agent.id),
       },
       {
         id: 'clone-agent',
-        label: 'Clone Agent',
+        label: t('terminal:overview.cloneAgent', { defaultValue: 'Clone Agent' }),
         icon: <Icon name="clipboard" size={14} />,
         onClick: () => store.cloneAgent(agent.id),
       },
       {
         id: 'fork-agent',
-        label: 'Fork Agent (with history)',
+        label: t('terminal:overview.forkAgent', { defaultValue: 'Fork Agent (with history)' }),
         icon: <Icon name="git-branch" size={14} />,
         onClick: () => store.forkAgent(agent.id),
       },
       {
         id: 'delete-agent',
-        label: 'Delete Agent',
+        label: t('terminal:overview.deleteAgent', { defaultValue: 'Delete Agent' }),
         icon: <Icon name="trash" size={14} />,
         danger: true,
         onClick: () => {
@@ -2839,7 +2843,7 @@ export function FlatView({
         },
       },
     ];
-  }, [emptyAgentContextMenu, onAgentClick]);
+  }, [emptyAgentContextMenu, onAgentClick, t]);
 
   // Right-click menu actions for building chips on the empty-state map. Mirrors
   // AreaBuildingsPanel so the two surfaces share one UX for per-building
@@ -2856,15 +2860,15 @@ export function FlatView({
 
     actions.push({
       id: 'open',
-      label: building.type === 'database' ? 'Open Database' :
-             building.type === 'folder' ? 'Open Folder' :
-             building.type === 'tests' ? 'Open Tests' :
-             building.type === 'http' ? 'Open Requests' :
-             building.type === 'slash-command' ? 'Run Command' :
-             building.type === 'boss' ? 'View Boss Logs' :
-             building.type === 'terminal' ? 'Open Terminal' :
-             (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
-             'Open',
+      label: building.type === 'database' ? t('terminal:flatView.openDatabase', { defaultValue: 'Open Database' }) :
+             building.type === 'folder' ? t('terminal:flatView.openFolder', { defaultValue: 'Open Folder' }) :
+             building.type === 'tests' ? t('terminal:flatView.openTests', { defaultValue: 'Open Tests' }) :
+             building.type === 'http' ? t('terminal:flatView.openRequests', { defaultValue: 'Open Requests' }) :
+             building.type === 'slash-command' ? t('terminal:flatView.runCommand', { defaultValue: 'Run Command' }) :
+             building.type === 'boss' ? t('terminal:flatView.viewBossLogs', { defaultValue: 'View Boss Logs' }) :
+             building.type === 'terminal' ? t('terminal:flatView.openTerminal', { defaultValue: 'Open Terminal' }) :
+             (building.type === 'server' && building.pm2?.enabled) ? t('terminal:flatView.viewPm2Logs', { defaultValue: 'View PM2 Logs' }) :
+             t('terminal:flatView.open', { defaultValue: 'Open' }),
       icon: <Icon name={building.type === 'database' ? 'database' :
             building.type === 'folder' ? 'folder' :
             building.type === 'tests' ? 'flask' :
@@ -2879,7 +2883,7 @@ export function FlatView({
       if (!isRunning) {
         actions.push({
           id: 'start',
-          label: 'Start',
+          label: t('terminal:buildingAction.start'),
           icon: <Icon name="play" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'start'),
         });
@@ -2887,13 +2891,13 @@ export function FlatView({
       if (isRunning) {
         actions.push({
           id: 'restart',
-          label: 'Restart',
+          label: t('terminal:buildingAction.restart'),
           icon: <Icon name="refresh" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'restart'),
         });
         actions.push({
           id: 'stop',
-          label: 'Stop',
+          label: t('terminal:buildingAction.stop'),
           icon: <Icon name="stop" size={14} />,
           onClick: () => store.sendBuildingCommand(building.id, 'stop'),
         });
@@ -2903,7 +2907,7 @@ export function FlatView({
     if (isBoss && building.subordinateBuildingIds && building.subordinateBuildingIds.length > 0) {
       actions.push({
         id: 'start-all',
-        label: 'Start All Subordinates',
+        label: t('terminal:flatView.startAllSubordinates', { defaultValue: 'Start All Subordinates' }),
         icon: <Icon name="launch" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
@@ -2913,7 +2917,7 @@ export function FlatView({
       });
       actions.push({
         id: 'stop-all',
-        label: 'Stop All Subordinates',
+        label: t('terminal:flatView.stopAllSubordinates', { defaultValue: 'Stop All Subordinates' }),
         icon: <Icon name="pause" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
@@ -2923,7 +2927,7 @@ export function FlatView({
       });
       actions.push({
         id: 'restart-all',
-        label: 'Restart All Subordinates',
+        label: t('terminal:flatView.restartAllSubordinates', { defaultValue: 'Restart All Subordinates' }),
         icon: <Icon name="restart" size={14} />,
         onClick: () => {
           for (const subId of building.subordinateBuildingIds!) {
@@ -2936,7 +2940,7 @@ export function FlatView({
     if (isRunnable) {
       actions.push({
         id: 'health-check',
-        label: 'Health Check',
+        label: t('terminal:buildingAction.healthCheck'),
         icon: <Icon name="health" size={14} />,
         onClick: () => store.sendBuildingCommand(building.id, 'healthCheck'),
       });
@@ -2951,7 +2955,7 @@ export function FlatView({
 
     actions.push({
       id: 'edit',
-      label: 'Edit Building',
+      label: t('terminal:flatView.editBuilding', { defaultValue: 'Edit Building' }),
       icon: <Icon name="edit" size={14} />,
       onClick: () => {
         window.dispatchEvent(new CustomEvent('tide:building-edit', { detail: { buildingId: building.id } }));
@@ -2960,12 +2964,12 @@ export function FlatView({
 
     actions.push({
       id: 'clone',
-      label: 'Clone Building',
+      label: t('terminal:flatView.cloneBuilding', { defaultValue: 'Clone Building' }),
       icon: <Icon name="copy" size={14} />,
       onClick: () => {
         // Drop the clone next to the original so it stays in the same area.
         store.createBuilding({
-          name: `${building.name} (Copy)`,
+          name: `${building.name}${t('terminal:flatView.copySuffix', { defaultValue: ' (Copy)' })}`,
           type: building.type,
           style: building.style,
           color: building.color,
@@ -3006,14 +3010,14 @@ export function FlatView({
 
     actions.push({
       id: 'delete',
-      label: 'Delete Building',
+      label: t('terminal:flatView.deleteBuilding', { defaultValue: 'Delete Building' }),
       icon: <Icon name="trash" size={14} />,
       danger: true,
       onClick: () => store.deleteBuilding(building.id),
     });
 
     return actions;
-  }, [buildingContextMenu, buildingsMap, handleOpenBuilding]);
+  }, [buildingContextMenu, buildingsMap, handleOpenBuilding, t]);
 
   // ── Focus an area in the left-panel AgentOverviewPanel ──
   const handleFocusArea = useCallback((areaKey: string) => {
@@ -3064,23 +3068,23 @@ export function FlatView({
             <button
               className="flat-cta-btn flat-cta-btn--agent"
               onClick={onOpenSpawnModal}
-              title="Create new agent"
+              title={t('terminal:flatView.createAgentTitle', { defaultValue: 'Create new agent' })}
             >
-              + Agent
+              {t('terminal:flatView.addAgent', { defaultValue: '+ Agent' })}
             </button>
             <button
               className="flat-cta-btn flat-cta-btn--boss"
               onClick={onOpenBossSpawnModal}
-              title="Create new boss agent"
+              title={t('terminal:flatView.createBossTitle', { defaultValue: 'Create new boss agent' })}
             >
-              + Boss
+              {t('terminal:flatView.addBoss', { defaultValue: '+ Boss' })}
             </button>
             <button
               className="flat-cta-btn flat-cta-btn--area"
               onClick={onOpenAreaModal}
-              title="Create new area"
+              title={t('terminal:flatView.createAreaTitle', { defaultValue: 'Create new area' })}
             >
-              + Area
+              {t('terminal:flatView.addArea', { defaultValue: '+ Area' })}
             </button>
             <button
               type="button"
@@ -3090,10 +3094,10 @@ export function FlatView({
                 toggleMobileSidebarFull();
               }}
               aria-pressed={mobileSidebarFull}
-              title={mobileSidebarFull ? 'Show compact agents panel' : 'Show complete agents panel'}
-              aria-label={mobileSidebarFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+              title={mobileSidebarFull ? t('terminal:flatView.showCompactSidebar', { defaultValue: 'Show compact agents panel' }) : t('terminal:flatView.showCompleteSidebar', { defaultValue: 'Show complete agents panel' })}
+              aria-label={mobileSidebarFull ? t('terminal:flatView.showCompactSidebar', { defaultValue: 'Show compact agents panel' }) : t('terminal:flatView.showCompleteSidebar', { defaultValue: 'Show complete agents panel' })}
             >
-              {mobileSidebarFull ? 'Compact' : 'Full'}
+              {mobileSidebarFull ? t('terminal:flatView.compact', { defaultValue: 'Compact' }) : t('terminal:flatView.full', { defaultValue: 'Full' })}
             </button>
           </div>
         </div>
@@ -3117,8 +3121,8 @@ export function FlatView({
         className="flat-splitter flat-splitter--middle"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize agents panel"
-        title="Drag to resize · Double-click to reset"
+        aria-label={t('terminal:flatView.resizeAgentsPanel', { defaultValue: 'Resize agents panel' })}
+        title={t('terminal:flatView.dragToResizeReset', { defaultValue: 'Drag to resize · Double-click to reset' })}
         onPointerDown={handleMiddleSplitterPointerDown}
         onPointerMove={handleSplitterPointerMove}
         onPointerUp={handleSplitterPointerUp}
@@ -3135,12 +3139,12 @@ export function FlatView({
         <button
           type="button"
           className="flat-mobile-sidebar-toggle"
-          aria-label={mobileSidebarOpen ? 'Close agents sidebar' : 'Open agents sidebar'}
+          aria-label={mobileSidebarOpen ? t('terminal:flatView.closeAgentsSidebar', { defaultValue: 'Close agents sidebar' }) : t('terminal:flatView.openAgentsSidebar', { defaultValue: 'Open agents sidebar' })}
           aria-expanded={mobileSidebarOpen}
           onClick={toggleMobileSidebar}
         >
           <Icon name="list" size={18} />
-          <span className="flat-mobile-sidebar-toggle__label">Agents</span>
+          <span className="flat-mobile-sidebar-toggle__label">{t('common:labels.agents')}</span>
         </button>
         {selectedAgentId ? (
           <ChatView
@@ -3169,15 +3173,15 @@ export function FlatView({
           <div className="flat-chat flat-chat--empty">
             <div className="flat-map">
               <div className="flat-map__header">
-                <span className="flat-map__title">🗺️ Areas</span>
-                <span className="flat-map__hint">Click an area to focus it, or an agent to chat</span>
+                <span className="flat-map__title">{t('terminal:flatView.mapAreas', { defaultValue: '🗺️ Areas' })}</span>
+                <span className="flat-map__hint">{t('terminal:flatView.mapHint', { defaultValue: 'Click an area to focus it, or an agent to chat' })}</span>
                 <span className="flat-map__stats">
-                  <span>{emptyChatStats.areaCount} areas</span>
-                  <span>{emptyChatStats.agentCount} agents</span>
+                  <span>{t('terminal:flatView.areaCount', { defaultValue: '{{count}} areas', count: emptyChatStats.areaCount })}</span>
+                  <span>{t('terminal:flatView.agentCount', { defaultValue: '{{count}} agent{{plural}}', count: emptyChatStats.agentCount, plural: emptyChatStats.agentCount === 1 ? '' : 's' })}</span>
                   {emptyChatStats.workingCount > 0 && (
                     <span className="flat-map__stats-working">
                       <span className="flat-map__stats-dot" aria-hidden="true" />
-                      {emptyChatStats.workingCount} working
+                      {t('terminal:flatView.workingCount', { defaultValue: '{{count}} working', count: emptyChatStats.workingCount })}
                     </span>
                   )}
                 </span>
@@ -3193,7 +3197,7 @@ export function FlatView({
               >
                 {emptyChatGroups.groups.length === 0 ? (
                   <div className="flat-map__empty">
-                    <span>No areas or agents yet</span>
+                    <span>{t('terminal:flatView.noAreasOrAgents', { defaultValue: 'No areas or agents yet' })}</span>
                   </div>
                 ) : (
                   (() => {
@@ -3238,8 +3242,10 @@ export function FlatView({
                           className="flat-map-area-card__header"
                           onClick={() => isFlatMobile ? handleMobileToggleArea(areaKey) : handleFocusArea(areaKey)}
                           title={isFlatMobile
-                            ? (isMobileCollapsed ? `Expand ${group.area.name}` : `Collapse ${group.area.name}`)
-                            : `Focus ${group.area.name} in left panel`}
+                            ? (isMobileCollapsed
+                                ? t('terminal:flatView.expandArea', { defaultValue: 'Expand {{name}}', name: group.area.name })
+                                : t('terminal:flatView.collapseArea', { defaultValue: 'Collapse {{name}}', name: group.area.name }))
+                            : t('terminal:flatView.focusArea', { defaultValue: 'Focus {{name}} in left panel', name: group.area.name })}
                           aria-expanded={isFlatMobile ? !isMobileCollapsed : undefined}
                         >
                           <span
@@ -3258,8 +3264,8 @@ export function FlatView({
                           <span className="flat-map-area-card__name">{group.area.name}</span>
                           <span
                             className="flat-map-area-card__count"
-                            title={`${group.agents.length} agent${group.agents.length === 1 ? '' : 's'}`}
-                            aria-label={`${group.agents.length} agent${group.agents.length === 1 ? '' : 's'}`}
+                            title={t('terminal:flatView.agentCount', { defaultValue: '{{count}} agent{{plural}}', count: group.agents.length, plural: group.agents.length === 1 ? '' : 's' })}
+                            aria-label={t('terminal:flatView.agentCount', { defaultValue: '{{count}} agent{{plural}}', count: group.agents.length, plural: group.agents.length === 1 ? '' : 's' })}
                           >
                             <Icon name="users" size={10} />
                             {group.agents.length}
@@ -3267,8 +3273,8 @@ export function FlatView({
                           {hasWorkingAgents && (
                             <span
                               className="flat-map-area-card__working"
-                              title={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
-                              aria-label={`${workingAgentCount} working agent${workingAgentCount === 1 ? '' : 's'}`}
+                              title={t('terminal:flatView.workingAgents', { defaultValue: '{{count}} working agent{{plural}}', count: workingAgentCount, plural: workingAgentCount === 1 ? '' : 's' })}
+                              aria-label={t('terminal:flatView.workingAgents', { defaultValue: '{{count}} working agent{{plural}}', count: workingAgentCount, plural: workingAgentCount === 1 ? '' : 's' })}
                             >
                               <ActivityGlyph animated size={12} className="flat-map-area-card__working-glyph" />
                               <span className="flat-map-area-card__working-count">{workingAgentCount}</span>
@@ -3292,7 +3298,7 @@ export function FlatView({
                                 : ctx.usedPercent >= 60 ? '#ff9e4a'
                                   : ctx.usedPercent >= 40 ? '#ffd700'
                                     : '#4aff9e';
-                            const ctxTitle = `Context: ${(ctx.totalTokens / 1000).toFixed(1)}k / ${(ctx.contextWindow / 1000).toFixed(1)}k (${ctx.usedPercent}% used, ${ctx.freePercent}% free)`;
+                            const ctxTitle = t('terminal:flatView.agentContextTip', { defaultValue: 'Context: {{used}}k / {{window}}k ({{pct}}% used, {{free}}% free)', used: (ctx.totalTokens / 1000).toFixed(1), window: (ctx.contextWindow / 1000).toFixed(1), pct: ctx.usedPercent, free: ctx.freePercent });
                             const hasHoverContent = (agent.latestTodos && agent.latestTodos.length > 0) || (subs && subs.length > 0);
                             return (
                               <AgentHoverTooltip
@@ -3313,7 +3319,7 @@ export function FlatView({
                                     position: { x: e.clientX, y: e.clientY },
                                   });
                                 }}
-                                title={hasHoverContent ? undefined : `${isBoss ? 'Boss · ' : ''}Open chat with ${agent.name}\n${ctxTitle}`}
+                                title={hasHoverContent ? undefined : `${isBoss ? t('terminal:flatView.bossPrefix', { defaultValue: 'Boss · ' }) : ''}${t('terminal:flatView.openChatWithAgent', { defaultValue: 'Open chat with {{name}}\n{{ctx}}', name: agent.name, ctx: ctxTitle })}`}
                               >
                                 <AgentIcon agent={agent} size={16} />
                                 {isBoss && (
@@ -3324,7 +3330,7 @@ export function FlatView({
                                 <span className="flat-map-agent-chip__name">{agent.name}</span>
                                 <ProviderIcon
                                   agent={agent}
-                                  alt={`${agent.name} provider`}
+                                  alt={t('terminal:flatView.agentProviderAlt', { defaultValue: '{{name}} provider', name: agent.name })}
                                   className="flat-map-agent-chip__provider-icon"
                                 />
                                 {agent.status === 'working' ? (
@@ -3356,7 +3362,7 @@ export function FlatView({
                           })}
                         </div>
                         {group.area.directories.length > 0 && (
-                          <div className="flat-map-area-card__folders" role="group" aria-label={`${group.area.name} folders`}>
+                          <div className="flat-map-area-card__folders" role="group" aria-label={t('terminal:flatView.areaFoldersAria', { defaultValue: '{{name}} folders', name: group.area.name })}>
                             {group.area.directories.map(dir => {
                               const dirLabel = dir.split('/').filter(Boolean).pop() || dir;
                               return (
@@ -3368,7 +3374,7 @@ export function FlatView({
                                     e.stopPropagation();
                                     store.openFileExplorerForAreaFolder(areaKey, dir);
                                   }}
-                                  title={`Open in file explorer: ${dir}`}
+                                  title={t('terminal:flatView.openInExplorerTip', { defaultValue: 'Open in file explorer: {{cwd}}', cwd: dir })}
                                 >
                                   <Icon name="folder-open" size={12} />
                                   <span className="flat-map-folder-chip__name">{dirLabel}</span>
@@ -3447,8 +3453,8 @@ export function FlatView({
           className="flat-splitter flat-splitter--inspector"
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize inspector panel"
-          title="Drag to resize · Double-click to reset"
+          aria-label={t('terminal:flatView.resizeInspectorPanel', { defaultValue: 'Resize inspector panel' })}
+          title={t('terminal:flatView.dragToResizeReset', { defaultValue: 'Drag to resize · Double-click to reset' })}
           onPointerDown={handleInspectorSplitterPointerDown}
           onPointerMove={handleSplitterPointerMove}
           onPointerUp={handleSplitterPointerUp}
@@ -3462,9 +3468,9 @@ export function FlatView({
           agent is selected so the tracking board remains available. The
           Agent tab shows an empty-state when there's no selection. */}
       {inspectorMounted && (
-        <aside className={`flat-inspector ${inspectorAnimateOpen ? 'flat-inspector--open' : 'flat-inspector--closing'}`} aria-label="Inspector panel">
+        <aside className={`flat-inspector ${inspectorAnimateOpen ? 'flat-inspector--open' : 'flat-inspector--closing'}`} aria-label={t('terminal:flatView.inspectorPanel', { defaultValue: 'Inspector panel' })}>
           <div className="flat-inspector__header">
-            <div className="flat-inspector__tabs" role="tablist" aria-label="Inspector view">
+            <div className="flat-inspector__tabs" role="tablist" aria-label={t('terminal:flatView.inspectorView', { defaultValue: 'Inspector view' })}>
               <button
                 type="button"
                 role="tab"
@@ -3472,7 +3478,7 @@ export function FlatView({
                 className={`flat-inspector__tab ${inspectorView === 'agent' ? 'flat-inspector__tab--active' : ''}`}
                 onClick={() => setInspectorView('agent')}
               >
-                Agent
+                {t('common:labels.agent')}
               </button>
               <button
                 type="button"
@@ -3481,15 +3487,15 @@ export function FlatView({
                 className={`flat-inspector__tab ${inspectorView === 'tracking' ? 'flat-inspector__tab--active' : ''}`}
                 onClick={() => setInspectorView('tracking')}
               >
-                Tracking
+                {t('common:mobileBottomMenu.tracking')}
               </button>
             </div>
             <button
               type="button"
               className="flat-inspector__close"
               onClick={handleCloseInspector}
-              title="Close inspector"
-              aria-label="Close inspector"
+              title={t('terminal:flatView.closeInspector', { defaultValue: 'Close inspector' })}
+              aria-label={t('terminal:flatView.closeInspector', { defaultValue: 'Close inspector' })}
             >
               ✕
             </button>
@@ -3509,14 +3515,14 @@ export function FlatView({
               if (!selectedAgentId) {
                 return (
                   <div className="flat-inspector__empty">
-                    <span>Select an agent to inspect</span>
+                    <span>{t('terminal:flatView.selectAgentToInspect', { defaultValue: 'Select an agent to inspect' })}</span>
                   </div>
                 );
               }
               if (!selectedAgent) {
                 return (
                   <div className="flat-inspector__empty">
-                    <span>Agent not found</span>
+                    <span>{t('terminal:flatView.agentNotFound', { defaultValue: 'Agent not found' })}</span>
                   </div>
                 );
               }
