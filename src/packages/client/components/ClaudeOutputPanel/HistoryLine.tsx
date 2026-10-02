@@ -589,7 +589,7 @@ export const HistoryLine = memo(function HistoryLine({
             }}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <WithMissingFiles paths={visibleFilePaths.filter((path) => path.startsWith('/'))} baseDir={agentCwd}>
@@ -671,7 +671,7 @@ export const HistoryLine = memo(function HistoryLine({
               }}
             >
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
               <span className="output-tool-param view-image-path" title={imageTarget.path}>{imagePreview.name}</span>
@@ -957,7 +957,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-todo-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <TodoWriteInput content={toolInputContent} priorTodos={_priorTodos} />
@@ -978,7 +978,7 @@ export const HistoryLine = memo(function HistoryLine({
           return (
             <div className={`output-line output-tool-use output-tool-simple output-ask-question-inline`}>
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
               <AskQuestionInput
@@ -996,7 +996,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-plan-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <ExitPlanModeInput content={toolInputContent} pendingPromptId={matchingPendingPrompt?.id} onViewMarkdown={onViewMarkdown} />
@@ -1008,7 +1008,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-task-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <TaskCreateInput content={toolInputContent} />
@@ -1020,7 +1020,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-task-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             {_taskSnapshot && _taskSnapshot.length > 0
@@ -1045,7 +1045,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-list-files-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <ListFilesInput
@@ -1072,7 +1072,7 @@ export const HistoryLine = memo(function HistoryLine({
         return (
           <div className={`output-line output-tool-use output-tool-simple output-task-wait-inline`}>
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
             <TaskOutputWaitInput
@@ -1116,7 +1116,7 @@ export const HistoryLine = memo(function HistoryLine({
               return (
                 <div className={`output-line output-tool-use output-tool-simple output-structured-tool-inline`}>
                   {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-                  {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+                  {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
                   <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
                   <span className="output-tool-name">{displayToolName}</span>
                   <UnknownToolInput toolName={toolName || 'tool'} content={toolInputContent} chipsOnly />
@@ -1137,7 +1137,7 @@ export const HistoryLine = memo(function HistoryLine({
             {...toolPreviewHandlers(isPreviewable ? buildPreviewTarget : null)}
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
             <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
             {isBashTool && bashTrackingStatusCommand ? (() => {
@@ -1473,7 +1473,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
@@ -1489,7 +1489,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
@@ -1505,7 +1505,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
@@ -1524,7 +1524,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
           </div>
@@ -1552,7 +1552,7 @@ export const HistoryLine = memo(function HistoryLine({
           <>
             <div className="output-line output-tool-use output-tool-simple">
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
               <span className="output-tool-name">{displayToolName}</span>
             </div>
@@ -1574,7 +1574,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
@@ -1590,7 +1590,7 @@ export const HistoryLine = memo(function HistoryLine({
         <>
           <div className="output-line output-tool-use">
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-            {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+            {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name="bolt" size={14} /></span>
             <span className="output-tool-name">ToolSearch</span>
           </div>
@@ -1759,7 +1759,7 @@ export const HistoryLine = memo(function HistoryLine({
           <>
             <div className="output-line output-tool-use output-tool-simple">
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-              {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+              {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
               <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
               <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
               {chip}
@@ -1778,7 +1778,7 @@ export const HistoryLine = memo(function HistoryLine({
       <>
         <div className="output-line output-tool-use">
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
-          {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
+          {agentName && <span className="output-agent-badge" title={t('terminal:outputLine.agentBadge', { defaultValue: 'Agent: {{name}}', name: agentName })}>{agentName}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
         </div>
