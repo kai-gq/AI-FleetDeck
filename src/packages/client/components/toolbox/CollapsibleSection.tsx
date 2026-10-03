@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
 
 const TOOLBOX_COLLAPSE_KEY = 'tide-toolbox-collapse';
@@ -32,6 +32,8 @@ export function CollapsibleSection({
   forceOpen = false,
   children,
   headerExtra,
+  id,
+  expandSignal,
 }: {
   title: string;
   storageKey?: string;
@@ -39,10 +41,23 @@ export function CollapsibleSection({
   forceOpen?: boolean;
   children: React.ReactNode;
   headerExtra?: React.ReactNode;
+  /** 根元素 id(供外部锚点滚动,如设置里的互跳)。 */
+  id?: string;
+  /** 值变化即展开(配套 onJump 互跳);展开后用户仍可手动折叠。 */
+  expandSignal?: number;
 }) {
   const [isOpen, setIsOpen] = useState(() =>
     storageKey ? getCollapseState(storageKey, defaultOpen) : defaultOpen
   );
+
+  // 外部请求展开:signal 变化时展开并持久化(仅首次挂载后的变化,初始值不算)
+  const lastSignalRef = useRef(expandSignal);
+  useEffect(() => {
+    if (expandSignal === undefined || expandSignal === lastSignalRef.current) return;
+    lastSignalRef.current = expandSignal;
+    setIsOpen(true);
+    if (storageKey) setCollapseState(storageKey, true);
+  }, [expandSignal, storageKey]);
 
   const handleToggle = () => {
     const newState = !isOpen;
@@ -56,7 +71,7 @@ export function CollapsibleSection({
   const effectivelyOpen = forceOpen || isOpen;
 
   return (
-    <div className={`collapsible-section ${effectivelyOpen ? 'open' : 'collapsed'}`}>
+    <div id={id} className={`collapsible-section ${effectivelyOpen ? 'open' : 'collapsed'}`}>
       <button className="collapsible-header" onClick={handleToggle}>
         <span className="collapsible-title">{title}</span>
         <span className="collapsible-header-right">

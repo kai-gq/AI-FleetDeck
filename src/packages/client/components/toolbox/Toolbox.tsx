@@ -237,7 +237,7 @@ export function Toolbox({ onConfigChange, onToolChange, config, isOpen, onClose,
           })()}
 
           {/* Config Section */}
-          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} onOpenIntegrationsModal={onOpenIntegrationsModal} onOpenPluginsModal={onOpenPluginsModal} onOpenMonitoringModal={onOpenMonitoringModal} onOpenStatisticsModal={onOpenStatisticsModal} onOpenWorkflowEditor={onOpenWorkflowEditor} onOpenTriggerManager={onOpenTriggerManager} />
+          <ConfigSection config={config} onChange={onConfigChange} searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} onOpenIntegrationsModal={onOpenIntegrationsModal} onOpenPluginsModal={onOpenPluginsModal} onOpenMonitoringModal={onOpenMonitoringModal} onOpenStatisticsModal={onOpenStatisticsModal} onOpenWorkflowEditor={onOpenWorkflowEditor} onOpenTriggerManager={onOpenTriggerManager} />
         </div>
       </aside>
     </>

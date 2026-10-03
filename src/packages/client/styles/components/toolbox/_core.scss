@@ -1025,6 +1025,58 @@
   font-style: italic;
 }
 
+// 功能分组标题(如「语音」组:语音转文字/文字转语音/语音伙伴/语音助手)
+.config-group-heading {
+  margin: 10px 0 2px;
+  padding: 0 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-blue) 70%, var(--text-muted));
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+// 节内关系说明条:本页设置被哪些功能消费 + 互跳入口
+.config-relation-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 8px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
+  border-radius: $radius-sm;
+}
+
+.config-relation-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.config-relation-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-blue);
+  font-size: 9px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: color-mix(in srgb, var(--accent-blue) 80%, white);
+  }
+}
+
 // Collapsible sections
 .collapsible-section {
   margin-bottom: 2px;

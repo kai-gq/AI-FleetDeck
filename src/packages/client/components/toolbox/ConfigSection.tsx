@@ -56,6 +56,7 @@ const SOUND_EVENT_ROWS: Array<{
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
+import { ConfigRelationNote } from './ConfigRelationNote';
 import { VoiceCompanionSection } from './VoiceCompanionSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
@@ -101,6 +102,8 @@ interface ConfigSectionProps {
   onOpenStatisticsModal?: () => void;
   onOpenWorkflowEditor?: () => void;
   onOpenTriggerManager?: () => void;
+  /** 节间互跳时用于清空搜索(目标节可能被过滤掉;未传则只展开不滚动清搜索)。 */
+  onSearchQueryChange?: (query: string) => void;
 }
 
 const TIME_MODE_OPTIONS: { value: TimeMode; label: string; icon: string }[] = [
@@ -267,7 +270,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager, onSearchQueryChange }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common', 'tools']);
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
@@ -676,6 +679,27 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   };
 
   const isSearching = searchQuery.trim().length > 0;
+
+  // ---- 节间互跳(关系说明条的「去 XX」):展开目标节 + 滚动定位 ----
+  const [expandSignals, setExpandSignals] = useState<Record<string, number>>({});
+  const pendingScrollRef = useRef<string | null>(null);
+
+  const requestSectionJump = (target: string) => {
+    if (isSearching) onSearchQueryChange?.(''); // 目标可能被搜索过滤掉,先清搜索
+    pendingScrollRef.current = target;
+    setExpandSignals((prev) => ({ ...prev, [target]: (prev[target] ?? 0) + 1 }));
+  };
+
+  useEffect(() => {
+    const target = pendingScrollRef.current;
+    if (!target) return;
+    pendingScrollRef.current = null;
+    // 等展开/清搜索后的 DOM 落地再滚动
+    const raf = window.requestAnimationFrame(() => {
+      document.getElementById(`config-section-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [expandSignals]);
 
   return (
     <>
@@ -1396,8 +1420,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
+      {/* ---- 「语音」分组:四节互为上下游,用组标题 + 关系条讲清 ---- */}
+      {(shouldShowSection('stt') || shouldShowSection('tts') || shouldShowSection('voiceCompanion') || shouldShowSection('voiceAssistant')) && (
+      <div className="config-group-heading">{t('config:sections.voice', { defaultValue: '语音' })}</div>
+      )}
+
       {shouldShowSection('stt') && (
-      <CollapsibleSection title={t('config:general.stt')} storageKey="stt" defaultOpen={false} forceOpen={isSearching && shouldShowSection('stt')}>
+      <CollapsibleSection id="config-section-stt" expandSignal={expandSignals.stt} title={t('config:general.stt')} storageKey="stt" defaultOpen={false} forceOpen={isSearching && shouldShowSection('stt')}>
+        <ConfigRelationNote
+          items={[{
+            text: t('config:voiceRelations.stt', { defaultValue: '本页引擎/密钥同时被:语音助手、终端语音输入、语音伙伴(批量回退)、WhatsApp 转写 使用。' }),
+            links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
+          }]}
+          onJump={requestSectionJump}
+        />
         <div className="config-row">
           <span className="config-label"><HighlightText text={t('config:stt.engineMode', { defaultValue: '引擎模式' })} query={searchQuery} /></span>
           <select className="config-select" value={sttConfig.mode} onChange={(e) => handleSttModeChange(e.target.value as SttEngineMode)}>
@@ -1427,7 +1463,14 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('tts') && (
-      <CollapsibleSection title={t('config:general.tts')} storageKey="tts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('tts')}>
+      <CollapsibleSection id="config-section-tts" expandSignal={expandSignals.tts} title={t('config:general.tts')} storageKey="tts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('tts')}>
+        <ConfigRelationNote
+          items={[{
+            text: t('config:voiceRelations.tts', { defaultValue: '本页音色同时被:语音伙伴播报、语音助手应答、终端逐行朗读 使用。' }),
+            links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
+          }]}
+          onJump={requestSectionJump}
+        />
         {(['zh', 'en', 'es'] as const).map((lang) => (
           <div className="config-row" key={lang}>
             <span className="config-label"><HighlightText text={TTS_LANG_LABELS[lang]} query={searchQuery} /></span>
@@ -1457,8 +1500,37 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       )}
 
       {shouldShowSection('voiceCompanion') && (
-      <CollapsibleSection title={t('config:voiceCompanion.sectionTitle', { defaultValue: '语音伙伴' })} storageKey="voiceCompanion" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceCompanion')}>
+      <CollapsibleSection id="config-section-voiceCompanion" expandSignal={expandSignals.voiceCompanion} title={t('config:voiceCompanion.sectionTitle', { defaultValue: '语音伙伴' })} storageKey="voiceCompanion" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceCompanion')}>
+        <ConfigRelationNote
+          items={[{
+            text: t('config:voiceRelations.companion', { defaultValue: '实时转写=本页火山配置;批量回退→语音转文字;播报音色→文字转语音。' }),
+            links: [
+              { label: t('config:voiceRelations.goStt', { defaultValue: '转写设置' }), target: 'stt' },
+              { label: t('config:voiceRelations.goTts', { defaultValue: '音色设置' }), target: 'tts' },
+            ],
+          }]}
+          onJump={requestSectionJump}
+        />
         <VoiceCompanionSection searchQuery={searchQuery} />
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('voiceAssistant') && (
+      <CollapsibleSection id="config-section-voiceAssistant" expandSignal={expandSignals.voiceAssistant} title={t('config:experimental.voiceAssistant')} storageKey="voiceAssistant" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceAssistant')}>
+        <ConfigRelationNote
+          items={[{
+            text: t('config:voiceRelations.assistant', { defaultValue: '按住说话·一次性指令(右下角悬浮麦克风);常开对话请用语音伙伴。' }),
+            links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
+          }]}
+          onJump={requestSectionJump}
+        />
+        <div className="config-row">
+          <span className="config-label" title={t('config:experimental.voiceAssistantTitle', { defaultValue: 'Voice assistant for hands-free agent control' })}><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
+          <Toggle checked={settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
+        </div>
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">{t('config:voiceAssistant.hint', { defaultValue: '开启后终端右下角出现悬浮麦克风钮;录音转写走上面的语音转文字设置。' })}</span>
+        </div>
       </CollapsibleSection>
       )}
 
@@ -1467,10 +1539,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         <div className="config-row">
           <span className="config-label" title={t('config:experimental.2dViewTitle', { defaultValue: 'Lightweight 2D top-down view for better performance' })}><HighlightText text={t('config:experimental.2dView')} query={searchQuery} /> <Icon name="map" size={12} /></span>
           <Toggle checked={settings.experimental2DView} onChange={(checked) => store.updateSettings({ experimental2DView: checked })} />
-        </div>
-        <div className="config-row">
-          <span className="config-label" title={t('config:experimental.voiceAssistantTitle', { defaultValue: 'Voice assistant for hands-free agent control' })}><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
-          <Toggle checked={settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
         <div className="config-row">
           <span className="config-label" title={t('config:experimental.ttsTitle', { defaultValue: 'Text-to-speech for reading agent responses' })}><HighlightText text={t('config:experimental.tts')} query={searchQuery} /> <Icon name="speaker-on" size={12} /></span>

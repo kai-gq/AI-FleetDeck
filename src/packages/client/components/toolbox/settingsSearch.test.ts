@@ -107,5 +107,6 @@ describe('settings search', () => {
     expect(searchSettingsSections('notification sound').map((section) => section.id)).toContain('general');
     expect(searchSettingsSections('gmail').map((section) => section.id)).toContain('integrations');
     expect(searchSettingsSections('wireframe').map((section) => section.id)).toContain('modelStyle');
+    expect(searchSettingsSections('语音助手').map((section) => section.id)).toContain('voiceAssistant');
   });
 });
