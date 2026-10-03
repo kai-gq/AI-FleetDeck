@@ -1,16 +1,18 @@
 # tools/whisper · 本地语音转文字(STT)引擎栈
 
-应用内「语音输入」(录音 → 转文字)走的是**本机 whisper**,不是云服务:
+应用内「语音输入」(录音 → 转文字)**默认走本机 whisper**(离线);可选用
+**云通道**(硅基流动 SenseVoice,中文更准,失败自动回退本地,见下):
 
 ```
 客户端 useSTT.ts 录音(webm/opus)
   → POST /api/stt/transcribe
   → 服务端 src/packages/server/routes/stt.ts spawn('whisper', …)
-  → whisper.exe(本目录 shim)→ 常驻转写服务 server.py(模型常驻显存)
+  → whisper.exe(本目录 shim)─┬─(可选)云通道:ffmpeg 转 wav → 硅基流动 SenseVoice
+                              └─ 本地:常驻转写服务 server.py(模型常驻显存)
 ```
 
-本目录 = 这套本机引擎的全部文件 —— 和 `tools/piper/`(TTS)同一个思路:
-本地跑、免费、离线、语音不出本机、**应用代码零改动**。
+本目录 = 这套引擎的全部文件 —— 和 `tools/piper/`(TTS)同一个思路:
+本地跑、免费、离线、语音不出本机、**应用代码零改动**(云通道同理,只加垫片逻辑)。
 
 ## 目录
 
@@ -20,11 +22,12 @@
 | `ffmpeg/bin/ffmpeg.exe` | whisper 解码 webm/opus 必需(ffmpeg 4.1) |
 | `models/large-v3-turbo.pt` | turbo 模型(≈1.6GB);`~/.cache/whisper` junction 到此 |
 | `server.py` | **常驻转写服务**(模型只加载一次;HTTP 127.0.0.1:17128) |
-| `shim/` | 小包:安装后提供 `whisper.exe`,把 CLI 调用转发给服务 |
+| `shim/` | 小包:安装后提供 `whisper.exe`,把 CLI 调用转发给服务(或云通道) |
+| `cloud.json` | 云通道配置(模式 / API key;**含密钥,gitignore**,模板见 `cloud.example.json`) |
 | `server.log` | 服务日志(排障先看这里) |
 | `_dl/` | 下载 / 测试临时文件(可随手删) |
 
-`venv/` `ffmpeg/` `models/` `_dl/` `server.log` 均已 gitignore,不入库。
+`venv/` `ffmpeg/` `models/` `_dl/` `server.log` `cloud.json` 均已 gitignore,不入库。
 
 ## 为什么需要 shim + 常驻服务(延迟)
 
@@ -86,6 +89,33 @@ if ($p -notlike "*tools\whisper\venv\Scripts*") { [Environment]::SetEnvironmentV
   TerminalInputArea 显式传参)写死中文;作者原版默认 `Spanish` 属遗留。
   whisper 会把混在中文里的英文术语(如 `git commit`)原样保留
 
+## 云通道(可选:硅基流动 SenseVoice,云优先 + 本地兜底)
+
+本地 whisper 用 `turbo` 蒸馏模型,中文短句准确率一般。云通道接硅基流动的
+**SenseVoiceSmall**(中文明显更准、免模型加载秒级返回、目前免费),失败
+自动回退本地。配置在 `cloud.json`(不存在 = 纯本地,行为与以前完全一样):
+
+```json
+{ "mode": "auto", "provider": "siliconflow", "apiKey": "sk-…", "model": "FunAudioLLM/SenseVoiceSmall" }
+```
+
+| mode | 行为 |
+| --- | --- |
+| `auto`(默认) | 配了 key → 云优先;任何云失败(断网/401/超时)→ 回落本地服务 |
+| `local` | 完全离线,行为不变 |
+| `cloud` | 只走云;无 key / 未支持的 provider / 失败 → 报错退出,**不回退**(避免"以为在云上实际在本地") |
+
+- **拿 key**:siliconflow.cn 注册(免费、不绑卡)→ API 密钥页生成 `sk-…`;
+  在应用里 **工具箱 → 语音转文字** 直接填(会写进本文件),或手改本文件
+- **改模式也可以手改本文件**;`mode: local`(或删掉文件)= 回到纯本地
+- 云路径细节:上传前先用本地 ffmpeg 把录音转 **16kHz 单声道 wav**
+  (云 API 的格式列表不含 webm);此时 CLI 的 `--language`/`--model` 被忽略
+  (SenseVoice 自动识别语言,模型以本文件为准);单次请求超时 10s
+- **隐私**:只有云通道会把语音上传到硅基流动;`auto` 断网时会落回本地
+- 集成路径(WhatsApp/Slack 语音转写)走的也是同一垫片,同样吃云通道;
+  注意 `audio-transcription.ts` 会把结果缓存成 `.txt`,重转需先删缓存
+- 排障:垫片把云通道结果/失败原因都打到 stderr(`云端转写完成/失败 …`)
+
 ## 重建(换机器 / 清理后)
 
 ```bash
@@ -125,6 +155,9 @@ tools/whisper/venv/Scripts/whisper.exe --shim-version
 # 端到端(生成一段语音 → 转写;首次 ~10s 拉起服务,再跑一次应 ~1s)
 powerShell -c "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).SetOutputToWaveFile('t.wav')"
 tools/whisper/venv/Scripts/whisper.exe t.wav --model turbo --language Chinese --output_format txt --output_dir .
+
+# 云通道自检(先在 cloud.json 配好 key):stderr 应显示「云端转写完成 …」;
+# 把 mode 改 cloud 再故意写坏 key,应报 HTTP 401 且不产出 txt(不回退)
 ```
 
 ## 常见问题

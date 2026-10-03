@@ -15,6 +15,12 @@ whisper CLI 转发 shim(本地 STT 加速用)
 原则:绝不比原版差 —— 参数形状不认识、服务拉不起来、任何一步出错,都在
 同一进程内回退到真正的 whisper CLI(行为与原来完全逐字一致)。
 
+云通道(可选,见 tools/whisper/README.md):tools/whisper/cloud.json 存在且
+配了 API key 时,auto 模式先试硅基流动 SenseVoice(云端识别,中文更准),
+任何失败自动回落本地服务;mode=local 完全离线;mode=cloud 只走云、失败即
+报错不回退。云路径会先用本地 ffmpeg 把音频转成 16kHz 单声道 wav(云 API
+不收 webm);此时 CLI 的 --language/--model 被忽略(模型以 cloud.json 为准)。
+
 自检:`whisper --shim-version` 打印 shim 版本(原版 CLI 不认识这个参数)。
 """
 
@@ -22,10 +28,14 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
 import urllib.request
+import uuid
 from urllib.parse import quote
 
 # 输出统一 UTF-8(被应用 spawn 时 Python 默认走系统 ANSI 代码页,中文会乱码)
@@ -35,7 +45,7 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-SHIM_VERSION = "0.1.0"
+SHIM_VERSION = "0.2.0"
 PORT = 17128
 BASE_URL = f"http://127.0.0.1:{PORT}"
 
@@ -46,6 +56,13 @@ SERVER_LOG = os.path.join(_STACK, "server.log")
 
 START_TIMEOUT = 180.0  # 冷启动等待上限:torch 导入 + 模型加载 + 预热
 TRANS_TIMEOUT = 900.0  # 单次转写上限(秒)
+
+# ---- 云通道(硅基流动 SenseVoice)----
+CLOUD_CONFIG = os.path.join(_STACK, "cloud.json")
+SILICONFLOW_URL = "https://api.siliconflow.cn/v1/audio/transcriptions"
+CLOUD_MODEL_DEFAULT = "FunAudioLLM/SenseVoiceSmall"
+CLOUD_TIMEOUT = 10.0  # 单次云请求上限;失败回落本地的等待上限就是它
+FFMPEG_TIMEOUT = 120.0  # 本地 ffmpeg 转码上限
 
 # 认识的带值选项(快路径会用到 / 需跳过其值)
 _FLAG_TO_OPT = {
@@ -195,6 +212,102 @@ def run_real_cli(argv) -> None:
     cli()
 
 
+# ---------------------------------------------------------------------------
+# 云通道:硅基流动 SenseVoice(中文更准、免模型加载;配置见 tools/whisper/cloud.json)
+# ---------------------------------------------------------------------------
+
+def load_cloud_config() -> dict:
+    """读 cloud.json;缺失 / 坏 JSON / 字段非法一律回默认(mode=auto),绝不因此报错。"""
+    cfg = {"mode": "auto", "provider": "siliconflow", "apiKey": "", "model": CLOUD_MODEL_DEFAULT}
+    try:
+        with open(CLOUD_CONFIG, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return cfg
+    if not isinstance(raw, dict):
+        return cfg
+    if raw.get("mode") in ("auto", "local", "cloud"):
+        cfg["mode"] = raw["mode"]
+    for k in ("provider", "apiKey", "model"):
+        v = raw.get(k)
+        if isinstance(v, str) and v.strip():
+            cfg[k] = v.strip()
+    return cfg
+
+
+def _ffmpeg_path() -> str:
+    local = os.path.join(_STACK, "ffmpeg", "bin", "ffmpeg.exe")
+    if os.path.isfile(local):
+        return local
+    return shutil.which("ffmpeg") or shutil.which("ffmpeg.exe") or "ffmpeg"
+
+
+def transcode_wav16k(src: str) -> str:
+    """任意音频 → 16kHz 单声道 wav(云 API 的格式列表不含 webm)。
+    返回临时文件路径,调用方负责删除。"""
+    fd, dst = tempfile.mkstemp(prefix="whisper-shim-", suffix=".wav")
+    os.close(fd)  # Windows:必须先关句柄,ffmpeg 才能写这个文件
+    try:
+        p = subprocess.run(
+            [_ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+             "-i", src, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", dst],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE, timeout=FFMPEG_TIMEOUT)
+        if p.returncode != 0:
+            raise RuntimeError("ffmpeg: " + p.stderr.decode("utf-8", "replace")[:300])
+        if os.path.getsize(dst) <= 44:  # 只有 wav 头 = 空音频
+            raise RuntimeError("转码输出为空")
+        return dst
+    except Exception:
+        try:
+            os.unlink(dst)
+        except OSError:
+            pass
+        raise
+
+
+def _multipart(fields: dict, audio: bytes) -> tuple:
+    """手搓 multipart/form-data(标准库没有现成帮手);返回 (boundary, body)。
+    上传文件名固定,不泄露临时文件名。"""
+    boundary = "----whisper-shim-" + uuid.uuid4().hex
+    out = bytearray()
+    for k, v in fields.items():
+        out += f"--{boundary}\r\n".encode("utf-8")
+        out += f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode("utf-8")
+        out += str(v).encode("utf-8") + b"\r\n"
+    out += f"--{boundary}\r\n".encode("utf-8")
+    out += b'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n'
+    out += b"Content-Type: audio/wav\r\n\r\n"
+    out += audio + b"\r\n"
+    out += f"--{boundary}--\r\n".encode("utf-8")
+    return boundary, bytes(out)
+
+
+def cloud_transcribe(wav_path: str, cfg: dict) -> str:
+    """把 16k wav 传到硅基流动转写,返回文本。绝不把 key 打进日志/异常。"""
+    with open(wav_path, "rb") as f:
+        audio = f.read()
+    boundary, body = _multipart({"model": cfg["model"]}, audio)
+    req = urllib.request.Request(
+        SILICONFLOW_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": "Bearer " + cfg["apiKey"],
+            "Content-Type": "multipart/form-data; boundary=" + boundary,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=CLOUD_TIMEOUT) as r:
+            obj = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:200]
+        raise RuntimeError(f"HTTP {e.code} {detail}")
+    if not isinstance(obj, dict) or not isinstance(obj.get("text"), str):
+        raise RuntimeError("响应缺少 text 字段")
+    return obj["text"]
+
+
 def main() -> None:
     argv = sys.argv[1:]
 
@@ -216,6 +329,43 @@ def main() -> None:
         and os.path.isfile(opts["files"][0])
     ):
         path = os.path.abspath(opts["files"][0])
+
+        # 云通道:auto=云优先(失败回落本地),cloud=只走云(失败不回退),local=跳过
+        cfg = load_cloud_config()
+        if cfg["mode"] == "cloud":
+            if cfg["provider"] != "siliconflow":
+                _err(f"cloud 模式:不支持的 provider {cfg['provider']!r},不回退本地")
+                sys.exit(1)
+            if not cfg["apiKey"]:
+                _err("cloud 模式未配置 API Key(工具箱 → 语音转文字),不回退本地")
+                sys.exit(1)
+        use_cloud = (
+            cfg["mode"] in ("auto", "cloud")
+            and cfg["provider"] == "siliconflow"
+            and bool(cfg["apiKey"])
+        )
+        if use_cloud:
+            wav = None
+            try:
+                wav = transcode_wav16k(path)
+                t0 = time.time()
+                text = cloud_transcribe(wav, cfg)
+                out = write_txt(path, opts["output_dir"], text)
+                _err(f"云端转写完成 {time.time() - t0:.2f}s ({cfg['model']}) -> {out}")
+                return
+            except Exception as e:
+                _err(f"云端转写失败({type(e).__name__}: {e})")
+                if cfg["mode"] == "cloud":
+                    _err("cloud 模式:不回退本地")
+                    sys.exit(1)
+                _err("auto 模式:回退本地服务")
+            finally:
+                if wav:
+                    try:
+                        os.unlink(wav)
+                    except OSError:
+                        pass
+
         try:
             if ensure_server():
                 t0 = time.time()
