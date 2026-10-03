@@ -221,11 +221,196 @@ describe('updateVad', () => {
     }
     expect(events).toEqual(['speech-start']);
   });
+
+  // ---- 阶段一补测:阈值/边界/TTS 抑制/候选细节 ----
+
+  it('tts suppress: lowers the start threshold so quiet speech still opens a candidate (energy path)', () => {
+    // 底噪 0.01:正常起说阈 3×=0.03;播报中 ×0.65=0.0195 → 0.02 的轻声也能进候选。
+    // 确认窗 250×1.6=400ms(14 帧),第 14 帧才确认。
+    let out = feed(createVadState(), 0.02, 13, DEFAULT_VAD_CONFIG, true);
+    expect(out.events).toEqual([]);
+    expect(out.state.candidate).toBe(true);
+    out = feed(out.state, 0.02, 1, DEFAULT_VAD_CONFIG, true);
+    expect(out.events).toEqual(['speech-start']);
+
+    // 同一 rms 非播报时低于起说阈(0.03),连候选都不会出现。
+    const normal = feed(createVadState(), 0.02, 40);
+    expect(normal.events).toEqual([]);
+    expect(normal.state.candidate).toBe(false);
+  });
+
+  it('tts suppress: lowers the end threshold so a fading tail keeps the segment alive', () => {
+    const started = feed(createVadState(), LOUD, CONFIRM_FRAMES);
+    expect(started.events).toEqual(['speech-start']);
+
+    // 非播报:尾音 0.015 < 停说阈 0.018 → 27 帧后判停
+    const ended = feed(started.state, 0.015, 30);
+    expect(ended.events).toEqual(['speech-end']);
+
+    // 播报中:停说阈 ×0.65=0.0117 → 同一尾音不算静音,段保持存活
+    const alive = feed(started.state, 0.015, 30, DEFAULT_VAD_CONFIG, true);
+    expect(alive.events).toEqual([]);
+    expect(alive.state.speaking).toBe(true);
+  });
+
+  it('boundary: rms exactly at startThreshold is not voiced (strict >), one hair above is', () => {
+    const cfg = { ...DEFAULT_VAD_CONFIG, startThreshold: 0.2 };
+    // 恰在阈值:不进候选(0.2 落在迟滞带,只缓慢抬底噪)
+    const at = feed(createVadState(), 0.2, 20, cfg);
+    expect(at.events).toEqual([]);
+    expect(at.state.candidate).toBe(false);
+
+    // 高出一点点:严格大于 → 正常确认
+    const above = feed(createVadState(), 0.201, CONFIRM_FRAMES, cfg);
+    expect(above.events).toEqual(['speech-start']);
+  });
+
+  it('boundary: speech-end fires exactly at silenceMs (>=)', () => {
+    const cfg = { ...DEFAULT_VAD_CONFIG, silenceMs: 300 };
+    const started = feed(createVadState(), LOUD, CONFIRM_FRAMES, cfg);
+    expect(started.events).toEqual(['speech-start']);
+    const one = feed(started.state, LOUD, 1, cfg);
+    const nine = feed(one.state, QUIET, 9, cfg); // 270ms < 300
+    expect(nine.events).toEqual([]);
+    const ten = feed(nine.state, QUIET, 1, cfg); // 恰好 300ms
+    expect(ten.events).toEqual(['speech-end']);
+    expect(ten.segmentMs).toBe(360);
+  });
+
+  it('boundary: force-cut fires exactly at maxSegmentMs; silence end wins when both hit', () => {
+    const cfg = { ...DEFAULT_VAD_CONFIG, maxSegmentMs: 300 };
+    const started = feed(createVadState(), LOUD, CONFIRM_FRAMES, cfg);
+    const cut = feed(started.state, LOUD, 9, cfg); // segmentMs 30→300
+    expect(cut.events).toEqual(['force-cut']);
+    expect(cut.segmentMs).toBe(300);
+    expect(cut.state.speaking).toBe(true);
+    expect(cut.state.segmentMs).toBe(0); // 仍在说:新段从 0 重新累计
+
+    // 同一帧两个条件同时满足时,先判静音结束(不会误报 force-cut)。
+    // segmentMs 从确认帧(30ms)起算,故对齐点取 330:第 10 帧静音恰 300、
+    // 同时 segmentMs 也刚到 330,两者同帧为真。
+    const both = { ...DEFAULT_VAD_CONFIG, silenceMs: 300, maxSegmentMs: 330 };
+    const s2 = feed(createVadState(), LOUD, CONFIRM_FRAMES, both);
+    const out = feed(s2.state, QUIET, 10, both);
+    expect(out.events).toEqual(['speech-end']);
+    expect(out.segmentMs).toBe(330);
+  });
+
+  it('candidate: a voiced frame resets the quiet streak (two 120ms gaps do not discard)', () => {
+    let out = feed(createVadState(), LOUD, 3); // 候选 90ms
+    expect(out.state.candidate).toBe(true);
+    out = feed(out.state, QUIET, 4); // 连续静 120ms < candidateGapMs(150)
+    expect(out.state.candidate).toBe(true);
+    out = feed(out.state, LOUD, 1); // 过阈帧把 quiet streak 清零
+    expect(out.state.candidateQuietMs).toBe(0);
+    out = feed(out.state, QUIET, 4); // 若未清零此处累计 240ms 会被丢弃
+    expect(out.state.candidate).toBe(true);
+    out = feed(out.state, LOUD, 5); // voiced 120+150=270 ≥ 250
+    expect(out.events).toEqual(['speech-start']);
+  });
+
+  it('candidate discard (quiet path) updates the noise floor toward the quiet level', () => {
+    const a = feed(createVadState(), LOUD, 3);
+    expect(a.state.candidate).toBe(true);
+    const b = feed(a.state, 0.005, 5); // 连续静 150ms ≥ candidateGapMs → 丢弃
+    expect(b.events).toEqual([]);
+    expect(b.state.candidate).toBe(false);
+    expect(b.state.noiseFloor).toBeCloseTo(0.0095, 6); // 0.01*0.9 + 0.005*0.1
+  });
+
+  it('candidate elapsed cap: exactly 750ms survives; the next band frame discards and freezes the floor', () => {
+    const a = feed(createVadState(), LOUD, 3); // elapsed 90
+    const b = feed(a.state, 0.025, 22); // 迟滞带(0.018–0.03):elapsed 恰 750,存活且不抬底噪
+    expect(b.state.candidate).toBe(true);
+    expect(b.state.noiseFloor).toBeCloseTo(0.01, 6);
+    const c = feed(b.state, 0.025, 1); // elapsed 780 > 750 → 丢弃
+    expect(c.state.candidate).toBe(false);
+    expect(c.events).toEqual([]);
+    expect(c.state.noiseFloor).toBeCloseTo(0.01, 6); // 带内丢弃不更新底噪
+  });
+
+  it('speaking: noise floor stays frozen and voicedMs only counts non-quiet frames', () => {
+    const started = feed(createVadState(), LOUD, CONFIRM_FRAMES);
+    const loud = feed(started.state, LOUD, 5);
+    expect(loud.state.noiseFloor).toBeCloseTo(0.01, 6); // 段内不做自适应
+    expect(loud.state.voicedMs).toBe(30 + 5 * FRAME_MS); // 确认帧本身计为有声
+    const tail = feed(loud.state, QUIET, 5);
+    expect(tail.state.voicedMs).toBe(180); // 静音帧不计
+    expect(tail.state.silenceFrames).toBe(5);
+  });
+
+  it('force-cut can fire repeatedly on one continuous segment', () => {
+    const cfg = { ...DEFAULT_VAD_CONFIG, maxSegmentMs: 300 };
+    const started = feed(createVadState(), LOUD, CONFIRM_FRAMES, cfg);
+    const first = feed(started.state, LOUD, 9, cfg);
+    expect(first.events).toEqual(['force-cut']);
+    const second = feed(first.state, LOUD, 10, cfg);
+    expect(second.events).toEqual(['force-cut']);
+    expect(second.state.speaking).toBe(true);
+  });
+
+  it('model path + tts: confirm window becomes min(confirmMs,180)*1.6 = 288ms', () => {
+    let out = feedProb(createVadState(), 0.9, 9, DEFAULT_VAD_CONFIG, true); // 270 < 288
+    expect(out.events).toEqual([]);
+    out = feedProb(out.state, 0.9, 1, DEFAULT_VAD_CONFIG, true); // 300 ≥ 288
+    expect(out.events).toEqual(['speech-start']);
+  });
+
+  it('model path: candidate discarded by a low-probability run reaching candidateGapMs', () => {
+    const a = feedProb(createVadState(), 0.9, 3); // 候选 90ms
+    expect(a.state.candidate).toBe(true);
+    const b = feedProb(a.state, 0.1, 5); // 0.1 < probEnd(0.35) 累计 150ms → 丢弃
+    expect(b.events).toEqual([]);
+    expect(b.state.candidate).toBe(false);
+    const c = feedProb(b.state, 0.9, 6); // 模型确认上限 180ms → 6 帧
+    expect(c.events).toEqual(['speech-start']);
+  });
+
+  it('model path boundaries: prob 0.5 is voiced (>=), 0.35 is band, 0.349 counts as silence', () => {
+    // 恰 0.5:>= probStart → 确认
+    const start = feedProb(createVadState(), 0.5, 6);
+    expect(start.events).toEqual(['speech-start']);
+
+    // 恰 0.35:不满足 < probEnd → 迟滞带,不累计、不确认
+    const band = feedProb(createVadState(), 0.35, 30);
+    expect(band.events).toEqual([]);
+    expect(band.state.candidate).toBe(false);
+
+    // 0.349:计入静音 — 段内累计 800ms 判停
+    const ended = feedProb(start.state, 0.349, 27);
+    expect(ended.events).toEqual(['speech-end']);
+  });
+
+  it('model path ignores rms entirely; energy path endThreshold honours startThreshold*0.6', () => {
+    // 模型通路:概率低就是静音,哪怕 rms 很响
+    let s = createVadState();
+    const events: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const out = updateVad(s, 0.5, FRAME_MS, DEFAULT_VAD_CONFIG, 0.1);
+      s = out.state;
+      if (out.event) events.push(out.event);
+    }
+    expect(events).toEqual([]);
+    expect(s.speaking).toBe(false);
+
+    // 能量通路:固定阈值 0.2 → 停说阈 = max(0.2*0.6, 0.018) = 0.12
+    const cfg = { ...DEFAULT_VAD_CONFIG, engine: 'energy' as const, startThreshold: 0.2 };
+    const started = feed(createVadState(), 0.3, CONFIRM_FRAMES, cfg);
+    expect(started.events).toEqual(['speech-start']);
+    const above = feed(started.state, 0.15, 10, cfg); // 0.15 > 0.12:不算静音
+    expect(above.events).toEqual([]);
+    const below = feed(above.state, 0.1, 30, cfg); // 0.1 < 0.12:累计判停
+    expect(below.events).toEqual(['speech-end']);
+  });
 });
 
 describe('normalizeTranscript', () => {
   it('collapses whitespace and trims', () => {
     expect(normalizeTranscript('  你好   世界  ')).toBe('你好 世界');
+  });
+
+  it('collapses tabs, newlines and NBSP into single spaces', () => {
+    expect(normalizeTranscript('a\t\n b')).toBe('a b');
   });
 });
 
@@ -276,5 +461,52 @@ describe('processFinalTranscript', () => {
     const r = processFinalTranscript('发送这个给小美', { ...base, autoSubmit: false });
     expect(r.matchedEndWord).toBe(false);
     expect(r.submit).toBe(false);
+  });
+
+  // ---- 阶段一补测:唤醒词/结束词边界 ----
+
+  it('wake word: strips only the first occurrence', () => {
+    const r = processFinalTranscript('帮我小助手查一下小助手', { ...base, wakeWord: '小助手' });
+    expect(r.text).toBe('帮我查一下小助手');
+    expect(r.droppedByWakeWord).toBe(false);
+    expect(r.submit).toBe(true);
+  });
+
+  it('wake word + trailing punctuation only drops to empty and never submits', () => {
+    const r = processFinalTranscript('小助手。', { ...base, wakeWord: '小助手' });
+    expect(r.text).toBe('');
+    expect(r.submit).toBe(false);
+    expect(r.droppedByWakeWord).toBe(false);
+  });
+
+  it('wake word + end word leaving empty text: matchedEndWord true but submit stays false', () => {
+    const r = processFinalTranscript('小助手,发送', { ...base, wakeWord: '小助手' });
+    expect(r.text).toBe('');
+    expect(r.matchedEndWord).toBe(true);
+    expect(r.submit).toBe(false);
+  });
+
+  it('end word with trailing punctuation is matched and stripped', () => {
+    const r = processFinalTranscript('让小美修登录页,发送。', { ...base, autoSubmit: false });
+    expect(r.matchedEndWord).toBe(true);
+    expect(r.text).toBe('让小美修登录页');
+    expect(r.submit).toBe(true);
+  });
+
+  it('end words: empty entries are skipped and array order decides the first match', () => {
+    const r = processFinalTranscript('干活就这些了', { ...base, endWords: ['', '就这些了', '了'] });
+    expect(r.matchedEndWord).toBe(true);
+    expect(r.text).toBe('干活'); // 「就这些了」在数组里先于「了」命中
+  });
+
+  it('no wake word configured never flags droppedByWakeWord', () => {
+    const r = processFinalTranscript('随便什么内容', base);
+    expect(r.droppedByWakeWord).toBe(false);
+  });
+
+  it('punctuation-only input is submitted as-is (behavior lock)', () => {
+    const r = processFinalTranscript('，，', base);
+    expect(r.submit).toBe(true);
+    expect(r.text).toBe('，，');
   });
 });
