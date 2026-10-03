@@ -4,18 +4,21 @@ import {
   parseContractJson,
   applyMemoryOps,
   buildAgentSnapshotLines,
+  buildCompanionSystemPrompt,
   shouldRotateSession,
+  shouldRotateForPersona,
   DEFAULT_SERVER_CONFIG,
   type CompanionMemory,
   type VoiceCompanionState,
 } from './voice-companion-service.js';
+import { VOICE_PERSONAS } from '../../shared/voice-personas.js';
 
 function emptyMemory(): CompanionMemory {
   return { summary: '', notes: [], updatedAt: 0, droppedCount: 0 };
 }
 
 function emptyState(): VoiceCompanionState {
-  return { sessionId: null, sessionStartedAt: null, turns: 0, lastUsedAt: null, memory: emptyMemory() };
+  return { sessionId: null, sessionStartedAt: null, turns: 0, lastUsedAt: null, personaKey: null, memory: emptyMemory() };
 }
 
 describe('stripCodeFences', () => {
@@ -142,6 +145,20 @@ describe('shouldRotateSession', () => {
   });
 });
 
+describe('shouldRotateForPersona', () => {
+  it('rotates once for legacy state (personaKey missing)', () => {
+    expect(shouldRotateForPersona({ ...emptyState(), sessionId: 's1' }, 'doubao')).toBe(true);
+  });
+  it('keeps the session while the persona is unchanged', () => {
+    const state = { ...emptyState(), sessionId: 's1', personaKey: 'butler' };
+    expect(shouldRotateForPersona(state, 'butler')).toBe(false);
+  });
+  it('rotates when the persona changed', () => {
+    const state = { ...emptyState(), sessionId: 's1', personaKey: 'butler' };
+    expect(shouldRotateForPersona(state, 'sharp')).toBe(true);
+  });
+});
+
 describe('buildAgentSnapshotLines', () => {
   it('renders id/status/task and areas, sorted by recent activity', () => {
     const agents = [
@@ -173,5 +190,30 @@ describe('buildAgentSnapshotLines', () => {
     // 最热(lastWorkedAt 最大)的排最前
     expect(lines[0]).toContain('agent69');
     expect(lines[0]).toContain('…');
+  });
+});
+
+describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
+  const base = () => ({
+    agentLines: ['- 小美 (id: a1, idle)'],
+    totalAgents: 1,
+    truncated: false,
+    memory: emptyMemory(),
+    nowText: '2026-10-03 12:00',
+  });
+
+  it('injects the default persona (豆包风) and dropped the 60-char caps', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    const doubao = VOICE_PERSONAS.find((p) => p.id === 'doubao')!;
+    expect(prompt).toContain(doubao.stylePrompt);
+    expect(prompt).not.toContain('不超过 60 字');
+  });
+
+  it('honors a preset id and a custom persona', () => {
+    const butler = VOICE_PERSONAS.find((p) => p.id === 'butler')!;
+    expect(buildCompanionSystemPrompt({ ...base(), persona: { preset: 'butler', custom: '' } }))
+      .toContain(butler.stylePrompt);
+    expect(buildCompanionSystemPrompt({ ...base(), persona: { preset: 'custom', custom: '你是个海盗船长。' } }))
+      .toContain('你是个海盗船长。');
   });
 });

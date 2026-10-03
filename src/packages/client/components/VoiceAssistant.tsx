@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useSTT } from '../hooks/useSTT';
 import { useTTS } from '../hooks/useTTS';
 import { apiUrl, authFetch } from '../utils/storage';
+import { useSettings } from '../store';
 
 interface VoiceAssistantProps {
   className?: string;
@@ -20,8 +21,11 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
   const { t } = useTranslation(['terminal']);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const settings = useSettings();
 
   const tts = useTTS();
+  const personaPreset = settings.voiceAssistantPersonaPreset;
+  const personaCustom = settings.voiceAssistantPersonaCustom;
 
   const handleTranscription = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -31,11 +35,14 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
     setError(null);
 
     try {
-      // Send to voice assistant API
+      // Send to voice assistant API(persona 随请求带上,服务端注入系统提示词)
       const res = await authFetch(apiUrl('/api/voice-assistant/process'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          persona: { preset: personaPreset, custom: personaCustom },
+        }),
       });
 
       const data = await res.json();
@@ -58,7 +65,7 @@ export function VoiceAssistant({ className }: VoiceAssistantProps) {
     } finally {
       setProcessing(false);
     }
-  }, [tts]);
+  }, [tts, personaPreset, personaCustom]);
 
   const stt = useSTT({
     language: 'Chinese',

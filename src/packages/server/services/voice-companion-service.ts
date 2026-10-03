@@ -37,6 +37,7 @@ import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction } from '../voice/speech-gate.js';
 import type { Agent } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
+import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, sanitizePersonaCustom, sanitizePersonaId, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
 
 const log = logger.server;
 
@@ -63,6 +64,8 @@ export interface VoiceCompanionState {
   sessionStartedAt: number | null;
   turns: number;
   lastUsedAt: number | null;
+  /** 上次使用的人设键(shared/voice-personas 的 personaKeyOf);变化 → 轮换会话。null = 旧状态。 */
+  personaKey: string | null;
   memory: CompanionMemory;
 }
 
@@ -130,8 +133,14 @@ export class VoiceCompanionAbortedError extends Error {
   }
 }
 
+export interface VoicePersonaConfig {
+  preset: string;
+  custom: string;
+}
+
 export interface VoiceCompanionServerConfig {
   model: 'haiku' | 'sonnet';
+  persona: VoicePersonaConfig;
   hop1TimeoutMs: number;
   hop2TimeoutMs: number;
   maxTurns: number;
@@ -141,6 +150,7 @@ export interface VoiceCompanionServerConfig {
 
 export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   model: 'haiku',
+  persona: { preset: DEFAULT_PERSONA_ID, custom: '' },
   hop1TimeoutMs: 60_000,
   hop2TimeoutMs: 45_000,
   maxTurns: 120,
@@ -160,6 +170,7 @@ const DEFAULT_STATE: VoiceCompanionState = {
   sessionStartedAt: null,
   turns: 0,
   lastUsedAt: null,
+  personaKey: null,
   memory: DEFAULT_MEMORY,
 };
 
@@ -190,14 +201,18 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-/** 读取 tools/voice-companion/config.json(服务端只关心 model / brain.*);缺失回默认。 */
+/** 读取 tools/voice-companion/config.json(服务端只关心 model / persona / brain.*);缺失回默认。 */
 export function loadServerConfig(): VoiceCompanionServerConfig {
   try {
-    if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULT_SERVER_CONFIG };
+    if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULT_SERVER_CONFIG, persona: { ...DEFAULT_SERVER_CONFIG.persona } };
     const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
     const brain = raw?.brain ?? {};
     return {
       model: raw?.model === 'sonnet' ? 'sonnet' : 'haiku',
+      persona: {
+        preset: sanitizePersonaId(raw?.persona?.preset),
+        custom: sanitizePersonaCustom(raw?.persona?.custom),
+      },
       hop1TimeoutMs: clampNumber(brain.hop1TimeoutMs, 5_000, 180_000, DEFAULT_SERVER_CONFIG.hop1TimeoutMs),
       hop2TimeoutMs: clampNumber(brain.hop2TimeoutMs, 5_000, 180_000, DEFAULT_SERVER_CONFIG.hop2TimeoutMs),
       maxTurns: clampNumber(brain.maxTurns, 10, 2_000, DEFAULT_SERVER_CONFIG.maxTurns),
@@ -206,7 +221,7 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
     };
   } catch (err) {
     log.warn(`[VoiceCompanion] config.json 读取失败,用默认配置: ${(err as Error).message}`);
-    return { ...DEFAULT_SERVER_CONFIG };
+    return { ...DEFAULT_SERVER_CONFIG, persona: { ...DEFAULT_SERVER_CONFIG.persona } };
   }
 }
 
@@ -299,6 +314,7 @@ export function loadCompanionState(): VoiceCompanionState {
       sessionStartedAt: typeof raw?.sessionStartedAt === 'number' ? raw.sessionStartedAt : null,
       turns: typeof raw?.turns === 'number' ? raw.turns : 0,
       lastUsedAt: typeof raw?.lastUsedAt === 'number' ? raw.lastUsedAt : null,
+      personaKey: typeof raw?.personaKey === 'string' ? raw.personaKey : null,
       memory: sanitizeMemory(raw?.memory),
     };
     return state;
@@ -446,6 +462,14 @@ export function shouldRotateSession(
   return false;
 }
 
+/**
+ * 人设变化判定:--resume 的历史会盖过新系统提示词,不换会话换人设就不生效。
+ * personaKey 缺失(旧状态/首次)也算变化 → 一次性轮换到当前人设;记忆不受影响。
+ */
+export function shouldRotateForPersona(state: VoiceCompanionState, personaKey: string): boolean {
+  return state.personaKey !== personaKey;
+}
+
 /** 快照用的 agent 结构子集(Agent 天然满足,测试可造轻量对象)。 */
 export interface SnapshotAgent {
   id: string;
@@ -517,20 +541,27 @@ const CONTRACT_TEMPLATE = '{"action":"general_response|send_to_agent|list_agents
   + '"targetAgentId":null,"targetAgentName":null,"messageToAgent":"","delivery":"queue|interrupt",'
   + '"query":"","memoryOps":[]}';
 
-/** 组装 hop1 系统提示词:角色 + 契约 + 规则 + 记忆 + agent 快照。 */
+/** 组装 hop1 系统提示词:角色 + 人设 + 契约 + 规则 + 记忆 + agent 快照。 */
 export function buildCompanionSystemPrompt(input: {
   agentLines: string[];
   totalAgents: number;
   truncated: boolean;
   memory: CompanionMemory;
   nowText: string;
+  persona?: VoicePersonaConfig;
 }): string {
   const { agentLines, totalAgents, truncated, memory, nowText } = input;
   const agentsBlock = agentLines.length > 0
     ? agentLines.join('\n') + (truncated ? `\n(仅显示最近活动的 ${agentLines.length} 个,共 ${totalAgents} 个)` : '')
     : '(暂无 agent)';
+  const personaStyle = resolvePersonaStyle(
+    input.persona?.preset ?? DEFAULT_PERSONA_ID,
+    input.persona?.custom,
+  );
 
   return `你是 Tide Commander(多 AI agent 指挥台)的语音伙伴,代号「小伴」。老板通过语音和你说话;你负责:聊天、把任务派给合适的 agent、查询 agent 的进展与产出、记住老板的长期偏好。
+
+【人设】${personaStyle}
 
 【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块;严格按模板的字段顺序输出(action、responseToUser 在最前):
 ${CONTRACT_TEMPLATE}
@@ -540,8 +571,8 @@ ${CONTRACT_TEMPLATE}
 【action 说明】
 - send_to_agent: 老板要求某个 agent 做事。targetAgentId 填下方列表里的 id;messageToAgent 写成给该 agent 的完整指令(写清要做什么、在哪个项目/目录);delivery 默认 "queue"。
 - query_agent_output: 老板问某个 agent「最近做了什么/进展如何/结果是什么/输出了什么」。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
-- list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲),不超过 60 字。
-- general_response: 寒暄、问你自己、其它无需操作的对话。必须给出 responseToUser。
+- list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
+- general_response: 正常对话——寒暄、问你自己、闲聊、咨询建议、对老板想法的讨论,都走这条;对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
 - noop: 输入以 [系统事件] 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。
 
 【打断规则(重要)】只有老板明确说出「马上/立刻/现在就/停下/别做了/改用/先别管这个」等急迫语义时,delivery 才填 "interrupt"——这会打断目标 agent 正在进行的工作,代价很大。其它一切情况(催促、补充、追问)都用 "queue"。目标不在 working/waiting 状态时也照填,系统会自行处理。若实际发生了打断,responseToUser 要说明「已打断 X」。
@@ -552,7 +583,7 @@ ${CONTRACT_TEMPLATE}
 - {"op":"setSummary","summary":"…"}: 压缩重写记忆总结(很少用)。
 没有新记忆时 memoryOps 为 []。
 
-【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;1-2 句、口语化、不超过 60 字;不要 emoji、不要 markdown、不要列表。派活时说「已让 X …」。
+【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已让 X …」。这是语音播报,写出来就要能直接念。
 
 【当前时间】${nowText}
 
@@ -771,7 +802,7 @@ interface Hop1Outcome {
   elapsedMs: number;
 }
 
-function buildSystemPromptFromWorld(memory: CompanionMemory): string {
+function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePersonaConfig): string {
   const agents = agentService.getAllAgents();
   let areas: DrawingArea[] = [];
   try {
@@ -781,7 +812,7 @@ function buildSystemPromptFromWorld(memory: CompanionMemory): string {
   }
   const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas);
   const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
-  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText });
+  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona });
 }
 
 async function runHop1(
@@ -792,7 +823,7 @@ async function runHop1(
   stream?: { onTextDelta?: (fullText: string) => void; signal?: AbortSignal },
 ): Promise<Hop1Outcome> {
   const started = Date.now();
-  const systemPrompt = buildSystemPromptFromWorld(state.memory);
+  const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona);
 
   const attempt = (resumeId: string | null) => callClaudeOnce(systemPrompt, userText, {
     model: cfg.model,
@@ -1040,13 +1071,15 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     const started = Date.now();
     const cfg = loadServerConfig();
     const state = loadCompanionState();
+    const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);
 
-    if (shouldRotateSession(state, cfg)) {
+    if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey)) {
       log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
       state.sessionId = null;
       state.sessionStartedAt = null;
       state.turns = 0;
     }
+    state.personaKey = personaKey;
 
     let outcome: Hop1Outcome;
     try {

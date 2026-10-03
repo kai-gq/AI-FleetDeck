@@ -16,6 +16,7 @@ import {
 import type { SoundKind } from '../../utils/notificationSounds';
 import { NOTIFICATION_TONES, CUSTOM_TONE_ID, DEFAULT_TONES, getTone, isToneSilent } from '../../utils/notificationTones';
 import { apiUrl, authFetch } from '../../utils/storage';
+import { VOICE_PERSONAS, PERSONA_CUSTOM_ID, PERSONA_CUSTOM_MAX } from '../../../shared/voice-personas';
 
 /** The notification events a user can override with their own audio file. */
 const SOUND_EVENT_ROWS: Array<{
@@ -1528,6 +1529,42 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           <span className="config-label" title={t('config:experimental.voiceAssistantTitle', { defaultValue: 'Voice assistant for hands-free agent control' })}><HighlightText text={t('config:experimental.voiceAssistant')} query={searchQuery} /> <Icon name="microphone" size={12} /></span>
           <Toggle checked={settings.experimentalVoiceAssistant} onChange={(checked) => store.updateSettings({ experimentalVoiceAssistant: checked })} />
         </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:voicePersona.label', { defaultValue: '人设' })} query={searchQuery} /></span>
+          <select
+            className="config-select"
+            value={settings.voiceAssistantPersonaPreset}
+            onChange={(e) => store.updateSettings({ voiceAssistantPersonaPreset: e.target.value })}
+          >
+            {VOICE_PERSONAS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {t(`config:voicePersona.${p.id}.name`, { defaultValue: p.name })}
+              </option>
+            ))}
+            <option value={PERSONA_CUSTOM_ID}>{t('config:voicePersona.custom', { defaultValue: '自定义…' })}</option>
+          </select>
+        </div>
+        {settings.voiceAssistantPersonaPreset === PERSONA_CUSTOM_ID ? (
+          <div className="config-row config-row-stacked">
+            <textarea
+              className="config-input config-input-full"
+              rows={3}
+              maxLength={PERSONA_CUSTOM_MAX}
+              value={settings.voiceAssistantPersonaCustom}
+              placeholder={t('config:voicePersona.customPlaceholder', { defaultValue: '描述你想要的人设,例如:你是一位经验丰富的老船长,说话豪爽……' })}
+              onChange={(e) => store.updateSettings({ voiceAssistantPersonaCustom: e.target.value })}
+            />
+            <span className="config-hint">{t('config:voicePersona.customHint', { defaultValue: '填写后完全替代预设;留空则用默认「豆包风」。' })}</span>
+          </div>
+        ) : (
+          <div className="config-row config-row-stacked">
+            <span className="config-hint">
+              {t(`config:voicePersona.${settings.voiceAssistantPersonaPreset}.tagline`, {
+                defaultValue: VOICE_PERSONAS.find((p) => p.id === settings.voiceAssistantPersonaPreset)?.tagline ?? '',
+              })}
+            </span>
+          </div>
+        )}
         <div className="config-row config-row-stacked">
           <span className="config-hint">{t('config:voiceAssistant.hint', { defaultValue: '开启后终端右下角出现悬浮麦克风钮;录音转写走上面的语音转文字设置。' })}</span>
         </div>

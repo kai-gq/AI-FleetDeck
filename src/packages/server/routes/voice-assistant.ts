@@ -13,6 +13,7 @@ import { agentService } from '../services/index.js';
 import { loadAreas } from '../data/index.js';
 import { ClaudeBackend } from '../claude/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
+import { personaKeyOf, resolvePersonaStyle, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
 
 const router = Router();
 const claudeBackend = new ClaudeBackend();
@@ -22,6 +23,8 @@ const VOICE_STATE_FILE = path.join(os.homedir(), '.local/share/tide-commander/vo
 
 // Persistent session ID for voice assistant
 let voiceSessionId: string | null = null;
+// 上次使用的人设键(personaKeyOf);变化 → 轮换会话,否则 --resume 的历史会盖过新提示词
+let voiceSessionPersonaKey: string | null = null;
 
 /**
  * Load voice assistant state from disk
@@ -31,6 +34,7 @@ function loadVoiceState(): void {
     if (fs.existsSync(VOICE_STATE_FILE)) {
       const data = JSON.parse(fs.readFileSync(VOICE_STATE_FILE, 'utf-8'));
       voiceSessionId = data.sessionId || null;
+      voiceSessionPersonaKey = typeof data.personaKey === 'string' ? data.personaKey : null;
       logger.server.log(`[VoiceAssistant] Loaded session: ${voiceSessionId}`);
     }
   } catch (err) {
@@ -49,6 +53,7 @@ function saveVoiceState(): void {
     }
     fs.writeFileSync(VOICE_STATE_FILE, JSON.stringify({
       sessionId: voiceSessionId,
+      personaKey: voiceSessionPersonaKey,
       updatedAt: Date.now(),
     }, null, 2));
   } catch (err) {
@@ -60,9 +65,10 @@ function saveVoiceState(): void {
 loadVoiceState();
 
 /**
- * Build the system prompt with current agent list and their areas
+ * Build the system prompt with current agent list and their areas.
+ * persona: 客户端 settings 里的 { preset, custom }(见 shared/voice-personas),缺省用默认人设。
  */
-function buildSystemPrompt(): string {
+function buildSystemPrompt(persona?: { preset?: unknown; custom?: unknown }): string {
   const agents = agentService.getAllAgents();
   const areas = loadAreas();
 
@@ -76,30 +82,34 @@ function buildSystemPrompt(): string {
     return `- ${parts.join(' ')}`;
   }).join('\n');
 
-  return `YOU ARE A JSON API. YOU MUST ONLY OUTPUT VALID JSON. NEVER OUTPUT TEXT OR EXPLANATIONS.
+  const personaStyle = resolvePersonaStyle(persona?.preset, persona?.custom);
 
-You route voice commands to AI agents. You do NOT write code. You do NOT help directly. You ONLY parse and route.
+  return `你是 Tide Commander(多 AI agent 指挥台)的语音助手。老板通过语音和你说话:你负责把任务派给合适的 agent、汇报 agent 情况,也可以正常聊天、回答问题、给建议——你是个有自己判断的真人助手。
 
-Agents:
-${agentList}
+【人设】${personaStyle}
 
-REQUIRED OUTPUT FORMAT (nothing else):
-{"targetAgentId":"id|null","targetAgentName":"name|null","messageToAgent":"the user's request to forward","responseToUser":"brief confirmation under 15 words","action":"send_to_agent|list_agents|general_response"}
+【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块(输出不是合法 JSON 会导致整轮失败):
+{"targetAgentId":"id|null","targetAgentName":"name|null","messageToAgent":"要转发给 agent 的完整指令","responseToUser":"给老板播报的话","action":"send_to_agent|list_agents|general_response"}
 
-ACTIONS:
-- send_to_agent: User wants an agent to do something. Put their request in messageToAgent.
-- list_agents: User asks about agents
-- general_response: Greetings only
+【action 说明】
+- send_to_agent: 老板要求某个 agent 做事。targetAgentId 填下方列表里的 id;messageToAgent 写成给该 agent 的完整指令(写清要做什么)。
+- list_agents: 老板想了解有哪些 agent、谁在忙。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
+- general_response: 一切无需派活/查询的对话——寒暄、问你自己、闲聊、咨询建议、讨论方案。对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
 
-IMPORTANT: responseToUser MUST be in the SAME LANGUAGE as the user's message. If user speaks Spanish, respond in Spanish. If English, respond in English.
+【说话风格】responseToUser 用与老板相同的语言;${VOICE_LENGTH_RULES}派活确认时简短些即可。这是语音播报,写出来就要能直接念。
 
-CRITICAL: Your response must be ONLY the JSON object. No markdown. No explanations. No code.`;
+【agent 列表】(共 ${agents.length} 个)
+${agentList}`;
 }
 
 /**
  * Call Claude Code with haiku model, maintaining session
  */
-async function callClaudeHaiku(userMessage: string, isFirstMessage: boolean): Promise<{ text: string; sessionId: string | null }> {
+async function callClaudeHaiku(
+  userMessage: string,
+  isFirstMessage: boolean,
+  persona?: { preset?: unknown; custom?: unknown },
+): Promise<{ text: string; sessionId: string | null }> {
   return new Promise((resolve, reject) => {
     const executable = claudeBackend.getExecutablePath();
     const args = [
@@ -112,7 +122,7 @@ async function callClaudeHaiku(userMessage: string, isFirstMessage: boolean): Pr
 
     // Always write system prompt to temp file - Claude Code needs it on every call
     const systemPromptFile = path.join(os.tmpdir(), `voice-assistant-prompt-${Date.now()}.txt`);
-    fs.writeFileSync(systemPromptFile, buildSystemPrompt());
+    fs.writeFileSync(systemPromptFile, buildSystemPrompt(persona));
     args.push('--system-prompt-file', systemPromptFile);
 
     // Resume existing session if available
@@ -242,7 +252,7 @@ interface ProcessedCommand {
  * POST /api/voice-assistant/process
  */
 router.post('/process', async (req: Request, res: Response) => {
-  const { text } = req.body;
+  const { text, persona } = req.body;
 
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Text is required' });
@@ -251,8 +261,18 @@ router.post('/process', async (req: Request, res: Response) => {
   logger.server.log(`[VoiceAssistant] Processing: "${text}" (session: ${voiceSessionId || 'new'})`);
 
   try {
+    // 人设变化 → 轮换会话:--resume 的对话历史会盖过新系统提示词,不轮换新老船长会一直"在场"。
+    // personaKey 缺失(旧状态/首次)也算变化 → 一次性轮换到当前人设并落盘。
+    const personaKey = personaKeyOf(persona?.preset, persona?.custom);
+    if (voiceSessionPersonaKey !== personaKey) {
+      if (voiceSessionId) logger.server.log('[VoiceAssistant] Persona changed — starting a new session');
+      voiceSessionId = null;
+      voiceSessionPersonaKey = personaKey;
+      saveVoiceState();
+    }
+
     const isFirstMessage = !voiceSessionId;
-    const { text: response, sessionId } = await callClaudeHaiku(text, isFirstMessage);
+    const { text: response, sessionId } = await callClaudeHaiku(text, isFirstMessage, persona);
 
     // Save session ID for future messages
     if (sessionId && sessionId !== voiceSessionId) {

@@ -22,6 +22,7 @@ import {
   type VoiceCompanionConfig,
 } from '../../api/voiceCompanion';
 import { getSileroStatus, subscribeSileroStatus, type SileroStatus } from '../../voice/sileroVad';
+import { VOICE_PERSONAS, PERSONA_CUSTOM_ID, PERSONA_CUSTOM_MAX } from '../../../shared/voice-personas';
 
 // 火山「流式语音识别大模型」的资源 ID:必须与账号开通的版本一致(403 resource not granted 就是选错了)
 const RESOURCE_ID_OPTIONS: Array<{ value: string; label: string }> = [
@@ -166,6 +167,7 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
     }
   }, [config, endWordsText]);
 
+  // 只加载一次(tx/t 为稳定引用)
   const refreshMemory = useCallback(async () => {
     setMemoryLoading(true);
     setMemoryError(null);
@@ -173,7 +175,7 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
     if (next) setMemory(next);
     else setMemoryError(tx('memoryUnavailable', '记忆服务不可用(需服务端运行)'));
     setMemoryLoading(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const deleteNote = useCallback(async (id: string) => {
     const next = await updateVoiceCompanionMemory({ ops: [{ op: 'remove', id }] });
@@ -205,6 +207,9 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
   // 搜索中或「仅流式但缺凭据」(会直接影响可用性)时强制展开,其余情况默认收起
   const volcForcedOpen = !!searchQuery.trim() || (config.stt.mode === 'stream' && !volcConfigured);
   const volcExpanded = volcOpen || volcForcedOpen;
+  const personaTagline = t(`config:voicePersona.${config.persona.preset}.tagline`, {
+    defaultValue: VOICE_PERSONAS.find((p) => p.id === config.persona.preset)?.tagline ?? '',
+  });
 
   return (
     <>
@@ -227,6 +232,41 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
           <option value="sonnet">{tx('modelSonnet', 'Sonnet(更聪明,更慢)')}</option>
         </select>
       </div>
+
+      <div className="config-row">
+        <span className="config-label"><Highlight text={tx('persona', '人设')} query={searchQuery} /></span>
+        <select
+          className="config-select"
+          value={config.persona.preset}
+          onChange={(e) => patch((c) => ({ ...c, persona: { ...c.persona, preset: e.target.value } }))}
+        >
+          {VOICE_PERSONAS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {t(`config:voicePersona.${p.id}.name`, { defaultValue: p.name })}
+            </option>
+          ))}
+          <option value={PERSONA_CUSTOM_ID}>{tx('personaCustom', '自定义…')}</option>
+        </select>
+      </div>
+      {config.persona.preset === PERSONA_CUSTOM_ID ? (
+        <div className="config-row config-row-stacked">
+          <textarea
+            className="config-input config-input-full"
+            rows={3}
+            maxLength={PERSONA_CUSTOM_MAX}
+            value={config.persona.custom}
+            placeholder={tx('personaCustomPlaceholder', '描述你想要的人设,例如:你是一位经验丰富的老船长,说话豪爽……')}
+            onChange={(e) => patch((c) => ({ ...c, persona: { ...c.persona, custom: e.target.value } }))}
+          />
+          <span className="config-hint">
+            {tx('personaCustomHint', '填写后完全替代预设;留空则用默认「豆包风」。')}
+          </span>
+        </div>
+      ) : (
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">{personaTagline}</span>
+        </div>
+      )}
 
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('sttMode', '转写引擎')} query={searchQuery} /></span>

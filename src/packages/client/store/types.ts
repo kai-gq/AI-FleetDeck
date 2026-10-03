@@ -6,6 +6,7 @@
 
 import { DEFAULT_TONES } from '../utils/notificationTones';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../shared/file-search';
+import { DEFAULT_PERSONA_ID } from '../../shared/voice-personas';
 import type {
   Agent,
   DrawingArea,
@@ -183,6 +184,10 @@ export interface Settings {
   experimentalVoiceAssistant: boolean;
   experimentalTTS: boolean;
   experimentalEchoPrompt: boolean;
+  // Voice assistant persona (see shared/voice-personas): preset id, or 'custom' with
+  // voiceAssistantPersonaCustom as the full persona text. Sent with each /process call.
+  voiceAssistantPersonaPreset: string;
+  voiceAssistantPersonaCustom: string;
   // External editor preference
   externalEditorCommand?: string; // e.g., 'subl', 'code', 'nvim' (empty = system default)
   // Vibration intensity for gestures: 0=off, 1=ultra light, 2=very light, 3=light, 4=medium, 5=heavy
@@ -239,6 +244,8 @@ export const DEFAULT_SETTINGS: Settings = {
   experimentalVoiceAssistant: false,
   experimentalTTS: false,
   experimentalEchoPrompt: false,
+  voiceAssistantPersonaPreset: DEFAULT_PERSONA_ID,
+  voiceAssistantPersonaCustom: '',
   externalEditorCommand: '',
   vibrationIntensity: 1,
   notificationSoundEnabled: false,

@@ -11,6 +11,7 @@
 import { apiUrl, authFetch, getApiBaseUrl, getAuthToken } from '../utils/storage';
 import { readNdjsonLines } from '../voice/ndjsonReader';
 import type { VadEngineMode } from '../voice/vad';
+import { DEFAULT_PERSONA_ID, sanitizePersonaCustom, sanitizePersonaId } from '../../shared/voice-personas';
 
 // ============================================================================
 // 类型与默认值
@@ -77,9 +78,16 @@ export interface BrainConfig {
   maxNotes: number;
 }
 
+/** 人设:预设 id(见 shared/voice-personas)或 'custom'+自定义文本。 */
+export interface VoicePersonaConfig {
+  preset: string;
+  custom: string;
+}
+
 export interface VoiceCompanionConfig {
   enabled: boolean;
   model: 'haiku' | 'sonnet';
+  persona: VoicePersonaConfig;
   stt: {
     mode: SttMode;
     volcengine: VolcengineCredentials;
@@ -93,6 +101,10 @@ export interface VoiceCompanionConfig {
 export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
   enabled: false,
   model: 'haiku',
+  persona: {
+    preset: DEFAULT_PERSONA_ID,
+    custom: '',
+  },
   stt: {
     mode: 'auto',
     volcengine: {
@@ -164,6 +176,7 @@ function str(value: unknown, fallback = ''): string {
 export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig {
   const cfg: VoiceCompanionConfig = {
     ...DEFAULT_VOICE_COMPANION_CONFIG,
+    persona: { ...DEFAULT_VOICE_COMPANION_CONFIG.persona },
     stt: { ...DEFAULT_VOICE_COMPANION_CONFIG.stt, volcengine: { ...DEFAULT_VOICE_COMPANION_CONFIG.stt.volcengine } },
     listening: { ...DEFAULT_VOICE_COMPANION_CONFIG.listening, endWords: [...DEFAULT_VOICE_COMPANION_CONFIG.listening.endWords] },
     proactive: { ...DEFAULT_VOICE_COMPANION_CONFIG.proactive },
@@ -175,6 +188,12 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
 
   if (typeof obj.enabled === 'boolean') cfg.enabled = obj.enabled;
   if (obj.model === 'sonnet' || obj.model === 'haiku') cfg.model = obj.model;
+
+  const persona = obj.persona as Record<string, unknown> | undefined;
+  if (persona && typeof persona === 'object') {
+    cfg.persona.preset = sanitizePersonaId(persona.preset);
+    cfg.persona.custom = sanitizePersonaCustom(persona.custom);
+  }
 
   const stt = obj.stt as Record<string, unknown> | undefined;
   if (stt && typeof stt === 'object') {
