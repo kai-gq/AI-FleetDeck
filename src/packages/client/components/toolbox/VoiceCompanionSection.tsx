@@ -95,6 +95,8 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
   const [error, setError] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showAccessToken, setShowAccessToken] = useState(false);
+  // 火山凭据块默认收起:值一般已在 config.json 配好,面板不必展开
+  const [volcOpen, setVolcOpen] = useState(false);
 
   // 结束词用原始字符串编辑(数组双向绑定会让逗号输入被吞)
   const [endWordsText, setEndWordsText] = useState('');
@@ -200,6 +202,9 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
 
   const volc = config.stt.volcengine;
   const volcConfigured = !!volc.apiKey || (!!volc.appId && !!volc.accessToken);
+  // 搜索中或「仅流式但缺凭据」(会直接影响可用性)时强制展开,其余情况默认收起
+  const volcForcedOpen = !!searchQuery.trim() || (config.stt.mode === 'stream' && !volcConfigured);
+  const volcExpanded = volcOpen || volcForcedOpen;
 
   return (
     <>
@@ -236,76 +241,16 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
         </select>
       </div>
 
-      {/* ---- 火山引擎 ---- */}
-      <div className="config-row config-row-stacked">
-        <span className="config-hint">{tx('volcHint', '火山引擎「大模型流式语音识别」:控制台开通后填 APP ID + Access Token(或新版 ApiKey)。留空 = 自动走本地批量转写,功能不受影响。')}</span>
-      </div>
-      <div className="config-row config-row-stacked">
-        <span className="config-label"><Highlight text={tx('volcApiKey', 'ApiKey(新版控制台,可选)')} query={searchQuery} /></span>
-        <div className="config-input-group">
-          <input
-            type={showApiKey ? 'text' : 'password'}
-            className="config-input config-input-full"
-            value={volc.apiKey}
-            placeholder="…"
-            onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, apiKey: e.target.value } } }))}
-          />
-          <button type="button" className="config-btn config-btn-sm" onClick={() => setShowApiKey(!showApiKey)} title={showApiKey ? tx('hide', '隐藏') : tx('show', '显示')}>
-            <Icon name={showApiKey ? 'eye-closed' : 'eye'} size={14} />
-          </button>
-        </div>
-      </div>
+      {/* ---- 火山引擎(默认收起:凭据/资源/端点写在本机 config.json,面板一般无需改) ---- */}
       <div className="config-row">
-        <span className="config-label"><Highlight text={tx('volcAppId', 'APP ID(旧版控制台)')} query={searchQuery} /></span>
-        <input
-          type="text"
-          className="config-input"
-          value={volc.appId}
-          onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, appId: e.target.value } } }))}
-        />
-      </div>
-      <div className="config-row config-row-stacked">
-        <span className="config-label"><Highlight text={tx('volcAccessToken', 'Access Token(旧版控制台)')} query={searchQuery} /></span>
-        <div className="config-input-group">
-          <input
-            type={showAccessToken ? 'text' : 'password'}
-            className="config-input config-input-full"
-            value={volc.accessToken}
-            onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, accessToken: e.target.value } } }))}
-          />
-          <button type="button" className="config-btn config-btn-sm" onClick={() => setShowAccessToken(!showAccessToken)} title={showAccessToken ? tx('hide', '隐藏') : tx('show', '显示')}>
-            <Icon name={showAccessToken ? 'eye-closed' : 'eye'} size={14} />
-          </button>
-        </div>
-        <span className="config-hint">{tx('volcCredHint', '凭据只写本机 tools/voice-companion/config.json(已加入 .gitignore),不会上传仓库。')}</span>
-      </div>
-      <div className="config-row config-row-stacked">
-        <span className="config-label"><Highlight text={tx('volcResourceId', '资源 ID(按控制台开通的版本选)')} query={searchQuery} /></span>
-        <select
-          className="config-select"
-          value={volc.resourceId}
-          onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, resourceId: e.target.value } } }))}
+        <span className="config-label"><Highlight text={tx('volcSection', '火山引擎流式转写')} query={searchQuery} /></span>
+        <button
+          type="button"
+          className="config-btn config-btn-link"
+          onClick={() => setVolcOpen(!volcExpanded)}
         >
-          {RESOURCE_ID_OPTIONS.map((opt) => (
-            <option key={opt.value || '(empty)'} value={opt.value}>{opt.label}</option>
-          ))}
-          {volc.resourceId && !RESOURCE_ID_OPTIONS.some((opt) => opt.value === volc.resourceId) && (
-            <option value={volc.resourceId}>{volc.resourceId}(自定义)</option>
-          )}
-        </select>
-        <span className="config-hint">{tx('volcResourceHint', '报错「requested resource not granted」= 这里选的版本与账号开通的不一致;拿不准可先试「不发送」')}</span>
-      </div>
-      <div className="config-row">
-        <span className="config-label"><Highlight text={tx('volcEndpoint', '流式端点')} query={searchQuery} /></span>
-        <select
-          className="config-select"
-          value={volc.endpoint}
-          onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, endpoint: e.target.value as typeof volc.endpoint } } }))}
-        >
-          <option value="bigmodel_async">bigmodel_async(推荐)</option>
-          <option value="bigmodel">bigmodel</option>
-          <option value="bigmodel_nostream">bigmodel_nostream</option>
-        </select>
+          {volcExpanded ? tx('volcCollapse', '收起') : tx('volcExpand', '展开配置')}
+        </button>
       </div>
       <div className="config-row config-row-stacked">
         <span className="config-hint">
@@ -316,6 +261,80 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
               : tx('volcStatusMissing', '未配置火山凭据(自动模式 = 本地批量转写)')}
         </span>
       </div>
+      {volcExpanded && (
+        <>
+          <div className="config-row config-row-stacked">
+            <span className="config-hint">{tx('volcHint', '火山引擎「大模型流式语音识别」:控制台开通后填 APP ID + Access Token(或新版 ApiKey)。留空 = 自动走本地批量转写,功能不受影响。')}</span>
+          </div>
+          <div className="config-row config-row-stacked">
+            <span className="config-label"><Highlight text={tx('volcApiKey', 'ApiKey(新版控制台,可选)')} query={searchQuery} /></span>
+            <div className="config-input-group">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                className="config-input config-input-full"
+                value={volc.apiKey}
+                placeholder="…"
+                onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, apiKey: e.target.value } } }))}
+              />
+              <button type="button" className="config-btn config-btn-sm" onClick={() => setShowApiKey(!showApiKey)} title={showApiKey ? tx('hide', '隐藏') : tx('show', '显示')}>
+                <Icon name={showApiKey ? 'eye-closed' : 'eye'} size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="config-row">
+            <span className="config-label"><Highlight text={tx('volcAppId', 'APP ID(旧版控制台)')} query={searchQuery} /></span>
+            <input
+              type="text"
+              className="config-input"
+              value={volc.appId}
+              onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, appId: e.target.value } } }))}
+            />
+          </div>
+          <div className="config-row config-row-stacked">
+            <span className="config-label"><Highlight text={tx('volcAccessToken', 'Access Token(旧版控制台)')} query={searchQuery} /></span>
+            <div className="config-input-group">
+              <input
+                type={showAccessToken ? 'text' : 'password'}
+                className="config-input config-input-full"
+                value={volc.accessToken}
+                onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, accessToken: e.target.value } } }))}
+              />
+              <button type="button" className="config-btn config-btn-sm" onClick={() => setShowAccessToken(!showAccessToken)} title={showAccessToken ? tx('hide', '隐藏') : tx('show', '显示')}>
+                <Icon name={showAccessToken ? 'eye-closed' : 'eye'} size={14} />
+              </button>
+            </div>
+            <span className="config-hint">{tx('volcCredHint', '凭据只写本机 tools/voice-companion/config.json(已加入 .gitignore),不会上传仓库。')}</span>
+          </div>
+          <div className="config-row config-row-stacked">
+            <span className="config-label"><Highlight text={tx('volcResourceId', '资源 ID(按控制台开通的版本选)')} query={searchQuery} /></span>
+            <select
+              className="config-select"
+              value={volc.resourceId}
+              onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, resourceId: e.target.value } } }))}
+            >
+              {RESOURCE_ID_OPTIONS.map((opt) => (
+                <option key={opt.value || '(empty)'} value={opt.value}>{opt.label}</option>
+              ))}
+              {volc.resourceId && !RESOURCE_ID_OPTIONS.some((opt) => opt.value === volc.resourceId) && (
+                <option value={volc.resourceId}>{volc.resourceId}(自定义)</option>
+              )}
+            </select>
+            <span className="config-hint">{tx('volcResourceHint', '报错「requested resource not granted」= 这里选的版本与账号开通的不一致;拿不准可先试「不发送」')}</span>
+          </div>
+          <div className="config-row">
+            <span className="config-label"><Highlight text={tx('volcEndpoint', '流式端点')} query={searchQuery} /></span>
+            <select
+              className="config-select"
+              value={volc.endpoint}
+              onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, endpoint: e.target.value as typeof volc.endpoint } } }))}
+            >
+              <option value="bigmodel_async">bigmodel_async(推荐)</option>
+              <option value="bigmodel">bigmodel</option>
+              <option value="bigmodel_nostream">bigmodel_nostream</option>
+            </select>
+          </div>
+        </>
+      )}
 
       {/* ---- 聆听 ---- */}
       <div className="config-row">
