@@ -187,7 +187,13 @@ const HISTORY_EXCERPT_COUNT = 6;
 const HISTORY_ITEM_CHARS = 400;
 const HISTORY_TOTAL_CHARS = 1500;
 
-const STATE_FILE = path.join(os.homedir(), '.local/share/tide-commander/voice-companion.json');
+// XDG-compliant(与 data/index.ts 惯例一致):测试沙箱靠 XDG_DATA_HOME 重定向,
+// 避免测试进程误写真实状态文件。未设 XDG 的机器解析结果与旧路径完全相同。
+const STATE_FILE = path.join(
+  process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
+  'tide-commander',
+  'voice-companion.json',
+);
 const CONFIG_FILE = path.join(process.cwd(), 'tools/voice-companion/config.json');
 
 const DEGRADED_RESPONSE = '抱歉,我这会儿没听清,请再说一遍。';
