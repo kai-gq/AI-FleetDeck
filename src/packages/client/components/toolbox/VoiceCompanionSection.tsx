@@ -113,6 +113,8 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
       if (!alive) return;
       setStatus(s);
       setStatusLoaded(true);
+      // 状态里就带着记忆:直接预填,点「查看/刷新」再拉最新
+      if (s?.memory) setMemory(s.memory);
     });
     return () => {
       alive = false;
@@ -475,7 +477,7 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
         <span className="config-label"><Highlight text={tx('session', '会话')} query={searchQuery} /></span>
         <span className="config-hint">
           {status?.hasSession
-            ? `${status.turns} ${tx('sessionTurns', '轮')} · ${status.sessionId?.slice(0, 8) ?? ''}`
+            ? `${status.turns} ${tx('sessionTurns', '轮')} · ${status.model}`
             : tx('sessionNone', '尚无会话(说句话就开始)')}
         </span>
         <button type="button" className="config-btn config-btn-sm" onClick={() => void resetSession()} disabled={!status?.hasSession}>

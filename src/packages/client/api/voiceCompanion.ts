@@ -358,13 +358,11 @@ export interface CompanionMemory {
 export interface CompanionStatus {
   available: boolean;
   hasSession: boolean;
-  sessionId: string | null;
   turns: number;
   sessionStartedAt: number | null;
   lastUsedAt: number | null;
-  memoryNotes: number;
-  memorySummary: string;
   model: string;
+  memory: CompanionMemory;
 }
 
 export async function getVoiceCompanionStatus(): Promise<CompanionStatus | null> {
