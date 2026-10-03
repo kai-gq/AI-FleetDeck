@@ -32,6 +32,8 @@ import '../styles/components/voice-companion.scss';
 const LEADER_KEY = 'tide:voice-companion:leader';
 const LEADER_TTL_MS = 15_000;
 const LEADER_TICK_MS = 5_000;
+/** 打断播报后的连击保护窗:窗口内再点只当打断,不关麦(P3)。 */
+const BARGE_IN_CLICK_GUARD_MS = 500;
 
 function isAbortError(err: unknown): boolean {
   return (err as { name?: string })?.name === 'AbortError';
@@ -64,6 +66,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const entryIdRef = useRef(0);
   const speakGenRef = useRef(0);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const lastBargeInAtRef = useRef(0);
   const sentencesRef = useRef<string[]>([]); // 本轮已播句子(dev 钩子 E2E 断言用)
   const tabIdRef = useRef(`vc-${Math.random().toString(36).slice(2, 10)}`);
   const queueRef = useRef<string[]>([]);
@@ -263,15 +266,19 @@ export function VoiceCompanion({ className }: { className?: string }) {
     ttsSpeaking,
     onPartial: (text) => setLiveText(text),
     onFinal: (text, meta) => {
-      pushEntry('user', text);
+      // 手动提交回放的同一文本已上屏过,不再重复 push(P11)
+      if (!meta.fromPending) pushEntry('user', text);
       if (!meta.submit) return; // 仅上屏:等用户点「提交」或说结束词
       queueRef.current.push(text);
       void drainQueue();
     },
     onBargeIn: () => {
+      lastBargeInAtRef.current = Date.now();
       speakGenRef.current++;
       streamAbortRef.current?.abort();
       stopSpeech();
+      // 打断是"无声"的:给一条可见提示,避免用户以为播报丢了(P7)
+      pushEntry('system', t('terminal:voiceCompanion.notices.bargeIn', { defaultValue: '已打断播报,继续聆听…' }));
     },
     onError: (message) => {
       setLiveText('');
@@ -335,10 +342,15 @@ export function VoiceCompanion({ className }: { className?: string }) {
       return;
     }
     if (ttsSpeaking) {
+      // 播报中点击 = 打断(不关麦);记时间戳供连击保护
+      lastBargeInAtRef.current = Date.now();
       speakGenRef.current++;
       streamAbortRef.current?.abort();
       stopSpeech();
       return;
+    }
+    if (Date.now() - lastBargeInAtRef.current < BARGE_IN_CLICK_GUARD_MS) {
+      return; // 双击的第二下:打断已结束,但用户意图仍是打断,不当关麦(P3)
     }
     setSessionOn(false);
     setLiveText('');
