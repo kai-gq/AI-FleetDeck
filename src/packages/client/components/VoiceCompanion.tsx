@@ -208,6 +208,26 @@ export function VoiceCompanion({ className }: { className?: string }) {
     [enqueueSpeech],
   );
 
+  /** 服务端稳定错误码 → 中文文案(P8);未知码/旧服务端回退到 error 原文。 */
+  const errorTextFor = useCallback(
+    (res: { code?: string; error?: string }): string => {
+      switch (res.code) {
+        case 'CLAUDE_NOT_FOUND':
+          return t('terminal:voiceCompanion.errors.claudeNotFound', { defaultValue: '未找到 Claude CLI,请检查安装与 PATH' });
+        case 'TEXT_REQUIRED':
+          return t('terminal:voiceCompanion.errors.textRequired', { defaultValue: '没有听到内容' });
+        case 'TEXT_TOO_LONG':
+          return t('terminal:voiceCompanion.errors.textTooLong', { defaultValue: '内容太长,请分两句说' });
+        case 'PROCESS_FAILED':
+        case 'INTERNAL':
+          return t('terminal:voiceCompanion.errors.processFailed', { defaultValue: '语音伙伴处理失败' });
+        default:
+          return res.error || t('terminal:voiceCompanion.errors.processFailed', { defaultValue: '语音伙伴处理失败' });
+      }
+    },
+    [t],
+  );
+
   /** 串行处理队列:大脑可能慢(两跳查询),并发提交会让回复错序。 */
   const drainQueue = useCallback(async () => {
     if (busyRef.current) return;
@@ -222,10 +242,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
           if (res.success && res.response) {
             pushEntry('assistant', res.response);
           } else if (!res.success) {
-            pushEntry(
-              'error',
-              res.error || t('terminal:voiceCompanion.errors.processFailed', { defaultValue: '语音伙伴处理失败' }),
-            );
+            pushEntry('error', errorTextFor(res));
           }
           // success 且无 response:noop,不出声也不上屏
         } catch (err) {
@@ -242,7 +259,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
     } finally {
       busyRef.current = false;
     }
-  }, [pushEntry, runStreamSafely, t]);
+  }, [pushEntry, runStreamSafely, errorTextFor]);
 
   const submitText = useCallback(
     (text: string) => {

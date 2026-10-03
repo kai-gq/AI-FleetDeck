@@ -360,6 +360,8 @@ export interface VoiceProcessRequestResult {
   degraded?: boolean;
   elapsedMs?: number;
   error?: string;
+  /** 服务端稳定错误码(见 routes/voice-companion.ts);前端按它做中文映射。 */
+  code?: string;
 }
 
 /** 提交一段文本(语音终稿或系统事件)给语音伙伴大脑。 */
@@ -374,7 +376,7 @@ export async function processVoiceCompanionText(
   });
   const data = (await res.json().catch(() => ({}))) as VoiceProcessRequestResult;
   if (!res.ok) {
-    return { success: false, error: data.error || `请求失败(${res.status})` };
+    return { success: false, error: data.error || `请求失败(${res.status})`, code: data.code };
   }
   return { ...data, success: data.success !== false };
 }
@@ -414,7 +416,7 @@ export async function processVoiceCompanionTextStream(
     const data = (await res.json().catch(() => ({}))) as VoiceProcessRequestResult;
     handlers.onFinal(res.ok
       ? { ...data, success: data.success !== false, spoke: false }
-      : { success: false, error: data.error || `请求失败(${res.status})`, spoke: false });
+      : { success: false, error: data.error || `请求失败(${res.status})`, code: data.code, spoke: false });
     return;
   }
   if (!res.body) {
@@ -432,7 +434,11 @@ export async function processVoiceCompanionTextStream(
       handlers.onFinal({ ...result, success: result.success !== false, spoke: line.spoke === true });
     } else if (line.type === 'error') {
       finalSeen = true;
-      handlers.onFinal({ success: false, error: typeof line.error === 'string' ? line.error : '处理失败' });
+      handlers.onFinal({
+        success: false,
+        error: typeof line.error === 'string' ? line.error : '处理失败',
+        code: typeof line.code === 'string' ? line.code : undefined,
+      });
     }
   }, opts.signal);
 

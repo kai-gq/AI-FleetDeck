@@ -30,11 +30,25 @@ const router = Router();
 const MAX_TEXT_LENGTH = 4_000;
 
 /**
+ * 稳定错误码(P8):客户端按 code 做中文映射;error 保留英文原文兼容旧客户端。
+ *   400 TEXT_REQUIRED / TEXT_TOO_LONG / OPS_NOT_ARRAY
+ *   500 CLAUDE_NOT_FOUND / PROCESS_FAILED / INTERNAL
+ */
+const ERROR_CODE = {
+  TEXT_REQUIRED: 'TEXT_REQUIRED',
+  TEXT_TOO_LONG: 'TEXT_TOO_LONG',
+  OPS_NOT_ARRAY: 'OPS_NOT_ARRAY',
+  CLAUDE_NOT_FOUND: 'CLAUDE_NOT_FOUND',
+  PROCESS_FAILED: 'PROCESS_FAILED',
+  INTERNAL: 'INTERNAL',
+} as const;
+
+/**
  * 分句流式分支(body.stream === true):NDJSON 逐行下推。
  *   {"type":"sentence","text":"…"}   模型边生成边播的整句(可能 0..n 行)
  *   {"type":"final","result":{…},"spoke":bool}  最终结果;spoke=false 时客户端
  *                                     应按 result.response 整段补播
- *   {"type":"error","error":"…","details":"…"}  失败
+ *   {"type":"error","error":"…","code":"…","details":"…"}  失败
  * 客户端断开即 abort:kill claude 子进程,释放互斥队列。
  */
 async function handleStreamProcess(res: Response, text: string, isEvent: boolean): Promise<void> {
@@ -63,10 +77,10 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
     const e = err as NodeJS.ErrnoException;
     if (e.code === 'ENOENT') {
       logger.server.error(`[VoiceCompanion] Claude 可执行文件未找到: ${e.message}`);
-      writeNdjsonLine(res, { type: 'error', error: 'Claude CLI not found', details: e.message });
+      writeNdjsonLine(res, { type: 'error', error: 'Claude CLI not found', code: ERROR_CODE.CLAUDE_NOT_FOUND, details: e.message });
     } else {
       logger.server.error(`[VoiceCompanion] Error: ${(err as Error)?.message}`);
-      writeNdjsonLine(res, { type: 'error', error: 'Failed to process', details: (err as Error)?.message });
+      writeNdjsonLine(res, { type: 'error', error: 'Failed to process', code: ERROR_CODE.PROCESS_FAILED, details: (err as Error)?.message });
     }
     endNdjson(res);
   }
@@ -79,10 +93,10 @@ router.post('/process', async (req: Request, res: Response) => {
   const { text, event, stream } = req.body ?? {};
 
   if (!text || typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ error: 'Text is required' });
+    return res.status(400).json({ error: 'Text is required', code: ERROR_CODE.TEXT_REQUIRED });
   }
   if (text.length > MAX_TEXT_LENGTH) {
-    return res.status(400).json({ error: 'Text too long' });
+    return res.status(400).json({ error: 'Text too long', code: ERROR_CODE.TEXT_TOO_LONG });
   }
 
   logger.server.log(`[VoiceCompanion] Processing${event ? ' (event)' : ''}${stream ? ' (stream)' : ''}: "${text.slice(0, 120)}"`);
@@ -98,10 +112,10 @@ router.post('/process', async (req: Request, res: Response) => {
     const e = err as NodeJS.ErrnoException;
     if (e.code === 'ENOENT') {
       logger.server.error(`[VoiceCompanion] Claude 可执行文件未找到: ${e.message}`);
-      return res.status(500).json({ error: 'Claude CLI not found', details: e.message });
+      return res.status(500).json({ error: 'Claude CLI not found', code: ERROR_CODE.CLAUDE_NOT_FOUND, details: e.message });
     }
     logger.server.error(`[VoiceCompanion] Error: ${(err as Error)?.message}`);
-    return res.status(500).json({ error: 'Failed to process', details: (err as Error)?.message });
+    return res.status(500).json({ error: 'Failed to process', code: ERROR_CODE.PROCESS_FAILED, details: (err as Error)?.message });
   }
 });
 
@@ -112,7 +126,7 @@ router.get('/status', (_req: Request, res: Response) => {
   try {
     res.json({ available: true, ...getCompanionStatus() });
   } catch (err) {
-    res.status(500).json({ error: (err as Error)?.message });
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
   }
 });
 
@@ -125,7 +139,7 @@ router.post('/reset', (req: Request, res: Response) => {
     resetCompanion({ keepMemory });
     res.json({ success: true, keepMemory });
   } catch (err) {
-    res.status(500).json({ error: (err as Error)?.message });
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
   }
 });
 
@@ -136,7 +150,7 @@ router.get('/memory', (_req: Request, res: Response) => {
   try {
     res.json({ success: true, memory: getCompanionMemory() });
   } catch (err) {
-    res.status(500).json({ error: (err as Error)?.message });
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
   }
 });
 
@@ -147,7 +161,7 @@ router.post('/memory', (req: Request, res: Response) => {
   try {
     const { ops, clear } = req.body ?? {};
     if (ops !== undefined && !Array.isArray(ops)) {
-      return res.status(400).json({ error: 'ops must be an array' });
+      return res.status(400).json({ error: 'ops must be an array', code: ERROR_CODE.OPS_NOT_ARRAY });
     }
     const memory = updateCompanionMemory({
       ops: ops as VoiceMemoryOp[] | undefined,
@@ -155,7 +169,7 @@ router.post('/memory', (req: Request, res: Response) => {
     });
     res.json({ success: true, memory });
   } catch (err) {
-    res.status(500).json({ error: (err as Error)?.message });
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
   }
 });
 

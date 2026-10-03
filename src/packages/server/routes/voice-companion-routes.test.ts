@@ -81,6 +81,7 @@ describe('POST /process 参数校验', () => {
       const { status, json } = await post(body);
       expect(status).toBe(400);
       expect(json.error).toBe('Text is required');
+      expect(json.code).toBe('TEXT_REQUIRED');
     }
     expect(service.processVoiceInput).not.toHaveBeenCalled();
   });
@@ -89,6 +90,7 @@ describe('POST /process 参数校验', () => {
     const { status, json } = await post({ text: 'a'.repeat(4_001) });
     expect(status).toBe(400);
     expect(json.error).toBe('Text too long');
+    expect(json.code).toBe('TEXT_TOO_LONG');
     expect(service.processVoiceInput).not.toHaveBeenCalled();
   });
 });
@@ -120,14 +122,14 @@ describe('POST /process 非流式', () => {
     );
     const { status, json } = await post({ text: '你好' });
     expect(status).toBe(500);
-    expect(json).toEqual({ error: 'Claude CLI not found', details: 'spawn claude ENOENT' });
+    expect(json).toEqual({ error: 'Claude CLI not found', code: 'CLAUDE_NOT_FOUND', details: 'spawn claude ENOENT' });
   });
 
   it('maps other failures to 500 Failed to process', async () => {
     vi.mocked(service.processVoiceInput).mockRejectedValue(new Error('boom'));
     const { status, json } = await post({ text: '你好' });
     expect(status).toBe(500);
-    expect(json).toEqual({ error: 'Failed to process', details: 'boom' });
+    expect(json).toEqual({ error: 'Failed to process', code: 'PROCESS_FAILED', details: 'boom' });
   });
 });
 
@@ -177,12 +179,12 @@ describe('POST /process 流式(NDJSON)', () => {
 
     const first = await (await request()).text();
     expect(parseNdjson(first)).toEqual([
-      { type: 'error', error: 'Claude CLI not found', details: 'spawn claude ENOENT' },
+      { type: 'error', error: 'Claude CLI not found', code: 'CLAUDE_NOT_FOUND', details: 'spawn claude ENOENT' },
     ]);
 
     const second = await (await request()).text();
     expect(parseNdjson(second)).toEqual([
-      { type: 'error', error: 'Failed to process', details: 'boom' },
+      { type: 'error', error: 'Failed to process', code: 'PROCESS_FAILED', details: 'boom' },
     ]);
   });
 
@@ -277,7 +279,7 @@ describe('状态 / 重置 / 记忆接口', () => {
       body: JSON.stringify({ ops: 'nope' }),
     });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'ops must be an array' });
+    expect(await res.json()).toEqual({ error: 'ops must be an array', code: 'OPS_NOT_ARRAY' });
     expect(service.updateCompanionMemory).not.toHaveBeenCalled();
   });
 
