@@ -20,6 +20,7 @@ import { initEventDb, closeEventDb } from './data/event-db.js';
 import * as eventQueries from './data/event-queries.js';
 import { logger, closeFileLogging, getLogFilePath, createLogger } from './utils/logger.js';
 import { setupTerminalWsProxy } from './services/terminal-proxy.js';
+import { attachVoiceCompanionStream } from './voice/voice-companion-stream.js';
 import { initIntegrations, shutdownIntegrations, getIntegrationTriggerHandlers } from './integrations/integration-registry.js';
 import { initBackupService, shutdownBackupService } from './services/backup-service.js';
 import { initAutoUpdateService, shutdownAutoUpdateService } from './services/auto-update-service.js';
@@ -262,6 +263,11 @@ async function main(): Promise<void> {
   // (HTTP proxy is set up in app.ts before API routes)
   for (const { server: listener } of listeners) {
     setupTerminalWsProxy(listener);
+  }
+
+  // 语音伙伴:流式转写通道(WS 代理 → 火山引擎 SAUC;未配凭据时客户端回退批量转写)
+  for (const { server: listener } of listeners) {
+    attachVoiceCompanionStream(listener);
   }
 
   // Set up skill hot-reload (must be after websocket init to have broadcast available)

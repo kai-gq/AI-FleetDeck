@@ -189,6 +189,59 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
   }
 }
 
+// ----------------------------------------------------------------------------
+// 流式转写(火山引擎)凭据 —— 与上同文件(config.json 的 stt.volcengine 节)
+// ----------------------------------------------------------------------------
+
+export type VolcengineEndpoint = 'bigmodel_async' | 'bigmodel' | 'bigmodel_nostream';
+
+export interface VolcengineSttConfig {
+  /** 新版控制台 ApiKey(优先);为空则用旧版 appId + accessToken。 */
+  apiKey: string;
+  appId: string;
+  accessToken: string;
+  resourceId: string;
+  endpoint: VolcengineEndpoint;
+}
+
+export const DEFAULT_VOLCENGINE_STT_CONFIG: VolcengineSttConfig = {
+  apiKey: '',
+  appId: '',
+  accessToken: '',
+  resourceId: 'volc.bigasr.sauc.duration',
+  endpoint: 'bigmodel_async',
+};
+
+const VOLC_ENDPOINTS: VolcengineEndpoint[] = ['bigmodel_async', 'bigmodel', 'bigmodel_nostream'];
+const CREDENTIAL_MAX_CHARS = 512;
+
+/** 凭据字符串清洗:去空白、限长;绝不写日志。 */
+function sanitizeCredential(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, CREDENTIAL_MAX_CHARS) : '';
+}
+
+/** 读取 config.json 的 stt.volcengine 节;缺失回默认(空凭据 = 客户端走批量回退)。 */
+export function loadVolcengineSttConfig(): VolcengineSttConfig {
+  try {
+    if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULT_VOLCENGINE_STT_CONFIG };
+    const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    const volc = raw?.stt?.volcengine ?? {};
+    const endpoint = VOLC_ENDPOINTS.includes(volc?.endpoint)
+      ? (volc.endpoint as VolcengineEndpoint)
+      : DEFAULT_VOLCENGINE_STT_CONFIG.endpoint;
+    return {
+      apiKey: sanitizeCredential(volc?.apiKey),
+      appId: sanitizeCredential(volc?.appId),
+      accessToken: sanitizeCredential(volc?.accessToken),
+      resourceId: sanitizeCredential(volc?.resourceId) || DEFAULT_VOLCENGINE_STT_CONFIG.resourceId,
+      endpoint,
+    };
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 读取火山凭据失败,视为未配置: ${(err as Error).message}`);
+    return { ...DEFAULT_VOLCENGINE_STT_CONFIG };
+  }
+}
+
 function sanitizeMemory(raw: unknown): CompanionMemory {
   const memory: CompanionMemory = { ...DEFAULT_MEMORY, notes: [] };
   if (raw && typeof raw === 'object') {
