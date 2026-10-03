@@ -116,6 +116,35 @@ describe('SentenceChunker', () => {
     expect(chunker.push('没有标点的结尾', false)).toEqual([]);
     expect(chunker.flush()).toEqual(['没有标点的结尾']);
   });
+
+  it('flushTerminated emits a dangling terminated sentence on grace expiry', () => {
+    const chunker = new SentenceChunker();
+    expect(chunker.push('第一句。')).toEqual([]); // 正常路径:等下一个字符
+    expect(chunker.flushTerminated()).toEqual(['第一句。']); // 宽限:不再等
+    expect(chunker.flushTerminated()).toEqual([]); // 已吐出,不重发
+    expect(chunker.flush()).toEqual([]);
+  });
+
+  it('flushTerminated does not force an unterminated remainder', () => {
+    const chunker = new SentenceChunker();
+    expect(chunker.push('还在写')).toEqual([]);
+    expect(chunker.flushTerminated()).toEqual([]); // 无终结符:继续挂起
+    expect(chunker.flush()).toEqual(['还在写']);
+  });
+
+  it('flushTerminated still merges a too-short fragment', () => {
+    const chunker = new SentenceChunker();
+    expect(chunker.push('嗯。')).toEqual([]);
+    expect(chunker.flushTerminated()).toEqual([]); // 「嗯。」太短:并给下一句
+    expect(chunker.flush()).toEqual(['嗯。']);
+  });
+
+  it('grace-flushing a dangling ellipsis after long silence is allowed (trade-off documented)', () => {
+    const chunker = new SentenceChunker();
+    expect(chunker.push('让我想想…')).toEqual([]);
+    // 正常路径会等第二个「…」(见上一条用例);静默满宽限则按整句吐出。
+    expect(chunker.flushTerminated()).toEqual(['让我想想…']);
+  });
 });
 
 function feedAll(stream: JsonStringStream, raw: string, step: number): string[] {
@@ -164,5 +193,20 @@ describe('createJsonStringStream', () => {
   it('emits nothing for noop-style empty values', () => {
     const raw = JSON.stringify({ action: 'noop', responseToUser: '' });
     expect(feedAll(createJsonStringStream('responseToUser'), raw, 1)).toEqual([]);
+  });
+
+  it('flushTerminated emits the dangling first sentence, then normal flow resumes', () => {
+    const stream = createJsonStringStream('responseToUser');
+    const partial = '{"action":"general_response","responseToUser":"第一句。';
+    expect(stream.pushRaw(partial)).toEqual([]); // 句号悬尾:正常路径按住
+    expect(stream.flushTerminated()).toEqual(['第一句。']); // 宽限到期:先吐
+    expect(stream.pushRaw(`${partial}第二句。"}`)).toEqual(['第二句。']); // 后续不重不漏
+    expect(stream.flushTerminated()).toEqual([]);
+  });
+
+  it('flushTerminated is a no-op after the field closed', () => {
+    const stream = createJsonStringStream('responseToUser');
+    expect(stream.pushRaw(contract)).toEqual(['好的,我看看。', '稍等,我确认一下再回你。']);
+    expect(stream.flushTerminated()).toEqual([]);
   });
 });

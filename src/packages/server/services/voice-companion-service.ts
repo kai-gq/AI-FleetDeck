@@ -32,7 +32,7 @@ import { ClaudeBackend } from '../claude/index.js';
 import * as agentService from './agent-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
-import { findStringField, createJsonStringStream } from '../voice/contract-stream.js';
+import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction } from '../voice/speech-gate.js';
 import type { Agent } from '../../shared/agent-types.js';
@@ -830,6 +830,8 @@ async function runHop1(
 ): Promise<Hop1Outcome> {
   const started = Date.now();
   const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona);
+  // 体积打点(P5):agent 快照是 prompt 的最大变项,超预期先看这里。
+  log.log(`[VoiceCompanion] system prompt ${systemPrompt.length} 字符`);
 
   const attempt = (resumeId: string | null) => callClaudeOnce(systemPrompt, userText, {
     model: cfg.model,
@@ -1001,12 +1003,22 @@ interface SpeechPipeline {
   setHop1Action: (action: CompanionAction) => void;
   releaseHop1: () => void;
   discardHop1: () => void;
+  /** 收尾:取消宽限 flush 定时器(避免请求结束后残留计时器)。 */
+  dispose: () => void;
   readonly spoke: boolean;
 }
 
 const GATE_ACTIONS = new Set<string>([
   'general_response', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
 ]);
+
+/**
+ * 悬尾标点宽限 flush(P5,180ms):模型把「第一句。」写完后若在句号处停顿
+ * (继续写别的字段),正常切句会等下一个字符才吐句 —— 白白拖慢首句合成。
+ * 每次增量后若没有新句产出就重新计时,静默满 180ms 才强吐「已带终结符」
+ * 的悬尾句;未终结的余量不受影响(切句语义不变)。
+ */
+const GRACE_FLUSH_MS = 180;
 
 /**
  * 分句流式播报管线:把 hop1/hop2 的文本增量变成「可播报的整句」,
@@ -1021,6 +1033,7 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
       setHop1Action: () => {},
       releaseHop1: () => {},
       discardHop1: () => {},
+      dispose: () => {},
       get spoke() { return false; },
     };
   }
@@ -1034,6 +1047,30 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
   hop2Gate.setAction('general_response');
   const hop2Stream = createJsonStringStream('responseToUser');
 
+  /** 给一条流挂宽限 flush 计时器(见 GRACE_FLUSH_MS 注释)。 */
+  const makeGraceFlusher = (stream: JsonStringStream, emit: (s: string) => void) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const cancel = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    return {
+      afterPush(sentences: string[]) {
+        cancel();
+        if (sentences.length > 0) return; // 已有整句吐出:余量必然无「可切终结符」
+        timer = setTimeout(() => {
+          timer = null;
+          for (const s of stream.flushTerminated()) emit(s);
+        }, GRACE_FLUSH_MS);
+      },
+      cancel,
+    };
+  };
+  const hop1Grace = makeGraceFlusher(hop1Stream, (s) => gate.push(s));
+  const hop2Grace = makeGraceFlusher(hop2Stream, (s) => hop2Gate.push(s));
+
   return {
     onHop1Delta(fullText: string) {
       if (!actionSeen) {
@@ -1045,10 +1082,14 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
           gate.setAction(hit.value as GateAction);
         }
       }
-      for (const sentence of hop1Stream.pushRaw(fullText)) gate.push(sentence);
+      const sentences = hop1Stream.pushRaw(fullText);
+      for (const s of sentences) gate.push(s);
+      hop1Grace.afterPush(sentences);
     },
     onHop2Delta(fullText: string) {
-      for (const sentence of hop2Stream.pushRaw(fullText)) hop2Gate.push(sentence);
+      const sentences = hop2Stream.pushRaw(fullText);
+      for (const s of sentences) hop2Gate.push(s);
+      hop2Grace.afterPush(sentences);
     },
     setHop1Action(action: CompanionAction) {
       actionSeen = true;
@@ -1059,6 +1100,10 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
     },
     discardHop1() {
       gate.discard();
+    },
+    dispose() {
+      hop1Grace.cancel();
+      hop2Grace.cancel();
     },
     get spoke() {
       return gate.spoke || hop2Gate.spoke;
@@ -1079,6 +1124,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
   return withMutex(async () => {
     const speech = createSpeechPipeline(opts.onSentence);
     const finish = (r: VoiceProcessResult): VoiceProcessResult => {
+      speech.dispose(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)
       if (speech.spoke) r.spoke = true;
       return r;
     };
@@ -1104,8 +1150,14 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       });
     } catch (err) {
       const e = err as NodeJS.ErrnoException & { name?: string };
-      if (e.code === 'ENOENT') throw err; // 服务器没装 claude —— 配置问题,交给路由 500
-      if (e.name === 'VoiceCompanionAborted') throw err; // 客户端已断开:交给路由静默收尾
+      if (e.code === 'ENOENT') {
+        speech.dispose();
+        throw err; // 服务器没装 claude —— 配置问题,交给路由 500
+      }
+      if (e.name === 'VoiceCompanionAborted') {
+        speech.dispose();
+        throw err; // 客户端已断开:交给路由静默收尾
+      }
       const shouldDegrade = e.name === 'VoiceCompanionTimeout'
         || e.name === 'VoiceCompanionParse'
         || /exited with code|No response from Claude/.test(e.message ?? '');
@@ -1192,7 +1244,10 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         );
         result.response = answer;
       } catch (err) {
-        if (err instanceof VoiceCompanionAbortedError) throw err;
+        if (err instanceof VoiceCompanionAbortedError) {
+          speech.dispose();
+          throw err;
+        }
         log.warn(`[VoiceCompanion] hop2 失败,用确定性摘要: ${(err as Error).message}`);
         result.response = `「${target.name}」最近的输出:${excerpt.slice(0, 160)}${excerpt.length > 160 ? '…' : ''}`;
         result.degraded = true;

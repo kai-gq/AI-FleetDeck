@@ -175,12 +175,21 @@ export class SentenceChunker {
     return this.drain(true);
   }
 
+  /**
+   * 宽限 flush(P5):只吐出「已带终结符、但悬在缓冲末尾」的整句。
+   * 模型在句号后暂停(还在写别的字段)时,由调用方在静默 ~180ms 后触发,
+   * 避免第一句白等;未终结的余量仍挂起,不改变正常切句语义。
+   */
+  flushTerminated(): string[] {
+    return this.drain(false, true);
+  }
+
   /** 防御:字段值回退(异常输入)时清空游标。 */
   reset(): void {
     this.pending = '';
   }
 
-  private drain(atEnd: boolean): string[] {
+  private drain(atEnd: boolean, forceTerminatedTail = false): string[] {
     const out: string[] = [];
     let searchFrom = 0;
     for (;;) {
@@ -197,7 +206,7 @@ export class SentenceChunker {
         }
       }
 
-      const cut = this.findCut(searchFrom, atEnd);
+      const cut = this.findCut(searchFrom, atEnd || forceTerminatedTail);
       if (cut === -1) break;
 
       // 正文长度不含尾部的终结符与收尾符:「嗯。」算 1 个字,与下一句合并
@@ -261,6 +270,8 @@ export class SentenceChunker {
 export interface JsonStringStream {
   /** 喂入「到目前为止的累计原文」(模型输出全文),返回新完成的句子。 */
   pushRaw(rawFull: string): string[];
+  /** 宽限 flush:吐出「终结符悬尾」的整句(见 SentenceChunker.flushTerminated)。 */
+  flushTerminated(): string[];
   /** 当前已解出的字段值。 */
   readonly value: string;
 }
@@ -287,6 +298,10 @@ export function createJsonStringStream(key: string, opts: SentenceChunkerOptions
       if (complete) done = true;
       if (!delta && !complete) return [];
       return chunker.push(delta, complete);
+    },
+    flushTerminated(): string[] {
+      if (done) return [];
+      return chunker.flushTerminated();
     },
     get value() {
       return lastValue;

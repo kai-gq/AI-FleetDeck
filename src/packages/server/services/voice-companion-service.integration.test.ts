@@ -1013,4 +1013,27 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     const r = await p;
     expect(r.response).toBe('好的。');
   });
+
+  it('G6-14 grace-flushes a dangling first sentence after ~180ms of silence (P5)', async () => {
+    const sentences: string[] = [];
+    const p = startProcess('喘口气', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    // action 与首句同帧到达,句号悬在缓冲末尾:正常切句要等下一个字符
+    emitLine(call.child, {
+      type: 'stream_event',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '{"action":"general_response","responseToUser":"第一句。' } },
+    });
+    expect(sentences).toEqual([]); // 悬尾按住(宽限期内)
+    await new Promise((r) => setTimeout(r, 300)); // > GRACE_FLUSH_MS(180ms)
+    expect(sentences).toEqual(['第一句。']); // 宽限 flush 先吐,不再白等
+    emitLine(call.child, {
+      type: 'stream_event',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '第二句。","targetAgentId":null}' } },
+    });
+    expect(sentences).toEqual(['第一句。', '第二句。']); // 后续不重不漏
+    await closeChild(call.child, 0);
+    const r = await p;
+    expect(r.response).toBe('第一句。第二句。');
+    expect(r.spoke).toBe(true);
+  });
 });

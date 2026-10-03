@@ -53,6 +53,7 @@ const ERROR_CODE = {
  */
 async function handleStreamProcess(res: Response, text: string, isEvent: boolean): Promise<void> {
   initNdjson(res);
+  const startedAt = Date.now();
 
   const controller = new AbortController();
   res.on('close', () => {
@@ -64,7 +65,9 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
       isEvent,
       signal: controller.signal,
       onSentence: (sentence) => {
-        writeNdjsonLine(res, { type: 'sentence', text: sentence });
+        // tMs = 该句自请求受理起的服务端毫秒数(P5 延迟打点:配合客户端到达
+        // 时间戳可拆分「服务端生成」与「网络+客户端」两段)。
+        writeNdjsonLine(res, { type: 'sentence', text: sentence, tMs: Date.now() - startedAt });
       },
     });
     writeNdjsonLine(res, { type: 'final', result: { success: true, ...result }, spoke: !!result.spoke });

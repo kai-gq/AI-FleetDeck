@@ -153,9 +153,9 @@ describe('POST /process 流式(NDJSON)', () => {
     expect(res.headers.get('cache-control')).toBe('no-cache, no-transform');
 
     const lines = parseNdjson(await res.text());
-    expect(lines).toEqual([
-      { type: 'sentence', text: '第一句。' },
-      { type: 'sentence', text: '第二句。' },
+    expect(lines[0]).toMatchObject({ type: 'sentence', text: '第一句。', tMs: expect.any(Number) });
+    expect(lines[1]).toMatchObject({ type: 'sentence', text: '第二句。', tMs: expect.any(Number) });
+    expect(lines.slice(2)).toEqual([
       { type: 'final', result: { success: true, action: 'general_response', response: '第一句。第二句。', spoke: true, elapsedMs: 5 }, spoke: true },
     ]);
     expect(service.processVoiceInput).toHaveBeenCalledWith(

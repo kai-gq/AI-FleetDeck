@@ -191,6 +191,27 @@ describe('buildAgentSnapshotLines', () => {
     expect(lines[0]).toContain('agent69');
     expect(lines[0]).toContain('…');
   });
+
+  it('bounds snapshot and prompt size for a worst-case 60-agent world(P5 体积护栏)', () => {
+    const agents = Array.from({ length: 60 }, (_, i) => ({
+      id: `agent-${i}-0123456789`, name: `写代码的${i}号`, class: 'builder', status: 'working',
+      lastWorkedAt: i,
+      taskLabel: '把登录页重构成 React 18 并发模式并补齐测试'.repeat(3),
+      lastError: 'Error: connect ECONNREFUSED 127.0.0.1:7433'.repeat(3),
+    }));
+    const areas = [{ id: 'ar1', name: '前端开发区', archived: false, assignedAgentIds: agents.map((a) => a.id) }] as never;
+    const { lines } = buildAgentSnapshotLines(agents, areas);
+    const joined = lines.join('\n');
+    expect(joined.length).toBeLessThan(60 * 260); // 每行 ≤ ~260 字符,快照整体有界
+    expect(joined).toContain('…'); // 长字段确实被截断
+
+    const prompt = buildCompanionSystemPrompt({
+      agentLines: lines, totalAgents: 60, truncated: false,
+      memory: { ...emptyMemory(), notes: Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, text: '偏好笔记'.repeat(10), createdAt: 0, source: 'auto' as const })) },
+      nowText: '2026-10-03 12:00',
+    });
+    expect(prompt.length).toBeLessThan(20_000); // 整体 prompt 体积护栏(实测远低于此)
+  });
 });
 
 describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
