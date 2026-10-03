@@ -441,6 +441,31 @@ describe('processFinalTranscript', () => {
     const r = processFinalTranscript('帮我查一下', { ...base, wakeWord: '小助手' });
     expect(r.droppedByWakeWord).toBe(true);
     expect(r.submit).toBe(false);
+    // 整段丢弃:文本置空,调用方不会上屏/待提交(S1a 红项修复)
+    expect(r.text).toBe('');
+  });
+
+  it('wake word miss drops the whole utterance instead of leaving it pending', () => {
+    const r = processFinalTranscript('今天天气怎么样', { ...base, wakeWord: '小助手', autoSubmit: false });
+    expect(r).toEqual({ submit: false, text: '', matchedEndWord: false, droppedByWakeWord: true });
+  });
+
+  it('strips a leading full-width comma after the wake word (S1c 红项修复)', () => {
+    const r = processFinalTranscript('小助手，帮我看看进度。', { ...base, wakeWord: '小助手' });
+    expect(r.text).toBe('帮我看看进度');
+    expect(r.submit).toBe(true);
+  });
+
+  it('strips a leading ideographic comma and repeated punctuation', () => {
+    const r = processFinalTranscript('小助手、，帮我查一下', { ...base, wakeWord: '小助手' });
+    expect(r.text).toBe('帮我查一下');
+  });
+
+  it('end word match tolerates a trailing full-width comma', () => {
+    const r = processFinalTranscript('看看部署，发送，', { ...base, autoSubmit: false });
+    expect(r.matchedEndWord).toBe(true);
+    expect(r.text).toBe('看看部署');
+    expect(r.submit).toBe(true);
   });
 
   it('strips the wake word and keeps the rest', () => {

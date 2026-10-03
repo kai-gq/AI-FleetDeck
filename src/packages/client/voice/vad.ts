@@ -241,7 +241,7 @@ export interface FinalTextConfig {
 export interface FinalTextResult {
   /** 是否提交到大脑。 */
   submit: boolean;
-  /** 处理后文本(唤醒词/结束词已剥离)。 */
+  /** 处理后文本(唤醒词/结束词已剥离);未命中唤醒词时为空串(整段丢弃)。 */
   text: string;
   /** 命中结束词。 */
   matchedEndWord: boolean;
@@ -249,7 +249,10 @@ export interface FinalTextResult {
   droppedByWakeWord: boolean;
 }
 
-const TRAILING_PUNCT = /[\s,。,\.!！?？;；:：]+$/;
+/** 需剥离的标点/空白字符类(半角 + 全角;含全角逗号 ，与顿号 、)。 */
+const PUNCT_CLASS = String.raw`\s,，、。,\.!！?？;；:：`;
+const TRAILING_PUNCT = new RegExp(`[${PUNCT_CLASS}]+$`);
+const LEADING_PUNCT = new RegExp(`^[${PUNCT_CLASS}]+`);
 
 /** 规整文本:压缩空白、去首尾标点噪声。 */
 export function normalizeTranscript(text: string): string {
@@ -266,14 +269,16 @@ export function processFinalTranscript(raw: string, cfg: FinalTextConfig): Final
   if (cfg.wakeWord) {
     const idx = text.indexOf(cfg.wakeWord);
     if (idx < 0) {
+      // 配了唤醒词但没听到:整段丢弃(不上屏、不待提交,静默)
       result.droppedByWakeWord = true;
+      result.text = '';
       return result;
     }
     // 剥离唤醒词及紧随的标点/空白
     text = normalizeTranscript(text.slice(0, idx) + text.slice(idx + cfg.wakeWord.length));
     text = text.replace(TRAILING_PUNCT, '').trim();
-    // 前导标点也清掉(如 "，帮我查一下")
-    text = text.replace(/^[\s,。,\.!！?？;；:：]+/, '').trim();
+    // 前导标点也清掉(如 "，帮我查一下" —— 全角逗号/顿号同在剥离集里)
+    text = text.replace(LEADING_PUNCT, '').trim();
     result.text = text;
     if (!text) return result;
   }
