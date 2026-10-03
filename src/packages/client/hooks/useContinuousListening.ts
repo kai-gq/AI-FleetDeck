@@ -6,8 +6,8 @@
  *   - VAD(voice/vad.ts)自动断句:起说/静音判停/超长强制切段,播报中支持抢话;
  *   - 双通道转写:
  *       stream  —— WS /ws/voice-companion → 火山引擎流式识别,partial 实时上屏;
- *       segment —— MediaRecorder 分段 → 既有 /api/stt/transcribe(批量回退,
- *                  凭据缺失/流式出错/手动指定时使用);
+ *       segment —— 帧拼 16k WAV(段首含预滚)→ 既有 /api/stt/transcribe(批量回退,
+ *                  凭据缺失/流式出错/手动指定时使用,不再依赖 MediaRecorder);
  *   - 文本后处理:唤醒词过滤、结束词剥离、autoSubmit(vad.ts 纯函数);
  *   - barge-in:播报中检测到用户开口 → onBargeIn()(组件负责停播报),随后继续录;
  *   - pauseWhenHidden:页面切后台暂停,回前台复位 VAD 继续。
@@ -32,6 +32,7 @@ import {
   type VadState,
 } from '../voice/vad';
 import { createSileroRunner, loadSileroVad, type SileroRunner } from '../voice/sileroVad';
+import { WAV_HEADER_BYTES, pcm16FramesToWav } from '../voice/wav';
 import { apiUrl, authFetch } from '../utils/storage';
 import {
   buildVoiceCompanionWsUrl,
@@ -103,11 +104,6 @@ export interface ContinuousListeningHandle {
 // 引擎状态(全部在 ref 里,音频回调不触发渲染)
 // ============================================================================
 
-interface RecorderBox {
-  rec: MediaRecorder;
-  chunks: Blob[];
-}
-
 interface Engine {
   /** 启停代数:异步 start/stop 交错时旧流程作废。 */
   generation: number;
@@ -132,7 +128,9 @@ interface Engine {
   /** 仅 DEV:本段合成帧绕过小模型(模型会把方波判成非语音)。 */
   devBypassSilero: boolean;
   preRoll: ArrayBuffer[];
-  /** 当前语音段正在采集(流式=已开始发帧;批量=MediaRecorder 录制中)。 */
+  /** 批量通道当前段的 PCM16 帧(开段时以预滚帧初始化);null = 不在采段。 */
+  segmentFrames: ArrayBuffer[] | null;
+  /** 当前语音段正在采集(流式=已开始发帧;批量=帧累加中)。 */
   hearing: boolean;
   /** 本段丢弃(转写中打进的新语音)。 */
   dropSegment: boolean;
@@ -141,7 +139,6 @@ interface Engine {
   /** 下一份终稿丢弃(暂停/关闭时补发 finish 收尾用)。 */
   discardFinal: boolean;
   finalTimer: number | null;
-  recorderBox: RecorderBox | null;
   suspended: boolean;
   pendingText: string | null;
 }
@@ -166,12 +163,12 @@ function createEngine(): Engine {
     devFeeding: false,
     devBypassSilero: false,
     preRoll: [],
+    segmentFrames: null,
     hearing: false,
     dropSegment: false,
     awaitingFinal: false,
     discardFinal: false,
     finalTimer: null,
-    recorderBox: null,
     suspended: false,
     pendingText: null,
   };
@@ -224,22 +221,14 @@ function createDownsampler(
   };
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
-/** MediaRecorder 可用编码阶梯(iOS Safari 无 webm;与 useSTT 一致)。 */
-function pickRecorderMime(): string {
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg', ''];
-  for (const mime of candidates) {
-    if (!mime || (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime))) return mime;
+/** 字节 → base64(分包避免超长参数;批量转写请求体用)。 */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
-  return '';
+  return btoa(binary);
 }
 
 function micErrorMessage(err: unknown): string {
@@ -458,35 +447,13 @@ function createController(deps: ControllerDeps): Controller {
     return ws;
   }
 
-  // ---- 批量回退通道 ----
+  // ---- 批量回退通道(帧拼 WAV,经既有 /api/stt/transcribe) ----
 
-  function startRecorder(): void {
-    const o = optsRef.current;
-    if (!e.mic || typeof MediaRecorder === 'undefined') {
-      o.onError('当前浏览器不支持 MediaRecorder,批量转写不可用');
-      return;
-    }
-    const mime = pickRecorderMime();
-    try {
-      const rec = new MediaRecorder(e.mic, mime ? { mimeType: mime } : undefined);
-      const box: RecorderBox = { rec, chunks: [] };
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size > 0) box.chunks.push(ev.data);
-      };
-      e.recorderBox = box;
-      rec.start(100);
-    } catch (err) {
-      e.recorderBox = null;
-      console.warn('[VoiceCompanion] MediaRecorder 启动失败:', err);
-      o.onError('无法开始录音,批量转写不可用');
-    }
-  }
-
-  async function transcribeBatch(blob: Blob): Promise<void> {
+  async function transcribeBatch(wav: Uint8Array): Promise<void> {
     const o = optsRef.current;
     try {
-      if (blob.size < 1000) return; // 太短,当噪声
-      const base64 = await blobToBase64(blob);
+      if (wav.byteLength <= WAV_HEADER_BYTES) return; // 只有头 = 无音频,当噪声
+      const base64 = bytesToBase64(wav);
       const res = await authFetch(apiUrl('/api/stt/transcribe'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -508,7 +475,7 @@ function createController(deps: ControllerDeps): Controller {
 
   // ---- 段生命周期 ----
 
-  /** 开始一段采集:流式=补发预滚;批量=启动 MediaRecorder。 */
+  /** 开始一段采集:流式=补发预滚;批量=以预滚帧初始化段缓冲。 */
   function startSegment(): void {
     const o = optsRef.current;
     const useStream = o.mode === 'stream' ? true : o.mode === 'segment' ? false : !e.wsBroken;
@@ -539,7 +506,8 @@ function createController(deps: ControllerDeps): Controller {
         if (!sendBinary(ws, frame)) break;
       }
     } else {
-      startRecorder();
+      // onFrame 已把当前帧放进 preRoll:整段含 480ms 预滚,首字不丢
+      e.segmentFrames = e.preRoll.slice();
     }
   }
 
@@ -565,38 +533,21 @@ function createController(deps: ControllerDeps): Controller {
       return;
     }
 
-    const box = e.recorderBox;
-    e.recorderBox = null;
-    if (!box || box.rec.state === 'inactive') {
+    const frames = e.segmentFrames;
+    e.segmentFrames = null;
+    if (!frames || frames.length === 0) {
       finishSegmentCycle();
       return;
     }
-    box.rec.onstop = () => {
-      const chunks = box.chunks;
-      box.chunks = [];
-      const type = chunks[0]?.type || 'audio/webm';
-      void transcribeBatch(new Blob(chunks, { type }));
-    };
-    try {
-      box.rec.stop();
-    } catch {
-      finishSegmentCycle();
-    }
+    void transcribeBatch(pcm16FramesToWav(frames));
   }
 
   /** 丢弃当前段(暂停/关闭时),不产生任何提交。 */
   function abortSegment(): void {
     e.hearing = false;
     e.dropSegment = false;
-    if (e.recorderBox) {
-      const box = e.recorderBox;
-      e.recorderBox = null;
-      box.chunks = [];
-      try {
-        box.rec.stop();
-      } catch {
-        /* ignore */
-      }
+    if (e.segmentFrames) {
+      e.segmentFrames = null;
     }
     if (e.activeMode === 'stream' && e.ws && e.ws.readyState <= WebSocket.OPEN && !e.awaitingFinal) {
       // 段中途暂停:补发 finish 让服务端/火山会话收尾(终稿丢弃),通道本身保留
@@ -716,9 +667,10 @@ function createController(deps: ControllerDeps): Controller {
       return;
     }
 
-    // 进行中的段:流式通道逐帧发;批量通道由 MediaRecorder 自行收集
-    if (e.hearing && e.activeMode === 'stream') {
-      sendBinary(e.ws, pcm16);
+    // 进行中的段:流式通道逐帧发;批量通道累加帧(结束时段拼 WAV)
+    if (e.hearing) {
+      if (e.activeMode === 'stream') sendBinary(e.ws, pcm16);
+      else e.segmentFrames?.push(pcm16);
     }
   }
 
@@ -733,16 +685,7 @@ function createController(deps: ControllerDeps): Controller {
     e.awaitingFinal = false;
     e.discardFinal = false;
 
-    if (e.recorderBox) {
-      const box = e.recorderBox;
-      e.recorderBox = null;
-      box.chunks = [];
-      try {
-        box.rec.stop();
-      } catch {
-        /* ignore */
-      }
-    }
+    e.segmentFrames = null;
     if (e.ws) {
       const ws = e.ws;
       e.ws = null;
