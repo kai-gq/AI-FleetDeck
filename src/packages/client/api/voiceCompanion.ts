@@ -1,0 +1,387 @@
+/**
+ * 「语音伙伴」客户端 API
+ *
+ * 1. 配置读写:tools/voice-companion/config.json(服务端大脑与流式通道同读此文件)。
+ *    沿用 whisperCloud 的通用文件 API 模式(/exists → /create(409=已存在)→ /write),
+ *    服务端零改动;数值/枚举/数组全部 sanitize 夹取。
+ * 2. 大脑接口封装:/api/voice-companion/{process,status,reset,memory}。
+ * 3. 配置订阅:设置面板保存后,运行中的语音组件即时生效(模块级订阅)。
+ */
+
+import { apiUrl, authFetch, getApiBaseUrl, getAuthToken } from '../utils/storage';
+
+// ============================================================================
+// 类型与默认值
+// ============================================================================
+
+export type SttMode = 'auto' | 'stream' | 'segment';
+export type VolcengineEndpoint = 'bigmodel_async' | 'bigmodel' | 'bigmodel_nostream';
+
+export interface VolcengineCredentials {
+  apiKey: string;
+  appId: string;
+  accessToken: string;
+  resourceId: string;
+  endpoint: VolcengineEndpoint;
+}
+
+export interface ListeningConfig {
+  /** 静音判停时长(ms)。 */
+  silenceMs: number;
+  /** 最短语音段(ms),短于此的判停直接丢弃。 */
+  minSpeechMs: number;
+  /** 单段最长时长(ms),超过强制切段。 */
+  maxSegmentMs: number;
+  /** 固定起说阈值(0 = 纯自适应噪声底)。 */
+  startThreshold: number;
+  /** 播报中允许抢话打断。 */
+  bargeIn: boolean;
+  /** 唤醒词(空 = 不启用;非空时必须包含,否则丢弃)。 */
+  wakeWord: string;
+  /** 结束词(后缀命中则剥离并立即提交)。 */
+  endWords: string[];
+  /** 判停后自动提交到大脑;关闭则仅上屏。 */
+  autoSubmit: boolean;
+  /** 页面切到后台时暂停聆听。 */
+  pauseWhenHidden: boolean;
+}
+
+export interface ProactiveConfig {
+  enabled: boolean;
+  intervalMinutes: number;
+  scope: 'important' | 'all';
+  /** 事件合并静默窗口(ms),避免连续播报轰炸。 */
+  quietWindowMs: number;
+}
+
+export interface UiConfig {
+  showTranscript: boolean;
+  bubbleTimeoutMs: number;
+}
+
+export interface VoiceCompanionConfig {
+  enabled: boolean;
+  model: 'haiku' | 'sonnet';
+  stt: {
+    mode: SttMode;
+    volcengine: VolcengineCredentials;
+  };
+  listening: ListeningConfig;
+  proactive: ProactiveConfig;
+  ui: UiConfig;
+}
+
+export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
+  enabled: false,
+  model: 'haiku',
+  stt: {
+    mode: 'auto',
+    volcengine: {
+      apiKey: '',
+      appId: '',
+      accessToken: '',
+      resourceId: 'volc.bigasr.sauc.duration',
+      endpoint: 'bigmodel_async',
+    },
+  },
+  listening: {
+    silenceMs: 800,
+    minSpeechMs: 400,
+    maxSegmentMs: 30_000,
+    startThreshold: 0,
+    bargeIn: true,
+    wakeWord: '',
+    endWords: ['发送', '完事了', '就这些'],
+    autoSubmit: true,
+    pauseWhenHidden: true,
+  },
+  proactive: {
+    enabled: false,
+    intervalMinutes: 30,
+    scope: 'important',
+    quietWindowMs: 45_000,
+  },
+  ui: {
+    showTranscript: true,
+    bubbleTimeoutMs: 6_000,
+  },
+};
+
+// ============================================================================
+// 配置读写
+// ============================================================================
+
+const CONFIG_REL_PATH = 'tools/voice-companion/config.json';
+const TOOL_DIR_REL_PATH = 'tools/voice-companion';
+
+async function resolvePath(relativePath: string): Promise<{ exists: boolean; path: string }> {
+  const res = await authFetch(apiUrl(`/api/files/exists?path=${encodeURIComponent(relativePath)}`));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data.path !== 'string') {
+    throw new Error(data.error || `路径解析失败(${res.status})`);
+  }
+  return { exists: !!data.exists, path: data.path };
+}
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num)));
+}
+
+function str(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value.trim() : fallback;
+}
+
+/** 任意来源的 JSON → 合法配置(未知字段丢弃,数值夹取,枚举白名单)。 */
+export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig {
+  const cfg: VoiceCompanionConfig = {
+    ...DEFAULT_VOICE_COMPANION_CONFIG,
+    stt: { ...DEFAULT_VOICE_COMPANION_CONFIG.stt, volcengine: { ...DEFAULT_VOICE_COMPANION_CONFIG.stt.volcengine } },
+    listening: { ...DEFAULT_VOICE_COMPANION_CONFIG.listening, endWords: [...DEFAULT_VOICE_COMPANION_CONFIG.listening.endWords] },
+    proactive: { ...DEFAULT_VOICE_COMPANION_CONFIG.proactive },
+    ui: { ...DEFAULT_VOICE_COMPANION_CONFIG.ui },
+  };
+  if (!raw || typeof raw !== 'object') return cfg;
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.enabled === 'boolean') cfg.enabled = obj.enabled;
+  if (obj.model === 'sonnet' || obj.model === 'haiku') cfg.model = obj.model;
+
+  const stt = obj.stt as Record<string, unknown> | undefined;
+  if (stt && typeof stt === 'object') {
+    if (stt.mode === 'auto' || stt.mode === 'stream' || stt.mode === 'segment') cfg.stt.mode = stt.mode;
+    const volc = stt.volcengine as Record<string, unknown> | undefined;
+    if (volc && typeof volc === 'object') {
+      cfg.stt.volcengine.apiKey = str(volc.apiKey);
+      cfg.stt.volcengine.appId = str(volc.appId);
+      cfg.stt.volcengine.accessToken = str(volc.accessToken);
+      cfg.stt.volcengine.resourceId = str(volc.resourceId) || DEFAULT_VOICE_COMPANION_CONFIG.stt.volcengine.resourceId;
+      if (volc.endpoint === 'bigmodel_async' || volc.endpoint === 'bigmodel' || volc.endpoint === 'bigmodel_nostream') {
+        cfg.stt.volcengine.endpoint = volc.endpoint;
+      }
+    }
+  }
+
+  const listening = obj.listening as Record<string, unknown> | undefined;
+  if (listening && typeof listening === 'object') {
+    cfg.listening.silenceMs = clampInt(listening.silenceMs, 200, 10_000, cfg.listening.silenceMs);
+    cfg.listening.minSpeechMs = clampInt(listening.minSpeechMs, 100, 10_000, cfg.listening.minSpeechMs);
+    cfg.listening.maxSegmentMs = clampInt(listening.maxSegmentMs, 3_000, 120_000, cfg.listening.maxSegmentMs);
+    cfg.listening.startThreshold = clampInt(listening.startThreshold, 0, 1, cfg.listening.startThreshold);
+    if (typeof listening.bargeIn === 'boolean') cfg.listening.bargeIn = listening.bargeIn;
+    cfg.listening.wakeWord = str(listening.wakeWord);
+    if (Array.isArray(listening.endWords)) {
+      cfg.listening.endWords = listening.endWords
+        .filter((w): w is string => typeof w === 'string' && w.trim().length > 0)
+        .map((w) => w.trim())
+        .slice(0, 10);
+    }
+    if (typeof listening.autoSubmit === 'boolean') cfg.listening.autoSubmit = listening.autoSubmit;
+    if (typeof listening.pauseWhenHidden === 'boolean') cfg.listening.pauseWhenHidden = listening.pauseWhenHidden;
+  }
+
+  const proactive = obj.proactive as Record<string, unknown> | undefined;
+  if (proactive && typeof proactive === 'object') {
+    if (typeof proactive.enabled === 'boolean') cfg.proactive.enabled = proactive.enabled;
+    cfg.proactive.intervalMinutes = clampInt(proactive.intervalMinutes, 5, 240, cfg.proactive.intervalMinutes);
+    if (proactive.scope === 'important' || proactive.scope === 'all') cfg.proactive.scope = proactive.scope;
+    cfg.proactive.quietWindowMs = clampInt(proactive.quietWindowMs, 5_000, 300_000, cfg.proactive.quietWindowMs);
+  }
+
+  const ui = obj.ui as Record<string, unknown> | undefined;
+  if (ui && typeof ui === 'object') {
+    if (typeof ui.showTranscript === 'boolean') cfg.ui.showTranscript = ui.showTranscript;
+    cfg.ui.bubbleTimeoutMs = clampInt(ui.bubbleTimeoutMs, 1_500, 30_000, cfg.ui.bubbleTimeoutMs);
+  }
+
+  return cfg;
+}
+
+/** 读取配置;文件缺失/损坏时回默认值(不抛出)。 */
+export async function loadVoiceCompanionConfig(): Promise<{ config: VoiceCompanionConfig; exists: boolean }> {
+  const file = await resolvePath(CONFIG_REL_PATH);
+  if (!file.exists) {
+    return { config: sanitizeVoiceCompanionConfig(null), exists: false };
+  }
+  const res = await authFetch(apiUrl(`/api/files/read?path=${encodeURIComponent(file.path)}`));
+  if (!res.ok) {
+    return { config: sanitizeVoiceCompanionConfig(null), exists: true };
+  }
+  const data = await res.json().catch(() => ({}));
+  try {
+    return { config: sanitizeVoiceCompanionConfig(JSON.parse(String(data.content ?? ''))), exists: true };
+  } catch {
+    console.warn('[voiceCompanion] config.json 解析失败,使用默认配置');
+    return { config: sanitizeVoiceCompanionConfig(null), exists: true };
+  }
+}
+
+/** 写入配置(文件/目录不存在则先创建);成功后通知订阅者。 */
+export async function saveVoiceCompanionConfig(config: VoiceCompanionConfig): Promise<string> {
+  const clean = sanitizeVoiceCompanionConfig(config);
+  const file = await resolvePath(CONFIG_REL_PATH);
+  if (!file.exists) {
+    const dir = await resolvePath(TOOL_DIR_REL_PATH);
+    if (!dir.exists) {
+      throw new Error('找不到 tools/voice-companion 目录(服务端需从仓库根目录启动)');
+    }
+    const createRes = await authFetch(apiUrl('/api/files/create'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentDir: dir.path, name: 'config.json' }),
+    });
+    // 409 = 已存在(并发创建),视为成功
+    if (!createRes.ok && createRes.status !== 409) {
+      const err = await createRes.json().catch(() => ({}));
+      throw new Error(err.error || `创建 config.json 失败(${createRes.status})`);
+    }
+  }
+  const writeRes = await authFetch(apiUrl('/api/files/write'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: file.path, content: JSON.stringify(clean, null, 2) + '\n' }),
+  });
+  if (!writeRes.ok) {
+    const err = await writeRes.json().catch(() => ({}));
+    throw new Error(err.error || `写入 config.json 失败(${writeRes.status})`);
+  }
+  emitConfigChange(clean);
+  return file.path;
+}
+
+// ----------------------------------------------------------------------------
+// 配置订阅(设置面板保存 → 运行中的组件即时生效)
+// ----------------------------------------------------------------------------
+
+type ConfigListener = (config: VoiceCompanionConfig) => void;
+const configListeners = new Set<ConfigListener>();
+
+export function subscribeVoiceCompanionConfig(listener: ConfigListener): () => void {
+  configListeners.add(listener);
+  return () => configListeners.delete(listener);
+}
+
+function emitConfigChange(config: VoiceCompanionConfig): void {
+  for (const listener of configListeners) {
+    try {
+      listener(config);
+    } catch (err) {
+      console.warn('[voiceCompanion] 配置订阅回调出错:', err);
+    }
+  }
+}
+
+// ============================================================================
+// 大脑接口
+// ============================================================================
+
+export interface VoiceProcessRequestResult {
+  success: boolean;
+  action?: string;
+  response?: string;
+  targetAgent?: { id: string; name: string };
+  messageSent?: string;
+  delivery?: 'queue' | 'interrupt';
+  interrupted?: boolean;
+  secondHopMs?: number;
+  memoryOpsApplied?: number;
+  degraded?: boolean;
+  elapsedMs?: number;
+  error?: string;
+}
+
+/** 提交一段文本(语音终稿或系统事件)给语音伙伴大脑。 */
+export async function processVoiceCompanionText(
+  text: string,
+  opts: { event?: boolean } = {},
+): Promise<VoiceProcessRequestResult> {
+  const res = await authFetch(apiUrl('/api/voice-companion/process'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, event: opts.event ? true : undefined }),
+  });
+  const data = (await res.json().catch(() => ({}))) as VoiceProcessRequestResult;
+  if (!res.ok) {
+    return { success: false, error: data.error || `请求失败(${res.status})` };
+  }
+  return { ...data, success: data.success !== false };
+}
+
+export interface CompanionMemoryNote {
+  id: string;
+  text: string;
+  createdAt: number;
+  source: 'user' | 'auto';
+}
+
+export interface CompanionMemory {
+  summary: string;
+  notes: CompanionMemoryNote[];
+  updatedAt: number;
+  droppedCount: number;
+}
+
+export interface CompanionStatus {
+  available: boolean;
+  hasSession: boolean;
+  sessionId: string | null;
+  turns: number;
+  sessionStartedAt: number | null;
+  lastUsedAt: number | null;
+  memoryNotes: number;
+  memorySummary: string;
+  model: string;
+}
+
+export async function getVoiceCompanionStatus(): Promise<CompanionStatus | null> {
+  const res = await authFetch(apiUrl('/api/voice-companion/status'));
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return (data as CompanionStatus) ?? null;
+}
+
+export async function resetVoiceCompanionSession(keepMemory = true): Promise<boolean> {
+  const res = await authFetch(apiUrl('/api/voice-companion/reset'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keepMemory }),
+  });
+  return res.ok;
+}
+
+export async function getVoiceCompanionMemory(): Promise<CompanionMemory | null> {
+  const res = await authFetch(apiUrl('/api/voice-companion/memory'));
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return (data?.memory as CompanionMemory) ?? null;
+}
+
+export async function updateVoiceCompanionMemory(input: {
+  ops?: Array<{ op: 'remove'; id: string }>;
+  clear?: boolean;
+}): Promise<CompanionMemory | null> {
+  const res = await authFetch(apiUrl('/api/voice-companion/memory'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return (data?.memory as CompanionMemory) ?? null;
+}
+
+// ============================================================================
+// 流式通道 WS 地址
+// ============================================================================
+
+/** /ws/voice-companion 的完整地址(与主连接同后端、同鉴权方式)。 */
+export function buildVoiceCompanionWsUrl(): string {
+  const base = getApiBaseUrl().replace(/\/$/, '');
+  const wsBase = base.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+  return `${wsBase}/ws/voice-companion`;
+}
+
+export function getVoiceCompanionAuthToken(): string {
+  return getAuthToken();
+}

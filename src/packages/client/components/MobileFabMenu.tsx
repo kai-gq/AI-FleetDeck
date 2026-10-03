@@ -4,6 +4,7 @@ import { useSettings } from '../store';
 import { useViewMode } from '../hooks/useViewMode';
 import { VIEW_MODE_LABELS, VIEW_MODES, type ViewMode } from '../types/viewModes';
 import { VoiceAssistant } from './VoiceAssistant';
+import { VoiceCompanion } from './VoiceCompanion';
 import { Icon, type IconName } from './Icon';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
@@ -83,6 +84,9 @@ export const MobileFabMenu = memo(function MobileFabMenu({
       {settings.experimentalVoiceAssistant && (
         <VoiceAssistant className="mobile-voice-assistant" />
       )}
+
+      {/* Voice Companion(同上;config.json enabled=false 时自身返回 null) */}
+      <VoiceCompanion className="mobile-voice-companion" />
 
       {/* Mobile FAB toggle - hamburger button (hidden when in terminal view on mobile) */}
       {mobileView !== 'terminal' && (

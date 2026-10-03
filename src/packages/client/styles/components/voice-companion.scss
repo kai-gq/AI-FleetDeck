@@ -1,0 +1,234 @@
+@use 'sass:color';
+@use '../variables' as *;
+
+// 语音伙伴:左侧竖排悬浮钮(接在 .voice-assistant-btn 之上)+ 上方气泡。
+// 仅新增样式,不动全局;定位与 .voice-assistant-btn(bottom: 322px)错开。
+
+.voice-companion-btn {
+  position: fixed;
+  bottom: 366px;
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-purple);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+
+  &:hover {
+    border-color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  }
+
+  .voice-companion-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background $transition-fast;
+  }
+
+  // 各阶段配色(圆点 + 边框)
+  &.phase-starting,
+  &.phase-transcribing {
+    color: var(--accent-orange);
+    .voice-companion-dot {
+      background: var(--accent-orange);
+      animation: vc-blink 0.9s ease-in-out infinite;
+    }
+  }
+
+  &.phase-listening {
+    color: var(--accent-green);
+    .voice-companion-dot {
+      background: var(--accent-green);
+    }
+  }
+
+  &.phase-hearing {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+    .voice-companion-dot {
+      background: var(--accent-green);
+      animation: vc-blink 0.5s ease-in-out infinite;
+    }
+  }
+
+  &.phase-thinking {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    .voice-companion-dot {
+      background: var(--accent-blue);
+      animation: vc-blink 0.7s ease-in-out infinite;
+    }
+  }
+
+  &.phase-speaking {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+    .voice-companion-dot {
+      background: var(--accent-blue);
+      animation: vc-blink 0.7s ease-in-out infinite;
+    }
+  }
+
+  &.phase-paused,
+  &.phase-off {
+    color: var(--text-muted);
+  }
+
+  &.phase-error {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+    .voice-companion-dot {
+      background: var(--accent-red);
+    }
+  }
+
+  &.non-leader {
+    opacity: 0.65;
+  }
+}
+
+.voice-companion-pill {
+  position: fixed;
+  bottom: 374px;
+  left: 60px;
+  max-width: 240px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-tertiary) 92%, transparent);
+  border: 1px solid var(--text-muted);
+  z-index: 150;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice-companion-bubble {
+  position: fixed;
+  bottom: 410px;
+  left: 16px;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 42vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: $radius-lg;
+  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  border: 1px solid var(--text-muted);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 40%, transparent);
+  z-index: 151;
+  font-size: 12px;
+  line-height: 1.5;
+
+  .vc-entry {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+
+    .vc-entry__tag {
+      flex: 0 0 auto;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 1.5;
+      background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+      color: var(--text-secondary);
+    }
+
+    .vc-entry__text {
+      flex: 1 1 auto;
+      word-break: break-word;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+    }
+  }
+
+  .vc-entry--live .vc-entry__text {
+    color: var(--accent-green);
+  }
+
+  .vc-entry--assistant .vc-entry__tag {
+    background: color-mix(in srgb, var(--accent-blue) 26%, transparent);
+    color: var(--text-primary);
+  }
+
+  .vc-entry--system .vc-entry__text {
+    color: var(--text-secondary);
+  }
+
+  .vc-entry--error .vc-entry__tag {
+    background: color-mix(in srgb, var(--accent-red) 26%, transparent);
+    color: var(--text-primary);
+  }
+
+  .vc-entry--error .vc-entry__text {
+    color: var(--accent-red);
+  }
+
+  .vc-commit {
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 4px 10px;
+    border-radius: $radius-lg;
+    border: 1px solid var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+    color: var(--text-primary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-green) 26%, transparent);
+    }
+  }
+}
+
+@keyframes vc-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+// 移动端:按钮由 MobileFabMenu 挂载,位置比桌面低一些,避免与底部 FAB 叠
+@media (max-width: 768px) {
+  .voice-companion-btn {
+    bottom: 152px;
+    left: 16px;
+    &.mobile-voice-companion {
+      bottom: 152px;
+    }
+  }
+
+  .voice-companion-bubble {
+    bottom: 200px;
+  }
+
+  .voice-companion-pill {
+    bottom: 160px;
+  }
+}
