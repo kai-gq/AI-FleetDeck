@@ -14,6 +14,7 @@
   "listening": {
     "silenceMs": 800,
     "confirmMs": 250,
+    "engine": "auto",
     "maxSegmentMs": 30000,
     "startThreshold": 0,
     "bargeIn": true,

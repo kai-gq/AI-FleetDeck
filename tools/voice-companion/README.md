@@ -6,7 +6,7 @@
 
 ```
 麦克风(常开)
-  └─ 浏览器 VAD(静音判停/结束词/抢话)
+  └─ 浏览器 VAD(能量 / 本地 Silero 小模型;静音判停 / 结束词 / 抢话)
        ├─ 流式: PCM16k 帧 ──▶ /ws/voice-companion ──▶ 火山引擎流式 ASR(实时上屏)
        └─ 回退: 分段录音 ────▶ /api/stt/transcribe(现有的本地/云批量转写)
                  │ 最终文本
@@ -22,7 +22,7 @@
 
 ## 快速开始
 
-1. **打开开关**:工具箱 → 设置 → 「语音伙伴」→ 打开「启用语音伙伴」→ 保存。
+1. **打开开关**:工具箱 → 设置 → 「语音」分组 → 「语音伙伴」→ 打开「启用语音伙伴」→ 保存。
    左侧浮出麦克风圆钮,点一下开始常开聆听(再点一下关闭;播报中点击 = 打断播报)。
 2. **(可选但推荐)接入火山引擎流式识别**:见下节。不填也能用——自动回退本机批量转写
    (`tools/whisper`),只是没有边说边出字。
@@ -69,6 +69,7 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | `stt.volcengine.endpoint` | `bigmodel_async` | `bigmodel_async` / `bigmodel` / `bigmodel_nostream` |
 | `listening.silenceMs` | `800` | 静音判停:说停后多久算一句(200–10000) |
 | `listening.confirmMs` | `250` | 确认时长:说话持续这么久才开段,更短的声响直接忽略(100–400)。旧字段 `minSpeechMs` 首次加载时按 ×0.625 自动迁移 |
+| `listening.engine` | `auto` | 判停引擎:`auto` 小模型优先(失败自动回退能量)/ `model` 仅小模型 / `energy` 仅能量。小模型 = 本地 Silero VAD(onnxruntime-web,模型随应用内置约 2.2MB),只说人声、嘈杂环境误触发更少;引擎状态在设置面板里实时显示 |
 | `listening.maxSegmentMs` | `30000` | 单段上限,超过强制切段(3000–120000) |
 | `listening.startThreshold` | `0` | 固定起说阈值;0 = 纯自适应噪声底(嘈杂环境可调 0.01–0.05) |
 | `listening.bargeIn` | `true` | 播报中允许抢话打断 |
@@ -100,8 +101,12 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 - **记忆**:说的「记住:…」会落盘;查看/删单条/清空在设置面板。文件在
   `~/.local/share/tide-commander/voice-companion.json`(会话 id、轮数、记忆);
   删掉它 = 全部重置。设置里的「重置会话」保留记忆只清上下文。
-- **与旧「语音助手」的关系**:`实验性 → 语音助手`(`/api/voice-assistant`,按住说话、
-  `send_to_agent`)保持不变,两者互不影响;语音伙伴是常开、有记忆、能读结果的另一条链路。
+- **判停引擎**:默认 `auto`——聆听启动时后台加载本地 Silero 小模型(约 2.2MB,已随应用
+  内置,不联网),用「是不是人声」的概率替代能量阈值;加载失败自动回退能量并提示一次,
+  聆听不中断。设置面板的「判停引擎」行可强制 `energy`(最轻)或 `model`(更准)。
+- **与旧「语音助手」的关系**:`设置 → 「语音」分组 → 语音助手`(`/api/voice-assistant`,
+  按住说话、`send_to_agent`)保持不变,两者互不影响;语音伙伴是常开、有记忆、能读结果的
+  另一条链路。两个节的顶部都有关系说明条可直接互跳。
 
 ## 排障
 
@@ -116,6 +121,8 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | 流式报错 `no_credentials` | 没配凭据 → 按上文开通步骤填 ApiKey 或 APP ID + Access Token |
 | 其它流式错误 | `selftest.mjs` 直接验证凭据;401 = 凭据无效,配额类按服务端日志(`X-Tt-Logid` 可给火山工单)处理 |
 | 抢话打断播报不生效 | 检查 `listening.bargeIn`;免提外放时回声可能被当成语音,建议耳机 |
+| 提示「小模型加载失败,已用能量判停」 | Silero 模型/运行时没加载起来(离线、文件缺失或浏览器太旧)。功能自动回退能量,不残;想再试一次就关掉再开聆听,或把「判停引擎」切到「能量」消掉提示 |
+| 设置面板「判停引擎」一直显示加载中 | 模型 2.2MB,首次加载视网络而定;超过 ~8s 会判失败并回退。看 Network 里 `/silero_vad.onnx` 是否 200 |
 
 ## 代码地图
 
@@ -125,7 +132,9 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | `src/packages/server/routes/voice-companion.ts` | `/api/voice-companion/{process,status,reset,memory}` |
 | `src/packages/server/voice/volcengine-asr-client.ts` | 火山大模型流式 ASR 二进制协议客户端 |
 | `src/packages/server/voice/voice-companion-stream.ts` | `/ws/voice-companion` 代理通道 |
-| `src/packages/client/voice/vad.ts` | 手写 VAD(RMS + 噪声底 EMA + 迟滞) |
+| `src/packages/client/voice/vad.ts` | 判停状态机(候选→确认→段;能量迟滞 / 小模型概率,二者同一套阈值语义) |
+| `src/packages/client/voice/sileroVadCore.ts` | Silero 纯逻辑核心(64+512 窗口组装、单飞丢最旧队列;可单测) |
+| `src/packages/client/voice/sileroVad.ts` | onnxruntime-web 胶水(懒单例、超时/契约自检、失败可重试);模型在 `public/silero_vad.onnx`(来源/许可见 `public/silero_vad.README.md`) |
 | `src/packages/client/hooks/useContinuousListening.ts` | 常开聆听管线(流式 / 批量回退 / 抢话) |
 | `src/packages/client/voice/proactiveReporter.ts` | 主动汇报(快照 diff + 静默窗口) |
 | `src/packages/client/components/VoiceCompanion.tsx` | 悬浮钮 + 气泡 + FSM |
