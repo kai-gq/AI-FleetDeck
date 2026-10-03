@@ -1,11 +1,12 @@
-"""piper.exe 兼容垫片:把 piper CLI 调用转发给 edge-tts 常驻服务。
+"""piper.exe 兼容垫片:把 piper CLI 调用转成 edge-tts(微软在线神经语音)合成。
 
 调用约定(tts.ts 同款):
   piper.exe --model <voices_dir>/<voice>.onnx --output_file <out.wav>
   文本从 stdin 读入;成功时 <out.wav> 为 16-bit PCM WAV。
 
-链路:shim → HTTP 127.0.0.1:17129/synth(常驻服务,不在则自动拉起)。
-任何失败(服务起不来、断网、接口失效)→ 回退同目录 piper_real.exe(原版 piper),
+单次合成:本进程直接 edge-tts 合成 → ffmpeg 转 wav,播完即退(无常驻进程、
+不占常驻内存);代价是每句多 ~0.5s 的 edge-tts import 时间。
+任何失败(断网、接口失效)→ 回退同目录 piper_real.exe(原版 piper),
 最坏 = 原来的机器音,绝不更差。日志:tools/edge-tts/shim.log
 """
 
@@ -14,14 +15,11 @@ import os
 import subprocess
 import sys
 import time
-import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent            # tools/edge-tts/shim
 TOOL_DIR = HERE.parent                            # tools/edge-tts
-SERVER_PY = TOOL_DIR / "server.py"
-PORT = int(os.environ.get("EDGE_TTS_PORT", "17129"))
-BASE_URL = os.environ.get("EDGE_TTS_URL", "http://127.0.0.1:" + str(PORT))
+REPO_ROOT = TOOL_DIR.parents[1]
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 
 
@@ -52,7 +50,10 @@ def parse_args(argv):
 
 
 def pick_voice(model):
-    """由模型文件名(如 zh_CN-huayan-medium.onnx)的语言前缀查 voices.json。"""
+    """EDGE_TTS_VOICE 环境变量(临时试音色)> voices.json 按语言前缀。"""
+    env = os.environ.get("EDGE_TTS_VOICE")
+    if env:
+        return env
     try:
         cfg = json.loads((TOOL_DIR / "voices.json").read_text(encoding="utf-8"))
     except Exception:
@@ -65,48 +66,38 @@ def pick_voice(model):
     return cfg.get(lang) or cfg.get("zh") or DEFAULT_VOICE
 
 
-def health(timeout=0.5):
-    """本机对未监听端口的连接是超时(非秒拒),超时必须压小,否则拖慢回退。"""
-    try:
-        with urllib.request.urlopen(BASE_URL + "/health", timeout=timeout) as r:
-            return r.status == 200
-    except Exception:
-        return False
-
-
-def start_service():
-    flags = 0
-    if os.name == "nt":
-        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    subprocess.Popen(
-        [sys.executable, str(SERVER_PY)],
-        cwd=str(TOOL_DIR),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=flags,
-        close_fds=True,
-    )
-
-
-def ensure_service():
-    if health():
-        return True
-    start_service()
-    for _ in range(8):
-        time.sleep(0.4)
-        if health():
-            return True
-    return False
+def find_ffmpeg():
+    cand = REPO_ROOT / "tools" / "whisper" / "ffmpeg" / "bin" / "ffmpeg.exe"
+    if cand.exists():
+        return str(cand)
+    import shutil
+    return shutil.which("ffmpeg") or "ffmpeg"
 
 
 def synth(text, voice):
-    body = json.dumps({"text": text, "voice": voice}).encode("utf-8")
-    req = urllib.request.Request(
-        BASE_URL + "/synth", data=body,
-        headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    """edge-tts 在线合成(import 放函数内,回退路径不必付这份开销)。"""
+    import asyncio
+
+    import edge_tts
+
+    async def collect():
+        mp3 = bytearray()
+        async for chunk in edge_tts.Communicate(text, voice).stream():
+            if chunk["type"] == "audio":
+                mp3.extend(chunk["data"])
+        return bytes(mp3)
+
+    mp3 = asyncio.run(asyncio.wait_for(collect(), timeout=45))
+    if not mp3:
+        raise RuntimeError("edge-tts 返回空音频")
+
+    p = subprocess.run(
+        [find_ffmpeg(), "-hide_banner", "-loglevel", "error",
+         "-i", "pipe:0", "-ar", "24000", "-ac", "1", "-f", "wav", "pipe:1"],
+        input=mp3, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        raise RuntimeError("ffmpeg: " + p.stderr.decode("utf-8", "replace")[:300])
+    return p.stdout
 
 
 def fallback(argv, text):
@@ -131,8 +122,6 @@ def main():
         log("参数不足: model=%s out=%s text_len=%d" % (model, out, len(text)))
         return fallback(argv, text) if text else 1
     try:
-        if not ensure_service():
-            raise RuntimeError("service 无法启动")
         voice = pick_voice(model)
         wav = synth(text, voice)
         if len(wav) < 100:

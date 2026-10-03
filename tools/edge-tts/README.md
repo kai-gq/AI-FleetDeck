@@ -9,25 +9,24 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 浏览器 useTTS → POST /api/tts/speak
   → 服务端 tts.ts spawn('piper', --model …, --output_file …)   ← 一行未改
   → tools/piper/piper.exe(本目录垫片,顶替了原版 piper)
-  → HTTP 127.0.0.1:17129(本目录 server.py 常驻服务)
-  → edge-tts(微软在线神经语音)→ mp3 → ffmpeg 转 WAV → 返回
+  → 本进程直接 edge-tts 合成 → ffmpeg 转 WAV → 返回
 ```
 
 - 服务端代码**零改动**(tts.ts 的 `resolvePiperBin()` 就找 `tools/piper/piper.exe`);
-- 原版 piper 保留为 `tools/piper/piper_real.exe`:服务起不来 / 断网 / 接口失效时,
-  垫片**原样回退**执行它(最坏 = 原来的机器音,绝不更差,代价 ~8s);
-- 常驻服务空闲 30 分钟自动退出,下次播报自动拉起;
-- 实测:热播报 ~1.4s,服务被清掉的首次 ~3.3s;whisper 反听一字不差。
+- **单次合成、无常驻进程**:垫片每次播报现起现退,不占常驻内存;代价是每句
+  多 ~0.5s 的 edge-tts import 时间,实测每句 ~1.6-2.0s;
+- 原版 piper 保留为 `tools/piper/piper_real.exe`:断网 / 接口失效时,垫片
+  **原样回退**执行它(最坏 = 原来的机器音,绝不更差);
+- 嫌慢可以加回常驻服务(git 历史 `f6193d4a` 有实现:常驻 ~52MB 内存,每句快 ~0.5s)。
 
 ## 目录
 
 | 路径 | 作用 |
 | --- | --- |
-| `server.py` | 常驻合成服务(127.0.0.1:17129,`GET /health`、`POST /synth`) |
-| `shim/` | `piper.exe` 兼容垫片(解析 `--model/--output_file` + stdin,转发服务) |
+| `shim/` | `piper.exe` 兼容垫片(解析 `--model/--output_file` + stdin,本进程合成) |
 | `voices.json` | 语言 → 音色映射(改这里换声音,不用动代码) |
 | `venv/` | Python venv(edge-tts 7.2.8) |
-| `server.log` / `shim.log` | 排障日志(均 gitignore) |
+| `shim.log` | 排障日志(gitignore) |
 
 ## 当前音色(voices.json)
 
@@ -38,7 +37,8 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 | es | `es-MX-DaliaNeural` |
 
 换音色:改 `voices.json` 即可;音色名用
-`venv/Scripts/python.exe -m edge_tts --list-voices` 查。
+`venv/Scripts/python.exe -m edge_tts --list-voices` 查;临时试音色可
+`set EDGE_TTS_VOICE=zh-CN-XiaoyiNeural` 再跑一次(不改配置文件)。
 语言由 `--model` 文件名前缀决定(如 `zh_CN-huayan-medium.onnx` → `zh`),
 这也是 tts.ts 自动检测语言后传入的。
 
@@ -62,12 +62,11 @@ cp tools/edge-tts/venv/Scripts/piper.exe tools/piper/piper.exe
 
 ```bash
 printf '老板,任务完成了。' | tools/piper/piper.exe --model tools/piper/voices/zh_CN-huayan-medium.onnx --output_file D:/tools/t.wav
-curl.exe -s http://127.0.0.1:17129/health
+# 每句 ~1.6-2.0s;D:/tools/t.wav 应为正常 WAV,听感即晓晓
 ```
 
 ## 备注
 
 - 本目录**源码入库**;`venv/`、日志 gitignore(同 `tools/whisper/` 先例);
 - piper 本体(`tools/piper/`,159MB)依旧永不提交,`piper_real.exe` 亦然;
-- 垫片实现细节:本机对**未监听端口**的 TCP 连接是超时(非秒拒),所以健康检查
-  超时压到 0.5s、轮询 8×0.4s——调大这些值会把回退耗时放大到几十秒。
+- 垫片日志 `shim.log` 会记录每次合成(ok)与回退原因,排障先看它。
