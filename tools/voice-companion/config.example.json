@@ -13,7 +13,7 @@
   },
   "listening": {
     "silenceMs": 800,
-    "minSpeechMs": 400,
+    "confirmMs": 250,
     "maxSegmentMs": 30000,
     "startThreshold": 0,
     "bargeIn": true,

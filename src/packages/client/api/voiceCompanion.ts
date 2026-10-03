@@ -9,6 +9,7 @@
  */
 
 import { apiUrl, authFetch, getApiBaseUrl, getAuthToken } from '../utils/storage';
+import type { VadEngineMode } from '../voice/vad';
 
 // ============================================================================
 // 类型与默认值
@@ -26,10 +27,12 @@ export interface VolcengineCredentials {
 }
 
 export interface ListeningConfig {
+  /** 判停引擎:auto = 小模型可用则用、否则能量;model/energy = 强制。 */
+  engine: VadEngineMode;
   /** 静音判停时长(ms)。 */
   silenceMs: number;
-  /** 最短语音段(ms),短于此的判停直接丢弃。 */
-  minSpeechMs: number;
+  /** 确认时长(ms):候选内有效人声累计达此值才开段;更短的声响直接忽略。 */
+  confirmMs: number;
   /** 单段最长时长(ms),超过强制切段。 */
   maxSegmentMs: number;
   /** 固定起说阈值(0 = 纯自适应噪声底)。 */
@@ -100,8 +103,9 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     },
   },
   listening: {
+    engine: 'auto',
     silenceMs: 800,
-    minSpeechMs: 400,
+    confirmMs: 250,
     maxSegmentMs: 30_000,
     startThreshold: 0,
     bargeIn: true,
@@ -192,7 +196,18 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
   const listening = obj.listening as Record<string, unknown> | undefined;
   if (listening && typeof listening === 'object') {
     cfg.listening.silenceMs = clampInt(listening.silenceMs, 200, 10_000, cfg.listening.silenceMs);
-    cfg.listening.minSpeechMs = clampInt(listening.minSpeechMs, 100, 10_000, cfg.listening.minSpeechMs);
+    if (listening.engine === 'auto' || listening.engine === 'model' || listening.engine === 'energy') {
+      cfg.listening.engine = listening.engine;
+    }
+    // 确认时长:新字段优先;旧配置的 minSpeechMs(最短语音段)按 ×0.625 迁移(400→250),
+    // 保留「嫌误触发、调大最短段」的意图;保存即写新形状(自动丢旧字段)。
+    if (listening.confirmMs !== undefined) {
+      cfg.listening.confirmMs = clampInt(listening.confirmMs, 100, 400, cfg.listening.confirmMs);
+    } else if (listening.minSpeechMs !== undefined) {
+      cfg.listening.confirmMs = clampInt(
+        Math.round(Number(listening.minSpeechMs) * 0.625), 100, 400, cfg.listening.confirmMs,
+      );
+    }
     cfg.listening.maxSegmentMs = clampInt(listening.maxSegmentMs, 3_000, 120_000, cfg.listening.maxSegmentMs);
     cfg.listening.startThreshold = clampInt(listening.startThreshold, 0, 1, cfg.listening.startThreshold);
     if (typeof listening.bargeIn === 'boolean') cfg.listening.bargeIn = listening.bargeIn;

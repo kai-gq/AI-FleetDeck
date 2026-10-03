@@ -8,7 +8,7 @@
  *       stream  —— WS /ws/voice-companion → 火山引擎流式识别,partial 实时上屏;
  *       segment —— MediaRecorder 分段 → 既有 /api/stt/transcribe(批量回退,
  *                  凭据缺失/流式出错/手动指定时使用);
- *   - 文本后处理:唤醒词过滤、结束词剥离、autoSubmit、最短语音段(vad.ts 纯函数);
+ *   - 文本后处理:唤醒词过滤、结束词剥离、autoSubmit(vad.ts 纯函数);
  *   - barge-in:播报中检测到用户开口 → onBargeIn()(组件负责停播报),随后继续录;
  *   - pauseWhenHidden:页面切后台暂停,回前台复位 VAD 继续。
  *
@@ -42,8 +42,8 @@ import {
 const FRAME_MS = 30;
 const TARGET_RATE = 16_000;
 const CHUNK_SAMPLES = (TARGET_RATE * FRAME_MS) / 1000; // 480
-/** 预滚环缓冲:300ms(语音起点先补发,避免吞掉第一个字)。 */
-const PREROLL_FRAMES = 10;
+/** 预滚环缓冲:480ms(确认开段时补发,覆盖最坏确认 400ms + 模型滞后 ~2 帧,不吞第一个字)。 */
+const PREROLL_FRAMES = 16;
 /** 流式终稿等待上限(超过视为失败;下一段自动回退批量通道)。 */
 const STREAM_FINAL_TIMEOUT_MS = 12_000;
 /** 批量回退的转写参数(与 useSTT 默认一致:中文 + turbo)。 */
@@ -598,8 +598,9 @@ function createController(deps: ControllerDeps): Controller {
 
     const cfg: VadConfig = {
       ...DEFAULT_VAD_CONFIG,
+      engine: o.config.engine ?? DEFAULT_VAD_CONFIG.engine,
       silenceMs: o.config.silenceMs,
-      minSpeechMs: o.config.minSpeechMs,
+      confirmMs: o.config.confirmMs,
       maxSegmentMs: o.config.maxSegmentMs,
       startThreshold: o.config.startThreshold,
     };
@@ -635,6 +636,14 @@ function createController(deps: ControllerDeps): Controller {
     if (ev === 'force-cut') {
       if (e.dropSegment || !e.hearing) return;
       endSegment();
+      return;
+    }
+
+    // 防御网:VAD 已判定不在段内,但 hook 仍在采集(事件丢失/状态漂移)= 收尾,
+    // 最坏丢一段音频,绝不把会话卡在 hearing(旧缺陷的整类问题从此不可达)。
+    if (!ev && !updated.state.speaking && e.hearing && !e.awaitingFinal) {
+      abortSegment();
+      if (o.enabled) deps.setPhase('listening');
       return;
     }
 

@@ -68,7 +68,7 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | `stt.volcengine.resourceId` | `volc.bigasr.sauc.duration` | 资源 ID,**必须与控制台开通的版本一致**:小时版 `…duration` / 并发版 `…concurrent`;留空 = 不发送该头(平台预置模型) |
 | `stt.volcengine.endpoint` | `bigmodel_async` | `bigmodel_async` / `bigmodel` / `bigmodel_nostream` |
 | `listening.silenceMs` | `800` | 静音判停:说停后多久算一句(200–10000) |
-| `listening.minSpeechMs` | `400` | 最短语音段,短于此直接丢弃(100–10000) |
+| `listening.confirmMs` | `250` | 确认时长:说话持续这么久才开段,更短的声响直接忽略(100–400)。旧字段 `minSpeechMs` 首次加载时按 ×0.625 自动迁移 |
 | `listening.maxSegmentMs` | `30000` | 单段上限,超过强制切段(3000–120000) |
 | `listening.startThreshold` | `0` | 固定起说阈值;0 = 纯自适应噪声底(嘈杂环境可调 0.01–0.05) |
 | `listening.bargeIn` | `true` | 播报中允许抢话打断 |

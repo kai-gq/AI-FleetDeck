@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_VAD_CONFIG,
+  MODEL_CONFIRM_CAP_MS,
   createVadState,
   computeRms,
   updateVad,
   processFinalTranscript,
   normalizeTranscript,
+  type VadConfig,
   type VadState,
 } from './vad.js';
 
@@ -15,7 +17,7 @@ const FRAME_MS = 30;
 function feed(state: VadState, rms: number, frames: number, cfg = DEFAULT_VAD_CONFIG, tts = false) {
   let s: VadState = { ...state, ttsActive: tts };
   const events: string[] = [];
-  let segmentMs = 0; // 有事件时 = 最后一个事件携带的段时长;否则 = 最后一次更新的值
+  let segmentMs = 0;
   for (let i = 0; i < frames; i++) {
     const out = updateVad(s, rms, FRAME_MS, cfg);
     s = out.state;
@@ -29,8 +31,28 @@ function feed(state: VadState, rms: number, frames: number, cfg = DEFAULT_VAD_CO
   return { state: s, events, segmentMs };
 }
 
+/** 以固定语音概率推 n 帧(模型通路;rms 随便给个安静值)。 */
+function feedProb(state: VadState, prob: number, frames: number, cfg: VadConfig = DEFAULT_VAD_CONFIG, tts = false) {
+  let s: VadState = { ...state, ttsActive: tts };
+  const events: string[] = [];
+  let segmentMs = 0;
+  for (let i = 0; i < frames; i++) {
+    const out = updateVad(s, 0.001, FRAME_MS, cfg, prob);
+    s = out.state;
+    if (out.event) {
+      events.push(out.event);
+      segmentMs = out.segmentMs;
+    } else if (events.length === 0) {
+      segmentMs = out.segmentMs;
+    }
+  }
+  return { state: s, events, segmentMs };
+}
+
 const LOUD = 0.5;
 const QUIET = 0.001;
+/** 默认确认时长 250ms 需要的过阈帧数(向上取整)。 */
+const CONFIRM_FRAMES = Math.ceil(DEFAULT_VAD_CONFIG.confirmMs / FRAME_MS); // 9
 
 describe('computeRms', () => {
   it('computes the quadratic mean', () => {
@@ -40,55 +62,97 @@ describe('computeRms', () => {
 });
 
 describe('updateVad', () => {
-  it('emits speech-start after the required consecutive frames and speech-end after silenceMs', () => {
+  it('confirms a segment only after confirmMs of voiced audio, and ends it after silenceMs', () => {
     let state = createVadState();
-    let out = feed(state, LOUD, 2);
-    expect(out.events).toEqual([]); // 2 帧不够(需 3 帧)
+    let out = feed(state, LOUD, CONFIRM_FRAMES - 1); // 240ms < 250ms
+    expect(out.events).toEqual([]);
     state = out.state;
 
-    out = feed(state, LOUD, 2);
+    out = feed(state, LOUD, 1); // 第 9 帧 → 270ms ≥ 250ms
     expect(out.events).toEqual(['speech-start']);
     state = out.state;
 
-    // 起说后 500ms 语音,再 700ms 静音(不够 800ms 判停)
-    out = feed(state, LOUD, 17);
+    // 继续 300ms 语音,再 600ms 静音(不足 800ms)
+    out = feed(state, LOUD, 10);
     state = out.state;
     out = feed(state, QUIET, 20);
     expect(out.events).toEqual([]);
     state = out.state;
 
-    // 再 300ms 静音 → 累计 1500ms > 800ms,判停
+    // 再 300ms 静音 → 累计 900ms > 800ms,判停
     out = feed(state, QUIET, 10);
     expect(out.events).toEqual(['speech-end']);
-    expect(out.segmentMs).toBeGreaterThanOrEqual(400);
+    expect(out.segmentMs).toBeGreaterThanOrEqual(300);
   });
 
-  it('discards segments shorter than minSpeechMs without an event', () => {
+  it('回归:已确认的短促段(如「停」)必发 speech-end,且随后可立即开新段(卡死修复)', () => {
+    // 旧实现:voiced < minSpeechMs 的段静默丢弃 → 上层会话永不收尾,后续全部被吞。
     let state = createVadState();
-    state = feed(state, LOUD, 3).state; // speech-start
-    // 只说了 ~90ms 就静音判停
-    const out = feed(state, QUIET, 30);
+    let out = feed(state, LOUD, CONFIRM_FRAMES); // 确认开段(≈270ms)
+    expect(out.events).toEqual(['speech-start']);
+    state = out.state;
+
+    // 只再持续 ~60ms 就静音:段本身很短,但已确认 → 必须产 speech-end
+    out = feed(state, LOUD, 2);
+    state = out.state;
+    out = feed(state, QUIET, 30); // 900ms 静音
+    expect(out.events).toEqual(['speech-end']);
+    expect(out.segmentMs).toBeLessThan(1000); // 短促一段(含尾部静音到判停点)
+    state = out.state;
+
+    // 卡死回归的核心断言:紧接着的新语音必须能正常确认
+    out = feed(state, LOUD, CONFIRM_FRAMES);
+    expect(out.events).toEqual(['speech-start']);
+  });
+
+  it('discards a candidate that never reaches confirmMs — zero events, no poisoning', () => {
+    let state = createVadState();
+    let out = feed(state, LOUD, 3); // 候选 90ms
+    expect(out.events).toEqual([]);
+    state = out.state;
+    out = feed(state, QUIET, 10); // 连续安静 300ms ≥ candidateGapMs(150) → 丢弃候选
     expect(out.events).toEqual([]);
     expect(out.state.speaking).toBe(false);
+    expect(out.state.candidate).toBe(false);
+
+    // 丢弃后不影响后续正常确认
+    out = feed(out.state, LOUD, CONFIRM_FRAMES);
+    expect(out.events).toEqual(['speech-start']);
+  });
+
+  it('discards a slow dribble of blips via the candidate elapsed cap', () => {
+    // 每 120ms 一个 30ms 爆音:间隔 < candidateGapMs(150) 不会触发 gap 丢弃,
+    // 但候选总时长超过 3×confirmMs(750ms)时必须整体丢弃,不得累积成误确认。
+    let state = createVadState();
+    const events: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const a = feed(state, LOUD, 1);
+      state = a.state;
+      const b = feed(state, QUIET, 4);
+      state = b.state;
+      events.push(...a.events, ...b.events);
+    }
+    expect(events).toEqual([]);
+    expect(state.speaking).toBe(false);
+    expect(state.candidate).toBe(false);
   });
 
   it('force-cuts when the segment exceeds maxSegmentMs but keeps speaking', () => {
     const cfg = { ...DEFAULT_VAD_CONFIG, maxSegmentMs: 300 };
     let state = createVadState();
-    state = feed(state, LOUD, 3, cfg).state;
+    state = feed(state, LOUD, CONFIRM_FRAMES, cfg).state;
     const out = feed(state, LOUD, 12, cfg); // 继续 360ms
     expect(out.events).toEqual(['force-cut']);
     expect(out.state.speaking).toBe(true);
     expect(out.state.segmentMs).toBeLessThan(300);
   });
 
-  it('requires more frames to trigger while TTS is speaking (self-echo guard)', () => {
-    // 3 帧在正常模式会触发;播报中需要 5 帧
-    let state = createVadState();
-    const out = feed(state, LOUD, 3, DEFAULT_VAD_CONFIG, true);
+  it('requires a longer confirm window while TTS is speaking (self-echo guard)', () => {
+    // 250ms × 1.6 = 400ms → 14 帧
+    let out = feed(createVadState(), LOUD, 13, DEFAULT_VAD_CONFIG, true);
     expect(out.events).toEqual([]);
-    const out2 = feed(out.state, LOUD, 2, DEFAULT_VAD_CONFIG, true);
-    expect(out2.events).toEqual(['speech-start']);
+    out = feed(out.state, LOUD, 1, DEFAULT_VAD_CONFIG, true);
+    expect(out.events).toEqual(['speech-start']);
   });
 
   it('adapts the noise floor upward in a noisy room so steady hiss does not trigger', () => {
@@ -101,17 +165,61 @@ describe('updateVad', () => {
     expect(state.noiseFloor).toBeGreaterThan(0.015);
 
     // 正常的说话声仍可触发
-    const out = feed(state, 0.3, 3);
+    const out = feed(state, 0.3, CONFIRM_FRAMES);
     expect(out.events).toEqual(['speech-start']);
   });
 
   it('honours an explicit startThreshold when set', () => {
     const cfg = { ...DEFAULT_VAD_CONFIG, startThreshold: 0.2 };
     let state = createVadState();
-    const quietSpeech = feed(state, 0.1, 10, cfg); // 低于固定阈值
+    const quietSpeech = feed(state, 0.1, 20, cfg); // 低于固定阈值
     expect(quietSpeech.events).toEqual([]);
-    const loudEnough = feed(quietSpeech.state, 0.3, 3, cfg);
+    const loudEnough = feed(quietSpeech.state, 0.3, CONFIRM_FRAMES, cfg);
     expect(loudEnough.events).toEqual(['speech-start']);
+  });
+
+  it('model path: confirms on high probability (capped at 180ms) and ends on low probability', () => {
+    let state = createVadState();
+    // 模型通路确认上限 180ms → 6 帧
+    const confirmFrames = Math.ceil(MODEL_CONFIRM_CAP_MS / FRAME_MS);
+    let out = feedProb(state, 0.9, confirmFrames - 1);
+    expect(out.events).toEqual([]);
+    state = out.state;
+    out = feedProb(state, 0.9, 1);
+    expect(out.events).toEqual(['speech-start']);
+    state = out.state;
+
+    // 概率跌到 0.1(< probEnd 0.35)累计 900ms → speech-end
+    out = feedProb(state, 0.1, 30);
+    expect(out.events).toEqual(['speech-end']);
+  });
+
+  it('model path: probability in the hysteresis band (0.35–0.5) neither confirms nor counts as silence', () => {
+    let out = feedProb(createVadState(), 0.4, 30); // 900ms 迟滞带
+    expect(out.events).toEqual([]);
+    expect(out.state.speaking).toBe(false);
+    expect(out.state.candidate).toBe(false); // 带内不累计人声,候选不成立
+  });
+
+  it('engine=energy ignores an injected probability (falls back to the RMS path)', () => {
+    const cfg = { ...DEFAULT_VAD_CONFIG, engine: 'energy' as const };
+    // rms 安静但 prob 高:能量通路不看 prob → 不触发
+    let out = feedProb(createVadState(), 0.99, 20, cfg);
+    expect(out.events).toEqual([]);
+    // 反之 rms 响亮即可确认(无论 prob)
+    out = feed(createVadState(), LOUD, CONFIRM_FRAMES, cfg);
+    expect(out.events).toEqual(['speech-start']);
+  });
+
+  it('falls back to the energy path while the probability is null (model still loading)', () => {
+    let state = createVadState();
+    const events: string[] = [];
+    for (let i = 0; i < CONFIRM_FRAMES; i++) {
+      const out = updateVad(state, LOUD, FRAME_MS, DEFAULT_VAD_CONFIG, null);
+      state = out.state;
+      if (out.event) events.push(out.event);
+    }
+    expect(events).toEqual(['speech-start']);
   });
 });
 

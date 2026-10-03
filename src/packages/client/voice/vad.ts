@@ -2,20 +2,25 @@
  * 语音活动检测(VAD)——纯状态机,便于单测;浏览器侧由 useContinuousListening 驱动。
  *
  * 思路(零依赖、可解释):
- *   - 每帧算 RMS,非语音帧用不对称 EMA 维护噪声底:安静帧快(0.08),
- *     疑似人声帧慢(0.03)——稳态噪声(风扇/空调)很快被吸收,而语音起始
- *     不会把自己的阈值抬上去;
- *   - 迟滞判定:起说阈值 = max(startThreshold, 噪声底×3),停说阈值 = 噪声底×1.8,
- *     避免在阈值边缘抖动(远场麦克风噪声波动大);
- *   - 起说需连续 N 帧过阈(默认 3 帧 ≈ 90ms),防敲击/爆音;
- *   - 静音累计 ≥ silenceMs 判停;段内「有声」时长 ≥ minSpeechMs 才产出
- *     speech-end(只按 voicedMs 判,避免爆音+长静音混成一句话),
- *     否则按噪声丢弃;段长 ≥ maxSegmentMs 强制切段(force-cut)。
- *   - 播报中(TTS)整体调低阈值、加长起说帧数(配合 echoCancellation,
+ *   - 每帧算 RMS(能量通路)或接收 Silero 小模型给出的语音概率(模型通路);
+ *   - 「候选 → 确认 → 段」三段式:疑似人声先进候选,有效人声累计达 confirmMs
+ *     才发 speech-start 开段;候选不足直接丢弃(零事件、零副作用)。
+ *   - 不变式:**已确认段的每次结束必然产出 speech-end 或 force-cut**,不存在
+ *     「静默丢弃已开段」的路径——旧实现按 minSpeechMs 静默丢弃短段,曾导致
+ *     上层会话开着永不收尾(短词「停」后整条链路卡死),此处从结构上根除;
+ *   - 迟滞判定(能量通路):起说阈值 = max(startThreshold, 噪声底×3),停说阈值
+ *     = 噪声底×1.8;噪声底用不对称 EMA:安静帧快(0.08),疑似人声帧慢(0.03)。
+ *   - 静音累计 ≥ silenceMs 判停;段长 ≥ maxSegmentMs 强制切段(force-cut)。
+ *   - 播报中(TTS)整体调低阈值、拉长确认时长(配合 echoCancellation,
  *     让用户能打断播报但不被自家扬声器自激)。
  */
 
+/** 判停引擎:auto = 小模型可用则用、否则能量;model/energy = 强制。 */
+export type VadEngineMode = 'auto' | 'model' | 'energy';
+
 export interface VadConfig {
+  /** 判停引擎。 */
+  engine: VadEngineMode;
   /** 固定起说阈值(0 = 纯自适应)。 */
   startThreshold: number;
   /** 起说:噪声底倍数。 */
@@ -24,42 +29,58 @@ export interface VadConfig {
   noiseMultiplierEnd: number;
   /** 静音判停(ms)。 */
   silenceMs: number;
-  /** 最短语音段(ms)。 */
-  minSpeechMs: number;
+  /** 确认时长(ms):候选内有效人声累计达此值才开段(取代旧的「起说帧数+最短语音段」双参数)。 */
+  confirmMs: number;
+  /** 候选内连续未过阈累计达此值 → 丢弃候选(ms)。 */
+  candidateGapMs: number;
   /** 最长语音段(ms),超过强制切段。 */
   maxSegmentMs: number;
-  /** 起说需连续过阈帧数。 */
-  speechStartFrames: number;
   /** 播报中阈值缩放(<1 更易触发)。 */
   ttsSuppressFactor: number;
-  /** 播报中起说帧数。 */
-  ttsStartFrames: number;
+  /** 播报中确认时长倍数(防自激)。 */
+  ttsConfirmFactor: number;
+  /** 模型通路:起说概率阈值。 */
+  probStart: number;
+  /** 模型通路:停说概率阈值。 */
+  probEnd: number;
 }
 
 export const DEFAULT_VAD_CONFIG: VadConfig = {
+  engine: 'auto',
   startThreshold: 0,
   noiseMultiplierStart: 3,
   noiseMultiplierEnd: 1.8,
   silenceMs: 800,
-  minSpeechMs: 400,
+  confirmMs: 250,
+  candidateGapMs: 150,
   maxSegmentMs: 30_000,
-  speechStartFrames: 3,
   ttsSuppressFactor: 0.65,
-  ttsStartFrames: 5,
+  ttsConfirmFactor: 1.6,
+  probStart: 0.5,
+  probEnd: 0.35,
 };
+
+/** 模型通路的确认时长上限:小模型更可靠,180ms 即确认(更跟手)。 */
+export const MODEL_CONFIRM_CAP_MS = 180;
 
 export interface VadState {
   /** 噪声底 EMA(RMS)。 */
   noiseFloor: number;
-  /** 当前是否处于语音段。 */
+  /** 当前是否处于已确认语音段。 */
   speaking: boolean;
-  /** 连续过阈帧计数(起说用)。 */
-  speechFrames: number;
+  /** 是否处于候选期(疑似人声,尚未确认开段)。 */
+  candidate: boolean;
+  /** 候选期内有效人声累计(ms)。 */
+  candidateVoicedMs: number;
+  /** 候选期内连续未过阈累计(ms)。 */
+  candidateQuietMs: number;
+  /** 候选期总时长(ms,防慢速零散声响滴答累积成误确认)。 */
+  candidateElapsedMs: number;
   /** 连续静音帧计数(判停用)。 */
   silenceFrames: number;
   /** 当前语音段已持续时长(ms,含尾部静音)。 */
   segmentMs: number;
-  /** 段内实际「有声」时长(ms,仅统计高于停说阈值的帧)。 */
+  /** 段内实际「有声」时长(ms,仅统计未低于停说阈值的帧;观测用)。 */
   voicedMs: number;
   /** 外部注入:播报中。 */
   ttsActive: boolean;
@@ -71,7 +92,10 @@ export function createVadState(): VadState {
   return {
     noiseFloor: 0.01,
     speaking: false,
-    speechFrames: 0,
+    candidate: false,
+    candidateVoicedMs: 0,
+    candidateQuietMs: 0,
+    candidateElapsedMs: 0,
     silenceFrames: 0,
     segmentMs: 0,
     voicedMs: 0,
@@ -97,47 +121,86 @@ export interface VadUpdate {
 }
 
 /**
- * 处理一帧 RMS。返回新状态与事件(纯函数:不改入参)。
- * frameMs 为该帧时长(默认 30ms)。
+ * 处理一帧。返回新状态与事件(纯函数:不改入参)。
+ * frameMs 为该帧时长(默认 30ms);speechProb 为小模型给出的语音概率
+ * (null/undefined = 走能量通路;engine='energy' 时忽略)。
  */
-export function updateVad(state: VadState, rms: number, frameMs: number, cfg: VadConfig): VadUpdate {
+export function updateVad(
+  state: VadState,
+  rms: number,
+  frameMs: number,
+  cfg: VadConfig,
+  speechProb?: number | null,
+): VadUpdate {
   const next: VadState = { ...state };
-  const suppress = state.ttsActive;
-  const factor = suppress ? cfg.ttsSuppressFactor : 1;
-  const startThreshold = Math.max(cfg.startThreshold, state.noiseFloor * cfg.noiseMultiplierStart) * factor;
-  const endThreshold = Math.max(cfg.startThreshold * 0.6, state.noiseFloor * cfg.noiseMultiplierEnd) * factor;
-  const requiredFrames = suppress ? cfg.ttsStartFrames : cfg.speechStartFrames;
+  const modelActive = typeof speechProb === 'number' && cfg.engine !== 'energy';
+  const ttsFactor = state.ttsActive ? cfg.ttsSuppressFactor : 1;
+
+  let voiced: boolean;
+  let quiet: boolean;
+  if (modelActive) {
+    voiced = (speechProb as number) >= cfg.probStart;
+    quiet = (speechProb as number) < cfg.probEnd;
+  } else {
+    const startThreshold = Math.max(cfg.startThreshold, state.noiseFloor * cfg.noiseMultiplierStart) * ttsFactor;
+    const endThreshold = Math.max(cfg.startThreshold * 0.6, state.noiseFloor * cfg.noiseMultiplierEnd) * ttsFactor;
+    voiced = rms > startThreshold;
+    quiet = rms < endThreshold;
+  }
+  // 迟滞带内(voiced=false 且 quiet=false):既不累计人声也不累计间隔,候选不因此复位
+  const confirmNeedMs = Math.min(cfg.confirmMs, modelActive ? MODEL_CONFIRM_CAP_MS : cfg.confirmMs)
+    * (state.ttsActive ? cfg.ttsConfirmFactor : 1);
 
   if (!state.speaking) {
-    if (rms > startThreshold) {
-      // 疑似人声:噪声底只做缓慢上探,避免语音起始把底噪抬高而"吃掉"自己
-      next.noiseFloor = state.noiseFloor * 0.97 + rms * 0.03;
-      next.speechFrames = state.speechFrames + 1;
-    } else {
-      // 安静帧:快速自适应(稳态噪声/风扇声很快被吸收,不再误触发)
-      next.noiseFloor = state.noiseFloor * 0.92 + rms * 0.08;
-      next.speechFrames = Math.max(0, state.speechFrames - 1);
+    if (voiced) {
+      next.candidate = true;
+      next.candidateVoicedMs = (state.candidate ? state.candidateVoicedMs : 0) + frameMs;
+      next.candidateElapsedMs = (state.candidate ? state.candidateElapsedMs : 0) + frameMs;
+      next.candidateQuietMs = 0; // 过阈帧打断「连续未过阈」streak
+      // 候选期冻结噪声底:确认窗口(250ms+)内若让底噪继续上探,低信噪比语音
+      // 会把自己的阈值抬到说话声之上、自我取消确认(旧实现 90ms 即开段未暴露)。
+      next.noiseFloor = state.noiseFloor;
+
+      if (next.candidateVoicedMs >= confirmNeedMs) {
+        // 确认开段:此后该段必然以 speech-end / force-cut 收尾(不变式)
+        next.speaking = true;
+        next.candidate = false;
+        next.candidateVoicedMs = 0;
+        next.candidateQuietMs = 0;
+        next.candidateElapsedMs = 0;
+        next.silenceFrames = 0;
+        next.segmentMs = frameMs;
+        next.voicedMs = frameMs;
+        return { event: 'speech-start', state: next, segmentMs: frameMs };
+      }
+      return { event: null, state: next, segmentMs: 0 };
     }
 
-    if (next.speechFrames >= requiredFrames) {
-      next.speaking = true;
-      next.speechFrames = 0;
-      next.silenceFrames = 0;
-      next.segmentMs = frameMs;
-      next.voicedMs = rms >= endThreshold ? frameMs : 0;
-      return { event: 'speech-start', state: next, segmentMs: frameMs };
+    if (state.candidate) {
+      // 候选内未过阈:累计间隔与总时长,超限则整体丢弃(零事件、零副作用)
+      next.candidateElapsedMs = state.candidateElapsedMs + frameMs;
+      if (quiet) next.candidateQuietMs = state.candidateQuietMs + frameMs;
+      if (next.candidateQuietMs >= cfg.candidateGapMs || next.candidateElapsedMs > confirmNeedMs * 3) {
+        next.candidate = false;
+        next.candidateVoicedMs = 0;
+        next.candidateQuietMs = 0;
+        next.candidateElapsedMs = 0;
+        if (quiet) next.noiseFloor = state.noiseFloor * 0.9 + rms * 0.1;
+        else next.noiseFloor = state.noiseFloor;
+        return { event: null, state: next, segmentMs: 0 };
+      }
+      return { event: null, state: next, segmentMs: 0 };
     }
-    next.silenceFrames = 0;
-    next.segmentMs = 0;
-    next.voicedMs = 0;
+
+    // 安静帧:快速自适应(稳态噪声/风扇声很快被吸收,不再误触发)
+    next.noiseFloor = state.noiseFloor * 0.92 + rms * 0.08;
     return { event: null, state: next, segmentMs: 0 };
   }
 
   // speaking:噪声底冻结(段内不做自适应)
-  next.speechFrames = 0;
   next.segmentMs = state.segmentMs + frameMs;
 
-  if (rms < endThreshold) {
+  if (quiet) {
     next.silenceFrames = state.silenceFrames + 1;
   } else {
     next.silenceFrames = 0;
@@ -150,15 +213,9 @@ export function updateVad(state: VadState, rms: number, frameMs: number, cfg: Va
     next.speaking = false;
     next.silenceFrames = 0;
     next.segmentMs = 0;
-    const voiced = next.voicedMs;
     next.voicedMs = 0;
-    // 按「有声」时长判断是否为有效语音段(避免一声爆音 + 长静音被当成一句话)
-    if (voiced >= cfg.minSpeechMs) {
-      return { event: 'speech-end', state: next, segmentMs: duration };
-    }
-    // 太短:按噪声丢弃(更新噪声底,便于快速自适应)
-    next.noiseFloor = state.noiseFloor * 0.9 + rms * 0.1;
-    return { event: null, state: next, segmentMs: duration };
+    // 已确认段一律产出结束事件(不再按 voicedMs 静默丢弃)
+    return { event: 'speech-end', state: next, segmentMs: duration };
   }
 
   if (next.segmentMs >= cfg.maxSegmentMs) {

@@ -324,14 +324,14 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
         <span className="config-hint">{tx('silenceMsHint', '说停后多久算一句话(默认 800)')}</span>
       </div>
       <div className="config-row">
-        <span className="config-label"><Highlight text={tx('minSpeechMs', '最短语音段(ms)')} query={searchQuery} /></span>
+        <span className="config-label"><Highlight text={tx('confirmMs', '确认时长(ms)')} query={searchQuery} /></span>
         <NumberField
-          value={config.listening.minSpeechMs}
+          value={config.listening.confirmMs}
           min={100}
-          max={10000}
-          onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, minSpeechMs: v } }))}
+          max={400}
+          onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, confirmMs: v } }))}
         />
-        <span className="config-hint">{tx('minSpeechMsHint', '短于此的声响直接丢弃(默认 400)')}</span>
+        <span className="config-hint">{tx('confirmMsHint', '说话持续这么久才算一句;更短的声响直接忽略(默认 250)')}</span>
       </div>
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('wakeWord', '唤醒词(可空)')} query={searchQuery} /></span>
