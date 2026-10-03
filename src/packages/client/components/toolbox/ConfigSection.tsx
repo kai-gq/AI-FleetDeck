@@ -79,7 +79,7 @@ import { Icon } from '../Icon';
 import { searchSettingsSections } from './settingsSearch';
 import { loadWhisperCloudConfig, saveWhisperCloudConfig, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
 import type { WhisperCloudConfig, SttEngineMode } from '../../api/whisperCloud';
-import { loadTtsVoices, saveTtsVoices, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../../api/ttsVoice';
+import { loadTtsVoices, saveTtsVoices, sanitizeTuning, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../../api/ttsVoice';
 import type { TtsVoiceConfig, TtsLang } from '../../api/ttsVoice';
 import type {
   SceneConfig,
@@ -359,6 +359,9 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [ttsVoices, setTtsVoices] = useState<TtsVoiceConfig>(DEFAULT_TTS_VOICES);
   const [ttsVoicesExist, setTtsVoicesExist] = useState(false);
   const [ttsDirty, setTtsDirty] = useState(false);
+  // 语速/音量输入框的原始文本(允许编辑中的 "-"/"+" 等中间态,保存时归一化)
+  const [ttsRateInput, setTtsRateInput] = useState('0');
+  const [ttsVolumeInput, setTtsVolumeInput] = useState('0');
   const [ttsLoaded, setTtsLoaded] = useState(false);
   const [ttsSaving, setTtsSaving] = useState(false);
   const [ttsSaved, setTtsSaved] = useState(false);
@@ -389,6 +392,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     loadTtsVoices()
       .then(({ config, exists }) => {
         setTtsVoices(config);
+        setTtsRateInput(String(config.rate));
+        setTtsVolumeInput(String(config.volume));
         setTtsVoicesExist(exists);
         setTtsDirty(false);
       })
@@ -602,12 +607,24 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     setTtsError(null);
   };
 
+  // 语速/音量(-100..100 百分数,0 = 默认):与音色同一份配置一起保存/试听。
+  // 输入框保留原始文本(便于输入负号),配置里存解析后的数值(非法/空 → 0)。
+  const handleTtsTuningChange = (field: 'rate' | 'volume', raw: string) => {
+    if (field === 'rate') setTtsRateInput(raw); else setTtsVolumeInput(raw);
+    setTtsVoices((c) => ({ ...c, [field]: sanitizeTuning(raw, 0) }));
+    setTtsDirty(true);
+    setTtsError(null);
+  };
+
   // 返回是否保存成功(试听前先保存,失败则中止)
   const handleTtsSave = async (): Promise<boolean> => {
     setTtsSaving(true);
     setTtsError(null);
     try {
       await saveTtsVoices(ttsVoices);
+      // 保存后把输入框归一化为实际落盘值(非法中间态如 "-" 会显示为 0)
+      setTtsRateInput(String(ttsVoices.rate));
+      setTtsVolumeInput(String(ttsVoices.volume));
       setTtsDirty(false);
       setTtsVoicesExist(true);
       setTtsSaved(true);
@@ -634,7 +651,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       const res = await authFetch(apiUrl('/api/tts/speak'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: TTS_AUDITION_SAMPLES[lang], lang }),
+        body: JSON.stringify({ text: TTS_AUDITION_SAMPLES[lang], lang, rate: ttsVoices.rate, volume: ttsVoices.volume }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const url = URL.createObjectURL(await res.blob());
@@ -1485,8 +1502,32 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             </button>
           </div>
         ))}
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:tts.rate', { defaultValue: '语速(%)' })} query={searchQuery} /></span>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="config-input config-input-sm"
+            value={ttsRateInput}
+            placeholder="0"
+            onChange={(e) => handleTtsTuningChange('rate', e.target.value)}
+          />
+          <span className="config-hint">{t('config:tts.rateHint', { defaultValue: '负值更慢,正值更快;0 = 原速' })}</span>
+        </div>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:tts.volume', { defaultValue: '音量(%)' })} query={searchQuery} /></span>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="config-input config-input-sm"
+            value={ttsVolumeInput}
+            placeholder="0"
+            onChange={(e) => handleTtsTuningChange('volume', e.target.value)}
+          />
+          <span className="config-hint">{t('config:tts.volumeHint', { defaultValue: '负值更轻,正值更响;0 = 原音量' })}</span>
+        </div>
         <div className="config-row config-row-stacked">
-          <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费);试听会先保存再播放,保存后下一句播报立即生效。' })}</span>
+          <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费);语速/音量取值 -100..100(百分数);试听会先保存再播放,保存后下一句播报立即生效。' })}</span>
           {ttsLoaded && (
             <span className="config-hint">{ttsVoicesExist ? t('config:tts.statusCustom', { defaultValue: '已自定义音色' }) : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}</span>
           )}

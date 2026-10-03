@@ -153,12 +153,36 @@ function detectLanguage(text: string): 'es' | 'en' | 'zh' {
 }
 
 /**
+ * 解析可选的 rate/volume(语速/音量百分比数字,-100..100):
+ * 缺失/空串/null/非有限数 → undefined(不传,由垫片按配置/默认处理);
+ * 越界钳到范围(垫片端同样钳一遍,双保险)。
+ */
+export function parseTuningValue(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const n = typeof raw === 'number' ? raw : Number(String(raw).trim().replace(/%$/, ''));
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(-100, Math.min(100, n));
+}
+
+/** 组装 piper 参数:新参数只在显式给值时追加(不打扰未使用它的调用方)。 */
+export function buildPiperArgs(
+  modelPath: string,
+  outputFile: string,
+  tuning: { rate?: number; volume?: number } = {},
+): string[] {
+  const args = ['--model', modelPath, '--output_file', outputFile];
+  if (tuning.rate !== undefined) args.push('--rate', String(tuning.rate));
+  if (tuning.volume !== undefined) args.push('--volume', String(tuning.volume));
+  return args;
+}
+
+/**
  * POST /api/tts/speak
  * Generates audio using Piper TTS and returns WAV audio data
  * Auto-detects language if not specified
  */
 router.post('/speak', async (req: Request, res: Response) => {
-  const { text, voice, lang } = req.body;
+  const { text, voice, lang, rate, volume } = req.body;
 
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Text is required' });
@@ -193,7 +217,11 @@ router.post('/speak', async (req: Request, res: Response) => {
     selectedVoice = VOICES[detectedLang as keyof typeof VOICES] || VOICES.en;
   }
 
-  logger.server.log(`[TTS] Generating audio with voice ${selectedVoice}: ${cleanedText.substring(0, 50)}...`);
+  const tuning = { rate: parseTuningValue(rate), volume: parseTuningValue(volume) };
+  const tuningLog = tuning.rate !== undefined || tuning.volume !== undefined
+    ? ` (rate=${tuning.rate ?? 0}, volume=${tuning.volume ?? 0})`
+    : '';
+  logger.server.log(`[TTS] Generating audio with voice ${selectedVoice}${tuningLog}: ${cleanedText.substring(0, 50)}...`);
 
   const modelPath = path.join(resolveVoicesDir(), `${selectedVoice}.onnx`);
 
@@ -223,10 +251,7 @@ router.post('/speak', async (req: Request, res: Response) => {
         }
       };
 
-      const piper = spawn(piperBin, [
-        '--model', modelPath,
-        '--output_file', tmpFile
-      ], { windowsHide: true });
+      const piper = spawn(piperBin, buildPiperArgs(modelPath, tmpFile, tuning), { windowsHide: true });
 
       piper.stderr.on('data', (data: Buffer) => {
         // Piper outputs progress to stderr, ignore it

@@ -17,6 +17,10 @@ export interface TtsVoiceConfig {
   zh: string;
   en: string;
   es: string;
+  /** 语速调整(百分数,0 = 原速;+10 = 快 10%)。 */
+  rate: number;
+  /** 音量调整(百分数,0 = 原音量)。 */
+  volume: number;
 }
 
 export interface TtsVoiceOption {
@@ -24,11 +28,13 @@ export interface TtsVoiceOption {
   label: string;
 }
 
-/** 与 tools/edge-tts/voices.json 的出厂默认保持一致。 */
+/** 与 tools/edge-tts/voices.json 的出厂默认保持一致(rate/volume 缺省 = 0)。 */
 export const DEFAULT_TTS_VOICES: TtsVoiceConfig = {
   zh: 'zh-CN-XiaoxiaoNeural',
   en: 'en-US-JennyNeural',
   es: 'es-MX-DaliaNeural',
+  rate: 0,
+  volume: 0,
 };
 
 /** edge-tts 实际可用的音色(msedge 列表,非 Azure 全量)。 */
@@ -110,8 +116,16 @@ async function readJson(absPath: string): Promise<unknown> {
   }
 }
 
-/** 只认 zh/en/es 三个字符串字段,其余保持默认。 */
-function sanitize(raw: unknown, fallback: TtsVoiceConfig): TtsVoiceConfig {
+/** 数值字段(rate/volume):接受数字或数字串,钳到 [-100,100];非法/缺失走默认。 */
+export function sanitizeTuning(raw: unknown, fallback: number): number {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = typeof raw === 'number' ? raw : Number(String(raw).trim().replace(/%$/, ''));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(-100, Math.min(100, n));
+}
+
+/** 只认 zh/en/es 三个字符串字段与 rate/volume 两个数值字段,其余保持默认。 */
+export function sanitize(raw: unknown, fallback: TtsVoiceConfig): TtsVoiceConfig {
   const cfg = { ...fallback };
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>;
@@ -119,6 +133,8 @@ function sanitize(raw: unknown, fallback: TtsVoiceConfig): TtsVoiceConfig {
       const v = obj[lang];
       if (typeof v === 'string' && v.trim()) cfg[lang] = v.trim();
     }
+    cfg.rate = sanitizeTuning(obj.rate, fallback.rate);
+    cfg.volume = sanitizeTuning(obj.volume, fallback.volume);
   }
   return cfg;
 }
