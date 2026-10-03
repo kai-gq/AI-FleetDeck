@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // settings + scene config panel
+import React, { useState, useEffect, useRef } from 'react'; // settings + scene config panel
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
@@ -76,6 +76,8 @@ import { Icon } from '../Icon';
 import { searchSettingsSections } from './settingsSearch';
 import { loadWhisperCloudConfig, saveWhisperCloudConfig, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
 import type { WhisperCloudConfig, SttEngineMode } from '../../api/whisperCloud';
+import { loadTtsVoices, saveTtsVoices, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../../api/ttsVoice';
+import type { TtsVoiceConfig, TtsLang } from '../../api/ttsVoice';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -349,6 +351,15 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [sttSaved, setSttSaved] = useState(false);
   const [sttError, setSttError] = useState<string | null>(null);
   const [showSttKey, setShowSttKey] = useState(false);
+  const [ttsVoices, setTtsVoices] = useState<TtsVoiceConfig>(DEFAULT_TTS_VOICES);
+  const [ttsVoicesExist, setTtsVoicesExist] = useState(false);
+  const [ttsDirty, setTtsDirty] = useState(false);
+  const [ttsLoaded, setTtsLoaded] = useState(false);
+  const [ttsSaving, setTtsSaving] = useState(false);
+  const [ttsSaved, setTtsSaved] = useState(false);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+  const [ttsAuditioning, setTtsAuditioning] = useState<TtsLang | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load codex binary path from server on mount
   useEffect(() => {
@@ -366,6 +377,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         setSttError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setSttLoaded(true));
+  }, []);
+
+  // Load TTS voice config (tools/edge-tts/voices.local.json) on mount
+  useEffect(() => {
+    loadTtsVoices()
+      .then(({ config, exists }) => {
+        setTtsVoices(config);
+        setTtsVoicesExist(exists);
+        setTtsDirty(false);
+      })
+      .catch((err) => {
+        setTtsError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setTtsLoaded(true));
   }, []);
 
   // Sync echo prompt setting from server on mount
@@ -564,6 +589,65 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       })
       .catch((err) => setSttError(err instanceof Error ? err.message : String(err)))
       .finally(() => setSttSaving(false));
+  };
+
+  const handleTtsVoiceChange = (lang: TtsLang, value: string) => {
+    setTtsVoices((c) => ({ ...c, [lang]: value }));
+    setTtsDirty(true);
+    setTtsError(null);
+  };
+
+  // 返回是否保存成功(试听前先保存,失败则中止)
+  const handleTtsSave = async (): Promise<boolean> => {
+    setTtsSaving(true);
+    setTtsError(null);
+    try {
+      await saveTtsVoices(ttsVoices);
+      setTtsDirty(false);
+      setTtsVoicesExist(true);
+      setTtsSaved(true);
+      window.setTimeout(() => setTtsSaved(false), 3000);
+      return true;
+    } catch (err) {
+      setTtsError(`${t('config:tts.saveFailed', { defaultValue: '保存失败' })}: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    } finally {
+      setTtsSaving(false);
+    }
+  };
+
+  const handleTtsAudition = async (lang: TtsLang) => {
+    if (ttsDirty && !(await handleTtsSave())) return;
+    // 停掉上一段试听
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current = null;
+    }
+    setTtsAuditioning(lang);
+    setTtsError(null);
+    try {
+      const res = await authFetch(apiUrl('/api/tts/speak'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: TTS_AUDITION_SAMPLES[lang], lang }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      const finish = () => {
+        if (ttsAudioRef.current === audio) ttsAudioRef.current = null;
+        URL.revokeObjectURL(url);
+        setTtsAuditioning((cur) => (cur === lang ? null : cur));
+      };
+      audio.onended = finish;
+      audio.onerror = finish;
+      await audio.play();
+    } catch (err) {
+      ttsAudioRef.current = null;
+      setTtsAuditioning(null);
+      setTtsError(`${t('config:tts.auditionFailed', { defaultValue: '试听失败' })}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
@@ -1336,6 +1420,36 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           )}
           {sttError && (
             <span className="config-hint">{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
+          )}
+        </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('tts') && (
+      <CollapsibleSection title={t('config:general.tts')} storageKey="tts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('tts')}>
+        {(['zh', 'en', 'es'] as const).map((lang) => (
+          <div className="config-row" key={lang}>
+            <span className="config-label"><HighlightText text={TTS_LANG_LABELS[lang]} query={searchQuery} /></span>
+            <select className="config-select" value={ttsVoices[lang]} onChange={(e) => handleTtsVoiceChange(lang, e.target.value)}>
+              {TTS_VOICE_OPTIONS[lang].map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
+              {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
+            </button>
+          </div>
+        ))}
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费);试听会先保存再播放,保存后下一句播报立即生效。' })}</span>
+          {ttsLoaded && (
+            <span className="config-hint">{ttsVoicesExist ? t('config:tts.statusCustom', { defaultValue: '已自定义音色' }) : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}</span>
+          )}
+          {ttsError && (
+            <span className="config-hint">{ttsError}</span>
+          )}
+          {(ttsDirty || ttsSaved) && (
+            <button className="config-btn config-btn-sm" onClick={handleTtsSave} disabled={ttsSaving}>{ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
           )}
         </div>
       </CollapsibleSection>
