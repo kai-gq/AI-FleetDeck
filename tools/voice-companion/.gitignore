@@ -1,0 +1,6 @@
+# 本地凭据与个性化配置(火山引擎 APP ID / Access Token、聆听参数等):永不入库。
+# 模板见 config.example.json,说明见 README.md。
+config.json
+
+# 运行日志(如有)
+*.log

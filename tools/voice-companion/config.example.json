@@ -1,0 +1,42 @@
+{
+  "enabled": false,
+  "model": "haiku",
+  "stt": {
+    "mode": "auto",
+    "volcengine": {
+      "apiKey": "",
+      "appId": "",
+      "accessToken": "",
+      "resourceId": "volc.bigasr.sauc.duration",
+      "endpoint": "bigmodel_async"
+    }
+  },
+  "listening": {
+    "silenceMs": 800,
+    "minSpeechMs": 400,
+    "maxSegmentMs": 30000,
+    "startThreshold": 0,
+    "bargeIn": true,
+    "wakeWord": "",
+    "endWords": ["发送", "完事了", "就这些"],
+    "autoSubmit": true,
+    "pauseWhenHidden": true
+  },
+  "proactive": {
+    "enabled": false,
+    "intervalMinutes": 30,
+    "scope": "important",
+    "quietWindowMs": 45000
+  },
+  "ui": {
+    "showTranscript": true,
+    "bubbleTimeoutMs": 6000
+  },
+  "brain": {
+    "hop1TimeoutMs": 60000,
+    "hop2TimeoutMs": 45000,
+    "maxTurns": 120,
+    "sessionMaxAgeDays": 7,
+    "maxNotes": 40
+  }
+}
