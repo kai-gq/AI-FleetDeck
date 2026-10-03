@@ -689,16 +689,31 @@ describe('G5 降级与抛错', () => {
     expect(stored.turns).toBe(2);
   });
 
-  it('G5-5 propagates contract parse failures(行为锁定;阶段二 P4 决策降级/错误码)', async () => {
+  it('G5-5 degrades on contract parse failures instead of throwing(P4)', async () => {
     writeState({ personaKey: 'doubao' });
     const p = startProcess('解析不了');
     const call = await waitSpawn(1);
     await completeWith(call.child, '抱歉,我不会说 JSON。');
 
-    await expect(p).rejects.toThrow('No JSON object in response');
+    const r = await p; // 旧行为:穿透成 500;新行为:降级
+    expect(r.degraded).toBe(true);
+    expect(r.response).toContain('没听清');
     const stored = readStateFile();
     expect(stored.turns).toBe(0); // 解析失败早于轮数记账
     expect(stored.sessionId).toBeNull();
+  });
+
+  it('G5-5b keeps the session id on parse failure (no reset, next turn can resume)', async () => {
+    writeState({ sessionId: 'sess-old', sessionStartedAt: Date.now(), turns: 3, personaKey: 'doubao' });
+    const p = startProcess('又来一次解析不了');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, '还是不说 JSON。', { sessionId: 'sess-parse' });
+
+    const r = await p;
+    expect(r.degraded).toBe(true);
+    const stored = readStateFile();
+    expect(stored.sessionId).toBe('sess-parse'); // 降级不重置会话(与超时一致)
+    expect(stored.turns).toBe(3); // 轮数不计
   });
 
   it('G5-6 aborts on signal: pre-aborted never spawns, mid-flight kills the child', async () => {

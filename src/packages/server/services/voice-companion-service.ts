@@ -860,7 +860,16 @@ async function runHop1(
   }
   if (!state.sessionStartedAt) state.sessionStartedAt = Date.now();
 
-  const contract = parseContractJson(result.text);
+  let contract: VoiceContract;
+  try {
+    contract = parseContractJson(result.text);
+  } catch (err) {
+    // 模型输出解析不出契约(非 JSON / JSON 残缺):带上截断原文抛出,
+    // 由 processVoiceInput 统一按降级处理(不 500,不重置会话)——P4。
+    const e = new Error(`contract parse failed: ${(err as Error).message}; raw=${truncate(result.text, 300)}`);
+    e.name = 'VoiceCompanionParse';
+    throw e;
+  }
   log.log(`[VoiceCompanion] hop1 ${Date.now() - started}ms → ${JSON.stringify(contract).slice(0, 500)}`);
   return { contract, degraded: false, newSessionId: result.sessionId, elapsedMs: Date.now() - started };
 }
@@ -1097,8 +1106,10 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       const e = err as NodeJS.ErrnoException & { name?: string };
       if (e.code === 'ENOENT') throw err; // 服务器没装 claude —— 配置问题,交给路由 500
       if (e.name === 'VoiceCompanionAborted') throw err; // 客户端已断开:交给路由静默收尾
-      const degradedMsg = e.name === 'VoiceCompanionTimeout' || /exited with code|No response from Claude/.test(e.message ?? '');
-      if (!degradedMsg) throw err;
+      const shouldDegrade = e.name === 'VoiceCompanionTimeout'
+        || e.name === 'VoiceCompanionParse'
+        || /exited with code|No response from Claude/.test(e.message ?? '');
+      if (!shouldDegrade) throw err;
       log.error(`[VoiceCompanion] hop1 降级: ${e.message}`);
       // 注意:超时/失败**不**重置会话。
       state.lastUsedAt = Date.now();
