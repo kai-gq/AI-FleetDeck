@@ -19,8 +19,10 @@ import {
   resetCompanion,
   getCompanionMemory,
   updateCompanionMemory,
+  VoiceCompanionAbortedError,
   type VoiceMemoryOp,
 } from '../services/voice-companion-service.js';
+import { initNdjson, writeNdjsonLine, endNdjson } from '../voice/ndjson.js';
 import { logger } from '../utils/index.js';
 
 const router = Router();
@@ -28,10 +30,53 @@ const router = Router();
 const MAX_TEXT_LENGTH = 4_000;
 
 /**
- * POST /api/voice-companion/process
+ * 分句流式分支(body.stream === true):NDJSON 逐行下推。
+ *   {"type":"sentence","text":"…"}   模型边生成边播的整句(可能 0..n 行)
+ *   {"type":"final","result":{…},"spoke":bool}  最终结果;spoke=false 时客户端
+ *                                     应按 result.response 整段补播
+ *   {"type":"error","error":"…","details":"…"}  失败
+ * 客户端断开即 abort:kill claude 子进程,释放互斥队列。
+ */
+async function handleStreamProcess(res: Response, text: string, isEvent: boolean): Promise<void> {
+  initNdjson(res);
+
+  const controller = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) controller.abort();
+  });
+
+  try {
+    const result = await processVoiceInput(text, {
+      isEvent,
+      signal: controller.signal,
+      onSentence: (sentence) => {
+        writeNdjsonLine(res, { type: 'sentence', text: sentence });
+      },
+    });
+    writeNdjsonLine(res, { type: 'final', result: { success: true, ...result }, spoke: !!result.spoke });
+    endNdjson(res);
+  } catch (err) {
+    if (err instanceof VoiceCompanionAbortedError) {
+      endNdjson(res); // 客户端已断开:静默收尾,不写不记
+      return;
+    }
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') {
+      logger.server.error(`[VoiceCompanion] Claude 可执行文件未找到: ${e.message}`);
+      writeNdjsonLine(res, { type: 'error', error: 'Claude CLI not found', details: e.message });
+    } else {
+      logger.server.error(`[VoiceCompanion] Error: ${(err as Error)?.message}`);
+      writeNdjsonLine(res, { type: 'error', error: 'Failed to process', details: (err as Error)?.message });
+    }
+    endNdjson(res);
+  }
+}
+
+/**
+ * POST /api/voice-companion/process  { text, event?, stream? }
  */
 router.post('/process', async (req: Request, res: Response) => {
-  const { text, event } = req.body ?? {};
+  const { text, event, stream } = req.body ?? {};
 
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'Text is required' });
@@ -40,7 +85,11 @@ router.post('/process', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Text too long' });
   }
 
-  logger.server.log(`[VoiceCompanion] Processing${event ? ' (event)' : ''}: "${text.slice(0, 120)}"`);
+  logger.server.log(`[VoiceCompanion] Processing${event ? ' (event)' : ''}${stream ? ' (stream)' : ''}: "${text.slice(0, 120)}"`);
+
+  if (stream === true) {
+    return handleStreamProcess(res, text.trim(), !!event);
+  }
 
   try {
     const result = await processVoiceInput(text.trim(), { isEvent: !!event });

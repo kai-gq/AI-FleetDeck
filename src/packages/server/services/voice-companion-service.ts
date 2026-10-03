@@ -32,6 +32,9 @@ import { ClaudeBackend } from '../claude/index.js';
 import * as agentService from './agent-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
+import { findStringField, createJsonStringStream } from '../voice/contract-stream.js';
+import { SpeechGate } from '../voice/speech-gate.js';
+import type { GateAction } from '../voice/speech-gate.js';
 import type { Agent } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
 
@@ -93,6 +96,14 @@ export interface VoiceContract {
 export interface VoiceProcessOptions {
   /** true = 由客户端主动汇报模块送来的 [系统事件] 文本(noop 时保持安静)。 */
   isEvent?: boolean;
+  /**
+   * 分句流式播报:模型边生成,responseToUser 里每完成一句就回调一次
+   * (已经过 action 语义门控:noop 不出声、send_to_agent 等派发成功才放行)。
+   * 不传则完全走旧的整段返回路径。
+   */
+  onSentence?: (sentence: string) => void;
+  /** 客户端断开时中止本轮 claude 调用(否则废弃请求会占着互斥队列)。 */
+  signal?: AbortSignal;
 }
 
 export interface VoiceProcessResult {
@@ -106,7 +117,17 @@ export interface VoiceProcessResult {
   memoryOpsApplied?: number;
   /** 模型超时/输出无法解析时的兜底标记。 */
   degraded?: boolean;
+  /** 已通过 onSentence 播报过(客户端据此决定是否整段补播 response)。 */
+  spoke?: boolean;
   elapsedMs: number;
+}
+
+/** callClaudeOnce 被 opts.signal 中止时抛出的错误(name 供路由识别后静默收尾)。 */
+export class VoiceCompanionAbortedError extends Error {
+  constructor() {
+    super('VoiceCompanion call aborted');
+    this.name = 'VoiceCompanionAborted';
+  }
 }
 
 export interface VoiceCompanionServerConfig {
@@ -488,9 +509,13 @@ function formatMemory(memory: CompanionMemory): string {
   return parts.length > 0 ? parts.join('\n') : '(暂无)';
 }
 
+// 字段顺序有讲究:action 与 responseToUser 放最前 —— 分句流式播报靠它们尽早
+// 知道要不要出声、以及第一句是什么;长字段(messageToAgent / memoryOps)殿后,
+// 不阻塞播报。
 const CONTRACT_TEMPLATE = '{"action":"general_response|send_to_agent|list_agents|query_agent_output|noop",'
+  + '"responseToUser":"",'
   + '"targetAgentId":null,"targetAgentName":null,"messageToAgent":"","delivery":"queue|interrupt",'
-  + '"query":"","responseToUser":"","memoryOps":[]}';
+  + '"query":"","memoryOps":[]}';
 
 /** 组装 hop1 系统提示词:角色 + 契约 + 规则 + 记忆 + agent 快照。 */
 export function buildCompanionSystemPrompt(input: {
@@ -507,7 +532,7 @@ export function buildCompanionSystemPrompt(input: {
 
   return `你是 Tide Commander(多 AI agent 指挥台)的语音伙伴,代号「小伴」。老板通过语音和你说话;你负责:聊天、把任务派给合适的 agent、查询 agent 的进展与产出、记住老板的长期偏好。
 
-【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块:
+【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块;严格按模板的字段顺序输出(action、responseToUser 在最前):
 ${CONTRACT_TEMPLATE}
 
 上面的模板只是字段格式示意:其中 responseToUser 是给老板播报的实际句子,**除 noop 动作外绝不允许为空字符串**。
@@ -557,8 +582,18 @@ interface ClaudeCallResult {
 function callClaudeOnce(
   systemPrompt: string,
   userContent: string,
-  opts: { model: string; resumeId?: string | null; timeoutMs: number; reminder?: boolean },
+  opts: {
+    model: string;
+    resumeId?: string | null;
+    timeoutMs: number;
+    reminder?: boolean;
+    /** 增量文本(累计值):分句流式播报用它边生成边切句。 */
+    onTextDelta?: (fullText: string) => void;
+    /** 中止信号:abort 时 kill 子进程并以 VoiceCompanionAbortedError 拒绝。 */
+    signal?: AbortSignal;
+  },
 ): Promise<ClaudeCallResult> {
+  if (opts.signal?.aborted) return Promise.reject(new VoiceCompanionAbortedError());
   return new Promise((resolve, reject) => {
     const executable = claudeBackend.getExecutablePath();
     const args = [
@@ -566,6 +601,8 @@ function callClaudeOnce(
       '--verbose',
       '--model', opts.model,
       '--output-format', 'stream-json',
+      // 增量事件(text_delta)——分句流水线的前提。
+      '--include-partial-messages',
       '--input-format', 'stream-json',
     ];
 
@@ -596,10 +633,21 @@ function callClaudeOnce(
 
     const decoder = new StringDecoder('utf8');
     let buffer = '';
-    let textOutput = '';
+    // 开 --include-partial-messages 后,同一段文本先以 text_delta 增量到达,
+    // 随后又随完整 assistant 事件全量再来一遍。三个来源必须分开累加,否则
+    // 文本翻倍、JSON 解析必炸;close 时按优先级取其一。
+    let assistantText = '';
+    let deltaText = '';
+    let resultText = '';
     let newSessionId: string | null = null;
     let stderrBuf = '';
     let settled = false;
+
+    const settleCleanup = () => {
+      clearTimeout(timeout);
+      cleanup();
+      opts.signal?.removeEventListener('abort', onAbort);
+    };
 
     const timeout = setTimeout(() => {
       if (settled) return;
@@ -609,11 +657,24 @@ function callClaudeOnce(
         try { child.kill('SIGKILL'); } catch { /* ignore */ }
       }, 5_000);
       killTimer.unref?.();
-      cleanup();
+      settleCleanup();
       const err = new Error(`Claude timed out after ${opts.timeoutMs}ms`);
       err.name = 'VoiceCompanionTimeout';
       reject(err);
     }, opts.timeoutMs);
+
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      try { child.kill('SIGTERM'); } catch { /* ignore */ }
+      const killTimer = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch { /* ignore */ }
+      }, 5_000);
+      killTimer.unref?.();
+      settleCleanup();
+      reject(new VoiceCompanionAbortedError());
+    };
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
 
     child.stdout?.on('data', (data: Buffer) => {
       buffer += decoder.write(data);
@@ -626,13 +687,17 @@ function callClaudeOnce(
           if (event.type === 'system' && event.session_id) newSessionId = event.session_id;
           if (event.type === 'assistant' && event.message?.content) {
             for (const block of event.message.content) {
-              if (block.type === 'text' && block.text) textOutput += block.text;
+              if (block.type === 'text' && block.text) assistantText += block.text;
             }
           }
           if (event.type === 'stream_event' && event.event?.type === 'content_block_delta') {
             if (event.event.delta?.type === 'text_delta' && event.event.delta.text) {
-              textOutput += event.event.delta.text;
+              deltaText += event.event.delta.text;
+              opts.onTextDelta?.(deltaText);
             }
+          }
+          if (event.type === 'result' && typeof event.result === 'string') {
+            resultText = event.result;
           }
         } catch { /* ignore non-JSON */ }
       }
@@ -646,8 +711,7 @@ function callClaudeOnce(
     child.on('close', (code) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
-      cleanup();
+      settleCleanup();
       const remaining = buffer + decoder.end();
       if (remaining.trim()) {
         try {
@@ -655,6 +719,7 @@ function callClaudeOnce(
           if (event.type === 'system' && event.session_id) newSessionId = event.session_id;
         } catch { /* ignore */ }
       }
+      const textOutput = assistantText || deltaText || resultText;
       if (code !== 0 && !textOutput) {
         const err = new Error(`Claude exited with code ${code}`) as Error & { stderr?: string };
         err.stderr = stderrBuf;
@@ -671,8 +736,7 @@ function callClaudeOnce(
     child.on('error', (err) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
-      cleanup();
+      settleCleanup();
       reject(err);
     });
 
@@ -725,6 +789,7 @@ async function runHop1(
   state: VoiceCompanionState,
   cfg: VoiceCompanionServerConfig,
   isEvent: boolean,
+  stream?: { onTextDelta?: (fullText: string) => void; signal?: AbortSignal },
 ): Promise<Hop1Outcome> {
   const started = Date.now();
   const systemPrompt = buildSystemPromptFromWorld(state.memory);
@@ -734,6 +799,8 @@ async function runHop1(
     resumeId,
     timeoutMs: cfg.hop1TimeoutMs,
     reminder: !!resumeId || !isEvent,
+    onTextDelta: stream?.onTextDelta,
+    signal: stream?.signal,
   });
 
   let result: ClaudeCallResult;
@@ -769,6 +836,7 @@ async function runHop2(
   agentError: string | undefined,
   excerpt: string,
   cfg: VoiceCompanionServerConfig,
+  stream?: { onTextDelta?: (fullText: string) => void; signal?: AbortSignal },
 ): Promise<string> {
   const userContent = [
     `老板的问题:${question || `看看 ${agentName} 最近做了什么`}`,
@@ -783,6 +851,8 @@ async function runHop2(
     model: cfg.model,
     resumeId: null,
     timeoutMs: cfg.hop2TimeoutMs,
+    onTextDelta: stream?.onTextDelta,
+    signal: stream?.signal,
   });
   const parsed = JSON.parse(
     stripCodeFences(result.text).slice(
@@ -876,6 +946,81 @@ function withMutex<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 // ============================================================================
+// Streaming speech pipeline (incremental responseToUser → gated sentences)
+// ============================================================================
+
+interface SpeechPipeline {
+  onHop1Delta: (fullText: string) => void;
+  onHop2Delta: (fullText: string) => void;
+  setHop1Action: (action: CompanionAction) => void;
+  releaseHop1: () => void;
+  discardHop1: () => void;
+  readonly spoke: boolean;
+}
+
+const GATE_ACTIONS = new Set<string>([
+  'general_response', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
+]);
+
+/**
+ * 分句流式播报管线:把 hop1/hop2 的文本增量变成「可播报的整句」,
+ * 经 action 语义门控(SpeechGate)后逐句回调。无 onSentence 时返回全套
+ * no-op —— 旧的整段返回路径零开销、行为不变。
+ */
+function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPipeline {
+  if (!onSentence) {
+    return {
+      onHop1Delta: () => {},
+      onHop2Delta: () => {},
+      setHop1Action: () => {},
+      releaseHop1: () => {},
+      discardHop1: () => {},
+      get spoke() { return false; },
+    };
+  }
+
+  const gate = new SpeechGate(onSentence);
+  const hop1Stream = createJsonStringStream('responseToUser');
+  let actionSeen = false;
+
+  // hop2 的回复没有 action 字段(答案即可播内容):独立闸门,直接放行。
+  const hop2Gate = new SpeechGate(onSentence);
+  hop2Gate.setAction('general_response');
+  const hop2Stream = createJsonStringStream('responseToUser');
+
+  return {
+    onHop1Delta(fullText: string) {
+      if (!actionSeen) {
+        // action 在契约最前面、枚举又短,通常第一句句号落下前就已确定;
+        // 它没确定前句子先被 gate 缓冲,不会抢跑。
+        const hit = findStringField(fullText, 'action');
+        if (hit?.complete && GATE_ACTIONS.has(hit.value)) {
+          actionSeen = true;
+          gate.setAction(hit.value as GateAction);
+        }
+      }
+      for (const sentence of hop1Stream.pushRaw(fullText)) gate.push(sentence);
+    },
+    onHop2Delta(fullText: string) {
+      for (const sentence of hop2Stream.pushRaw(fullText)) hop2Gate.push(sentence);
+    },
+    setHop1Action(action: CompanionAction) {
+      actionSeen = true;
+      gate.setAction(action);
+    },
+    releaseHop1() {
+      gate.release();
+    },
+    discardHop1() {
+      gate.discard();
+    },
+    get spoke() {
+      return gate.spoke || hop2Gate.spoke;
+    },
+  };
+}
+
+// ============================================================================
 // Main entry
 // ============================================================================
 
@@ -886,6 +1031,12 @@ function withMutex<T>(fn: () => Promise<T>): Promise<T> {
  */
 export async function processVoiceInput(text: string, opts: VoiceProcessOptions = {}): Promise<VoiceProcessResult> {
   return withMutex(async () => {
+    const speech = createSpeechPipeline(opts.onSentence);
+    const finish = (r: VoiceProcessResult): VoiceProcessResult => {
+      if (speech.spoke) r.spoke = true;
+      return r;
+    };
+
     const started = Date.now();
     const cfg = loadServerConfig();
     const state = loadCompanionState();
@@ -899,23 +1050,29 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
 
     let outcome: Hop1Outcome;
     try {
-      outcome = await runHop1(text, state, cfg, !!opts.isEvent);
+      outcome = await runHop1(text, state, cfg, !!opts.isEvent, {
+        onTextDelta: speech.onHop1Delta,
+        signal: opts.signal,
+      });
     } catch (err) {
       const e = err as NodeJS.ErrnoException & { name?: string };
       if (e.code === 'ENOENT') throw err; // 服务器没装 claude —— 配置问题,交给路由 500
+      if (e.name === 'VoiceCompanionAborted') throw err; // 客户端已断开:交给路由静默收尾
       const degradedMsg = e.name === 'VoiceCompanionTimeout' || /exited with code|No response from Claude/.test(e.message ?? '');
       if (!degradedMsg) throw err;
       log.error(`[VoiceCompanion] hop1 降级: ${e.message}`);
       // 注意:超时/失败**不**重置会话。
       state.lastUsedAt = Date.now();
       saveCompanionState(state);
-      return { action: 'general_response', response: DEGRADED_RESPONSE, degraded: true, elapsedMs: Date.now() - started };
+      return finish({ action: 'general_response', response: DEGRADED_RESPONSE, degraded: true, elapsedMs: Date.now() - started });
     }
 
     state.turns += 1;
     state.lastUsedAt = Date.now();
 
     const { contract } = outcome;
+    // 流式期间若 action 尚未解析出来,这里兜底补上(缓冲的句子按语义放行/丢弃)。
+    speech.setHop1Action(contract.action);
     let memoryOpsApplied = 0;
     if (contract.memoryOps.length > 0) {
       const { memory, applied } = applyMemoryOps(state.memory, contract.memoryOps, cfg.maxNotes);
@@ -937,12 +1094,15 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     if (contract.action === 'send_to_agent' && contract.targetAgentId) {
       const target = agentService.getAgent(contract.targetAgentId);
       if (!target) {
+        // 没派出去就不能播「已让 X 去做」——丢弃缓冲,整段走 result.response 兜底。
+        speech.discardHop1();
         result.response = contract.responseToUser || `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
-        return result;
+        return finish(result);
       }
       if (!contract.messageToAgent) {
+        speech.discardHop1();
         result.response = contract.responseToUser || '我没听清要让它做什么,请再说一遍。';
-        return result;
+        return finish(result);
       }
       const interrupted = await deliverToAgent(target, contract.messageToAgent, contract.delivery);
       result.targetAgent = { id: target.id, name: target.name };
@@ -954,15 +1114,18 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           ? `已打断 ${target.name},改用新任务。`
           : `已让 ${target.name} 去做。`;
       }
+      // 派发成功,放行缓冲的确认话术(「已让 X …」)。
+      speech.releaseHop1();
       log.log(`[VoiceCompanion] → ${target.name}(${contract.delivery}${interrupted ? ',已打断' : ''}): ${contract.messageToAgent}`);
-      return result;
+      return finish(result);
     }
 
     if (contract.action === 'query_agent_output' && contract.targetAgentId) {
       const target = agentService.getAgent(contract.targetAgentId);
       if (!target) {
+        speech.discardHop1();
         result.response = contract.responseToUser || `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
-        return result;
+        return finish(result);
       }
       const excerpt = await fetchAgentOutputExcerpt(target.id);
       const hop2Started = Date.now();
@@ -975,25 +1138,30 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           target.lastError,
           excerpt,
           cfg,
+          { onTextDelta: speech.onHop2Delta, signal: opts.signal },
         );
         result.response = answer;
       } catch (err) {
+        if (err instanceof VoiceCompanionAbortedError) throw err;
         log.warn(`[VoiceCompanion] hop2 失败,用确定性摘要: ${(err as Error).message}`);
         result.response = `「${target.name}」最近的输出:${excerpt.slice(0, 160)}${excerpt.length > 160 ? '…' : ''}`;
         result.degraded = true;
       }
       result.secondHopMs = Date.now() - hop2Started;
       result.targetAgent = { id: target.id, name: target.name };
-      return result;
+      return finish(result);
     }
 
     if (contract.action === 'noop') {
       result.response = '';
-      return result;
+      return finish(result);
     }
 
     // list_agents / general_response:直接播报 responseToUser;
     // 模型偶尔会照抄模板留空 —— 用确定性摘要兜底,保证有话说。
+    // (send/query 缺 targetAgentId 的畸形契约也会落到这里:缓冲丢弃,
+    //  由 spoke=false 让客户端按 result.response 整段补播。)
+    speech.discardHop1();
     if (!result.response) {
       if (contract.action === 'list_agents') {
         result.response = buildAgentListFallback();
@@ -1001,7 +1169,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         result.response = '嗯,我在。';
       }
     }
-    return result;
+    return finish(result);
   });
 }
 

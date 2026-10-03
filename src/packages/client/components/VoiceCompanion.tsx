@@ -16,14 +16,15 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTTS } from '../hooks/useTTS';
+import { useSpeechQueue } from '../hooks/useSpeechQueue';
 import { useContinuousListening } from '../hooks/useContinuousListening';
 import {
   DEFAULT_VOICE_COMPANION_CONFIG,
   loadVoiceCompanionConfig,
-  processVoiceCompanionText,
+  processVoiceCompanionTextStream,
   subscribeVoiceCompanionConfig,
   type VoiceCompanionConfig,
+  type VoiceProcessStreamFinal,
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
 import '../styles/components/voice-companion.scss';
@@ -31,6 +32,15 @@ import '../styles/components/voice-companion.scss';
 const LEADER_KEY = 'tide:voice-companion:leader';
 const LEADER_TTL_MS = 15_000;
 const LEADER_TICK_MS = 5_000;
+
+function isAbortError(err: unknown): boolean {
+  return (err as { name?: string })?.name === 'AbortError';
+}
+
+/** 按用户话语判定播报语种:中文句子用 zh 音色(避免短句被自动检测误判)。 */
+function speechLangFor(text: string): string {
+  return /[一-鿿]/.test(text) ? 'zh' : 'en';
+}
 
 type EntryRole = 'user' | 'assistant' | 'system' | 'error';
 interface BubbleEntry {
@@ -50,15 +60,23 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const [entries, setEntries] = useState<BubbleEntry[]>([]);
   const [isLeader, setIsLeader] = useState(true);
 
-  const { speak, stop: stopTts, speaking: ttsSpeaking } = useTTS();
+  const { enqueue: enqueueSpeech, stop: stopSpeech, speaking: ttsSpeaking } = useSpeechQueue();
   const entryIdRef = useRef(0);
   const speakGenRef = useRef(0);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const sentencesRef = useRef<string[]>([]); // 本轮已播句子(dev 钩子 E2E 断言用)
   const tabIdRef = useRef(`vc-${Math.random().toString(36).slice(2, 10)}`);
   const queueRef = useRef<string[]>([]);
   const busyRef = useRef(false);
   const thinkingRef = useRef(false);
   const ttsSpeakingRef = useRef(false);
   const reporterRef = useRef<ProactiveReporterHandle | null>(null);
+
+  // 卸载:中止在途流;播报队列由 useSpeechQueue 自行停止
+  useEffect(() => () => {
+    speakGenRef.current++;
+    streamAbortRef.current?.abort();
+  }, []);
 
   // ---- 配置:挂载读一次 + 订阅设置面板保存(即时生效) ----
   useEffect(() => {
@@ -133,18 +151,58 @@ export function VoiceCompanion({ className }: { className?: string }) {
     setEntries((prev) => [...prev.slice(-3), { id: ++entryIdRef.current, role, text, at: Date.now() }]);
   }, []);
 
-  /** 播报(带竞态守卫:等待期间被新的播报/打断取代时,停掉这次迟到的播放)。 */
-  const speakSafely = useCallback(
-    async (text: string) => {
+  /**
+   * 流式播报一轮大脑请求(代际守卫 + 可 abort):
+   * - 模型边生成边按句下推,首句一到就入播报队列(合成+播放接续进行);
+   * - final 的 response 与已播明显不一致、或服务端整轮没出过声(spoke=false)
+   *   → 整段补播,避免系统兜底话术被吞;
+   * - 返回 final 结果;null = 期间被新的播报/打断取代(调用方不再上屏)。
+   */
+  const runStreamSafely = useCallback(
+    async (text: string, event: boolean, lang: string): Promise<VoiceProcessStreamFinal | null> => {
       const gen = ++speakGenRef.current;
+      streamAbortRef.current?.abort();
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
+      sentencesRef.current = [];
+      const spoken: string[] = [];
+
       try {
-        await speak(text);
-        if (gen !== speakGenRef.current) stopTts();
-      } catch (err) {
-        console.warn('[VoiceCompanion] 播报失败:', err);
+        let final: VoiceProcessStreamFinal | null = null;
+        await processVoiceCompanionTextStream(
+          text,
+          { event, signal: controller.signal },
+          {
+            onSentence: (sentence) => {
+              if (gen !== speakGenRef.current) return;
+              spoken.push(sentence);
+              sentencesRef.current.push(sentence);
+              setThinking(false); // 首句已出:不用再显示「正在思考」
+              enqueueSpeech(sentence, lang);
+            },
+            onFinal: (result) => {
+              final = result;
+            },
+          },
+        );
+        if (gen !== speakGenRef.current) return null;
+
+        const result = final as VoiceProcessStreamFinal | null;
+        if (result && result.success !== false && result.response) {
+          const playedSomething = spoken.length > 0 || result.spoke === true;
+          const spokenNorm = spoken.join('').replace(/\s+/g, '');
+          const finalNorm = result.response.replace(/\s+/g, '');
+          if (!playedSomething || spokenNorm !== finalNorm) {
+            // 整段兜底(noop 之外没出过声)/ 纠正(系统兜底覆盖了模型话术)
+            enqueueSpeech(result.response, lang);
+          }
+        }
+        return result;
+      } finally {
+        if (streamAbortRef.current === controller) streamAbortRef.current = null;
       }
     },
-    [speak, stopTts],
+    [enqueueSpeech],
   );
 
   /** 串行处理队列:大脑可能慢(两跳查询),并发提交会让回复错序。 */
@@ -156,17 +214,19 @@ export function VoiceCompanion({ className }: { className?: string }) {
         const text = queueRef.current.shift() as string;
         setThinking(true);
         try {
-          const res = await processVoiceCompanionText(text);
+          const res = await runStreamSafely(text, false, speechLangFor(text));
+          if (res === null) continue; // 被新的播报/打断取代
           if (res.success && res.response) {
             pushEntry('assistant', res.response);
-            void speakSafely(res.response);
-          } else {
+          } else if (!res.success) {
             pushEntry(
               'error',
               res.error || t('terminal:voiceCompanion.errors.processFailed', { defaultValue: '语音伙伴处理失败' }),
             );
           }
+          // success 且无 response:noop,不出声也不上屏
         } catch (err) {
+          if (isAbortError(err)) continue;
           console.warn('[VoiceCompanion] 处理失败:', err);
           pushEntry(
             'error',
@@ -179,7 +239,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
     } finally {
       busyRef.current = false;
     }
-  }, [pushEntry, speakSafely, t]);
+  }, [pushEntry, runStreamSafely, t]);
 
   const submitText = useCallback(
     (text: string) => {
@@ -210,7 +270,8 @@ export function VoiceCompanion({ className }: { className?: string }) {
     },
     onBargeIn: () => {
       speakGenRef.current++;
-      stopTts();
+      streamAbortRef.current?.abort();
+      stopSpeech();
     },
     onError: (message) => {
       setLiveText('');
@@ -245,12 +306,12 @@ export function VoiceCompanion({ className }: { className?: string }) {
       onSubmit: (text) => {
         void (async () => {
           try {
-            const res = await processVoiceCompanionText(text, { event: true });
-            if (res.success && res.response && res.action !== 'noop') {
+            const res = await runStreamSafely(text, true, speechLangFor(text));
+            if (res && res.success && res.response && res.action !== 'noop') {
               pushEntry('assistant', res.response);
-              void speakSafely(res.response);
             }
           } catch (err) {
+            if (isAbortError(err)) return;
             console.warn('[VoiceCompanion] 主动汇报失败:', err);
           }
         })();
@@ -262,7 +323,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       reporter.stop();
       reporterRef.current = null;
     };
-  }, [config, proactiveActive, pushEntry, speakSafely]);
+  }, [config, proactiveActive, pushEntry, runStreamSafely]);
 
   const handleButtonClick = useCallback(() => {
     if (!isLeader) {
@@ -275,13 +336,14 @@ export function VoiceCompanion({ className }: { className?: string }) {
     }
     if (ttsSpeaking) {
       speakGenRef.current++;
-      stopTts();
+      streamAbortRef.current?.abort();
+      stopSpeech();
       return;
     }
     setSessionOn(false);
     setLiveText('');
-    stopTts();
-  }, [isLeader, claimLeadership, sessionOn, ttsSpeaking, stopTts]);
+    stopSpeech();
+  }, [isLeader, claimLeadership, sessionOn, ttsSpeaking, stopSpeech]);
 
   // 气泡自动淡出:空闲(没有实时文本/思考/播报)时才倒计时
   useEffect(() => {
@@ -310,6 +372,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       vadEngine: listening.vadEngine,
       thinking,
       speaking: ttsSpeaking,
+      sentences: sentencesRef.current,
       sessionOn,
       isLeader,
       proactive: proactiveActive,
