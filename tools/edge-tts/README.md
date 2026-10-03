@@ -24,7 +24,8 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 | 路径 | 作用 |
 | --- | --- |
 | `shim/` | `piper.exe` 兼容垫片(解析 `--model/--output_file` + stdin,本进程合成) |
-| `voices.json` | 语言 → 音色映射(改这里换声音,不用动代码) |
+| `voices.json` | 语言 → 音色映射(入库默认) |
+| `voices.local.json` | 工具箱「文字转语音」写入的用户覆盖(gitignore;不存在 = 用 voices.json) |
 | `venv/` | Python venv(edge-tts 7.2.8) |
 | `shim.log` | 排障日志(gitignore) |
 
@@ -36,8 +37,12 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 | en | `en-US-JennyNeural` |
 | es | `es-MX-DaliaNeural` |
 
-换音色:改 `voices.json` 即可;音色名用
-`venv/Scripts/python.exe -m edge_tts --list-voices` 查;临时试音色可
+换音色:**在 TC 工具箱 →「文字转语音」里直接选**(中文 14 个:晓晓/晓伊/云希/云扬/方言/粤语/台湾,另有英文、西语;每行带「试听」)。
+
+- 保存写入 `voices.local.json`,垫片读取优先级:`voices.local.json` > `voices.json`(删除 local 文件 = 恢复默认);
+- 「试听」= 先保存当前选择、再播放该语言样句(浏览器直接播,走完整 tts.ts → 垫片链路);
+- 手工改 `voices.json` 仍有效(兜底默认),但工具箱一旦保存过,local 会盖过它;
+- 全量音色名: `venv/Scripts/python.exe -m edge_tts --list-voices` 查;临时试音色可
 `set EDGE_TTS_VOICE=zh-CN-XiaoyiNeural` 再跑一次(不改配置文件)。
 语言由 `--model` 文件名前缀决定(如 `zh_CN-huayan-medium.onnx` → `zh`),
 这也是 tts.ts 自动检测语言后传入的。
@@ -67,6 +72,9 @@ printf '老板,任务完成了。' | tools/piper/piper.exe --model tools/piper/v
 
 ## 备注
 
-- 本目录**源码入库**;`venv/`、日志 gitignore(同 `tools/whisper/` 先例);
+- 本目录**源码入库**;`venv/`、日志、`voices.local.json` gitignore(同 `tools/whisper/` 先例);
 - piper 本体(`tools/piper/`,159MB)依旧永不提交,`piper_real.exe` 亦然;
-- 垫片日志 `shim.log` 会记录每次合成(ok)与回退原因,排障先看它。
+- 垫片日志 `shim.log` 会记录每次合成(ok)与回退原因,排障先看它;
+- `tools/piper/voices/es_MX-claude-high.onnx` 是**空占位文件**(作者未装西语 piper 模型,
+  tts.ts 只做存在性检查):在线合成不读模型文件,西语同样走 edge-tts;离线回退 piper 时
+  西语照旧不可用(与放占位前一致,无回归)。

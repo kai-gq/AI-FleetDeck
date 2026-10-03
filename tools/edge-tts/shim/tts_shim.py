@@ -49,21 +49,30 @@ def parse_args(argv):
     return model, out
 
 
+def _read_voices(path):
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception:
+        return {}
+
+
 def pick_voice(model):
-    """EDGE_TTS_VOICE 环境变量(临时试音色)> voices.json 按语言前缀。"""
+    """EDGE_TTS_VOICE 环境变量(临时试音色)> voices.local.json(工具箱保存的
+    覆盖配置)> voices.json(入库默认)按语言前缀。"""
     env = os.environ.get("EDGE_TTS_VOICE")
     if env:
         return env
-    try:
-        cfg = json.loads((TOOL_DIR / "voices.json").read_text(encoding="utf-8"))
-    except Exception:
-        cfg = {}
+    cfg = _read_voices(TOOL_DIR / "voices.local.json") or _read_voices(TOOL_DIR / "voices.json")
     lang = "zh"
     if model:
         stem = Path(model).name
         if "_" in stem:
             lang = stem.split("_", 1)[0].lower()
-    return cfg.get(lang) or cfg.get("zh") or DEFAULT_VOICE
+    val = cfg.get(lang) or cfg.get("zh")
+    if isinstance(val, str) and val:
+        return val
+    return DEFAULT_VOICE
 
 
 def find_ffmpeg():
