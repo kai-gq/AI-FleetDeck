@@ -307,6 +307,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       phase: displayPhase,
       listeningPhase: listening.phase,
       activeMode: listening.activeMode,
+      vadEngine: listening.vadEngine,
       thinking,
       speaking: ttsSpeaking,
       sessionOn,
@@ -319,6 +320,12 @@ export function VoiceCompanion({ className }: { className?: string }) {
       setSessionOn(true);
       submitText(String(text ?? ''));
     };
+    // 合成音频帧驱动整条音频管线(E2E 无真麦);先开聆听、等 start() 生效再喂
+    w.__voiceCompanionFeed = async (rms: number, frames: number, opts?: { bypassModel?: boolean; delayMs?: number }) => {
+      setSessionOn(true);
+      await new Promise((r) => window.setTimeout(r, opts?.delayMs ?? 400));
+      listening.devFeed(Number(rms) || 0, Number(frames) || 0, { bypassModel: opts?.bypassModel });
+    };
     w.__voiceCompanionProactive = {
       flushNow: () => reporterRef.current?.flushNow({ force: true }) ?? null,
       pendingCount: () => reporterRef.current?.pendingCount() ?? 0,
@@ -326,9 +333,10 @@ export function VoiceCompanion({ className }: { className?: string }) {
     return () => {
       delete w.__voiceCompanionState;
       delete w.__voiceCompanionTest;
+      delete w.__voiceCompanionFeed;
       delete w.__voiceCompanionProactive;
     };
-  }, [displayPhase, listening.phase, listening.activeMode, listening.pendingSubmit, thinking, ttsSpeaking, sessionOn, isLeader, proactiveActive, entries, submitText]);
+  }, [displayPhase, listening.phase, listening.activeMode, listening.vadEngine, listening.devFeed, listening.pendingSubmit, thinking, ttsSpeaking, sessionOn, isLeader, proactiveActive, entries, submitText]);
 
   if (!config || !config.enabled) return null;
 

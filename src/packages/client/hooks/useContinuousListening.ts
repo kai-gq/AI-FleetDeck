@@ -31,6 +31,7 @@ import {
   type VadConfig,
   type VadState,
 } from '../voice/vad';
+import { createSileroRunner, loadSileroVad, type SileroRunner } from '../voice/sileroVad';
 import { apiUrl, authFetch } from '../utils/storage';
 import {
   buildVoiceCompanionWsUrl,
@@ -52,6 +53,8 @@ const BATCH_MODEL = 'turbo';
 
 export type ListeningPhase = 'off' | 'starting' | 'listening' | 'hearing' | 'transcribing' | 'paused' | 'error';
 export type ActiveSttMode = 'stream' | 'segment' | null;
+/** 实际生效的判停引擎:model=小模型就绪;loading/failed 期间回退能量通路。 */
+export type VadEngineState = 'energy' | 'loading' | 'model' | 'failed';
 
 export interface FinalTranscriptMeta {
   /** true = 提交到大脑;false = 仅上屏(组件提供手动提交入口)。 */
@@ -85,11 +88,15 @@ export interface ContinuousListeningHandle {
   phase: ListeningPhase;
   /** 当前实际通道(null = 未启动)。 */
   activeMode: ActiveSttMode;
+  /** 实际生效的判停引擎(观测/设置面板显示用)。 */
+  vadEngine: VadEngineState;
   /** autoSubmit=false 且未命中结束词时,最近一条只上屏的终稿(待手动提交)。 */
   pendingSubmit: string | null;
   commitPending: () => void;
   /** 重建流式连接(设置里刚填完凭据 / 想重试时调用)。 */
   reconnect: () => void;
+  /** 仅 DEV:E2E 注入合成音频帧驱动音频管线(无真麦也能测 VAD 全链路)。 */
+  devFeed: (rms: number, frames: number, opts?: { bypassModel?: boolean }) => void;
 }
 
 // ============================================================================
@@ -116,6 +123,14 @@ interface Engine {
   wsBroken: boolean;
   activeMode: 'stream' | 'segment' | null;
   vad: VadState;
+  /** Silero 小模型 runner(null = 未启用/未就绪,判停走能量)。 */
+  silero: SileroRunner | null;
+  sileroLoading: boolean;
+  sileroFailed: boolean;
+  /** 仅 DEV:devFeed 正在注入合成帧(无音频图也放行 onFrame)。 */
+  devFeeding: boolean;
+  /** 仅 DEV:本段合成帧绕过小模型(模型会把方波判成非语音)。 */
+  devBypassSilero: boolean;
   preRoll: ArrayBuffer[];
   /** 当前语音段正在采集(流式=已开始发帧;批量=MediaRecorder 录制中)。 */
   hearing: boolean;
@@ -145,6 +160,11 @@ function createEngine(): Engine {
     wsBroken: false,
     activeMode: null,
     vad: createVadState(),
+    silero: null,
+    sileroLoading: false,
+    sileroFailed: false,
+    devFeeding: false,
+    devBypassSilero: false,
     preRoll: [],
     hearing: false,
     dropSegment: false,
@@ -243,6 +263,7 @@ interface ControllerDeps {
   setPhase: (p: ListeningPhase) => void;
   setMode: (m: ActiveSttMode) => void;
   setPending: (t: string | null) => void;
+  setVadEngine: (s: VadEngineState) => void;
 }
 
 interface Controller {
@@ -251,6 +272,7 @@ interface Controller {
   abortSegment: () => void;
   commitPending: () => void;
   reconnect: () => void;
+  devFeed: (rms: number, frames: number, opts?: { bypassModel?: boolean }) => void;
 }
 
 function createController(deps: ControllerDeps): Controller {
@@ -587,10 +609,51 @@ function createController(deps: ControllerDeps): Controller {
     }
   }
 
+  // ---- 判停引擎(Silero 小模型懒加载;失败只回退能量,绝不打断聆听) ----
+
+  function ensureSilero(): void {
+    const mode = optsRef.current.config.engine ?? DEFAULT_VAD_CONFIG.engine;
+    if (mode === 'energy' || e.silero || e.sileroLoading || e.sileroFailed) return;
+    e.sileroLoading = true;
+    deps.setVadEngine('loading');
+    void loadSileroVad()
+      .then(() => {
+        e.sileroLoading = false;
+        if (!optsRef.current.enabled || e.silero) return; // 已关闭/已建:不重复
+        e.silero = createSileroRunner();
+        deps.setVadEngine(e.silero ? 'model' : 'energy');
+      })
+      .catch((err) => {
+        e.sileroLoading = false;
+        e.sileroFailed = true; // 本次聆听内不再重试(重启后恢复)
+        deps.setVadEngine('failed');
+        console.warn('[VoiceCompanion] 小模型加载失败,回退能量判停:', err);
+        optsRef.current.onNotice?.('小模型加载失败,已用能量判停');
+      });
+  }
+
+  /** 仅 DEV:E2E 用合成帧驱动整条音频管线(真麦不便/不可用时测 VAD 链路)。 */
+  function devFeed(rms: number, frames: number, opts?: { bypassModel?: boolean }): void {
+    if (!import.meta.env.DEV) return;
+    const count = Math.max(0, Math.min(600, Math.floor(frames)));
+    const pcm = new Int16Array(CHUNK_SAMPLES);
+    const amp = Math.round(Math.max(0, Math.min(1, rms)) * 0x7000);
+    for (let i = 0; i < pcm.length; i++) pcm[i] = i % 2 === 0 ? amp : -amp;
+    e.devFeeding = true;
+    e.devBypassSilero = opts?.bypassModel === true;
+    try {
+      for (let f = 0; f < count; f++) onFrame(rms, pcm.buffer);
+    } finally {
+      e.devFeeding = false;
+      e.devBypassSilero = false;
+    }
+  }
+
   /** 音频帧入口:~33Hz。 */
   function onFrame(rms: number, pcm16: ArrayBuffer): void {
     const o = optsRef.current;
-    if (!o.enabled || e.suspended || !e.ctx) return;
+    if (!o.enabled || e.suspended) return;
+    if (!e.ctx && !e.devFeeding) return; // 真机帧只在音频图运行时到达;devFeed 允许无麦
 
     // 预滚:始终维护最近 300ms(语音起点补发,不吞第一个字)
     e.preRoll.push(pcm16);
@@ -604,7 +667,13 @@ function createController(deps: ControllerDeps): Controller {
       maxSegmentMs: o.config.maxSegmentMs,
       startThreshold: o.config.startThreshold,
     };
-    const updated = updateVad({ ...e.vad, ttsActive: o.ttsSpeaking }, rms, FRAME_MS, cfg);
+    if (cfg.engine !== 'energy') ensureSilero();
+    // 小模型就绪后以语音概率替代能量迟滞(推入 30ms 帧,返回最近完成窗的概率)
+    let speechProb: number | null = null;
+    if (cfg.engine !== 'energy' && e.silero && !e.devBypassSilero) {
+      speechProb = e.silero.pushFrame(pcm16);
+    }
+    const updated = updateVad({ ...e.vad, ttsActive: o.ttsSpeaking }, rms, FRAME_MS, cfg, speechProb);
     e.vad = updated.state;
     const ev = updated.event;
 
@@ -731,6 +800,11 @@ function createController(deps: ControllerDeps): Controller {
       void ctx.close().catch(() => undefined);
     }
     e.vad = createVadState();
+    e.silero = null;
+    e.sileroLoading = false;
+    e.sileroFailed = false;
+    e.devFeeding = false;
+    e.devBypassSilero = false;
     e.preRoll = [];
     e.wsReady = false;
     e.wsBroken = false;
@@ -853,6 +927,7 @@ function createController(deps: ControllerDeps): Controller {
     }
 
     deps.setPhase('listening');
+    ensureSilero(); // 引擎=自动/小模型时后台预热(失败回退能量,不影响已启动的聆听)
     console.log('[VoiceCompanion] 持续聆听已启动', { sampleRate: ctx.sampleRate, worklet: usedWorklet });
   }
 
@@ -879,7 +954,7 @@ function createController(deps: ControllerDeps): Controller {
     if (optsRef.current.enabled) ensureWs();
   }
 
-  return { start, teardown, abortSegment, commitPending, reconnect };
+  return { start, teardown, abortSegment, commitPending, reconnect, devFeed };
 }
 
 // ============================================================================
@@ -890,6 +965,7 @@ export function useContinuousListening(opts: ContinuousListeningOptions): Contin
   const [phase, setPhase] = useState<ListeningPhase>('off');
   const [activeMode, setActiveMode] = useState<ActiveSttMode>(null);
   const [pendingSubmit, setPendingSubmit] = useState<string | null>(null);
+  const [vadEngine, setVadEngine] = useState<VadEngineState>('energy');
 
   const engineRef = useRef<Engine | null>(null);
   if (!engineRef.current) engineRef.current = createEngine();
@@ -917,6 +993,9 @@ export function useContinuousListening(opts: ContinuousListeningOptions): Contin
   const setPendingSafe = useCallback((t: string | null) => {
     if (mountedRef.current) setPendingSubmit(t);
   }, []);
+  const setVadEngineSafe = useCallback((s: VadEngineState) => {
+    if (mountedRef.current) setVadEngine(s);
+  }, []);
 
   const controllerRef = useRef<Controller | null>(null);
   if (!controllerRef.current) {
@@ -926,6 +1005,7 @@ export function useContinuousListening(opts: ContinuousListeningOptions): Contin
       setPhase: setPhaseSafe,
       setMode: setModeSafe,
       setPending: setPendingSafe,
+      setVadEngine: setVadEngineSafe,
     });
   }
   const ctrl = controllerRef.current;
@@ -971,8 +1051,10 @@ export function useContinuousListening(opts: ContinuousListeningOptions): Contin
   return {
     phase,
     activeMode,
+    vadEngine,
     pendingSubmit,
     commitPending: ctrl.commitPending,
     reconnect: ctrl.reconnect,
+    devFeed: ctrl.devFeed,
   };
 }

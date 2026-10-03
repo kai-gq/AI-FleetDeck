@@ -21,6 +21,7 @@ import {
   type CompanionStatus,
   type VoiceCompanionConfig,
 } from '../../api/voiceCompanion';
+import { getSileroStatus, subscribeSileroStatus, type SileroStatus } from '../../voice/sileroVad';
 
 // 火山「流式语音识别大模型」的资源 ID:必须与账号开通的版本一致(403 resource not granted 就是选错了)
 const RESOURCE_ID_OPTIONS: Array<{ value: string; label: string }> = [
@@ -104,6 +105,10 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
   const [confirmClear, setConfirmClear] = useState(false);
   const [status, setStatus] = useState<CompanionStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  // 小模型加载状态(全局单例,面板只是订阅展示)
+  const [silero, setSilero] = useState<SileroStatus>(() => getSileroStatus());
+
+  useEffect(() => subscribeSileroStatus(setSilero), []);
 
   useEffect(() => {
     let alive = true;
@@ -332,6 +337,29 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
           onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, confirmMs: v } }))}
         />
         <span className="config-hint">{tx('confirmMsHint', '说话持续这么久才算一句;更短的声响直接忽略(默认 250)')}</span>
+      </div>
+      <div className="config-row">
+        <span className="config-label"><Highlight text={tx('engine', '判停引擎')} query={searchQuery} /></span>
+        <select
+          className="config-select"
+          value={config.listening.engine}
+          onChange={(e) => patch((c) => ({ ...c, listening: { ...c.listening, engine: e.target.value as VoiceCompanionConfig['listening']['engine'] } }))}
+        >
+          <option value="auto">{tx('engineAuto', '自动(小模型优先)')}</option>
+          <option value="model">{tx('engineModel', '小模型(更准)')}</option>
+          <option value="energy">{tx('engineEnergy', '能量(最轻)')}</option>
+        </select>
+        <span className="config-hint">
+          {config.listening.engine === 'energy'
+            ? tx('engineHintEnergy', '纯能量判停:零依赖最省电;嘈杂环境误触发略多')
+            : silero.state === 'loading'
+              ? tx('engineHintLoading', '小模型加载中(约 2.2MB,已随应用内置)…')
+              : silero.state === 'ready'
+                ? tx('engineHintReady', '小模型已就绪:本地推理,误触发更少')
+                : silero.state === 'failed'
+                  ? tx('engineHintFailed', '小模型加载失败,已自动用能量判停(重开聆听可重试)')
+                  : tx('engineHintIdle', '开启聆听时自动加载小模型(约 2.2MB,已随应用内置);失败自动回退能量')}
+        </span>
       </div>
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('wakeWord', '唤醒词(可空)')} query={searchQuery} /></span>

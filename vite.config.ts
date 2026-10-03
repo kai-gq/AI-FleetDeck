@@ -145,7 +145,10 @@ export default defineConfig({
       '@codemirror/legacy-modes/mode/verilog', '@codemirror/legacy-modes/mode/vhdl',
       '@codemirror/legacy-modes/mode/crystal',
     ],
-    exclude: [],
+    // onnxruntime-web ships its own wasm loader with `import.meta.url` /
+    // dynamic wasm paths; pre-bundling rewrites those and breaks the runtime.
+    // It is only imported lazily (Silero VAD), so dev cost is paid on demand.
+    exclude: ['onnxruntime-web'],
   },
   build: {
     outDir: 'dist',
