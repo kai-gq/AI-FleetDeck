@@ -48,6 +48,8 @@ const CHUNK_SAMPLES = (TARGET_RATE * FRAME_MS) / 1000; // 480
 const PREROLL_FRAMES = 16;
 /** 流式终稿等待上限(超过视为失败;下一段自动回退批量通道)。 */
 const STREAM_FINAL_TIMEOUT_MS = 12_000;
+/** 握手期发送队列上限(30ms 帧 ≈ 36s 音频;超限丢最旧,极端情况兜底)。 */
+const WS_SEND_QUEUE_MAX = 1200;
 /** 批量回退的转写参数(与 useSTT 默认一致:中文 + turbo)。 */
 const BATCH_LANGUAGE = 'Chinese';
 const BATCH_MODEL = 'turbo';
@@ -61,6 +63,11 @@ export interface FinalTranscriptMeta {
   /** true = 提交到大脑;false = 仅上屏(组件提供手动提交入口)。 */
   submit: boolean;
   matchedEndWord: boolean;
+  /**
+   * 手动提交回放(commitPending):同一文本此前以 submit=false 已上屏过一次,
+   * 组件不必再 push 用户条目(避免重复;P11)。
+   */
+  fromPending?: boolean;
 }
 
 export interface ContinuousListeningOptions {
@@ -114,6 +121,8 @@ interface Engine {
   script: ScriptProcessorNode | null;
   sink: GainNode | null;
   ws: WebSocket | null;
+  /** 握手期(WS 尚未 OPEN)待发队列:帧与 finish 依序补发,连接失败即清空。 */
+  wsQueue: Array<string | ArrayBuffer>;
   wsReady: boolean;
   /** 流式已判失败:auto 模式下后续段直接走批量,直到 reconnect()/重启。 */
   wsBroken: boolean;
@@ -134,6 +143,10 @@ interface Engine {
   hearing: boolean;
   /** 本段丢弃(转写中打进的新语音)。 */
   dropSegment: boolean;
+  /** 批量转写请求在途(与 awaitingFinal 同义,只是走 /api/stt/transcribe)。 */
+  batchBusy: boolean;
+  /** 在途批量结果作废(暂停/关闭时清段,迟到转写不再提交)。 */
+  discardBatch: boolean;
   /** 已发 finish,等终稿。 */
   awaitingFinal: boolean;
   /** 下一份终稿丢弃(暂停/关闭时补发 finish 收尾用)。 */
@@ -153,6 +166,7 @@ function createEngine(): Engine {
     script: null,
     sink: null,
     ws: null,
+    wsQueue: [],
     wsReady: false,
     wsBroken: false,
     activeMode: null,
@@ -166,6 +180,8 @@ function createEngine(): Engine {
     segmentFrames: null,
     hearing: false,
     dropSegment: false,
+    batchBusy: false,
+    discardBatch: false,
     awaitingFinal: false,
     discardFinal: false,
     finalTimer: null,
@@ -276,27 +292,35 @@ function createController(deps: ControllerDeps): Controller {
     }
   }
 
-  function sendJson(ws: WebSocket | null, obj: Record<string, unknown>): void {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+  /**
+   * WS 发送:OPEN 直发;CONNECTING 时入有界队列,onopen 依序补发。
+   * 浏览器在 CONNECTING 阶段 send() 会抛 InvalidStateError —— 旧实现把
+   * finish 静默丢掉,只能干等 12s 超时(P12);现在握手期帧与 finish 都不丢。
+   */
+  function sendWs(ws: WebSocket | null, data: string | ArrayBuffer): boolean {
+    if (!ws) return false;
+    if (ws.readyState === WebSocket.OPEN) {
       try {
-        ws.send(JSON.stringify(obj));
+        ws.send(data);
+        return true;
       } catch {
-        /* 连接瞬断:交给 onclose 处理 */
+        return false; // 连接瞬断:交给 onclose 处理
       }
     }
+    if (ws.readyState === WebSocket.CONNECTING) {
+      if (e.wsQueue.length >= WS_SEND_QUEUE_MAX) e.wsQueue.shift();
+      e.wsQueue.push(data);
+      return true;
+    }
+    return false;
+  }
+
+  function sendJson(ws: WebSocket | null, obj: Record<string, unknown>): void {
+    sendWs(ws, JSON.stringify(obj));
   }
 
   function sendBinary(ws: WebSocket | null, frame: ArrayBuffer): boolean {
-    // CONNECTING 时 send 会进浏览器缓冲,允许
-    if (ws && ws.readyState <= WebSocket.OPEN) {
-      try {
-        ws.send(frame);
-        return true;
-      } catch {
-        /* fallthrough */
-      }
-    }
-    return false;
+    return sendWs(ws, frame);
   }
 
   // ---- 转写结果 ----
@@ -323,6 +347,7 @@ function createController(deps: ControllerDeps): Controller {
       deps.setPhase('off');
       return;
     }
+    if (e.suspended) return; // 切后台暂停中:迟到终稿只收尾,绝不重启采集(幽灵段,P13)
     if (e.dropSegment) {
       // 转写期间攒下的段已整体丢弃
       e.dropSegment = false;
@@ -343,11 +368,25 @@ function createController(deps: ControllerDeps): Controller {
       e.finalTimer = null;
       if (!e.awaitingFinal) return;
       e.awaitingFinal = false;
+      const wasDiscard = e.discardFinal;
+      e.discardFinal = false;
+      e.wsQueue = [];
+      // 超时即作废本段使用的 WS 会话:迟到终稿无处到达,不可能再被误提交(P2)
+      const ws = e.ws;
+      e.ws = null;
+      e.wsReady = false;
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
       if (o.mode !== 'stream') {
         e.wsBroken = true;
         deps.setMode('segment');
       }
-      o.onError('流式识别超时(未收到终稿)');
+      if (!wasDiscard) o.onError('流式识别超时(未收到终稿)'); // 丢弃段的收尾超时不打扰用户
       finishSegmentCycle();
     }, STREAM_FINAL_TIMEOUT_MS);
   }
@@ -434,10 +473,24 @@ function createController(deps: ControllerDeps): Controller {
     ws.binaryType = 'arraybuffer';
     e.ws = ws;
     e.wsReady = false;
+    e.wsQueue = [];
+    ws.onopen = () => {
+      if (e.ws !== ws) return;
+      const queued = e.wsQueue;
+      e.wsQueue = [];
+      for (const item of queued) {
+        try {
+          ws.send(item);
+        } catch {
+          break; // 余下丢弃:交给 onclose / 终稿超时收尾
+        }
+      }
+    };
     ws.onmessage = (ev) => handleWsMessage(ev);
     ws.onclose = () => {
       if (e.ws !== ws) return;
       e.ws = null;
+      e.wsQueue = [];
       if (!optsRef.current.enabled) return;
       onStreamFailure('流式通道连接断开');
     };
@@ -451,6 +504,8 @@ function createController(deps: ControllerDeps): Controller {
 
   async function transcribeBatch(wav: Uint8Array): Promise<void> {
     const o = optsRef.current;
+    e.batchBusy = true;
+    e.discardBatch = false;
     try {
       if (wav.byteLength <= WAV_HEADER_BYTES) return; // 只有头 = 无音频,当噪声
       const base64 = bytesToBase64(wav);
@@ -460,15 +515,20 @@ function createController(deps: ControllerDeps): Controller {
         body: JSON.stringify({ audio: base64, language: BATCH_LANGUAGE, model: BATCH_MODEL }),
       });
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; text?: string; error?: string };
+      if (e.discardBatch || e.suspended) return; // 段已作废(暂停/关闭):迟到转写丢弃,不提交
       if (data.success && typeof data.text === 'string') {
         handleRawTranscript(data.text);
       } else if (data.error) {
         o.onError(`转写失败:${data.error}`);
       }
     } catch (err) {
-      console.warn('[VoiceCompanion] 批量转写请求失败:', err);
-      o.onError('转写请求失败(网络或服务端不可用)');
+      if (!e.discardBatch && !e.suspended) {
+        console.warn('[VoiceCompanion] 批量转写请求失败:', err);
+        o.onError('转写请求失败(网络或服务端不可用)');
+      }
     } finally {
+      e.batchBusy = false;
+      e.discardBatch = false;
       if (optsRef.current.enabled) finishSegmentCycle();
     }
   }
@@ -521,7 +581,8 @@ function createController(deps: ControllerDeps): Controller {
 
     if (e.activeMode === 'stream') {
       const ws = e.ws;
-      if (ws && ws.readyState <= WebSocket.OPEN) {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        // CONNECTING 时 finish 入队、onopen 补发:不再被静默丢弃干等超时(P12)
         e.awaitingFinal = true;
         e.discardFinal = false;
         sendJson(ws, { type: 'finish' });
@@ -546,13 +607,20 @@ function createController(deps: ControllerDeps): Controller {
   function abortSegment(): void {
     e.hearing = false;
     e.dropSegment = false;
+    if (e.batchBusy) e.discardBatch = true; // 在途批量结果作废(与流式 discardFinal 对齐)
     if (e.segmentFrames) {
       e.segmentFrames = null;
     }
-    if (e.activeMode === 'stream' && e.ws && e.ws.readyState <= WebSocket.OPEN && !e.awaitingFinal) {
+    if (
+      e.activeMode === 'stream' &&
+      e.ws &&
+      (e.ws.readyState === WebSocket.OPEN || e.ws.readyState === WebSocket.CONNECTING) &&
+      !e.awaitingFinal
+    ) {
       // 段中途暂停:补发 finish 让服务端/火山会话收尾(终稿丢弃),通道本身保留
       e.discardFinal = true;
       e.awaitingFinal = true;
+      e.wsQueue = []; // 丢弃段不再补发握手期已缓冲的音频
       sendJson(e.ws, { type: 'finish' });
       startFinalTimer();
     } else if (e.awaitingFinal) {
@@ -635,8 +703,8 @@ function createController(deps: ControllerDeps): Controller {
         return;
       }
       if (o.ttsSpeaking) o.onBargeIn();
-      if (e.awaitingFinal || e.hearing) {
-        e.dropSegment = true; // 转写中打进的新语音:整段丢弃
+      if (e.awaitingFinal || e.hearing || e.batchBusy) {
+        e.dropSegment = true; // 转写中(流式终稿/批量请求在途)打进的新语音:整段丢弃
         return;
       }
       startSegment();
@@ -682,8 +750,11 @@ function createController(deps: ControllerDeps): Controller {
     e.suspended = false;
     e.hearing = false;
     e.dropSegment = false;
+    e.batchBusy = false;
+    e.discardBatch = false;
     e.awaitingFinal = false;
     e.discardFinal = false;
+    e.wsQueue = [];
 
     e.segmentFrames = null;
     if (e.ws) {
@@ -879,11 +950,12 @@ function createController(deps: ControllerDeps): Controller {
     if (!text) return;
     e.pendingText = null;
     deps.setPending(null);
-    optsRef.current.onFinal(text, { submit: true, matchedEndWord: false });
+    optsRef.current.onFinal(text, { submit: true, matchedEndWord: false, fromPending: true });
   }
 
   function reconnect(): void {
     e.wsBroken = false;
+    e.wsQueue = [];
     if (e.ws) {
       const ws = e.ws;
       e.ws = null;
