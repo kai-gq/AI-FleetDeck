@@ -985,6 +985,8 @@ export class ClaudeBackend implements CLIBackend {
 
     const possiblePaths = isWindows
       ? [
+          // Native installer (claude.ai/install.ps1) drops claude.exe here
+          path.join(homeDir, '.local', 'bin', 'claude.exe'),
           path.join(homeDir, 'AppData', 'Roaming', 'npm', 'claude.cmd'),
           path.join(
             homeDir,
