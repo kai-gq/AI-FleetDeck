@@ -74,6 +74,8 @@ import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, isValidExcludeDirName } from '../../../shared/file-search';
 import { Icon } from '../Icon';
 import { searchSettingsSections } from './settingsSearch';
+import { loadWhisperCloudConfig, saveWhisperCloudConfig, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
+import type { WhisperCloudConfig, SttEngineMode } from '../../api/whisperCloud';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -340,10 +342,30 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [isWhatsAppHubOpen, setIsWhatsAppHubOpen] = useState(false);
   const [codexBinaryPath, setCodexBinaryPathState] = useState('');
   const [codexBinaryPathDirty, setCodexBinaryPathDirty] = useState(false);
+  const [sttConfig, setSttConfig] = useState<WhisperCloudConfig>(DEFAULT_WHISPER_CLOUD_CONFIG);
+  const [sttDirty, setSttDirty] = useState(false);
+  const [sttLoaded, setSttLoaded] = useState(false);
+  const [sttSaving, setSttSaving] = useState(false);
+  const [sttSaved, setSttSaved] = useState(false);
+  const [sttError, setSttError] = useState<string | null>(null);
+  const [showSttKey, setShowSttKey] = useState(false);
 
   // Load codex binary path from server on mount
   useEffect(() => {
     fetchCodexBinaryPath().then(setCodexBinaryPathState).catch(() => {});
+  }, []);
+
+  // Load STT cloud-channel config (tools/whisper/cloud.json) on mount
+  useEffect(() => {
+    loadWhisperCloudConfig()
+      .then(({ config }) => {
+        setSttConfig(config);
+        setSttDirty(false);
+      })
+      .catch((err) => {
+        setSttError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setSttLoaded(true));
   }, []);
 
   // Sync echo prompt setting from server on mount
@@ -517,6 +539,31 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const handleCodexBinaryPathSave = () => {
     updateCodexBinaryPath(codexBinaryPath).catch(() => {});
     setCodexBinaryPathDirty(false);
+  };
+
+  const handleSttModeChange = (mode: SttEngineMode) => {
+    setSttConfig((c) => ({ ...c, mode }));
+    setSttDirty(true);
+    setSttError(null);
+  };
+
+  const handleSttApiKeyChange = (value: string) => {
+    setSttConfig((c) => ({ ...c, apiKey: value }));
+    setSttDirty(true);
+    setSttError(null);
+  };
+
+  const handleSttSave = () => {
+    setSttSaving(true);
+    setSttError(null);
+    saveWhisperCloudConfig(sttConfig)
+      .then(() => {
+        setSttDirty(false);
+        setSttSaved(true);
+        window.setTimeout(() => setSttSaved(false), 3000);
+      })
+      .catch((err) => setSttError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setSttSaving(false));
   };
 
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
@@ -1260,6 +1307,36 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           >
             {t('config:statistics.open', { defaultValue: 'Open Statistics' })}
           </button>
+        </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('stt') && (
+      <CollapsibleSection title={t('config:general.stt')} storageKey="stt" defaultOpen={false} forceOpen={isSearching && shouldShowSection('stt')}>
+        <div className="config-row">
+          <span className="config-label"><HighlightText text={t('config:stt.engineMode', { defaultValue: '引擎模式' })} query={searchQuery} /></span>
+          <select className="config-select" value={sttConfig.mode} onChange={(e) => handleSttModeChange(e.target.value as SttEngineMode)}>
+            <option value="auto">{t('config:stt.modeAuto', { defaultValue: '自动(云优先,失败回退本地)' })}</option>
+            <option value="local">{t('config:stt.modeLocal', { defaultValue: '仅本地(离线)' })}</option>
+            <option value="cloud">{t('config:stt.modeCloud', { defaultValue: '仅云端(失败不回退)' })}</option>
+          </select>
+        </div>
+        <div className="config-row config-row-stacked">
+          <span className="config-label"><HighlightText text={t('config:stt.apiKey', { defaultValue: 'API 密钥' })} query={searchQuery} /></span>
+          <div className="config-input-group">
+            <input type={showSttKey ? 'text' : 'password'} className="config-input config-input-full" value={sttConfig.apiKey} onChange={(e) => handleSttApiKeyChange(e.target.value)} placeholder="sk-…" onKeyDown={(e) => { if (e.key === 'Enter' && sttDirty && !sttSaving) { handleSttSave(); } }} />
+            <button className="config-btn config-btn-sm" onClick={() => setShowSttKey(!showSttKey)} title={showSttKey ? t('config:stt.hideKey', { defaultValue: '隐藏密钥' }) : t('config:stt.showKey', { defaultValue: '显示密钥' })}><Icon name={showSttKey ? 'eye-closed' : 'eye'} size={14} /></button>
+            {(sttDirty || sttSaved) && (
+              <button className="config-btn config-btn-sm" onClick={handleSttSave} disabled={sttSaving}>{sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
+            )}
+          </div>
+          <span className="config-hint">{t('config:stt.apiKeyHint', { defaultValue: '在 siliconflow.cn 免费注册获取(不绑卡);云端模式会把语音上传至服务商。' })}</span>
+          {sttLoaded && (
+            <span className="config-hint">{sttConfig.mode === 'cloud' && !sttConfig.apiKey ? t('config:stt.cloudNeedsKey', { defaultValue: '⚠ 仅云端模式未填密钥,语音识别将不可用' }) : sttConfig.apiKey ? t('config:stt.statusConfigured', { defaultValue: '已配置密钥' }) : sttConfig.mode === 'local' ? t('config:stt.statusLocal', { defaultValue: '未配置密钥(仅本地模式 = 离线识别)' }) : t('config:stt.statusMissing', { defaultValue: '未配置密钥(自动模式 = 纯本地识别)' })}</span>
+          )}
+          {sttError && (
+            <span className="config-hint">{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
+          )}
         </div>
       </CollapsibleSection>
       )}

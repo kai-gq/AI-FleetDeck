@@ -37,6 +37,7 @@ export const SETTINGS_SEARCH_SECTIONS: readonly SettingsSearchSection[] = [
   { id: 'triggers', title: 'Triggers', keywords: ['trigger', 'event', 'webhook', 'cron', 'slack', 'email', 'jira', 'matching', 'fire', '触发器', '事件', '定时', '匹配'] },
   { id: 'monitoring', title: 'Monitoring', keywords: ['monitoring', 'logs', 'triggers', 'events', 'history', 'workflow', 'traces', 'audit', 'timeline', '监控', '日志', '审计'] },
   { id: 'statistics', title: 'Statistics', keywords: ['statistics', 'stats', 'usage', 'tokens', 'token', 'claude', 'chart', 'graph', 'pie', 'cost', '统计', '用量', '图表', '成本'] },
+  { id: 'stt', title: 'Speech-to-Text', keywords: ['stt', 'speech', 'speech to text', 'speech recognition', 'transcription', 'transcribe', 'voice', 'voice input', 'whisper', 'engine', 'engine mode', 'mode', 'cloud', 'cloud first', 'local', 'auto', 'fallback', 'upload', 'privacy', 'api', 'key', 'api key', 'siliconflow', 'provider', 'model', 'sensevoice', '语音', '语音识别', '语音转文字', '转文字', '识别', '引擎', '引擎模式', '模式', '云端', '云优先', '本地', '自动', '回退', '兜底', '密钥', 'API 密钥', '硅基流动', '服务商', '模型', '隐私', '上传'] },
   { id: 'experimental', title: 'Experimental', keywords: ['experimental', '2d', 'view', 'voice', 'assistant', 'speech', 'tts', 'text to speech', 'echo', 'prompt', 'duplicate', '实验', '语音', '助手', '语音合成', '回声', '实验性'] },
   { id: 'about', title: 'About', keywords: ['about', 'version', 'update', 'credits', 'github', 'releases', '关于', '版本', '更新', '发布'] },
 ];
