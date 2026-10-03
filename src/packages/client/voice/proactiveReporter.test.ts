@@ -283,4 +283,37 @@ describe('createProactiveReporter', () => {
     expect(reporter.pendingCount()).toBe(0);
     reporter.stop();
   });
+
+  // ---- 阶段一补测:生命周期边界 ----
+
+  it('start() is idempotent (double start keeps a single subscription)', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    reporter.start();
+    expect(ctl.listeners.size).toBe(1);
+    reporter.stop();
+    expect(ctl.listeners.size).toBe(0);
+  });
+
+  it('stop() drops pending events and never submits afterwards', () => {
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '登录页' });
+    const reporter = makeReporter();
+    reporter.start();
+    vi.advanceTimersByTime(600);
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页' });
+    fire();
+    expect(reporter.pendingCount()).toBe(1);
+
+    reporter.stop();
+    expect(reporter.pendingCount()).toBe(0); // 待发事件被清空
+    vi.advanceTimersByTime(10 * 60_000); // 静默窗与巡查定时器都已清掉
+    expect(submitted).toHaveLength(0);
+  });
+
+  it('flushNow on an empty queue returns null, force or not', () => {
+    const reporter = makeReporter();
+    expect(reporter.flushNow()).toBeNull();
+    expect(reporter.flushNow({ force: true })).toBeNull();
+    expect(submitted).toHaveLength(0);
+  });
 });

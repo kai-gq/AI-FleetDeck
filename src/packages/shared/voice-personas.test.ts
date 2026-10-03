@@ -64,4 +64,37 @@ describe('voice-personas', () => {
     // 同一输入 → 同一键
     expect(personaKeyOf('butler')).toBe(personaKeyOf('butler', ''));
   });
+
+  // ---- 阶段一补测:清洗与控制字符边界 ----
+
+  it('sanitizePersonaId: empty/whitespace strings fall back to default', () => {
+    expect(sanitizePersonaId('')).toBe(DEFAULT_PERSONA_ID);
+    expect(sanitizePersonaId('   ')).toBe(DEFAULT_PERSONA_ID);
+  });
+
+  it('sanitizePersonaCustom: strips CR and tab but keeps LF', () => {
+    expect(sanitizePersonaCustom('一行\r\n二行\t三行\u000b')).toBe('一行\n二行三行');
+  });
+
+  it('sanitizePersonaCustom: trims before capping so leading spaces do not consume the budget', () => {
+    const padded = `${' '.repeat(30)}${'甲'.repeat(700)}`;
+    const cleaned = sanitizePersonaCustom(padded);
+    expect(cleaned).toHaveLength(PERSONA_CUSTOM_MAX);
+    expect(cleaned).toBe('甲'.repeat(PERSONA_CUSTOM_MAX));
+    expect(sanitizePersonaCustom(' '.repeat(700))).toBe(''); // 全空白 → 空串
+  });
+
+  it('sanitizePersonaCustom: keeps exactly 600 chars and caps one over', () => {
+    const exact = '乙'.repeat(PERSONA_CUSTOM_MAX);
+    expect(sanitizePersonaCustom(exact)).toBe(exact);
+    expect(sanitizePersonaCustom(`${exact}丙`)).toHaveLength(PERSONA_CUSTOM_MAX);
+  });
+
+  it('personaKeyOf: caps the custom text so over-limit variants collide by design', () => {
+    const base = '丙'.repeat(700); // 截断后 = 600 个「丙」
+    const samePrefix = `${base}丁`; // 截断后与 base 相同
+    const different = `戊${base}`; // 前缀不同 → 键不同
+    expect(personaKeyOf(PERSONA_CUSTOM_ID, base)).toBe(personaKeyOf(PERSONA_CUSTOM_ID, samePrefix));
+    expect(personaKeyOf(PERSONA_CUSTOM_ID, base)).not.toBe(personaKeyOf(PERSONA_CUSTOM_ID, different));
+  });
 });

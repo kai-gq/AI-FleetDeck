@@ -183,4 +183,125 @@ describe('SpeechQueue', () => {
 
     expect(synthesized).toEqual(['在的。']);
   });
+
+  // ---- 阶段一补测:预取上界/打断代际/参数透传 ----
+
+  it('caps synthesis at SYNTH_AHEAD_MAX (2) sentences ahead of playback', async () => {
+    const synthesized: string[] = [];
+    const playGate = deferred<void>();
+    const queue = new SpeechQueue({
+      synthesize: async (text) => { synthesized.push(text); return makeBlob(text); },
+      play: async () => { await playGate.promise; },
+    });
+
+    for (const t of ['一。', '二。', '三。', '四。', '五。']) queue.enqueue(t);
+    await tick();
+
+    // 播放被堵住:blobQueue 已到 2 句上限,合成恰停在 2 次,不抢跑。
+    expect(synthesized).toEqual(['一。', '二。']);
+
+    playGate.resolve();
+    await queue.drain();
+    expect(synthesized).toEqual(['一。', '二。', '三。', '四。', '五。']);
+  });
+
+  it('stop() during playback aborts the active play and stays silent', async () => {
+    let playAbortSeen = false;
+    const queue = new SpeechQueue({
+      synthesize: async (text) => makeBlob(text),
+      play: (_blob, signal) => new Promise<void>((_resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          playAbortSeen = true;
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+        // 模拟长音频:不主动结束,只能被 abort 打断
+      }),
+    });
+
+    queue.enqueue('长句。');
+    await tick();
+    expect(queue.speaking).toBe(true);
+
+    queue.stop();
+    await tick();
+    expect(playAbortSeen).toBe(true);
+    expect(queue.speaking).toBe(false);
+  });
+
+  it('multiple stop() calls discard every stale generation; the next generation plays normally', async () => {
+    const gates = new Map<string, Deferred<Blob>>();
+    const played: string[] = [];
+    const queue = new SpeechQueue({
+      synthesize: (text) => { const d = deferred<Blob>(); gates.set(text, d); return d.promise; },
+      play: async (blob) => { played.push(blobText(blob)); },
+    });
+
+    queue.enqueue('A。');
+    await tick();
+    queue.stop();
+    queue.enqueue('B。');
+    await tick();
+    queue.stop();
+    queue.enqueue('C。');
+    await tick();
+
+    // B 在第二次 stop 前就被清出队列,从未进入合成
+    expect(gates.has('B。')).toBe(false);
+
+    gates.get('A。')!.resolve(makeBlob('A。')); // 两次 stop 之后的旧代结果
+    await tick();
+    expect(played).toEqual([]);
+
+    gates.get('C。')!.resolve(makeBlob('C。'));
+    await queue.drain();
+    expect(played).toEqual(['C。']);
+  });
+
+  it('enqueue trims text and passes lang through to synthesis', async () => {
+    const seen: Array<{ text: string; lang: string | undefined }> = [];
+    const queue = new SpeechQueue({
+      synthesize: async (text, lang) => { seen.push({ text, lang }); return makeBlob(text); },
+      play: async () => { /* instant */ },
+    });
+
+    queue.enqueue('  带空格的句子。  ', 'zh-CN');
+    queue.enqueue('no-lang。');
+    await queue.drain();
+
+    expect(seen).toEqual([
+      { text: '带空格的句子。', lang: 'zh-CN' },
+      { text: 'no-lang。', lang: undefined },
+    ]);
+  });
+
+  it('resolves concurrent drain() waiters together when playback finishes', async () => {
+    const playGate = deferred<void>();
+    const queue = new SpeechQueue({
+      synthesize: async (text) => makeBlob(text),
+      play: async () => { await playGate.promise; },
+    });
+
+    queue.enqueue('一。');
+    await tick();
+    expect(queue.speaking).toBe(true);
+
+    const first = queue.drain();
+    const second = queue.drain();
+    playGate.resolve();
+    await Promise.all([first, second]);
+    expect(queue.speaking).toBe(false);
+  });
+
+  it('a throwing onSpeakingChange callback does not break the queue', async () => {
+    const played: string[] = [];
+    const queue = new SpeechQueue({
+      synthesize: async (text) => makeBlob(text),
+      play: async (blob) => { played.push(blobText(blob)); },
+      onSpeakingChange: () => { throw new Error('listener boom'); },
+    });
+
+    queue.enqueue('一。');
+    await queue.drain();
+    expect(played).toEqual(['一。']);
+  });
 });
