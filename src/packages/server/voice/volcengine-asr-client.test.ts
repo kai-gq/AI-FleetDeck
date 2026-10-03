@@ -364,4 +364,62 @@ describe('VolcengineAsrSession (mock SAUC server)', () => {
     expect(err.message).toContain('凭据无效');
     httpServer.close();
   });
+
+  it('omits X-Api-Resource-Id when resourceId is left empty (平台预置模型)', async () => {
+    const mock = await startMockSaucServer((_frame, ws) => {
+      ws.send(serverFrame({ result: { text: 'ok' } }, FLAGS.NEG_WITH_SEQUENCE, -1));
+    });
+    await new Promise<string>((resolve, reject) => {
+      const session = new VolcengineAsrSession({
+        credentials: { ...DEFAULT_VOLCENGINE_STT_CONFIG, apiKey: 'test-api-key', resourceId: '' },
+        wsUrl: mock.url,
+        connectTimeoutMs: 3_000,
+        finishTimeoutMs: 5_000,
+        onFinal: (t) => resolve(t),
+        onError: (e) => reject(e),
+      });
+      session.sendAudio(Buffer.from('zz'));
+      session.finish();
+    });
+    expect(mock.headers['x-api-resource-id']).toBeUndefined();
+    expect(mock.headers['x-api-key']).toBe('test-api-key');
+    await mock.close();
+  });
+
+  it('explains HTTP 403 resource-not-granted as a resource-id version mismatch', async () => {
+    const httpServer = createServer();
+    httpServer.on('upgrade', (_req, socket) => {
+      const body = JSON.stringify({
+        error: '[resource_id=volc.bigasr.sauc.duration] requested resource not granted',
+      });
+      socket.write(
+        `HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
+      );
+      socket.end();
+    });
+    const url = await new Promise<string>((resolve) => {
+      httpServer.listen(0, '127.0.0.1', () => {
+        const { port } = httpServer.address() as AddressInfo;
+        resolve(`ws://127.0.0.1:${port}`);
+      });
+    });
+
+    const err = await new Promise<Error>((resolve, reject) => {
+      const session = new VolcengineAsrSession({
+        credentials: { ...DEFAULT_VOLCENGINE_STT_CONFIG, apiKey: 'k' },
+        wsUrl: url,
+        connectTimeoutMs: 3_000,
+        finishTimeoutMs: 5_000,
+        onFinal: (t) => reject(new Error(`不应有终稿:${t}`)),
+        onError: (e) => resolve(e),
+      });
+      session.sendAudio(Buffer.from('audio'));
+    });
+
+    expect(err.message).toContain('HTTP 403');
+    expect(err.message).toContain('resource not granted');
+    expect(err.message).toContain('volc.bigasr.sauc.concurrent');
+    expect(err.message).toContain('不发送该头');
+    httpServer.close();
+  });
 });

@@ -233,7 +233,10 @@ export function loadVolcengineSttConfig(): VolcengineSttConfig {
       apiKey: sanitizeCredential(volc?.apiKey),
       appId: sanitizeCredential(volc?.appId),
       accessToken: sanitizeCredential(volc?.accessToken),
-      resourceId: sanitizeCredential(volc?.resourceId) || DEFAULT_VOLCENGINE_STT_CONFIG.resourceId,
+      // 显式留空 = 握手时不发送 X-Api-Resource-Id(平台预置模型);未配置才回默认
+      resourceId: typeof volc?.resourceId === 'string'
+        ? sanitizeCredential(volc.resourceId)
+        : DEFAULT_VOLCENGINE_STT_CONFIG.resourceId,
       endpoint,
     };
   } catch (err) {

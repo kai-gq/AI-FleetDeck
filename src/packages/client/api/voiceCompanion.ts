@@ -179,7 +179,10 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
       cfg.stt.volcengine.apiKey = str(volc.apiKey);
       cfg.stt.volcengine.appId = str(volc.appId);
       cfg.stt.volcengine.accessToken = str(volc.accessToken);
-      cfg.stt.volcengine.resourceId = str(volc.resourceId) || DEFAULT_VOICE_COMPANION_CONFIG.stt.volcengine.resourceId;
+      // 显式留空 = 不发送 X-Api-Resource-Id(平台预置模型);字段缺失才回默认
+      cfg.stt.volcengine.resourceId = typeof volc.resourceId === 'string'
+        ? volc.resourceId.trim()
+        : DEFAULT_VOICE_COMPANION_CONFIG.stt.volcengine.resourceId;
       if (volc.endpoint === 'bigmodel_async' || volc.endpoint === 'bigmodel' || volc.endpoint === 'bigmodel_nostream') {
         cfg.stt.volcengine.endpoint = volc.endpoint;
       }

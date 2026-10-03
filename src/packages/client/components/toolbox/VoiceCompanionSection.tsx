@@ -22,6 +22,13 @@ import {
   type VoiceCompanionConfig,
 } from '../../api/voiceCompanion';
 
+// 火山「流式语音识别大模型」的资源 ID:必须与账号开通的版本一致(403 resource not granted 就是选错了)
+const RESOURCE_ID_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'volc.bigasr.sauc.duration', label: 'volc.bigasr.sauc.duration(小时版)' },
+  { value: 'volc.bigasr.sauc.concurrent', label: 'volc.bigasr.sauc.concurrent(并发版)' },
+  { value: '', label: '不发送(平台预置模型,无需资源 ID)' },
+];
+
 // 紧凑开关(与 ConfigSection 内的私有 Toggle 同款;不复用 = 不动作者文件导出)
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
@@ -267,15 +274,21 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
         </div>
         <span className="config-hint">{tx('volcCredHint', '凭据只写本机 tools/voice-companion/config.json(已加入 .gitignore),不会上传仓库。')}</span>
       </div>
-      <div className="config-row">
-        <span className="config-label"><Highlight text={tx('volcResourceId', '资源 ID')} query={searchQuery} /></span>
-        <input
-          type="text"
-          className="config-input"
+      <div className="config-row config-row-stacked">
+        <span className="config-label"><Highlight text={tx('volcResourceId', '资源 ID(按控制台开通的版本选)')} query={searchQuery} /></span>
+        <select
+          className="config-select"
           value={volc.resourceId}
-          placeholder="volc.bigasr.sauc.duration"
           onChange={(e) => patch((c) => ({ ...c, stt: { ...c.stt, volcengine: { ...c.stt.volcengine, resourceId: e.target.value } } }))}
-        />
+        >
+          {RESOURCE_ID_OPTIONS.map((opt) => (
+            <option key={opt.value || '(empty)'} value={opt.value}>{opt.label}</option>
+          ))}
+          {volc.resourceId && !RESOURCE_ID_OPTIONS.some((opt) => opt.value === volc.resourceId) && (
+            <option value={volc.resourceId}>{volc.resourceId}(自定义)</option>
+          )}
+        </select>
+        <span className="config-hint">{tx('volcResourceHint', '报错「requested resource not granted」= 这里选的版本与账号开通的不一致;拿不准可先试「不发送」')}</span>
       </div>
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('volcEndpoint', '流式端点')} query={searchQuery} /></span>

@@ -65,7 +65,7 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | `stt.mode` | `auto` | `auto` 流式优先(无凭据自动回退)/ `stream` 仅流式 / `segment` 仅批量 |
 | `stt.volcengine.apiKey` | 空 | 新版控制台 ApiKey(优先) |
 | `stt.volcengine.appId` / `accessToken` | 空 | 旧版控制台凭据 |
-| `stt.volcengine.resourceId` | `volc.bigasr.sauc.duration` | 资源 ID |
+| `stt.volcengine.resourceId` | `volc.bigasr.sauc.duration` | 资源 ID,**必须与控制台开通的版本一致**:小时版 `…duration` / 并发版 `…concurrent`;留空 = 不发送该头(平台预置模型) |
 | `stt.volcengine.endpoint` | `bigmodel_async` | `bigmodel_async` / `bigmodel` / `bigmodel_nostream` |
 | `listening.silenceMs` | `800` | 静音判停:说停后多久算一句(200–10000) |
 | `listening.minSpeechMs` | `400` | 最短语音段,短于此直接丢弃(100–10000) |
@@ -112,7 +112,9 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | 说话没反应 | 浏览器麦克风权限;页面在后台且开了「切后台暂停」;唤醒词过滤;看气泡里的系统提示 |
 | 转写/回复很慢 | 一轮 = 判停 0.8s + 转写 + 大脑(2–4s)+ 播报(1.6–2s),约 5–7s。换 `haiku`、开流式可压到最短 |
 | 会议中误触发 | 开唤醒词、提高 `startThreshold`、或干脆关掉开关 |
-| 流式报错 | `selftest.mjs` 直接验证凭据;错误码 `no_credentials` = 没配,401/配额类错误按服务端日志处理 |
+| 流式报错 `403 requested resource not granted` | **凭据有效,但资源 ID 与账号开通的版本不一致**。去控制台 →「流式语音识别大模型」看开通的是小时版还是并发版,把设置里「资源 ID」改成对应的那个;拿不准先选「不发送(平台预置模型)」。改完用 `selftest.mjs` 复验 |
+| 流式报错 `no_credentials` | 没配凭据 → 按上文开通步骤填 ApiKey 或 APP ID + Access Token |
+| 其它流式错误 | `selftest.mjs` 直接验证凭据;401 = 凭据无效,配额类按服务端日志(`X-Tt-Logid` 可给火山工单)处理 |
 | 抢话打断播报不生效 | 检查 `listening.bargeIn`;免提外放时回声可能被当成语音,建议耳机 |
 
 ## 代码地图

@@ -277,9 +277,12 @@ export class VolcengineAsrSession {
     const url = this.opts.wsUrl || `${VOLC_WS_BASE}${this.opts.credentials.endpoint}`;
     const connectId = randomUUID();
     const headers: Record<string, string> = {
-      'X-Api-Resource-Id': this.opts.credentials.resourceId,
       'X-Api-Connect-Id': connectId,
     };
+    // 资源 ID 留空 = 不发送该头(平台预置模型不需要);发送错版本会 403 resource not granted
+    if (this.opts.credentials.resourceId) {
+      headers['X-Api-Resource-Id'] = this.opts.credentials.resourceId;
+    }
     if (this.opts.credentials.apiKey) {
       headers['X-Api-Key'] = this.opts.credentials.apiKey;
     } else {
@@ -323,10 +326,14 @@ export class VolcengineAsrSession {
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
         const body = Buffer.concat(chunks).toString('utf-8').slice(0, 200);
+        // resource not granted = 资源 ID 与账号开通的版本不一致(凭据本身有效)
+        const notGranted = /resource not granted/i.test(body);
         const hint =
-          status === 401 || status === 403
-            ? '凭据无效或未开通「大模型流式语音识别」服务'
-            : '请检查网络与端点到控制台配置';
+          status === 403 && notGranted
+            ? '资源 ID 与账号已开通的版本不一致:小时版 = volc.bigasr.sauc.duration,并发版 = volc.bigasr.sauc.concurrent;也可留空(平台预置模型不发送该头)。请在火山控制台确认「流式语音识别大模型」开通的版本'
+            : status === 401 || status === 403
+              ? '凭据无效或未开通「大模型流式语音识别」服务'
+              : '请检查网络与端点到控制台配置';
         this.fail(makeError(`火山引擎握手失败(HTTP ${status}):${hint}${body ? ` ${body}` : ''}`, 'handshake_failed'));
       });
     });
