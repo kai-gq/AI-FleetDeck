@@ -186,6 +186,8 @@ const HISTORY_MESSAGES = 30;
 const HISTORY_EXCERPT_COUNT = 6;
 const HISTORY_ITEM_CHARS = 400;
 const HISTORY_TOTAL_CHARS = 1500;
+/** 记忆注入体积告警阈值(P9):笔记上限 40×300 + 总结 1500,超此值先看记忆该不该清。 */
+const MEMORY_WARN_CHARS = 4_000;
 
 // XDG-compliant(与 data/index.ts 惯例一致):测试沙箱靠 XDG_DATA_HOME 重定向,
 // 避免测试进程误写真实状态文件。未设 XDG 的机器解析结果与旧路径完全相同。
@@ -818,6 +820,11 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
   }
   const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas);
   const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
+  // 体积告警(P9):记忆是仅次于 agent 快照的 prompt 变项,超阈值先提示清理。
+  const memoryChars = formatMemory(memory).length;
+  if (memoryChars > MEMORY_WARN_CHARS) {
+    log.warn(`[VoiceCompanion] 记忆注入体积偏大:${memoryChars} 字符 / ${memory.notes.length} 条笔记(阈值 ${MEMORY_WARN_CHARS}),建议清理`);
+  }
   return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona });
 }
 
@@ -950,10 +957,11 @@ async function deliverToAgent(agent: Agent, message: string, delivery: Companion
   if (delivery === 'interrupt' && ACTIVE_AGENT_STATUSES.has(agent.status)) {
     log.log(`[VoiceCompanion] 打断 ${agent.name}(${agent.id}) 当前工作`);
     try {
+      // stopAgent 返回即该 agent 的进程槽已清、状态已置 idle(runner 内部负责
+      // SIGINT → 500ms SIGTERM → 1500ms SIGKILL 的升级链),紧随其后的
+      // sendCommand 直接拉起新回合,不再等固定 250ms(P9:打断延迟专项)。
       await runtimeService.stopAgent(agent.id);
       interrupted = true;
-      // 给进程收尾留一点时间,避免旧进程未退干净时立刻拉起新回合。
-      await new Promise((r) => setTimeout(r, 250));
     } catch (err) {
       log.error(`[VoiceCompanion] stopAgent 失败: ${(err as Error).message}`);
     }

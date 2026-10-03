@@ -66,10 +66,14 @@ interface NumberFieldProps {
   value: number;
   min: number;
   max: number;
+  /** 步进(默认 1);小数域字段(如 0..1 的阈值)传 0.05 并配 decimals。 */
+  step?: number;
+  /** 保留的小数位(默认 0 = 取整)。 */
+  decimals?: number;
   onChange: (value: number) => void;
 }
 
-function NumberField({ value, min, max, onChange }: NumberFieldProps) {
+function NumberField({ value, min, max, step = 1, decimals = 0, onChange }: NumberFieldProps) {
   return (
     <input
       type="number"
@@ -77,9 +81,13 @@ function NumberField({ value, min, max, onChange }: NumberFieldProps) {
       value={value}
       min={min}
       max={max}
+      step={step}
       onChange={(e) => {
         const next = Number(e.target.value);
-        if (Number.isFinite(next)) onChange(Math.round(next));
+        if (Number.isFinite(next)) {
+          const factor = 10 ** decimals;
+          onChange(Math.round(next * factor) / factor);
+        }
       }}
     />
   );
@@ -396,6 +404,28 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
           onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, confirmMs: v } }))}
         />
         <span className="config-hint">{tx('confirmMsHint', '说话持续这么久才算一句;更短的声响直接忽略(默认 250)')}</span>
+      </div>
+      <div className="config-row">
+        <span className="config-label"><Highlight text={tx('maxSegmentMs', '单段最长(ms)')} query={searchQuery} /></span>
+        <NumberField
+          value={config.listening.maxSegmentMs}
+          min={3000}
+          max={120000}
+          onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, maxSegmentMs: v } }))}
+        />
+        <span className="config-hint">{tx('maxSegmentMsHint', '一段最长录多久,超时强制切段续录(默认 30000)')}</span>
+      </div>
+      <div className="config-row">
+        <span className="config-label"><Highlight text={tx('startThreshold', '起说阈值')} query={searchQuery} /></span>
+        <NumberField
+          value={config.listening.startThreshold}
+          min={0}
+          max={1}
+          step={0.05}
+          decimals={2}
+          onChange={(v) => patch((c) => ({ ...c, listening: { ...c.listening, startThreshold: v } }))}
+        />
+        <span className="config-hint">{tx('startThresholdHint', '0.05–0.3 的比值;0 = 纯自适应噪声底(嘈杂环境误触发就调高)')}</span>
       </div>
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('engine', '判停引擎')} query={searchQuery} /></span>

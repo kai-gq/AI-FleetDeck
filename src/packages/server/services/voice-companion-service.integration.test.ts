@@ -24,6 +24,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { VoiceProcessOptions, VoiceProcessResult } from './voice-companion-service.js';
+// 与服务的 log 同一实例(logger.server):spy 它就能断言体积告警这类日志副作用
+import { logger } from '../utils/index.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -528,6 +530,29 @@ describe('G2 记忆与人设', () => {
     expect(stored.sessionId).toBe('sess-2');
     expect(stored.turns).toBe(1);
   });
+
+  it('G2-3 warns once the injected memory grows past the size guard (P9)', async () => {
+    const warnSpy = vi.spyOn(logger.server, 'warn');
+    try {
+      // 20 条 × 300 字符 ≈ 6k 字符 > MEMORY_WARN_CHARS(4000)
+      const notes = Array.from({ length: 20 }, (_, i) => ({
+        id: `m${i}`,
+        text: 'x'.repeat(300),
+        createdAt: 1,
+        source: 'auto',
+      }));
+      writeState({ sessionId: 'sess-big', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao', memory: { summary: '', notes, updatedAt: 1, droppedCount: 0 } });
+
+      const p = startProcess('记忆好大');
+      const call = await waitSpawn(1);
+      await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '收到。' }));
+      await p;
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('记忆注入体积偏大'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 // ============================================================================
@@ -784,6 +809,14 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
 
   it('G6-3 interrupts before dispatching(stopAgent strictly before sendCommand)', async () => {
     mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'working' });
+    let stoppedAt = 0;
+    let sentAt = 0;
+    stopAgentMock.mockImplementation(async () => {
+      stoppedAt = Date.now();
+    });
+    sendCommandMock.mockImplementation(async () => {
+      sentAt = Date.now();
+    });
     const p = startProcess('停下小美改做别的');
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({
@@ -798,6 +831,8 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(stopAgentMock).toHaveBeenCalledWith('a1');
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
     expect(stopAgentMock.mock.invocationCallOrder[0]).toBeLessThan(sendCommandMock.mock.invocationCallOrder[0]!);
+    // P9:stopAgent 返回即走,不再垫固定 250ms(旧实现这里必然 ≥250)
+    expect(sentAt - stoppedAt).toBeLessThan(200);
     expect(r.interrupted).toBe(true);
     expect(r.response).toContain('已打断');
     expect(r.response).toContain('小美');
@@ -1035,5 +1070,18 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     const r = await p;
     expect(r.response).toBe('第一句。第二句。');
     expect(r.spoke).toBe(true);
+  });
+
+  it('G6-15 falls back to a canned line when general_response carries no text(P9)', async () => {
+    const sentences: string[] = [];
+    const p = startProcess('在吗', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '' }));
+
+    const r = await p;
+    expect(r.action).toBe('general_response');
+    expect(r.response).toBe('嗯,我在。');
+    expect(sentences).toEqual([]); // 模型没吐过整句
+    expect(r.spoke).toBeFalsy(); // 客户端按 spoke=false 整段补播兜底话术
   });
 });

@@ -168,6 +168,13 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
   return Math.min(max, Math.max(min, Math.round(num)));
 }
 
+/** 小数域钳制(startThreshold 这类 0..1 的比值;不做取整)。 */
+function clampFloat(value: unknown, min: number, max: number, fallback: number): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, num));
+}
+
 function str(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value.trim() : fallback;
 }
@@ -229,7 +236,8 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
       );
     }
     cfg.listening.maxSegmentMs = clampInt(listening.maxSegmentMs, 3_000, 120_000, cfg.listening.maxSegmentMs);
-    cfg.listening.startThreshold = clampInt(listening.startThreshold, 0, 1, cfg.listening.startThreshold);
+    // 比值域:允许 0.05 这类小数(原来用 clampInt 会被取整成 0/1)
+    cfg.listening.startThreshold = clampFloat(listening.startThreshold, 0, 1, cfg.listening.startThreshold);
     if (typeof listening.bargeIn === 'boolean') cfg.listening.bargeIn = listening.bargeIn;
     cfg.listening.wakeWord = str(listening.wakeWord);
     if (Array.isArray(listening.endWords)) {
