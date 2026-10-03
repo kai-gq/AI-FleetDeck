@@ -25,6 +25,7 @@ import {
   subscribeVoiceCompanionConfig,
   type VoiceCompanionConfig,
 } from '../api/voiceCompanion';
+import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
 import '../styles/components/voice-companion.scss';
 
 const LEADER_KEY = 'tide:voice-companion:leader';
@@ -55,6 +56,9 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const tabIdRef = useRef(`vc-${Math.random().toString(36).slice(2, 10)}`);
   const queueRef = useRef<string[]>([]);
   const busyRef = useRef(false);
+  const thinkingRef = useRef(false);
+  const ttsSpeakingRef = useRef(false);
+  const reporterRef = useRef<ProactiveReporterHandle | null>(null);
 
   // ---- 配置:挂载读一次 + 订阅设置面板保存(即时生效) ----
   useEffect(() => {
@@ -215,6 +219,51 @@ export function VoiceCompanion({ className }: { className?: string }) {
     onNotice: (message) => pushEntry('system', message),
   });
 
+  // ---- 主动汇报:store 快照 diff → 静默窗口合并 → 大脑(event:true)→ 播报 ----
+  useEffect(() => {
+    thinkingRef.current = thinking;
+  }, [thinking]);
+  useEffect(() => {
+    ttsSpeakingRef.current = ttsSpeaking;
+  }, [ttsSpeaking]);
+
+  // 只在「启用 + 主动汇报开 + 本页是 leader」时运行(多标签页避免重复播报)
+  const proactiveActive = !!config?.enabled && cfg.proactive.enabled && isLeader;
+
+  useEffect(() => {
+    if (!config || !proactiveActive) {
+      reporterRef.current?.stop();
+      reporterRef.current = null;
+      return;
+    }
+    if (reporterRef.current) return;
+    const reporter = createProactiveReporter({
+      quietWindowMs: config.proactive.quietWindowMs,
+      intervalMs: Math.max(60_000, Math.round(config.proactive.intervalMinutes * 60_000)),
+      scope: config.proactive.scope,
+      isBusy: () => busyRef.current || thinkingRef.current || ttsSpeakingRef.current,
+      onSubmit: (text) => {
+        void (async () => {
+          try {
+            const res = await processVoiceCompanionText(text, { event: true });
+            if (res.success && res.response && res.action !== 'noop') {
+              pushEntry('assistant', res.response);
+              void speakSafely(res.response);
+            }
+          } catch (err) {
+            console.warn('[VoiceCompanion] 主动汇报失败:', err);
+          }
+        })();
+      },
+    });
+    reporter.start();
+    reporterRef.current = reporter;
+    return () => {
+      reporter.stop();
+      reporterRef.current = null;
+    };
+  }, [config, proactiveActive, pushEntry, speakSafely]);
+
   const handleButtonClick = useCallback(() => {
     if (!isLeader) {
       claimLeadership();
@@ -262,6 +311,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       speaking: ttsSpeaking,
       sessionOn,
       isLeader,
+      proactive: proactiveActive,
       pendingSubmit: listening.pendingSubmit,
       entries,
     });
@@ -269,11 +319,16 @@ export function VoiceCompanion({ className }: { className?: string }) {
       setSessionOn(true);
       submitText(String(text ?? ''));
     };
+    w.__voiceCompanionProactive = {
+      flushNow: () => reporterRef.current?.flushNow({ force: true }) ?? null,
+      pendingCount: () => reporterRef.current?.pendingCount() ?? 0,
+    };
     return () => {
       delete w.__voiceCompanionState;
       delete w.__voiceCompanionTest;
+      delete w.__voiceCompanionProactive;
     };
-  }, [displayPhase, listening.phase, listening.activeMode, listening.pendingSubmit, thinking, ttsSpeaking, sessionOn, isLeader, entries, submitText]);
+  }, [displayPhase, listening.phase, listening.activeMode, listening.pendingSubmit, thinking, ttsSpeaking, sessionOn, isLeader, proactiveActive, entries, submitText]);
 
   if (!config || !config.enabled) return null;
 

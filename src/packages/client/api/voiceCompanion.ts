@@ -59,6 +59,20 @@ export interface UiConfig {
   bubbleTimeoutMs: number;
 }
 
+/** 服务端大脑的高级参数(config.json 的 brain 节;默认值与服务端一致)。 */
+export interface BrainConfig {
+  /** 第一跳(claude)超时 ms。 */
+  hop1TimeoutMs: number;
+  /** 两跳查询第二跳超时 ms。 */
+  hop2TimeoutMs: number;
+  /** 会话最大轮数,超出轮换新会话(记忆保留)。 */
+  maxTurns: number;
+  /** 会话闲置多少天后轮换。 */
+  sessionMaxAgeDays: number;
+  /** 记忆条数上限(溢出裁最旧)。 */
+  maxNotes: number;
+}
+
 export interface VoiceCompanionConfig {
   enabled: boolean;
   model: 'haiku' | 'sonnet';
@@ -69,6 +83,7 @@ export interface VoiceCompanionConfig {
   listening: ListeningConfig;
   proactive: ProactiveConfig;
   ui: UiConfig;
+  brain: BrainConfig;
 }
 
 export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
@@ -104,6 +119,13 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
   ui: {
     showTranscript: true,
     bubbleTimeoutMs: 6_000,
+  },
+  brain: {
+    hop1TimeoutMs: 60_000,
+    hop2TimeoutMs: 45_000,
+    maxTurns: 120,
+    sessionMaxAgeDays: 7,
+    maxNotes: 40,
   },
 };
 
@@ -141,6 +163,7 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
     listening: { ...DEFAULT_VOICE_COMPANION_CONFIG.listening, endWords: [...DEFAULT_VOICE_COMPANION_CONFIG.listening.endWords] },
     proactive: { ...DEFAULT_VOICE_COMPANION_CONFIG.proactive },
     ui: { ...DEFAULT_VOICE_COMPANION_CONFIG.ui },
+    brain: { ...DEFAULT_VOICE_COMPANION_CONFIG.brain },
   };
   if (!raw || typeof raw !== 'object') return cfg;
   const obj = raw as Record<string, unknown>;
@@ -193,6 +216,16 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
   if (ui && typeof ui === 'object') {
     if (typeof ui.showTranscript === 'boolean') cfg.ui.showTranscript = ui.showTranscript;
     cfg.ui.bubbleTimeoutMs = clampInt(ui.bubbleTimeoutMs, 1_500, 30_000, cfg.ui.bubbleTimeoutMs);
+  }
+
+  // brain 节服务端也读:夹取范围与服务端 loadServerConfig 保持一致,避免面板保存把值改丢
+  const brain = obj.brain as Record<string, unknown> | undefined;
+  if (brain && typeof brain === 'object') {
+    cfg.brain.hop1TimeoutMs = clampInt(brain.hop1TimeoutMs, 5_000, 180_000, cfg.brain.hop1TimeoutMs);
+    cfg.brain.hop2TimeoutMs = clampInt(brain.hop2TimeoutMs, 5_000, 180_000, cfg.brain.hop2TimeoutMs);
+    cfg.brain.maxTurns = clampInt(brain.maxTurns, 10, 2_000, cfg.brain.maxTurns);
+    cfg.brain.sessionMaxAgeDays = clampInt(brain.sessionMaxAgeDays, 1, 365, cfg.brain.sessionMaxAgeDays);
+    cfg.brain.maxNotes = clampInt(brain.maxNotes, 5, 200, cfg.brain.maxNotes);
   }
 
   return cfg;

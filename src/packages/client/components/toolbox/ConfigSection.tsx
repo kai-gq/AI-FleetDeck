@@ -56,6 +56,7 @@ const SOUND_EVENT_ROWS: Array<{
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
+import { VoiceCompanionSection } from './VoiceCompanionSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { DefaultAgentSkillsSection } from './DefaultAgentSkillsSection';
@@ -1452,6 +1453,12 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             <button className="config-btn config-btn-sm" onClick={handleTtsSave} disabled={ttsSaving}>{ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
           )}
         </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('voiceCompanion') && (
+      <CollapsibleSection title={t('config:voiceCompanion.sectionTitle', { defaultValue: '语音伙伴' })} storageKey="voiceCompanion" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceCompanion')}>
+        <VoiceCompanionSection searchQuery={searchQuery} />
       </CollapsibleSection>
       )}
 
