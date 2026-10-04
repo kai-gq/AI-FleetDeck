@@ -606,6 +606,30 @@ export interface SubagentStreamEntry {
 // Boss Agent Types
 // ============================================================================
 
+// 任务卡状态机（改造点⑦，Spec §4.7）：pending → running → done。
+// queued 由任务 15（全局并发配额）、cancelled 由任务 16（任务撤回）扩展，本任务先只实现三态。
+export type TaskCardStatus = 'pending' | 'running' | 'done';
+
+// 任务卡优先级（P0 最高 —— P3 最低；解析时也接受 high/medium/low 归一化）
+export type TaskCardPriority = 'P0' | 'P1' | 'P2' | 'P3';
+
+/**
+ * 任务卡（改造点⑦）：委托层增强，把「派一句话」升级为「派一张卡」。
+ * - 由 Boss 的 delegation 块可选携带 `taskCard` 字段，随委派史落盘；
+ * - 纯文本委托（无卡）保持原行为，卡字段全部可有可无（objective 除外）；
+ * - projectId 供 ⑪ 记忆卡 / ⑬ 撤回做数据源；sourceProject 记跨项目来源。
+ */
+export interface TaskCard {
+  objective: string;                // 目标（一句话说清要做什么）
+  acceptanceCriteria: string[];     // 验收标准（可判定「做完没」的条目；空数组=未提供）
+  dependencies: string[];           // 前置依赖（任务/文件/条件；空数组=无）
+  priority?: TaskCardPriority;      // 优先级
+  projectId?: string;               // 项目归属（⑪/⑬ 数据源）
+  sourceProject?: string;           // 跨项目任务的来源项目
+  status: TaskCardStatus;           // 状态机当前态（落卡即 pending）
+  statusUpdatedAt?: number;         // 状态最近迁移时间（⑦ 观测点：迁移 + 时间）
+}
+
 // Delegation decision record - tracks how boss routed a command
 export interface DelegationDecision {
   id: string;
@@ -618,6 +642,7 @@ export interface DelegationDecision {
   alternativeAgents: string[];      // Other agents that were considered
   confidence: 'high' | 'medium' | 'low';
   status: 'pending' | 'sent' | 'completed' | 'failed';
+  taskCard?: TaskCard;              // ⑦ 任务卡（旧记录无此字段，读取方按「无卡」处理）
 }
 
 // Context about a subordinate for delegation decision

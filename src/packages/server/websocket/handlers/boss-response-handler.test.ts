@@ -10,6 +10,7 @@ vi.mock('../../services/index.js', () => ({
   },
   bossService: {
     addDelegationToHistory: vi.fn(),
+    updateDelegationTaskCardStatus: vi.fn(),
   },
   workPlanService: {
     parseWorkPlanBlock: vi.fn(),
@@ -112,6 +113,54 @@ More notes between blocks.
       .map((call) => call[0])
       .filter((msg) => msg?.type === 'output' && typeof msg?.payload?.text === 'string' && msg.payload.text.includes('Delegation parse error'));
     expect(errorOutputs.length).toBe(2);
+  });
+
+  it('任务卡(⑦):delegation 块携带 taskCard 时落 pending 卡 + 委托消息注入验收标准', async () => {
+    const resultText = `\`\`\`delegation
+[{"selectedAgentId":"agent-1","selectedAgentName":"Builder One","taskCommand":"实现登录页","reasoning":"builder","confidence":"high","taskCard":{"objective":"实现登录页","acceptanceCriteria":["lint:types 通过","单测覆盖回退"],"dependencies":["设计稿 v2"],"priority":"P1","projectId":"proj-login","sourceProject":"proj-web"}}]
+\`\`\``;
+
+    parseBossDelegation('boss-1', 'Boss', resultText, broadcast);
+    await Promise.resolve();
+
+    expect(bossService.addDelegationToHistory).toHaveBeenCalledTimes(1);
+    const decision = vi.mocked(bossService.addDelegationToHistory).mock.calls[0][1];
+    expect(decision.taskCard).toMatchObject({
+      objective: '实现登录页',
+      acceptanceCriteria: ['lint:types 通过', '单测覆盖回退'],
+      dependencies: ['设计稿 v2'],
+      priority: 'P1',
+      projectId: 'proj-login',
+      sourceProject: 'proj-web',
+      status: 'pending',
+    });
+    expect(typeof decision.taskCard?.statusUpdatedAt).toBe('number');
+
+    // 委托消息（发给下属）带可读任务卡
+    const sentMessage = vi.mocked(runtimeService.sendCommand).mock.calls[0][1] as string;
+    expect(sentMessage).toContain('[TASK CARD]');
+    expect(sentMessage).toContain('单测覆盖回退');
+
+    // 交付成功 → 🔴⑦ pending → running 迁移（异步 then 链）
+    expect(bossService.updateDelegationTaskCardStatus).toHaveBeenCalledWith('boss-1', decision.id, 'running', expect.objectContaining({ subordinateId: 'agent-1' }));
+  });
+
+  it('任务卡(⑦):格式错误只降级无卡,派活与委派史仍按纯文本完成(向后兼容)', async () => {
+    const resultText = `\`\`\`delegation
+[{"selectedAgentId":"agent-1","selectedAgentName":"Builder One","taskCommand":"纯文本任务","confidence":"high","taskCard":{"acceptanceCriteria":["缺少 objective"]}}]
+\`\`\``;
+
+    parseBossDelegation('boss-1', 'Boss', resultText, broadcast);
+    await Promise.resolve();
+
+    expect(runtimeService.sendCommand).toHaveBeenCalledTimes(1);
+    expect(bossService.addDelegationToHistory).toHaveBeenCalledTimes(1);
+    const decision = vi.mocked(bossService.addDelegationToHistory).mock.calls[0][1];
+    expect(decision.taskCard).toBeUndefined();
+    expect(bossService.updateDelegationTaskCardStatus).not.toHaveBeenCalled();
+
+    const sentMessage = vi.mocked(runtimeService.sendCommand).mock.calls[0][1] as string;
+    expect(sentMessage).not.toContain('[TASK CARD]');
   });
 
   it('emits parse error and dispatches nothing when no JSON can be recovered', async () => {

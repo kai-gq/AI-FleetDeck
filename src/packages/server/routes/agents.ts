@@ -18,7 +18,7 @@ import { withAgentContext } from '../utils/log-context.js';
 import { truncateOrEmpty } from '../utils/string.js';
 import { getTaskId, newTaskId } from '../utils/trace-context.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
-import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
+import { completeDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { logDelegation } from '../services/activity-log.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getPiModelCatalog, getPiModelCatalogFetchedAt } from '../pi/model-catalog.js';
@@ -2009,8 +2009,8 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
       } as any);
     }
 
-    // 2. Clear the active delegation tracking (no-op if already cleared)
-    clearDelegation(subordinateId);
+    // 2. ⑦ 完成入口：任务卡迁移到 done + 清理委派追踪（无追踪时 no-op）
+    completeDelegation(subordinateId, { success, reason: 'report-task' });
 
     // 3. Send a message to the boss so it knows the task finished and can decide next steps.
     // If the boss agent is no longer available, accept the report without failing.

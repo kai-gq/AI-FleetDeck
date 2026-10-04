@@ -11,6 +11,8 @@ import type {
   Agent,
   DelegationDecision,
   SubordinateContext,
+  TaskCard,
+  TaskCardStatus,
 } from '../../shared/types.js';
 import { ClaudeBackend } from '../claude/index.js';
 import {
@@ -21,6 +23,8 @@ import {
   deleteDelegationHistory,
 } from '../data/index.js';
 import { logger, sanitizeUnicode, generateId, truncateOrEmpty } from '../utils/index.js';
+import { canTransitionTaskCard } from './task-card-service.js';
+import { logTaskCardStatus } from './activity-log.js';
 
 const log = logger.boss || console;
 
@@ -599,6 +603,65 @@ export function addDelegationToHistory(bossId: string, decision: DelegationDecis
   addDelegationDecision(delegationHistories, bossId, decision);
   saveDelegationHistory(delegationHistories);
   log.log?.(` Added delegation decision for boss ${bossId}: ${decision.selectedAgentName}`);
+}
+
+// ─── ⑦ 任务卡状态机（改造点⑦，Spec §4.7） ───
+
+export interface TaskCardStatusUpdateOptions {
+  /** 迁移时刻（缺省 Date.now；回填/测试可显式传） */
+  at?: number;
+  /** 终态结果（完成入口写入），供 ⑧ 病历区分 */
+  result?: 'completed' | 'failed';
+  /** 触发原因：delegated / dispatched / turn-complete / report-task 等 */
+  reason?: string;
+  subordinateId?: string;
+  /** 显式 taskId（跨进程/跨模块处由调用方透传，缺省不落） */
+  taskId?: string;
+}
+
+/**
+ * ⑦ 任务卡状态机迁移：按 decisionId 定位委派史记录，迁移 taskCard.status → 落盘 + 🔴⑦ 埋点。
+ * - 无卡（旧记录/纯文本委派）返回 undefined：不写盘、不埋点，保持旧行为；
+ * - 非法迁移（含同态重复）告警并跳过，守卫乱序回执（如 done 后又来 running）；
+ * - taskId 仅在服务端进程内可达（任务 02 登记限制），跨进程事件不携带。
+ */
+export function updateDelegationTaskCardStatus(
+  bossId: string,
+  decisionId: string,
+  status: TaskCardStatus,
+  opts: TaskCardStatusUpdateOptions = {}
+): TaskCard | undefined {
+  const decision = delegationHistories.get(bossId)?.find((d) => d.id === decisionId);
+  const card = decision?.taskCard;
+  if (!decision || !card) return undefined;
+
+  const from = card.status;
+  if (!canTransitionTaskCard(from, status)) {
+    log.warn?.(` Ignored task card transition ${from} -> ${status} for decision ${decisionId}`);
+    return undefined;
+  }
+
+  const at = opts.at ?? Date.now();
+  card.status = status;
+  card.statusUpdatedAt = at;
+  saveDelegationHistory(delegationHistories);
+
+  // 🔴 决策观测点⑦：状态机迁移 + 时间（Spec §4.14 决策观测点）
+  logTaskCardStatus({
+    decisionId,
+    from,
+    to: status,
+    at,
+    bossId,
+    subordinateId: opts.subordinateId,
+    projectId: card.projectId,
+    sourceProject: card.sourceProject,
+    result: opts.result,
+    reason: opts.reason,
+    taskId: opts.taskId,
+  });
+
+  return card;
 }
 
 // ============================================================================

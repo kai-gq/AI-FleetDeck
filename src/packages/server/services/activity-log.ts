@@ -12,6 +12,7 @@
  */
 
 import { logEvent, type SystemLogLevel } from '../data/system-log.js';
+import type { TaskCardStatus } from '../../shared/agent-types.js';
 
 // ─── 公共工具 ───
 
@@ -154,6 +155,51 @@ export function logDelegation(f: DelegationLogFields): number | undefined {
       summary: f.summary,
       forwarded: f.forwarded,
       error: f.error,
+    },
+  });
+}
+
+// ─── 决策观测点⑦：任务卡状态机迁移 ───
+
+export interface TaskCardStatusLogFields {
+  /** 委派决策 id（delegation-history 记录主键） */
+  decisionId: string;
+  /** 'none' = 落卡（卡从无到有） */
+  from: TaskCardStatus | 'none';
+  to: TaskCardStatus;
+  /** 迁移发生时刻（epoch 毫秒；⑧⑬ 按此排时间线） */
+  at: number;
+  bossId?: string;
+  subordinateId?: string;
+  projectId?: string;
+  sourceProject?: string;
+  /** 终态结果（完成入口写入），供 ⑧ 病历区分 completed/failed */
+  result?: 'completed' | 'failed';
+  /** 触发原因：delegated / dispatched / turn-complete / report-task 等 */
+  reason?: string;
+  taskId?: string;
+}
+
+/** 决策观测点⑦ 任务卡状态机（Spec §4.14）：pending → running → done 迁移 + 时间，走 delegation 通道。 */
+export function logTaskCardStatus(f: TaskCardStatusLogFields): number | undefined {
+  return logEvent('delegation', {
+    source: 'boss',
+    taskId: f.taskId,
+    agentId: f.subordinateId ?? f.bossId,
+    projectId: f.projectId,
+    body: {
+      cat: 'delegation',
+      phase: 'task-card-status',
+      decisionId: f.decisionId,
+      from: f.from,
+      to: f.to,
+      at: f.at,
+      bossId: f.bossId,
+      subordinateId: f.subordinateId,
+      projectId: f.projectId,
+      sourceProject: f.sourceProject,
+      result: f.result,
+      reason: f.reason,
     },
   });
 }

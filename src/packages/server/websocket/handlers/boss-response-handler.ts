@@ -3,14 +3,15 @@
  * Parses delegation, spawn, work-plan, and analysis-request blocks from boss agent responses
  */
 
-import type { AgentClass, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, CodexModel, DelegationDecision, GrokModel, OpencodeModel, PermissionMode, PiModel, ServerMessage } from '../../../shared/types.js';
+import type { AgentClass, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, CodexModel, DelegationDecision, GrokModel, OpencodeModel, PermissionMode, PiModel, ServerMessage, TaskCard } from '../../../shared/types.js';
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, bossService, workPlanService, skillService } from '../../services/index.js';
 import { getAllCustomClasses, getClassDefaultSkillIds } from '../../services/custom-class-service.js';
 import { logger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
 import { getTaskId, newTaskId } from '../../utils/trace-context.js';
-import { logDelegation } from '../../services/activity-log.js';
+import { logDelegation, logTaskCardStatus } from '../../services/activity-log.js';
+import { formatTaskCard, normalizeTaskCard } from '../../services/task-card-service.js';
 
 const log = logger.ws;
 
@@ -18,15 +19,26 @@ const log = logger.ws;
 const processedDelegations = new Map<string, number>();
 const DELEGATION_DEDUP_WINDOW_MS = 60000; // 1 minute window
 
-// Track active delegations: subordinateId -> { bossId, taskDescription }
+// Track active delegations: subordinateId -> { bossId, taskDescription, taskId, decisionId, taskCard }
 // Used to route subordinate outputs/completion to the boss terminal
 // (任务 02 扩展 taskId：委派创建点生成，回执/关闭埋点据此关联同一时间线)
-export const activeDelegations = new Map<string, { bossId: string; taskDescription: string; taskId?: string }>();
+// (任务 10·⑦ 扩展 decisionId/taskCard：完成入口据此把任务卡迁移到 done)
+export interface ActiveDelegation {
+  bossId: string;
+  taskDescription: string;
+  taskId?: string;
+  /** 委派史记录 id（delegation-history.json 中 decision.id），任务卡状态迁移按此定位 */
+  decisionId?: string;
+  /** ⑦ 任务卡快照（无卡委派为 undefined —— 旧纯文本链路行为不变） */
+  taskCard?: TaskCard;
+}
+
+export const activeDelegations = new Map<string, ActiveDelegation>();
 
 /**
  * Get the boss ID for an active delegation (if any)
  */
-export function getBossForSubordinate(subordinateId: string): { bossId: string; taskDescription: string; taskId?: string } | undefined {
+export function getBossForSubordinate(subordinateId: string): ActiveDelegation | undefined {
   return activeDelegations.get(subordinateId);
 }
 
@@ -34,6 +46,28 @@ export function getBossForSubordinate(subordinateId: string): { bossId: string; 
  * Clear delegation for a subordinate (call when task completes)
  */
 export function clearDelegation(subordinateId: string): void {
+  activeDelegations.delete(subordinateId);
+}
+
+/**
+ * ⑦ 任务卡完成入口：委派结束时把任务卡迁移到 done（🔴⑦ 埋点随迁移落盘），再清理追踪。
+ * - 无追踪/无任务卡（旧纯文本委派）退化为 clearDelegation 行为，绝不拦断回执链路；
+ * - decisionId/taskId 仅服务端进程内可达（任务 02 登记限制，下属进程事件不携带）。
+ */
+export function completeDelegation(
+  subordinateId: string,
+  opts: { success?: boolean; reason?: string; at?: number } = {}
+): void {
+  const delegation = activeDelegations.get(subordinateId);
+  if (delegation?.taskCard && delegation.decisionId) {
+    bossService.updateDelegationTaskCardStatus(delegation.bossId, delegation.decisionId, 'done', {
+      at: opts.at ?? Date.now(),
+      result: opts.success === false ? 'failed' : 'completed',
+      reason: opts.reason ?? 'turn-complete',
+      subordinateId,
+      taskId: delegation.taskId,
+    });
+  }
   activeDelegations.delete(subordinateId);
 }
 
@@ -55,6 +89,8 @@ type DelegationPayload = {
   reasoning: string;
   alternativeAgents: string[];
   confidence: 'high' | 'medium' | 'low';
+  /** ⑦ 任务卡（可选增强）：格式错误降级为无卡，不阻塞派活 */
+  taskCard?: TaskCard;
 };
 
 // Shared hint appended to every block parse error so the boss can self-correct.
@@ -259,6 +295,17 @@ function validateDelegationPayload(
     confidence = item.confidence;
   }
 
+  // ⑦ 任务卡（可选增强）：格式错误只降级为「无卡」，不整条拒绝 —— 旧消息无卡按纯文本处理
+  let taskCard: TaskCard | undefined;
+  if (item.taskCard !== undefined) {
+    const parsedCard = normalizeTaskCard(item.taskCard);
+    if (parsedCard.card) {
+      taskCard = parsedCard.card;
+    } else {
+      log.warn(`Ignoring malformed delegation taskCard from boss: ${parsedCard.errors.join('; ')}`);
+    }
+  }
+
   return {
     payload: {
       selectedAgentId,
@@ -267,6 +314,7 @@ function validateDelegationPayload(
       reasoning,
       alternativeAgents,
       confidence,
+      ...(taskCard ? { taskCard } : {}),
     },
   };
 }
@@ -333,9 +381,15 @@ export function parseBossDelegation(
       processedDelegations.set(dedupKey, now);
       log.log(`Delegation to ${delegationJson.selectedAgentName}: "${delegationJson.taskCommand.slice(0, 80)}..."`);
 
+      const decisionTimestamp = Date.now();
+      // ⑦ 现场组卡：状态机从 pending 起（statusUpdatedAt = 落卡时间），随委派史落盘
+      const taskCard: TaskCard | undefined = delegationJson.taskCard
+        ? { ...delegationJson.taskCard, status: 'pending', statusUpdatedAt: decisionTimestamp }
+        : undefined;
+
       const decision: DelegationDecision = {
-        id: `del-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-        timestamp: Date.now(),
+        id: `del-${decisionTimestamp}-${Math.random().toString(36).slice(2, 11)}`,
+        timestamp: decisionTimestamp,
         bossId: agentId,
         userCommand: delegationJson.taskCommand,
         selectedAgentId: delegationJson.selectedAgentId,
@@ -344,6 +398,7 @@ export function parseBossDelegation(
         alternativeAgents: delegationJson.alternativeAgents,
         confidence: delegationJson.confidence,
         status: 'sent',
+        ...(taskCard ? { taskCard } : {}),
       };
 
       bossService.addDelegationToHistory(agentId, decision);
@@ -368,6 +423,8 @@ export function parseBossDelegation(
         bossId: agentId,
         taskDescription: decision.userCommand,
         taskId: delegationTaskId,
+        decisionId: decision.id,
+        taskCard,
       });
 
       // 任务 02 埋点：基础四类 ③ —— Boss 拆解写入（派活出站）
@@ -382,6 +439,22 @@ export function parseBossDelegation(
         delivery: 'queue',
         taskId: delegationTaskId,
       });
+
+      // 🔴 决策观测点⑦：落卡 none → pending（任务卡状态机起点 + 时间）
+      if (taskCard) {
+        logTaskCardStatus({
+          decisionId: decision.id,
+          from: 'none',
+          to: 'pending',
+          at: decisionTimestamp,
+          bossId: agentId,
+          subordinateId: decision.selectedAgentId,
+          projectId: taskCard.projectId,
+          sourceProject: taskCard.sourceProject,
+          reason: 'delegated',
+          taskId: delegationTaskId,
+        });
+      }
 
       broadcast({
         type: 'agent_task_started',
@@ -399,10 +472,23 @@ export function parseBossDelegation(
       // Wrap the task command with boss delegation context so the subordinate knows:
       // - Who delegated the task (boss name + ID)
       // - That it should report back when done using the report-task endpoint
+      // ⑦ 任务卡：随委托消息附上卡（验收标准对下属可见），旧无卡链路输出不变
       const baseUrl = getCommanderBaseUrl();
-      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+      const cardBlock = taskCard ? `\n\n${formatTaskCard(taskCard)}` : '';
+      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}${cardBlock}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
 
       runtimeService.sendCommand(decision.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
+        .then(() => {
+          // 🔴 决策观测点⑦：交付成功 → pending → running（卡状态；queued 语义留任务 15）
+          if (taskCard) {
+            bossService.updateDelegationTaskCardStatus(agentId, decision.id, 'running', {
+              at: Date.now(),
+              reason: 'dispatched',
+              subordinateId: decision.selectedAgentId,
+              taskId: delegationTaskId,
+            });
+          }
+        })
         .catch(err => {
           log.error(`Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
           // 任务 02 埋点：基础四类 ③ —— Boss 派活失败行（channel 与成功行一致）

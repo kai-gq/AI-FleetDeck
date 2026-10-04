@@ -79,7 +79,7 @@ vi.mock('../websocket/handlers/command-handler.js', () => ({
 }));
 
 vi.mock('../websocket/handlers/boss-response-handler.js', () => ({
-  clearDelegation: vi.fn(),
+  completeDelegation: vi.fn(),
   getBossForSubordinate: vi.fn(),
 }));
 

@@ -10,7 +10,7 @@ import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { logDelegation, logResourceUsage, logSecurity, previewToolInput } from '../../services/activity-log.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
-import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
+import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 import { getBackgroundTasksForAgent, onBackgroundTasksChanged } from '../../services/background-tasks.js';
 import { registerBashToolCall, completeBashToolCall, clearBashToolCalls } from '../../services/bash-toolcall-registry.js';
@@ -648,7 +648,8 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         taskId: delegation.taskId,
       });
 
-      clearDelegation(agentId);
+      // ⑦ 任务卡完成入口：running → done（成功/失败都终结；结果进 🔴⑦ 埋点供 ⑧ 病历）
+      completeDelegation(agentId, { success, reason: 'turn-complete' });
     }
   });
 

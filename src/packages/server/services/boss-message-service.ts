@@ -4,8 +4,10 @@
  */
 
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types.js';
+import type { TaskCard } from '../../shared/agent-types.js';
 import * as agentService from './agent-service.js';
 import { buildBossContext } from './subordinate-context-service.js';
+import { formatTaskCardForBoss, parseTaskCardFromText } from './task-card-service.js';
 
 /**
  * Build minimal system prompt for boss agent.
@@ -51,8 +53,16 @@ To be effective, you need subordinate agents assigned to your team. Ask the user
 /**
  * Build full boss message with instructions and context injected at the beginning.
  * Both instructions and context are wrapped in delimiters for the frontend to detect and collapse.
+ *
+ * ⑦ 任务对象化：可选的第三参 taskCard（或命令文本中的 ```task-card 围栏块）会以
+ * 「任务卡」形式注入到 Boss 用户消息里，供拆解时按验收标准判断「做完没」。
+ * 没有任务卡时输出与旧版逐字节一致（向后兼容，vcs 等旧签名调用方不受影响）。
  */
-export async function buildBossMessage(bossId: string, command: string): Promise<{ message: string; systemPrompt: string }> {
+export async function buildBossMessage(
+  bossId: string,
+  command: string,
+  taskCard?: TaskCard
+): Promise<{ message: string; systemPrompt: string }> {
   const agent = agentService.getAgent(bossId);
   const bossName = agent?.name || 'Boss';
 
@@ -61,13 +71,17 @@ export async function buildBossMessage(bossId: string, command: string): Promise
   const systemPrompt = buildBossSystemPrompt(bossName, bossId);
   const instructions = buildBossInstructionsForMessage(bossName, hasSubordinates);
 
+  // 显式传入优先；否则尝试从命令文本解析任务卡；都没有 → 纯文本原样
+  const card = taskCard ?? parseTaskCardFromText(command);
+  const commandBlock = card ? `${formatTaskCardForBoss(card)}\n\n${command}` : command;
+
   if (!context) {
     // No subordinates - just inject instructions
     const message = `${BOSS_CONTEXT_START}
 ${instructions}
 ${BOSS_CONTEXT_END}
 
-${command}`;
+${commandBlock}`;
     return { message, systemPrompt };
   }
 
@@ -78,7 +92,7 @@ ${command}`;
 ${contextBlock}
 ${BOSS_CONTEXT_END}
 
-${command}`;
+${commandBlock}`;
 
   return { message, systemPrompt };
 }
