@@ -373,3 +373,44 @@ export function stopBolbaDueReminderJob(): void {
 
 // 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
 startBolbaDueReminderJob();
+
+// ─── 任务12·⑨：Boss 晨报每日扫描注册点 ───
+
+/** 晨报时段（06-11 §6.4 建议值：早上 08:00，可配；非实测最优）。 */
+export const BOSS_MORNING_REPORT_CRON = '0 8 * * *';
+
+let bossMorningReportJob: CronJob | null = null;
+
+/**
+ * 任务12·⑨ 晨报扫描注册点（本文件 = 服务端调度总入口，注册仅此一处）。
+ *
+ * 与任务13 到期提醒同为 08:00、各自独立队列（预算不共享，登记观察项）；
+ * 不得改动 13 的 job 时间。业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （boss-morning-report-service → voice-companion-service/data，均不 import 本文件）。
+ * 幂等：重复调用返回同一任务句柄。
+ */
+export function startBossMorningReportJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (bossMorningReportJob) return bossMorningReportJob;
+  bossMorningReportJob = schedule(
+    opts.expression ?? BOSS_MORNING_REPORT_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./boss-morning-report-service.js')
+        .then((m) => m.runBossMorningReportScan())
+        .catch((err) => log.warn('Boss 晨报扫描失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  bossMorningReportJob.timer?.unref();
+  return bossMorningReportJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopBossMorningReportJob(): void {
+  if (!bossMorningReportJob) return;
+  stop(bossMorningReportJob);
+  bossMorningReportJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startBossMorningReportJob();
