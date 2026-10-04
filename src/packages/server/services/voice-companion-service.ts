@@ -51,6 +51,9 @@ import {
   type MemoryOpDetail,
 } from './activity-log.js';
 import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-context.js';
+import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
+import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
+import { logEvent } from '../data/system-log.js';
 
 const log = logger.server;
 
@@ -89,6 +92,8 @@ export type CompanionAction =
   | 'send_to_agent'
   | 'list_agents'
   | 'query_agent_output'
+  /** 任务03·尾：⑮ P1 只读日志分析（秘书自留区：不派活、不计 ⑫ 配额）。 */
+  | 'analyze_logs'
   | 'noop';
 
 /**
@@ -96,7 +101,7 @@ export type CompanionAction =
  * (改① 新增 delegate_to_boss 时只需改这里与 CompanionAction)。
  */
 export const COMPANION_ACTIONS: readonly CompanionAction[] = [
-  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
+  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'analyze_logs', 'noop',
 ];
 
 export type CompanionDelivery = 'queue' | 'interrupt';
@@ -787,12 +792,13 @@ ${CONTRACT_TEMPLATE}
 - delegate_to_boss: 老板要「派人干活」时唯一的派活动作(新建/修改/修复/安排/推进/催办/停掉某人的活等)。targetAgentId 一律留 null;messageToAgent 写成给主管的完整指令(写清要做什么、在哪个项目/目录、验收要求)。系统会把任务转给团队主管(列表里标 [BOSS] 的那位)由它拆解选人——你不要自己挑执行的人。
 - send_to_agent: 仅当老板明确要直接对主管([BOSS])本人说话时使用(补充说明、追问它的安排、对它提要求),targetAgentId 必须是 [BOSS] 的 id。**任何让普通 agent 干活的请求都不得用它**——一律走 delegate_to_boss。
 - query_agent_output: 老板问某个 agent(主管或普通 agent 都行)「最近做了什么/进展如何/结果是什么/输出了什么」。只读查询,不派活。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
+- analyze_logs: 老板要看日志/分析日志/「查一下昨天的日志」「今天出了哪些错」。只读查询,不派活;query 填老板的原始问法(含时间词)。responseToUser 可留空,系统会跑完整分析并播报四段报告(耗时一两分钟属正常)。
 - list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
 - general_response: 正常对话——寒暄、问你自己、闲聊、咨询建议、对老板想法的讨论,都走这条;对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
 - noop: 输入以 [系统事件] 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。
 
 【三态边界(重要,先判再答)】
-- 「问情况」走查询:做到哪了/进展/结果/谁在做/为什么还没好/查一下/看一下 → query_agent_output 或 list_agents。老板说「去查一下/问一下 XX」也是查询,不是让你派活。
+- 「问情况」走查询:做到哪了/进展/结果/谁在做/为什么还没好/查一下/看一下 → query_agent_output 或 list_agents;看日志/查日志/日志里出了什么错 → analyze_logs。老板说「去查一下/问一下 XX」也是查询,不是让你派活。
 - 「要人干活」才走派活:让 X 做/需要改成/安排/推进/催办/停掉某人的活/改用方案 → delegate_to_boss。
 - 寒暄、闲聊、咨询建议、讨论想法 → general_response。
 拿不准是不是任务时,先按查询/对话处理并向老板确认一句,绝不擅自派活。
@@ -1338,6 +1344,25 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
 }
 
 // ============================================================================
+// 任务 27·尾 / 03·尾 接线（懒加载单例与入口辅助）
+// ============================================================================
+
+// 任务 27·尾：秘书个人记忆栈（JARVIS vault 四层,懒加载单例;观测经 logEvent 落 ⑭ system_log）。
+let jarvisMemory: MemoryStack | undefined;
+function getJarvisMemory(): MemoryStack {
+  if (!jarvisMemory) jarvisMemory = createMemoryStack({ logEvent, channel: 'voice' });
+  return jarvisMemory;
+}
+
+/** 任务 03·尾:从口语里挑日志分析时间窗(缺省昨天——P1「查一下昨天的日志」的典型口径)。 */
+function pickLogWindowPreset(text: string): 'today' | 'yesterday' | 'last24h' | 'last7d' {
+  if (/今天|今日/.test(text)) return 'today';
+  if (/七天|7\s*天|一周|本周/.test(text)) return 'last7d';
+  if (/24\s*小时|最近一天|近一天/.test(text)) return 'last24h';
+  return 'yesterday';
+}
+
+// ============================================================================
 // Main entry
 // ============================================================================
 
@@ -1357,12 +1382,22 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);
 
     if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey)) {
+      // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
+      if (state.sessionId) {
+        await getJarvisMemory().engine.summarizeSession({ sessionId: state.sessionId, summary: state.memory.summary });
+      }
+      await getJarvisMemory().engine.sweep();
       log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
       state.sessionId = null;
       state.sessionStartedAt = null;
       state.turns = 0;
     }
     state.personaKey = personaKey;
+
+    // 任务 27·尾 挂点1(先写后回应):用户陈述命中触发词先落工作记忆再进 hop1;系统事件不算用户陈述。
+    if (!opts.isEvent) {
+      await getJarvisMemory().engine.captureUserTurn(text, { sessionId: state.sessionId ?? undefined });
+    }
 
     // 任务 02 埋点：本回合 taskId 在此生成一次（对话 in/out、播报、委派共用同一时间线）。
     // 「任务类」与否由 hop1 判定，taskId 仅作关联 ID，纯聊天回合多一个 ID 无副作用。
@@ -1434,6 +1469,10 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     updateTraceContext({ sessionId: state.sessionId ?? undefined });
 
     const { contract } = outcome;
+    // 任务 27·尾 挂点3(模型确认):契约 memoryOps 双写进 vault;下方 applyMemoryOps 块保持原样(旧 CompanionMemory 独立运转)。
+    if (contract.memoryOps.length > 0) {
+      await getJarvisMemory().engine.bridgeVoiceMemoryOps(contract.memoryOps, { sessionId: state.sessionId ?? undefined });
+    }
     // 流式期间若 action 尚未解析出来,这里兜底补上(缓冲的句子按语义放行/丢弃)。
     speech.setHop1Action(contract.action);
     let memoryOpsApplied = 0;
@@ -1607,6 +1646,28 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }
       result.secondHopMs = Date.now() - hop2Started;
       result.targetAgent = { id: target.id, name: target.name };
+      return finish(result);
+    }
+
+    if (contract.action === 'analyze_logs') {
+      // 任务 03·尾:⑮ P1 手动日志分析(秘书自留区只读查询;不走 ① 委派通道、不计 ⑫ 配额)。
+      const analysisStarted = Date.now();
+      try {
+        const report = await runLogAnalysis({
+          preset: pickLogWindowPreset(`${contract.query ?? ''} ${text}`),
+          signal: opts.signal,
+        });
+        result.response = renderLogAnalysisReport(report);
+      } catch (err) {
+        if (err instanceof VoiceCompanionAbortedError) {
+          speech.dispose();
+          throw err;
+        }
+        log.warn(`[VoiceCompanion] 日志分析失败: ${(err as Error).message}`);
+        result.response = '日志分析没能完成,过会儿再喊我查一次。';
+        result.degraded = true;
+      }
+      result.secondHopMs = Date.now() - analysisStarted;
       return finish(result);
     }
 

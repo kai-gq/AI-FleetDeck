@@ -8,6 +8,7 @@
  *   「已交给主管安排」)要等真正派发成功再放行,目标无效/指令为空时静默丢弃,
  *   由最终回复整段兜底;
  * - query_agent_output 的答案来自第二跳(hop2),hop1 的 responseToUser 丢弃;
+ * - analyze_logs 的报告由分析 agent 产出(外部进程),hop1 的 responseToUser 同样丢弃;
  * - general_response / list_agents 一旦 action 确定就即时放行(低延迟路径)。
  */
 
@@ -17,6 +18,7 @@ export type GateAction =
   | 'send_to_agent'
   | 'list_agents'
   | 'query_agent_output'
+  | 'analyze_logs'
   | 'noop';
 
 /** 派发类动作:确认话术要等派发成功才放行(失败即丢弃)。 */
@@ -42,7 +44,7 @@ export class SpeechGate {
       this.buffered.push(text);
       return;
     }
-    if (this.mode === 'noop' || this.mode === 'query_agent_output') return;
+    if (this.mode === 'noop' || this.mode === 'query_agent_output' || this.mode === 'analyze_logs') return;
     this.flushEmit(text);
   }
 
@@ -52,7 +54,7 @@ export class SpeechGate {
    */
   setAction(action: GateAction): void {
     this.mode = action;
-    if (action === 'noop' || action === 'query_agent_output') {
+    if (action === 'noop' || action === 'query_agent_output' || action === 'analyze_logs') {
       this.buffered = [];
     } else if (!isDispatchGateAction(action)) {
       this.release();

@@ -1150,3 +1150,170 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.spoke).toBeFalsy(); // 客户端按 spoke=false 整段补播兜底话术
   });
 });
+
+// ============================================================================
+// 任务 03·尾 / 27·尾:接线尾(analyze_logs 自留区入口 + 记忆三挂点)
+//
+// 这里只验「接线」本身:真 processVoiceInput 编排 + 真契约解析,把两个新依赖模块
+// 换成记录型替身 —— 日志分析的报告质量、记忆四层的读写规则已由各自单测/集成覆盖,
+// 本组测的是「谁在什么时序调了谁」:
+//   - 03:analyze_logs 契约 → runLogAnalysis(时间窗) → renderLogAnalysisReport → hop1 话术丢弃;
+//   - 27:挂点1 先写后回应(capture 先于 hop1 spawn)、挂点2 轮换先 summarize+sweep 再清 session、
+//        挂点3 memoryOps 双写(旧 CompanionMemory 通道保持生效)。
+// ============================================================================
+
+interface MemoryCapture {
+  text: string;
+  sessionId?: string;
+  /** capture 发生时已发生的 spawn 数(0 = 先写后回应:落记忆先于 hop1 子进程) */
+  spawnsAtCall: number;
+}
+
+const memoryWire: {
+  captures: MemoryCapture[];
+  bridges: Array<ReadonlyArray<Record<string, unknown>>>;
+  summaries: Array<{ sessionId: string; summary: string }>;
+  sweeps: number;
+} = { captures: [], bridges: [], summaries: [], sweeps: 0 };
+
+vi.mock('../jarvis-core/memory/index.js', () => ({
+  createMemoryStack: () => ({
+    store: {},
+    observer: {},
+    engine: {
+      captureUserTurn: async (text: string, opts: { sessionId?: string } = {}) => {
+        memoryWire.captures.push({ text, sessionId: opts.sessionId, spawnsAtCall: spawnCalls.length });
+        return { entries: [], hits: [], skipped: 0, errors: [] };
+      },
+      captureAgentConfirmed: async () => null,
+      captureInferred: async () => null,
+      summarizeSession: async (input: { sessionId: string; summary: string }) => {
+        memoryWire.summaries.push(input);
+        return null;
+      },
+      bridgeVoiceMemoryOps: async (ops: ReadonlyArray<Record<string, unknown>>) => {
+        memoryWire.bridges.push(ops);
+        return { entries: [], hits: [], skipped: 0, errors: [] };
+      },
+      sweep: async () => {
+        memoryWire.sweeps += 1;
+        return { expired: 0, overflow: 0, droppedCount: 0 };
+      },
+    },
+  }),
+}));
+
+const logAnalysisCalls: Array<{ preset?: string }> = [];
+const LOG_REPORT_SENTINEL = '【测试用四段日志报告】';
+
+vi.mock('../log-analysis/index.js', () => ({
+  runLogAnalysis: async (opts: { preset?: string }) => {
+    logAnalysisCalls.push(opts);
+    return { __fake: 'report' };
+  },
+  renderLogAnalysisReport: () => LOG_REPORT_SENTINEL,
+}));
+
+describe('任务03·尾:analyze_logs 自留区入口(真实 processVoiceInput 编排)', () => {
+  beforeEach(() => {
+    logAnalysisCalls.length = 0;
+  });
+
+  it('H1 analyze_logs:缺省时间窗=昨天,播报走渲染报告,hop1 话术被闸门丢弃', async () => {
+    writeState({ sessionId: 'sess-ana', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao' });
+    const sentences: string[] = [];
+    const p = startProcess('秘书,查一下昨天的日志', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'analyze_logs',
+      query: '昨天的日志',
+      responseToUser: '（hop1 话术,不该播报）好的。',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(r.action).toBe('analyze_logs');
+    expect(r.response).toBe(LOG_REPORT_SENTINEL); // 报告整段由 renderLogAnalysisReport 产出
+    expect(typeof r.secondHopMs).toBe('number');
+    expect(logAnalysisCalls).toHaveLength(1);
+    expect(logAnalysisCalls[0]?.preset).toBe('yesterday');
+    expect(sentences).toEqual([]); // hop1 的「好的。」丢弃,报告不走流式句子
+    expect(r.spoke).toBeFalsy(); // 客户端按 spoke=false 整段补播报告
+  });
+
+  it('H2 analyze_logs:话里带「今天」→ 时间窗切到 today(query 为空时看原文)', async () => {
+    writeState({ sessionId: 'sess-ana', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao' });
+    const p = startProcess('看看今天出了哪些错');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'analyze_logs' }), { via: 'delta' });
+
+    await p;
+    expect(logAnalysisCalls).toHaveLength(1);
+    expect(logAnalysisCalls[0]?.preset).toBe('today');
+  });
+});
+
+describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () => {
+  beforeEach(() => {
+    memoryWire.captures.length = 0;
+    memoryWire.bridges.length = 0;
+    memoryWire.summaries.length = 0;
+    memoryWire.sweeps = 0;
+  });
+
+  it('H3 挂点1:非事件输入在 hop1 spawn 之前先落工作记忆(先写后回应);系统事件不算用户陈述', async () => {
+    writeState({ sessionId: 'sess-mem', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao' });
+    const p = startProcess('以后都用中文回复我');
+    const call = await waitSpawn(1);
+
+    // 断言发生在 hop1 已 spawn 之后:spawnsAtCall=0 证明 capture 真的先于子进程。
+    expect(memoryWire.captures).toHaveLength(1);
+    expect(memoryWire.captures[0]).toMatchObject({
+      text: '以后都用中文回复我',
+      sessionId: 'sess-mem',
+      spawnsAtCall: 0,
+    });
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '好的。' }));
+    await p;
+
+    memoryWire.captures.length = 0;
+    const p2 = startProcess('[系统事件] 任务完成', { isEvent: true });
+    const call2 = await waitSpawn(2);
+    await completeWith(call2.child, contractText({ action: 'noop' }));
+    await p2;
+    expect(memoryWire.captures).toHaveLength(0); // 系统事件不落用户陈述
+  });
+
+  it('H4 挂点2:会话轮换先 summarize(旧 session)+ sweep,再清 session;下一跳不带 --resume', async () => {
+    writeState({ sessionId: 'sess-old', sessionStartedAt: Date.now(), turns: 10, personaKey: 'doubao' });
+    const p = startProcess('你好');
+    const call = await waitSpawn(1);
+
+    expect(memoryWire.summaries).toEqual([{ sessionId: 'sess-old', summary: '' }]);
+    expect(memoryWire.sweeps).toBe(1);
+    expect(memoryWire.captures[0]?.sessionId).toBeUndefined(); // 轮换先于挂点1:新会话从空 session 开始
+    expect(resumeIdOf(call)).toBeNull(); // 清 session → 全新会话,不 resume 旧上下文
+
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '在的。' }), { sessionId: 'sess-new' });
+    const r = await p;
+    expect(r.response).toBe('在的。');
+  });
+
+  it('H5 挂点3:契约 memoryOps 双写 bridgeVoiceMemoryOps,旧 CompanionMemory 通道保持生效', async () => {
+    writeState({ sessionId: 'sess-mem', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao' });
+    const p = startProcess('以后叫我老板');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'general_response',
+      responseToUser: '好的,老板。',
+      memoryOps: [{ op: 'add', text: '称呼用户为老板' }],
+    }));
+
+    const r = await p;
+    expect(r.response).toBe('好的,老板。');
+    expect(memoryWire.bridges).toHaveLength(1);
+    expect(memoryWire.bridges[0]).toMatchObject([{ op: 'add', text: '称呼用户为老板' }]);
+    // 旧通道(applyMemoryOps)未被替换:vault 双写之外,state.memory 仍落盘
+    const st = readStateFile();
+    expect(st.memory.notes.some((n) => n.text === '称呼用户为老板')).toBe(true);
+  });
+});

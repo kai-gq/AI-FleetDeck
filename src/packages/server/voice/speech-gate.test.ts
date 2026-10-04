@@ -36,6 +36,15 @@ describe('SpeechGate', () => {
     expect(spoken).toEqual([]);
   });
 
+  it('drops buffered text and stays silent for analyze_logs(报告由分析产出,hop1 话术不出声)', () => {
+    const { gate, spoken } = collect();
+    gate.push('我先查查日志。');
+    gate.setAction('analyze_logs');
+    gate.push('这句也不该出声。');
+    expect(spoken).toEqual([]);
+    expect(gate.spokenCount).toBe(0);
+  });
+
   it('holds send_to_agent confirmations until dispatch succeeds', () => {
     const { gate, spoken } = collect();
     gate.setAction('send_to_agent');
