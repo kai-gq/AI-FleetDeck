@@ -972,6 +972,12 @@ export class ClaudeBackend implements CLIBackend {
    * Get Claude Code executable path
    */
   getExecutablePath(): string {
+    // Canary L2 seam: explicit override wins over detection so the jarvis-canary
+    // harness can point the server at the mock LLM (tools/jarvis-canary/stub-llm).
+    const override = process.env.TC_CLAUDE_EXECUTABLE?.trim();
+    if (override) {
+      return override;
+    }
     const detected = this.detectInstallation();
     return detected || 'claude';
   }

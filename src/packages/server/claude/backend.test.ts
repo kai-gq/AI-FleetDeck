@@ -1095,6 +1095,48 @@ describe('ClaudeBackend', () => {
       expect(backend.requiresStdinInput()).toBe(true);
     });
   });
+
+  describe('getExecutablePath (canary L2 seam)', () => {
+    const original = process.env.TC_CLAUDE_EXECUTABLE;
+
+    const restore = () => {
+      if (original === undefined) {
+        delete process.env.TC_CLAUDE_EXECUTABLE;
+      } else {
+        process.env.TC_CLAUDE_EXECUTABLE = original;
+      }
+    };
+
+    it('TC_CLAUDE_EXECUTABLE overrides detection and is trimmed', () => {
+      try {
+        process.env.TC_CLAUDE_EXECUTABLE = '  /tmp/stub/claude-stub.cmd  ';
+        const backend = new ClaudeBackend();
+        expect(backend.getExecutablePath()).toBe('/tmp/stub/claude-stub.cmd');
+      } finally {
+        restore();
+      }
+    });
+
+    it('whitespace-only override is ignored (falls back to detection)', () => {
+      try {
+        process.env.TC_CLAUDE_EXECUTABLE = '   ';
+        const backend = new ClaudeBackend();
+        expect(backend.getExecutablePath()).toBe(backend.detectInstallation() || 'claude');
+      } finally {
+        restore();
+      }
+    });
+
+    it('without override behaves as before (detection or bare name)', () => {
+      try {
+        delete process.env.TC_CLAUDE_EXECUTABLE;
+        const backend = new ClaudeBackend();
+        expect(backend.getExecutablePath()).toBe(backend.detectInstallation() || 'claude');
+      } finally {
+        restore();
+      }
+    });
+  });
 });
 
 describe('parseContextOutput', () => {

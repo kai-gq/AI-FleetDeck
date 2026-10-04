@@ -37,7 +37,7 @@ npx tsx tools/jarvis-canary/run.ts --level=full --simulate-receipt   # ④ 用�
 
 | 级别 | 跑法 | 验什么 | 失败含义 |
 | --- | --- | --- | --- |
-| **L2 接线层** | 真服务器 + **stub LLM**（固定契约 JSON；经 `TC_CLAUDE_EXECUTABLE` 注入，接缝交付后启用） | 契约解析 → Boss 派发/响应对接 → 回执 → `system_log` 事件链的**接线** | 接线 bug（与模型措辞无关） |
+| **L2 接线层** | 真服务器 + **stub LLM**（固定契约 JSON；经 `TC_CLAUDE_EXECUTABLE` 注入，接缝已交付 2026-10-04，见 `stub-llm/`） | 契约解析 → Boss 派发/响应对接 → 回执 → `system_log` 事件链的**接线** | 接线 bug（与模型措辞无关） |
 | **L3 真 LLM** | 每波只跑 2 条关键链路：`--level=smoke`（播报）+ `--level=full --scenario=delegation`（派活） | 只看**结果类证据**（记录存在 / 事件落盘），不比对话文本 | 模型/prompt 问题或真链路故障 |
 
 - L3 其余场景（`receipt` / `cancel` 等）**季度抽跑**，不占每波预算；
