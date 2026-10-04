@@ -1234,10 +1234,13 @@ interface MemoryCapture {
 
 const memoryWire: {
   captures: MemoryCapture[];
-  bridges: Array<ReadonlyArray<Record<string, unknown>>>;
+  bridges: Array<{ ops: ReadonlyArray<Record<string, unknown>>; sessionId?: string }>;
   summaries: Array<{ sessionId: string; summary: string }>;
   sweeps: number;
 } = { captures: [], bridges: [], summaries: [], sweeps: 0 };
+
+/** H3b 门控:captureUserTurn 挂起于此 Promise 直到测试显式释放(锁「真 await」而非调用序)。 */
+let captureGate: Promise<void> | null = null;
 
 vi.mock('../jarvis-core/memory/index.js', () => ({
   createMemoryStack: () => ({
@@ -1246,6 +1249,7 @@ vi.mock('../jarvis-core/memory/index.js', () => ({
     engine: {
       captureUserTurn: async (text: string, opts: { sessionId?: string } = {}) => {
         memoryWire.captures.push({ text, sessionId: opts.sessionId, spawnsAtCall: spawnCalls.length });
+        if (captureGate) await captureGate; // H3b:门控挂起(缺省 null 即时返回)
         return { entries: [], hits: [], skipped: 0, errors: [] };
       },
       captureAgentConfirmed: async () => null,
@@ -1254,8 +1258,11 @@ vi.mock('../jarvis-core/memory/index.js', () => ({
         memoryWire.summaries.push(input);
         return null;
       },
-      bridgeVoiceMemoryOps: async (ops: ReadonlyArray<Record<string, unknown>>) => {
-        memoryWire.bridges.push(ops);
+      bridgeVoiceMemoryOps: async (
+        ops: ReadonlyArray<Record<string, unknown>>,
+        opts: { sessionId?: string } = {},
+      ) => {
+        memoryWire.bridges.push({ ops, sessionId: opts.sessionId });
         return { entries: [], hits: [], skipped: 0, errors: [] };
       },
       sweep: async () => {
@@ -1321,6 +1328,7 @@ describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () =>
     memoryWire.bridges.length = 0;
     memoryWire.summaries.length = 0;
     memoryWire.sweeps = 0;
+    captureGate = null;
   });
 
   it('H3 挂点1:非事件输入在 hop1 spawn 之前先落工作记忆(先写后回应);系统事件不算用户陈述', async () => {
@@ -1344,6 +1352,26 @@ describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () =>
     await completeWith(call2.child, contractText({ action: 'noop' }));
     await p2;
     expect(memoryWire.captures).toHaveLength(0); // 系统事件不落用户陈述
+  });
+
+  it('H3b 挂点1:capture 未 resolve 前不得 spawn(锁真 await,而非仅调用序)', async () => {
+    writeState({ sessionId: 'sess-mem', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao' });
+    let release!: () => void;
+    captureGate = new Promise<void>((r) => { release = r; });
+    const p = startProcess('以后都用中文回复我');
+
+    // 给足宏任务周期:若服务端没 await capture,这段时间里 hop1 早就 spawn 了。
+    await drainMicrotasks(50);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(memoryWire.captures).toHaveLength(1); // capture 已进入(被门控挂起)
+    expect(spawnCalls).toHaveLength(0);          // 未释放 → 严禁 spawn(先写后回应)
+
+    captureGate = null;
+    release();
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '好的。' }));
+    await p;
+    expect(memoryWire.captures[0]?.spawnsAtCall).toBe(0);
   });
 
   it('H4 挂点2:会话轮换先 summarize(旧 session)+ sweep,再清 session;下一跳不带 --resume', async () => {
@@ -1374,7 +1402,9 @@ describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () =>
     const r = await p;
     expect(r.response).toBe('好的,老板。');
     expect(memoryWire.bridges).toHaveLength(1);
-    expect(memoryWire.bridges[0]).toMatchObject([{ op: 'add', text: '称呼用户为老板' }]);
+    expect(memoryWire.bridges[0]?.ops).toMatchObject([{ op: 'add', text: '称呼用户为老板' }]);
+    // H5 加固:挂点3 必须把当前会话 id 带给 vault(bridge 的 sessionId 透传)
+    expect(memoryWire.bridges[0]?.sessionId).toBe('sess-mem');
     // 旧通道(applyMemoryOps)未被替换:vault 双写之外,state.memory 仍落盘
     const st = readStateFile();
     expect(st.memory.notes.some((n) => n.text === '称呼用户为老板')).toBe(true);
@@ -1527,5 +1557,48 @@ describe('任务07·④ 查进度走下属(委派树 query)', () => {
     expect(rows[0]).toMatchObject({ phase: 'failed', route: 'single-agent', hops: 2, degraded: true });
     expect(typeof rows[0]!.error).toBe('string');
     expect(rows[0]!.error).not.toBe('');
+  });
+
+  it('G7-5 委派史超限:只取最近 5 条、同下属保留最新(锁 vcs 真调 pickRecentDelegations)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push(
+      { id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'working' },
+      ...['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].map((id, i) => ({ id, name: `下属${i + 1}`, class: 'builder', status: 'working' })),
+    );
+    // 7 条委派:a1 有新旧两条(去重应保留 3000 的新任务),a2(2000)最旧应被 limit=5 挤出。
+    seedDelegationHistory({
+      b1: [
+        delegationDecision({ timestamp: 1_000, selectedAgentId: 'a1', selectedAgentName: '下属1', userCommand: '旧任务甲' }),
+        delegationDecision({ timestamp: 2_000, selectedAgentId: 'a2', selectedAgentName: '下属2', userCommand: '被挤出的任务' }),
+        delegationDecision({ timestamp: 3_000, selectedAgentId: 'a1', selectedAgentName: '下属1', userCommand: '新任务甲' }),
+        delegationDecision({ timestamp: 4_000, selectedAgentId: 'a3', selectedAgentName: '下属3', userCommand: '任务丙' }),
+        delegationDecision({ timestamp: 5_000, selectedAgentId: 'a4', selectedAgentName: '下属4', userCommand: '任务丁' }),
+        delegationDecision({ timestamp: 6_000, selectedAgentId: 'a5', selectedAgentName: '下属5', userCommand: '任务戊' }),
+        delegationDecision({ timestamp: 7_000, selectedAgentId: 'a6', selectedAgentName: '下属6', userCommand: '任务己' }),
+      ],
+    });
+
+    const p = startProcess('团队那个任务到哪了');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'b1',
+      query: '团队那个任务到哪了',
+    }));
+    const call2 = await waitSpawn(2);
+    const hop2User = stdinUserContent(call2);
+
+    expect(hop2User).toContain('共 5 条');          // limit=5 生效(若传全量史则是「共 7 条」)
+    expect(hop2User).toContain('任务己');
+    expect(hop2User).toContain('新任务甲');          // 同下属去重:保留最近一条
+    expect(hop2User).not.toContain('旧任务甲');      // 更早的 a1 委派不得出现
+    expect(hop2User).not.toContain('被挤出的任务');  // 最旧的 a2 被 limit 挤出
+    expect([...historyQueriedIds].sort()).toEqual(['a1', 'a3', 'a4', 'a5', 'a6']); // 没查被挤出的 a2
+
+    await completeWith(call2.child, '{"responseToUser":"最近的委派都在这儿了。"}');
+    const r = await p;
+    expect(r.response).toContain('委派');
+    const rows = queryChainRows();
+    expect(rows[0]).toMatchObject({ phase: 'completed', route: 'boss-tree', hops: 2, subordinateCount: 5 });
   });
 });
