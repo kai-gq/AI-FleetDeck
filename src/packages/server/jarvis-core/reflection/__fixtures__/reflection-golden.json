@@ -1,0 +1,391 @@
+{
+  "f01-multi-session-pattern": {
+    "operations": [
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "用户习惯先跑测试再提交"
+        },
+        "evidenceSessionIds": [
+          "s1",
+          "s3",
+          "s5"
+        ],
+        "kind": "NEW",
+        "opId": "new-0",
+        "tier": 1,
+        "tierReason": "new-low-confidence"
+      },
+      {
+        "kind": "PROMOTE",
+        "opId": "promote-0",
+        "promoteTarget": "long-term",
+        "targetEntryId": "wt-pnpm",
+        "tier": 1,
+        "tierReason": "promote-use-count"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 2,
+    "tier2Count": 0,
+    "tier2Rate": 0
+  },
+  "f02-empty-sessions": {
+    "operations": [],
+    "rejected": [],
+    "tier1Count": 0,
+    "tier2Count": 0,
+    "tier2Rate": 0
+  },
+  "f03-short-summaries": {
+    "operations": [],
+    "rejected": [
+      {
+        "index": 0,
+        "kind": "NEW",
+        "reason": "empty-text"
+      },
+      {
+        "index": 0,
+        "kind": "UPDATE",
+        "reason": "entry-not-found",
+        "targetEntryId": "missing-entry"
+      },
+      {
+        "index": 0,
+        "kind": "DELETE",
+        "reason": "entry-not-found",
+        "targetEntryId": "missing-entry"
+      },
+      {
+        "index": 0,
+        "kind": "PROMOTE",
+        "reason": "entry-not-found",
+        "targetEntryId": "missing-entry"
+      }
+    ],
+    "tier1Count": 0,
+    "tier2Count": 0,
+    "tier2Rate": 0
+  },
+  "f04-decision-class": {
+    "operations": [
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "决定夜间反思只在本地跑，暂不接生产"
+        },
+        "evidenceSessionIds": [
+          "s31"
+        ],
+        "kind": "NEW",
+        "opId": "new-0",
+        "tier": 2,
+        "tierReason": "decision-class"
+      },
+      {
+        "kind": "UPDATE",
+        "opId": "update-0",
+        "patch": {
+          "text": "决定项目主分支用 local 并冻结 master 快照"
+        },
+        "targetEntryId": "lt-branch-decision",
+        "tier": 2,
+        "tierReason": "decision-class"
+      },
+      {
+        "kind": "DELETE",
+        "opId": "delete-0",
+        "targetEntryId": "lt-branch-decision",
+        "tier": 2,
+        "tierReason": "decision-class"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 0,
+    "tier2Count": 3,
+    "tier2Rate": 1
+  },
+  "f05-contradiction": {
+    "operations": [
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "项目主分支改为 local"
+        },
+        "evidenceSessionIds": [
+          "s32"
+        ],
+        "kind": "NEW",
+        "opId": "new-0",
+        "tier": 2,
+        "tierReason": "contradiction"
+      },
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "夜间反思产物写入 reflections 层"
+        },
+        "evidenceSessionIds": [
+          "s33"
+        ],
+        "kind": "NEW",
+        "opId": "new-1",
+        "tier": 1,
+        "tierReason": "new-low-confidence"
+      },
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "项目主分支换成 trunk"
+        },
+        "evidenceSessionIds": [
+          "s35"
+        ],
+        "kind": "NEW",
+        "opId": "new-2",
+        "tier": 2,
+        "tierReason": "contradiction"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 1,
+    "tier2Count": 2,
+    "tier2Rate": 0.6666666666666666
+  },
+  "f06-stale-knowledge": {
+    "operations": [
+      {
+        "kind": "DELETE",
+        "note": "30 天未引用",
+        "opId": "delete-0",
+        "targetEntryId": "lt-old",
+        "tier": 1,
+        "tierReason": "delete-unused-30d"
+      },
+      {
+        "kind": "DELETE",
+        "opId": "delete-1",
+        "targetEntryId": "lt-recent",
+        "tier": 2,
+        "tierReason": "delete-not-eligible"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 1,
+    "tier2Count": 1,
+    "tier2Rate": 0.5
+  },
+  "f07-high-confidence-delete": {
+    "operations": [
+      {
+        "kind": "DELETE",
+        "opId": "delete-0",
+        "targetEntryId": "lt-user",
+        "tier": 2,
+        "tierReason": "delete-high-confidence"
+      },
+      {
+        "kind": "DELETE",
+        "opId": "delete-1",
+        "targetEntryId": "wt-used",
+        "tier": 2,
+        "tierReason": "delete-not-eligible"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 0,
+    "tier2Count": 2,
+    "tier2Rate": 1
+  },
+  "f08-promote-boundary": {
+    "operations": [
+      {
+        "kind": "PROMOTE",
+        "opId": "promote-0",
+        "promoteTarget": "long-term",
+        "targetEntryId": "wt-11",
+        "tier": 1,
+        "tierReason": "promote-use-count"
+      },
+      {
+        "kind": "PROMOTE",
+        "opId": "promote-1",
+        "promoteTarget": "long-term",
+        "targetEntryId": "wt-10",
+        "tier": 2,
+        "tierReason": "promote-below-threshold"
+      }
+    ],
+    "rejected": [
+      {
+        "index": 2,
+        "kind": "PROMOTE",
+        "reason": "inferred-not-promotable",
+        "targetEntryId": "wt-inf"
+      },
+      {
+        "index": 3,
+        "kind": "PROMOTE",
+        "reason": "append-only",
+        "targetEntryId": "gl-1"
+      },
+      {
+        "index": 4,
+        "kind": "PROMOTE",
+        "reason": "already-in-target",
+        "targetEntryId": "lt-already"
+      }
+    ],
+    "tier1Count": 1,
+    "tier2Count": 1,
+    "tier2Rate": 0.5
+  },
+  "f09-update-modes": {
+    "operations": [
+      {
+        "kind": "UPDATE",
+        "opId": "update-0",
+        "patch": {
+          "tags": [
+            "archive",
+            "d-drive"
+          ]
+        },
+        "targetEntryId": "lt-note",
+        "tier": 1,
+        "tierReason": "metadata-only"
+      },
+      {
+        "kind": "UPDATE",
+        "opId": "update-1",
+        "patch": {
+          "text": "服务端口 7500"
+        },
+        "targetEntryId": "lt-note2",
+        "tier": 2,
+        "tierReason": "update-text-needs-review"
+      },
+      {
+        "kind": "UPDATE",
+        "opId": "update-3",
+        "patch": {
+          "tags": [
+            "port"
+          ]
+        },
+        "targetEntryId": "lt-note2",
+        "tier": 1,
+        "tierReason": "metadata-only"
+      }
+    ],
+    "rejected": [
+      {
+        "index": 2,
+        "kind": "UPDATE",
+        "reason": "no-change",
+        "targetEntryId": "lt-note"
+      },
+      {
+        "index": 4,
+        "kind": "UPDATE",
+        "reason": "empty-text",
+        "targetEntryId": "lt-note"
+      }
+    ],
+    "tier1Count": 2,
+    "tier2Count": 1,
+    "tier2Rate": 0.3333333333333333
+  },
+  "f10-first-run": {
+    "operations": [
+      {
+        "add": {
+          "confidence": "low",
+          "kind": "reflection-pattern",
+          "layer": "long-term",
+          "source": "agent-confirmed",
+          "tags": [
+            "reflection",
+            "confidence:low"
+          ],
+          "text": "跨会话重复：每周同步一次上游"
+        },
+        "evidenceSessionIds": [
+          "s31",
+          "s34"
+        ],
+        "kind": "NEW",
+        "opId": "new-0",
+        "tier": 2,
+        "tierReason": "first-run"
+      },
+      {
+        "kind": "UPDATE",
+        "opId": "update-0",
+        "patch": {
+          "tags": [
+            "branch"
+          ]
+        },
+        "targetEntryId": "lt-master",
+        "tier": 2,
+        "tierReason": "first-run"
+      },
+      {
+        "kind": "DELETE",
+        "opId": "delete-0",
+        "targetEntryId": "lt-stale",
+        "tier": 2,
+        "tierReason": "first-run"
+      },
+      {
+        "kind": "PROMOTE",
+        "opId": "promote-0",
+        "promoteTarget": "long-term",
+        "targetEntryId": "wt-12",
+        "tier": 2,
+        "tierReason": "first-run"
+      }
+    ],
+    "rejected": [],
+    "tier1Count": 0,
+    "tier2Count": 4,
+    "tier2Rate": 1
+  }
+}

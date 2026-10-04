@@ -414,3 +414,47 @@ export function stopBossMorningReportJob(): void {
 
 // 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
 startBossMorningReportJob();
+
+// ─── 任务28·反思：夜间反思（02:00）注册点 ───
+
+/** 夜间反思时段（06-11 §6.3 建议值：凌晨 02:00，可配；非实测最优）。 */
+export const NIGHTLY_REFLECTION_CRON = '0 2 * * *';
+
+let nightlyReflectionJob: CronJob | null = null;
+
+/**
+ * 任务28 夜间反思注册点（本文件 = 服务端调度总入口，注册仅此一处）。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （nightly-reflection-service → jarvis-core/reflection + memory，均不 import 本文件）。
+ * 幂等：重复调用返回同一任务句柄。
+ *
+ * LLM 端口未接线（真实通道延后登记）：会话 ≥5 的夜晚会如实记
+ * failed/llm-port-unavailable（零操作零写入）；通道接通后只换服务侧注入，
+ * 本调度形态不变。
+ */
+export function startNightlyReflectionJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (nightlyReflectionJob) return nightlyReflectionJob;
+  nightlyReflectionJob = schedule(
+    opts.expression ?? NIGHTLY_REFLECTION_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./nightly-reflection-service.js')
+        .then((m) => m.runNightlyReflectionScan())
+        .catch((err) => log.warn('夜间反思运行失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  nightlyReflectionJob.timer?.unref();
+  return nightlyReflectionJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopNightlyReflectionJob(): void {
+  if (!nightlyReflectionJob) return;
+  stop(nightlyReflectionJob);
+  nightlyReflectionJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startNightlyReflectionJob();
