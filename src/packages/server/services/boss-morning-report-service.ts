@@ -58,6 +58,10 @@ const DETAIL_MAX = 80;
 const DAILY_DIGEST_MAX = 160;
 /** 无项目归属的分段标签。 */
 const NO_PROJECT_LABEL = '未归项目';
+/** 「今日待办」纳入的在办卡状态（任务17·A2）：done/cancelled 一律排除。 */
+const OPEN_TASK_CARD_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'running']);
+/** due 为 date-only 'YYYY-MM-DD'（与 TaskCard.due 契约同形）；形状不符按「无 due」跳过，不猜测。 */
+const DUE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // ─── 时间与文本工具 ───
 
@@ -95,6 +99,17 @@ function renderItem(record: DelegationDecision, completion: DelegationCompletion
   return `${actor} ${verb}「${truncateOrEmpty(goal, GOAL_MAX)}」${outputClause(completion)}`;
 }
 
+/**
+ * 单张到期待办卡 → 「甲 在办「Y」（今日到期|已逾期 D）」。
+ * 仅承载 due ≤ 今日的在办卡（任务17·A2）；逾期与否按 date-only 字符串比较如实标注。
+ */
+function renderDueItem(record: DelegationDecision, due: string, todayStr: string): string {
+  const actor = record.selectedAgentName?.trim() || '未署名执行者';
+  const goal = record.taskCard?.objective?.trim() || record.userCommand?.trim() || '未记录内容';
+  const dueNote = due < todayStr ? `已逾期 ${due}` : '今日到期';
+  return `${actor} 在办「${truncateOrEmpty(goal, GOAL_MAX)}」（${dueNote}）`;
+}
+
 // ─── 信号构造（纯函数） ───
 
 /**
@@ -105,8 +120,15 @@ function renderItem(record: DelegationDecision, completion: DelegationCompletion
  * 昨日无可报项 → null（与任务13 no-due 同构，不空发信号）。
  *
  * 多项目分段：按 taskCard?.projectId 分组（无项目归「未归项目」组），组内按完成时刻
- * 升序，文本形如「昨日要点：项目A：甲 完成「Y」（产出在 Z）；项目B：…。」——只承载
+ * 升序，文本形如「昨日要点：项目A：甲 完成「Y」（产出在 Z）；项目B：…。」——承载
  * 晨报三句预算（06-11 §6.4：昨日要点 + 今日待办 + 主动发现）中的「昨日要点」第一句。
+ *
+ * 任务17·A2「今日待办」第二句：due ≤ 今日的在办卡（taskCard.status ∈ pending/queued/
+ * running；done/cancelled 排除）按 projectId 沿用同款分段口径聚合成 dueClause，形如
+ * 「今日待办：项目A：甲 在办「Y」（今日到期），乙 在办「Z」（已逾期 2026-10-01）。」。
+ * due 为 date-only 'YYYY-MM-DD'，按本地日历日字符串比较（今日含、明日不含、逾期含）；
+ * 形状不符的 due 按「无 due」跳过（不猜测、不硬造）。仅有到期卡（无昨日产出/无日报）
+ * 时同样成信号——「今日待办」本身就是晨报要报的东西。
  *
  * 评分理由（自定，保守取值，非实测最优）：urgency 65 / relevance 85 / certainty 95
  * → 加权 77（0.5·65+0.3·85+0.2·95）< 85，刻意不走 urgent——晨报是定点自然开口点，
@@ -133,8 +155,42 @@ export function buildMorningReportSignal(
   const digestClause = digest
     ? `日志分析：${truncateOrEmpty(digest.summary.trim(), DAILY_DIGEST_MAX)}。`
     : '';
-  // 昨日无产出且无日报 → null（原口径）；日报在时即使无产出也成信号（日报即当日要点）。
-  if (yesterday.length === 0 && !digestClause) return null;
+
+  // ─── 任务17·A2「今日待办」：due ≤ 今日的在办卡（按 projectId 同款分段） ───
+  const todayStr = formatDay(now.getTime());
+  const dueCards = records
+    .flatMap((record) => {
+      const card = record.taskCard;
+      if (!card || !OPEN_TASK_CARD_STATUSES.has(card.status)) return [];
+      const due = card.due?.trim();
+      if (!due || !DUE_DATE_RE.test(due) || due > todayStr) return [];
+      return [{ record, due }];
+    })
+    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+
+  interface DueSegment {
+    label: string;
+    projectId: string | null;
+    items: string[];
+  }
+  const dueSegments = new Map<string, DueSegment>();
+  for (const { record, due } of dueCards) {
+    const projectId = record.taskCard?.projectId?.trim() || null;
+    const key = projectId ?? '';
+    let segment = dueSegments.get(key);
+    if (!segment) {
+      segment = { label: projectId ? `项目${projectId}` : NO_PROJECT_LABEL, projectId, items: [] };
+      dueSegments.set(key, segment);
+    }
+    segment.items.push(renderDueItem(record, due, todayStr));
+  }
+  const dueOrdered = [...dueSegments.values()];
+  const dueClause = dueCards.length > 0
+    ? `今日待办：${dueOrdered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`
+    : '';
+
+  // 昨日无产出且无日报且无到期待办 → null（不空发）；任一句在即成信号。
+  if (yesterday.length === 0 && !digestClause && !dueClause) return null;
 
   interface Segment {
     label: string;
@@ -157,7 +213,7 @@ export function buildMorningReportSignal(
   const yesterdayClause = yesterday.length > 0
     ? `昨日要点：${ordered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`
     : '';
-  const text = `${yesterdayClause}${digestClause}`;
+  const text = `${yesterdayClause}${dueClause}${digestClause}`;
 
   return {
     source: 'memory',
@@ -171,6 +227,9 @@ export function buildMorningReportSignal(
       completed: yesterday.filter((r) => r.completion.result === 'completed').length,
       failed: yesterday.filter((r) => r.completion.result === 'failed').length,
       projects: ordered.map((s) => s.projectId),
+      /** 任务17·A2：due ≤ 今日的在办卡数（done/cancelled 与无 due/形状不符者不计）。 */
+      dueCount: dueCards.length,
+      dueProjects: dueOrdered.map((s) => s.projectId),
       ...(digest
         ? {
             dailyReport: {

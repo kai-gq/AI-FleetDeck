@@ -499,3 +499,88 @@ export function stopDailyLogReportJob(): void {
 
 // 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
 startDailyLogReportJob();
+
+// ─── 任务17·A2：回执超时提醒（每 5 分钟）注册点 ───
+
+/** 回执超时扫描周期（初始值待标定：阈值缺省 30 分钟，5 分钟粒度足够且开销可忽略）。 */
+export const RECEIPT_TIMEOUT_CRON = '*/5 * * * *';
+
+let receiptTimeoutJob: CronJob | null = null;
+
+/**
+ * 任务17·A2 回执超时扫描注册点（注册仅此一处）。经 08② 待回执登记表找
+ * matchedAt 为空且超阈值的派活 → ⑩ 播报提醒（v1 不自动重派）。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （receipt-timeout-service → pending-receipt-registry/voice-companion-service，
+ * 均不 import 本文件）。开关 TC_JARVIS_RECEIPT_TIMEOUT 在服务入口读（缺省开）。
+ * 幂等：重复调用返回同一任务句柄。
+ */
+export function startReceiptTimeoutJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (receiptTimeoutJob) return receiptTimeoutJob;
+  receiptTimeoutJob = schedule(
+    opts.expression ?? RECEIPT_TIMEOUT_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./receipt-timeout-service.js')
+        .then((m) => m.runReceiptTimeoutScan())
+        .catch((err) => log.warn('回执超时扫描失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  receiptTimeoutJob.timer?.unref();
+  return receiptTimeoutJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopReceiptTimeoutJob(): void {
+  if (!receiptTimeoutJob) return;
+  stop(receiptTimeoutJob);
+  receiptTimeoutJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startReceiptTimeoutJob();
+
+// ─── 任务17·A5：成本周报（周一 09:00）注册点 ───
+
+/** 成本周报时段（每周一 09:00 本地时区；初始值待标定）。 */
+export const WEEKLY_COST_REPORT_CRON = '0 9 * * 1';
+
+let weeklyCostReportJob: CronJob | null = null;
+
+/**
+ * 任务17·A5 成本周报注册点（注册仅此一处）。近 7 天 resource 行按
+ * agentId/projectId 分组 → 落 reports/weekly/（独立目录 + 独立文件名前缀，
+ * 不复用 daily 文件名正则——防晨报聚合污染）。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （weekly-cost-report-service → log-analysis/data，均不 import 本文件）。
+ * 开关 TC_JARVIS_WEEKLY_COST_REPORT 在服务入口读（缺省开）。
+ * 幂等：重复调用返回同一任务句柄。
+ */
+export function startWeeklyCostReportJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (weeklyCostReportJob) return weeklyCostReportJob;
+  weeklyCostReportJob = schedule(
+    opts.expression ?? WEEKLY_COST_REPORT_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./weekly-cost-report-service.js')
+        .then((m) => m.runWeeklyCostReportScan())
+        .catch((err) => log.warn('成本周报失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  weeklyCostReportJob.timer?.unref();
+  return weeklyCostReportJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopWeeklyCostReportJob(): void {
+  if (!weeklyCostReportJob) return;
+  stop(weeklyCostReportJob);
+  weeklyCostReportJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startWeeklyCostReportJob();

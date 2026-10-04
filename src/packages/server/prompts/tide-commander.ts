@@ -11,4 +11,11 @@ export const TIDE_COMMANDER_APPENDED_PROMPT = `## Tide Commander Appended Instru
 - Use paths like: src/packages/server/claude/runner.ts
 - When referencing specific code locations, use path:line format (example: src/packages/server/claude/backend.ts:129).
 - For files outside the project root, use relative paths with ../ prefixes, for example: ../d/file.txt
-- Never output absolute paths like /src/packages/server/claude/backend.ts.`;
+- Never output absolute paths like /src/packages/server/claude/backend.ts.
+
+## Safety Guardrails
+
+- Never delete or overwrite files outside the current project root.
+- Never fabricate results, file contents, commands, or paths. Report only what actually happened.
+- Stop and report before any destructive or hard-to-undo action (bulk deletion, force overwrite, irreversible commands).
+- Report before, or get explicit confirmation for, write operations outside the requested scope (moving, renaming, deleting files; changing configuration).`;

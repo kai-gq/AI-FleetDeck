@@ -1947,11 +1947,27 @@ router.post('/:id/simulate-model-fallback', (req: Request<{ id: string }>, res: 
   }
 });
 
+/**
+ * 任务17·A3：验收打勾条目形状校验（item 非空字符串 + done 布尔；其余一律视为无效）。
+ */
+function isAcceptanceItem(value: unknown): value is { item: string; done: boolean } {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as { item?: unknown; done?: unknown };
+  return typeof v.item === 'string' && v.item.trim().length > 0 && typeof v.done === 'boolean';
+}
+
 // POST /api/agents/:id/report-task - Subordinate reports task completion to its boss
 router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const subordinateId = req.params.id;
-    const { summary, status } = req.body as { summary?: string; status?: 'completed' | 'failed' };
+    const { summary, status, acceptance, outputLocation } = req.body as {
+      summary?: string;
+      status?: 'completed' | 'failed';
+      /** 任务17·A3：验收自检逐条打勾（completed 必填，逐条 {item, done}）。 */
+      acceptance?: unknown;
+      /** 任务17·A3：产出位置（completed 必填，非空白字符串）。 */
+      outputLocation?: unknown;
+    };
 
     const agent = agentService.getAgent(subordinateId);
     if (!agent) {
@@ -1964,6 +1980,37 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
     const resolvedBossId = delegation?.bossId || agent.bossId;
     const taskStatus = status || 'completed';
     const success = taskStatus === 'completed';
+
+    // 任务17·A3：completed 回执必须带「逐条打勾 + 产出位置」——
+    // 缺任一 → 400 + 重发指引（无条件口径，简单可测；放在任何副作用之前，避免半截回执）；
+    // failed 不强制（失败报告如实优先）。
+    const validAcceptance =
+      Array.isArray(acceptance) && acceptance.length > 0 && acceptance.every(isAcceptanceItem)
+        ? (acceptance as Array<{ item: string; done: boolean }>)
+        : undefined;
+    const cleanOutputLocation =
+      typeof outputLocation === 'string' && outputLocation.trim() ? outputLocation : undefined;
+    if (taskStatus === 'completed') {
+      const missing: string[] = [];
+      if (!validAcceptance) missing.push('acceptance');
+      if (!cleanOutputLocation) missing.push('outputLocation');
+      if (missing.length > 0) {
+        log.log(`Rejected completed report from ${agent.name}: missing ${missing.join(', ')}`);
+        res.status(400).json({
+          success: false,
+          error: `Completed report rejected: missing or invalid ${missing.join(', ')}`,
+          missing,
+          expected: {
+            summary: 'what was done and the result',
+            status: 'completed',
+            outputLocation: 'path or link to the deliverable',
+            acceptance: [{ item: 'acceptance criterion verified', done: true }],
+          },
+          hint: `Resend POST /api/agents/${subordinateId}/report-task with a non-empty acceptance array of {item, done} objects and a non-blank outputLocation.`,
+        });
+        return;
+      }
+    }
 
     // 任务08② 回执订阅播报：report-task 入口统一通知（放在无 boss 早退之前——
     // 无 boss 回执同样过判断层留证，不静默丢弃；runtime 入口通常先到，
@@ -2023,8 +2070,15 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
       } as any);
     }
 
-    // 2. ⑦⑧ 完成入口：任务卡迁移到 done + 病历写回（⑧ summary 透传）+ 清理委派追踪（无追踪时 no-op）
-    completeDelegation(subordinateId, { success, reason: 'report-task', summary });
+    // 2. ⑦⑧ 完成入口：任务卡迁移到 done + 病历写回（⑧ summary/产出位置/验收打勾透传）
+    //    + 清理委派追踪（无追踪时 no-op）；failed 携带的无效 acceptance/outputLocation 一律不落库。
+    completeDelegation(subordinateId, {
+      success,
+      reason: 'report-task',
+      summary,
+      ...(cleanOutputLocation ? { outputLocation: cleanOutputLocation } : {}),
+      ...(validAcceptance ? { acceptance: validAcceptance } : {}),
+    });
 
     // 3. Send a message to the boss so it knows the task finished and can decide next steps.
     // If the boss agent is no longer available, accept the report without failing.

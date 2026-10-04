@@ -56,6 +56,12 @@ interface RecordOpts {
   projectId?: string;
   outputLocation?: string;
   summary?: string;
+  /** 任务17·A2：任务卡截止日（date-only 'YYYY-MM-DD'；给则落卡）。 */
+  due?: string;
+  /** 任务17·A2：任务卡状态（缺省 done——旧记录形态，天然不进「今日待办」）。 */
+  cardStatus?: 'pending' | 'queued' | 'running' | 'done';
+  /** 任务17·A2：在办卡无 completion（真实在办形态；决策 status 随之落 'sent'）。 */
+  noCompletion?: boolean;
 }
 
 function record(opts: RecordOpts): DelegationDecision {
@@ -70,25 +76,30 @@ function record(opts: RecordOpts): DelegationDecision {
     reasoning: 'test',
     alternativeAgents: [],
     confidence: 'high',
-    status: rest.result === 'failed' ? 'failed' : 'completed',
-    ...(rest.objective || rest.projectId
+    status: rest.noCompletion ? 'sent' : rest.result === 'failed' ? 'failed' : 'completed',
+    ...(rest.objective || rest.projectId || rest.due
       ? {
           taskCard: {
             objective: rest.objective ?? '',
             acceptanceCriteria: [],
             dependencies: [],
-            status: 'done' as const,
+            status: rest.cardStatus ?? ('done' as const),
             ...(rest.projectId ? { projectId: rest.projectId } : {}),
+            ...(rest.due ? { due: rest.due } : {}),
           },
         }
       : {}),
-    completion: {
-      completedAt: at,
-      durationMs: 60_000,
-      result: rest.result ?? 'completed',
-      ...(rest.summary ? { summary: rest.summary } : {}),
-      ...(rest.outputLocation ? { outputLocation: rest.outputLocation } : {}),
-    },
+    ...(rest.noCompletion
+      ? {}
+      : {
+          completion: {
+            completedAt: at,
+            durationMs: 60_000,
+            result: rest.result ?? 'completed',
+            ...(rest.summary ? { summary: rest.summary } : {}),
+            ...(rest.outputLocation ? { outputLocation: rest.outputLocation } : {}),
+          },
+        }),
   };
 }
 
@@ -548,5 +559,110 @@ describe('runBossMorningReportScan — 日报只读聚合（任务19·A）', () 
     expect(r).toMatchObject({ yesterday: 0, dailyReportIncluded: true, degraded: false });
     expect(broadcastMock).toHaveBeenCalledTimes(1);
     expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('日志分析：') }));
+  });
+});
+
+// ============================================================================
+// 任务17·A2：任务卡 due → 晨报「今日待办」句
+// ============================================================================
+
+describe('buildMorningReportSignal — 今日待办（任务17·A2）', () => {
+  it('无 due 卡 → 不输出「今日待办」句；payload dueCount=0（负断言）', () => {
+    const signal = buildMorningReportSignal(
+      [
+        record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'n1', cardStatus: 'running', noCompletion: true }),
+        record({ at: YDAY0 + 2000, agent: '乙', objective: 'Z', id: 'n2' }), // done 卡（历史完成）
+      ],
+      NOW8,
+    );
+    expect(signal?.text).not.toContain('今日待办');
+    expect(signal?.payload).toMatchObject({ dueCount: 0, dueProjects: [] });
+  });
+
+  it('在办 + due ≤ 今日 → 按 projectId 分段成句（逾期/今日到期如实标注，按 due 升序）；done/明日/无 due/非法形状排除', () => {
+    const signal = buildMorningReportSignal(
+      [
+        // 同日不同 due：10-01（逾期）应排在 10-05（今日）前
+        record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', projectId: 'A', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'u1' }),
+        record({ at: YDAY0 + 2000, agent: '乙', objective: 'Z', projectId: 'A', due: '2026-10-01', cardStatus: 'queued', noCompletion: true, id: 'u2' }),
+        record({ at: YDAY0 + 3000, agent: '丙', objective: 'W', due: '2026-10-04', cardStatus: 'pending', noCompletion: true, id: 'u3' }),
+        record({ at: YDAY0 + 4000, agent: '丁', objective: '已完成卡', due: '2026-10-05', cardStatus: 'done', noCompletion: true, id: 'u4' }),
+        record({ at: YDAY0 + 5000, agent: '戊', objective: '明日卡', due: '2026-10-06', cardStatus: 'running', noCompletion: true, id: 'u5' }),
+        record({ at: YDAY0 + 6000, agent: '己', objective: '无due卡', projectId: 'B', cardStatus: 'running', noCompletion: true, id: 'u6' }),
+        record({ at: YDAY0 + 7000, agent: '庚', objective: '坏形状due', due: '2026-10-5', cardStatus: 'running', noCompletion: true, id: 'u7' }),
+      ],
+      NOW8,
+    );
+
+    // 无昨日产出/日报，仅到期卡也成信号
+    expect(signal).not.toBeNull();
+    expect(signal?.text).toBe(
+      '今日待办：项目A：乙 在办「Z」（已逾期 2026-10-01），甲 在办「Y」（今日到期）；未归项目：丙 在办「W」（已逾期 2026-10-04）。',
+    );
+    expect(signal?.payload).toMatchObject({ count: 0, dueCount: 3, dueProjects: ['A', null] });
+    // 被排除者一律不出现在文本里（负断言）
+    expect(signal?.text).not.toContain('已完成卡');
+    expect(signal?.text).not.toContain('明日卡');
+    expect(signal?.text).not.toContain('无due卡');
+    expect(signal?.text).not.toContain('坏形状due');
+  });
+
+  it('跨日边界：due=今日含、due=明日不含；跨到次日 → 今日到期变已逾期、明日卡转在办', () => {
+    const todayDue = record({ at: YDAY0 + 1000, agent: '甲', objective: '今日卡', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'b1' });
+    const tomorrowDue = record({ at: YDAY0 + 2000, agent: '乙', objective: '明日卡', due: '2026-10-06', cardStatus: 'running', noCompletion: true, id: 'b2' });
+
+    const day1 = buildMorningReportSignal([todayDue, tomorrowDue], NOW8);
+    expect(day1?.text).toContain('甲 在办「今日卡」（今日到期）');
+    expect(day1?.text).not.toContain('明日卡');
+    expect(day1?.payload).toMatchObject({ dueCount: 1 });
+
+    const day2 = buildMorningReportSignal([todayDue, tomorrowDue], NEXT_DAY8);
+    expect(day2?.text).toContain('甲 在办「今日卡」（已逾期 2026-10-05）');
+    expect(day2?.text).toContain('乙 在办「明日卡」（今日到期）');
+    expect(day2?.payload).toMatchObject({ dueCount: 2 });
+  });
+
+  it('cancelled 卡排除（状态白名单口径，而非黑名单）', () => {
+    const cancelled = record({ at: YDAY0 + 1000, agent: '甲', objective: '已取消卡', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'c1' });
+    // 运行期改写为 cancelled（TaskCardStatus 的 cancelled 协同由任务16 扩展；白名单口径天然排除）
+    (cancelled.taskCard as { status: string }).status = 'cancelled';
+    const alive = record({ at: YDAY0 + 2000, agent: '乙', objective: '在办卡', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'c2' });
+
+    const signal = buildMorningReportSignal([cancelled, alive], NOW8);
+    expect(signal?.text).toContain('乙 在办「在办卡」（今日到期）');
+    expect(signal?.text).not.toContain('已取消卡');
+    expect(signal?.payload).toMatchObject({ dueCount: 1 });
+  });
+
+  it('due 从句与昨日要点/日报并列：顺序为 昨日要点 → 今日待办 → 日志分析', () => {
+    const signal = buildMorningReportSignal(
+      [
+        record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'p1' }),
+        record({ at: YDAY0 + 2000, agent: '乙', objective: 'Z', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'p2' }),
+      ],
+      NOW8,
+      DIGEST,
+    );
+    expect(signal?.text).toBe(
+      `昨日要点：未归项目：甲 完成「Y」。今日待办：未归项目：乙 在办「Z」（今日到期）。日志分析：${DIGEST.summary}。`,
+    );
+  });
+
+  it('due-only 信号可投递：扫描 → SPEAK，播报文本含「今日待办」', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(
+        record({ at: YDAY0 + 1000, agent: '甲', objective: '到期任务', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'd1' }),
+      ),
+      now: () => NOW8,
+      queue,
+    });
+
+    expect(r).toMatchObject({ yesterday: 0, degraded: false });
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'time_sensitive' }]);
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'boss_morning_report',
+      text: '今日待办：未归项目：甲 在办「到期任务」（今日到期）。',
+    }));
   });
 });
