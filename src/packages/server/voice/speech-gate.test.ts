@@ -45,6 +45,17 @@ describe('SpeechGate', () => {
     expect(gate.spokenCount).toBe(0);
   });
 
+  it('drops buffered text and stays silent for Bolba 四动作(任务13·⑩:结果由服务端确定性产出)', () => {
+    for (const action of ['query_bolba_tasks', 'create_bolba_task', 'complete_bolba_task', 'reopen_bolba_task'] as const) {
+      const { gate, spoken } = collect();
+      gate.push('这句不能出声。');
+      gate.setAction(action);
+      gate.push('这也别出声。');
+      expect(spoken).toEqual([]);
+      expect(gate.spoke).toBe(false);
+    }
+  });
+
   it('holds send_to_agent confirmations until dispatch succeeds', () => {
     const { gate, spoken } = collect();
     gate.setAction('send_to_agent');

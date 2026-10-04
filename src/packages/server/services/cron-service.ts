@@ -333,3 +333,43 @@ export function getNextFireTimes(expression: string, timezone: string, count: nu
 
   return results;
 }
+
+// ─── 任务13·⑩：Bolba 到期提醒每日扫描注册点 ───
+
+/** 每日 08:00（本地时区）扫一次 Bolba 在办任务的到期情况。 */
+export const BOLBA_DUE_SCAN_CRON = '0 8 * * *';
+
+let bolbaDueReminderJob: CronJob | null = null;
+
+/**
+ * 任务13·⑩ 到期提醒扫描注册点（本文件 = 服务端调度总入口，注册仅此一处）。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （bolba-due-reminder-service → voice-companion-service/bolba-bridge-service，
+ * 均不 import 本文件）。幂等：重复调用返回同一任务句柄。
+ */
+export function startBolbaDueReminderJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (bolbaDueReminderJob) return bolbaDueReminderJob;
+  bolbaDueReminderJob = schedule(
+    opts.expression ?? BOLBA_DUE_SCAN_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./bolba-due-reminder-service.js')
+        .then((m) => m.runBolbaDueReminderScan())
+        .catch((err) => log.warn('Bolba 到期提醒扫描失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  bolbaDueReminderJob.timer?.unref();
+  return bolbaDueReminderJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopBolbaDueReminderJob(): void {
+  if (!bolbaDueReminderJob) return;
+  stop(bolbaDueReminderJob);
+  bolbaDueReminderJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startBolbaDueReminderJob();

@@ -9,6 +9,8 @@
  *   由最终回复整段兜底;
  * - query_agent_output 的答案来自第二跳(hop2),hop1 的 responseToUser 丢弃;
  * - analyze_logs 的报告由分析 agent 产出(外部进程),hop1 的 responseToUser 同样丢弃;
+ * - 任务13·⑩:query/create/complete/reopen_bolba_task 的结果由服务端 Bolba 桥确定性
+ *   产出,hop1 的 responseToUser 一律丢弃(显式 GateAction 成员,不借别名);
  * - general_response / list_agents 一旦 action 确定就即时放行(低延迟路径)。
  */
 
@@ -19,6 +21,11 @@ export type GateAction =
   | 'list_agents'
   | 'query_agent_output'
   | 'analyze_logs'
+  // 任务13·⑩ 秘书 Bolba 桥:结果由服务端确定性产出,hop1 话术一律不出声(显式门)。
+  | 'query_bolba_tasks'
+  | 'create_bolba_task'
+  | 'complete_bolba_task'
+  | 'reopen_bolba_task'
   | 'noop';
 
 /** 派发类动作:确认话术要等派发成功才放行(失败即丢弃)。 */
@@ -44,7 +51,9 @@ export class SpeechGate {
       this.buffered.push(text);
       return;
     }
-    if (this.mode === 'noop' || this.mode === 'query_agent_output' || this.mode === 'analyze_logs') return;
+    if (this.mode === 'noop' || this.mode === 'query_agent_output' || this.mode === 'analyze_logs'
+      || this.mode === 'query_bolba_tasks' || this.mode === 'create_bolba_task'
+      || this.mode === 'complete_bolba_task' || this.mode === 'reopen_bolba_task') return;
     this.flushEmit(text);
   }
 
@@ -54,7 +63,9 @@ export class SpeechGate {
    */
   setAction(action: GateAction): void {
     this.mode = action;
-    if (action === 'noop' || action === 'query_agent_output' || action === 'analyze_logs') {
+    if (action === 'noop' || action === 'query_agent_output' || action === 'analyze_logs'
+      || action === 'query_bolba_tasks' || action === 'create_bolba_task'
+      || action === 'complete_bolba_task' || action === 'reopen_bolba_task') {
       this.buffered = [];
     } else if (!isDispatchGateAction(action)) {
       this.release();

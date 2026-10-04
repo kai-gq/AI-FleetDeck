@@ -5,6 +5,7 @@ import {
   applyMemoryOps,
   buildAgentSnapshotLines,
   buildCompanionSystemPrompt,
+  COMPANION_ACTIONS,
   resolveDispatchRoute,
   isBossLikeAgent,
   shouldRotateSession,
@@ -378,5 +379,40 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     expect(prompt).toContain('【三态边界');
     expect(prompt).toContain('老板说「去查一下/问一下 XX」也是查询,不是让你派活');
     expect(prompt).toContain('绝不擅自派活');
+  });
+});
+
+// ============================================================================
+// 任务13·⑩ 秘书 Bolba 桥:契约动作 / bolbaTask 字段 / 提示词接线
+// ============================================================================
+
+describe('任务13·⑩ Bolba 契约动作', () => {
+  const BOLBA_ACTIONS = ['query_bolba_tasks', 'create_bolba_task', 'complete_bolba_task', 'reopen_bolba_task'] as const;
+
+  it('COMPANION_ACTIONS 收录四动作,且都能被 parseContractJson 解析为白名单动作', () => {
+    for (const action of BOLBA_ACTIONS) {
+      expect(COMPANION_ACTIONS).toContain(action);
+      expect(parseContractJson(JSON.stringify({ action })).action).toBe(action);
+    }
+  });
+
+  it('parseContractJson 解析 bolbaTask(trim;非字符串 → 空串)', () => {
+    const c = parseContractJson('{"action":"create_bolba_task","bolbaTask":"  准备 BOL-4472 报价  ","query":"今天要盯的"}');
+    expect(c.bolbaTask).toBe('准备 BOL-4472 报价');
+    expect(c.query).toBe('今天要盯的');
+    expect(parseContractJson('{"action":"create_bolba_task","bolbaTask":123}').bolbaTask).toBe('');
+    expect(parseContractJson('{"action":"query_bolba_tasks"}').bolbaTask).toBe('');
+  });
+
+  it('契约模板含 bolbaTask 字段,说明区含四动作与两本账边界', () => {
+    const prompt = buildCompanionSystemPrompt({
+      agentLines: [], totalAgents: 0, truncated: false, memory: emptyMemory(), nowText: '2026-10-04 12:00',
+    });
+    expect(prompt).toContain('"query":"","bolbaTask":""');
+    for (const action of BOLBA_ACTIONS) expect(prompt).toContain(`${action}: `);
+    expect(prompt).toContain('业务待办(报价/付款/会议/证书/盯人盯事)走 Bolba 四动作');
+    expect(prompt).toContain('绝不混账');
+    // 业务动作不得写进派活说明区(两本账不混)
+    expect(prompt).toContain('agent 的活(写代码/改 bug/推进项目)走 delegate_to_boss');
   });
 });

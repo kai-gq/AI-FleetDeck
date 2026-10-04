@@ -22,7 +22,11 @@ const RECENT_COMPLETED_LIMIT = 8;
 const DEFAULT_RECOMMENDED_LIMIT = 7;
 const MAX_RECOMMENDED_LIMIT = 15;
 const GENERATION_FEEDBACK_MS = 3 * 60_000;
-const PENDING_STATUSES = new Set(['open', 'waiting', 'delegated']);
+/**
+ * 在办状态集。任务13·⑩：导出供服务端 Bolba 桥（bolba-bridge-service）复用，
+ * 过滤口径单处维护、防两处漂移；本文件内用法不变。
+ */
+export const PENDING_STATUSES = new Set(['open', 'waiting', 'delegated']);
 const COMPLETED_STATUSES = new Set(['done', 'completed']);
 const RECOMMENDATION_URGENCIES = new Set(['critical', 'high', 'medium', 'normal']);
 
@@ -70,7 +74,13 @@ function getConfig(): { baseUrl: string; token: string } {
   };
 }
 
-async function bolbaRequest(endpoint: string, init?: RequestInit): Promise<unknown> {
+/**
+ * Bolba HTTP 基座（URL/token/X-Actor/超时/错误语义的唯一维护点）。
+ *
+ * 任务13·⑩：导出复用（服务端 Bolba 桥 bolba-bridge-service 直接调用本函数，
+ * 不新建服务、不复制连接配置）。导出仅为复用，行为零改动——插件自身调用路径不变。
+ */
+export async function bolbaRequest(endpoint: string, init?: RequestInit): Promise<unknown> {
   const { baseUrl, token } = getConfig();
   const response = await fetch(`${baseUrl}${endpoint}`, {
     ...init,

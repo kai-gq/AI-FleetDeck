@@ -54,6 +54,13 @@ import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-c
 import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
 import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
 import { logEvent } from '../data/system-log.js';
+// 任务13·⑩ 秘书 Bolba 桥：业务待办（报价/付款/会议…）的只读查询与创建/完成/重开。
+// 两本账边界：本文件里这四动作只碰 Bolba 账本，绝不进 ① 委派通道。
+import {
+  BOLBA_CONTRACT_ACTIONS,
+  handleBolbaContractAction,
+  type BolbaContractAction,
+} from './bolba-bridge-service.js';
 // 任务07·④ 查进度走下属:query 目标为 Boss 时的委派树解析/材料拼接/观测点④字段(纯逻辑在 voice/ 下)
 import {
   buildDelegationQueryMaterial,
@@ -104,6 +111,11 @@ export type CompanionAction =
   | 'query_agent_output'
   /** 任务03·尾：⑮ P1 只读日志分析（秘书自留区：不派活、不计 ⑫ 配额）。 */
   | 'analyze_logs'
+  /** 任务13·⑩ 秘书 Bolba 桥:业务待办(报价/付款/会议/证书…)四动作,只碰 Bolba 账本。 */
+  | 'query_bolba_tasks'
+  | 'create_bolba_task'
+  | 'complete_bolba_task'
+  | 'reopen_bolba_task'
   | 'noop';
 
 /**
@@ -111,7 +123,8 @@ export type CompanionAction =
  * (改① 新增 delegate_to_boss 时只需改这里与 CompanionAction)。
  */
 export const COMPANION_ACTIONS: readonly CompanionAction[] = [
-  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'analyze_logs', 'noop',
+  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'analyze_logs',
+  'query_bolba_tasks', 'create_bolba_task', 'complete_bolba_task', 'reopen_bolba_task', 'noop',
 ];
 
 export type CompanionDelivery = 'queue' | 'interrupt';
@@ -130,6 +143,8 @@ export interface VoiceContract {
   messageToAgent: string;
   delivery: CompanionDelivery;
   query: string;
+  /** 任务13·⑩：Bolba 动作的指代/事项（create 填去时间词的事项；complete/reopen 填编号或标题）。 */
+  bolbaTask: string;
   responseToUser: string;
   memoryOps: VoiceMemoryOp[];
 }
@@ -424,6 +439,7 @@ export function parseContractJson(raw: string): VoiceContract {
     messageToAgent: typeof obj.messageToAgent === 'string' ? obj.messageToAgent.trim() : '',
     delivery: obj.delivery === 'interrupt' ? 'interrupt' : 'queue',
     query: typeof obj.query === 'string' ? obj.query.trim() : '',
+    bolbaTask: typeof obj.bolbaTask === 'string' ? truncate(obj.bolbaTask, 200) : '',
     responseToUser: typeof obj.responseToUser === 'string' ? obj.responseToUser.trim() : '',
     memoryOps: [],
   };
@@ -765,7 +781,7 @@ function formatMemory(memory: CompanionMemory): string {
 const CONTRACT_TEMPLATE = `{"action":"${COMPANION_ACTIONS.join('|')}",`
   + '"responseToUser":"",'
   + '"targetAgentId":null,"targetAgentName":null,"messageToAgent":"","delivery":"queue|interrupt",'
-  + '"query":"","memoryOps":[]}';
+  + '"query":"","bolbaTask":"","memoryOps":[]}';
 
 /** 组装 hop1 系统提示词:角色 + 人设 + 契约 + 规则 + 记忆 + agent 快照 + 委派史摘要。 */
 export function buildCompanionSystemPrompt(input: {
@@ -805,6 +821,10 @@ ${CONTRACT_TEMPLATE}
 - send_to_agent: 仅当老板明确要直接对主管([BOSS])本人说话时使用(补充说明、追问它的安排、对它提要求),targetAgentId 必须是 [BOSS] 的 id。**任何让普通 agent 干活的请求都不得用它**——一律走 delegate_to_boss。
 - query_agent_output: 老板问某个 agent(主管或普通 agent 都行)「最近做了什么/进展如何/结果是什么/输出了什么」。只读查询,不派活。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
 - analyze_logs: 老板要看日志/分析日志/「查一下昨天的日志」「今天出了哪些错」。只读查询,不派活;query 填老板的原始问法(含时间词)。responseToUser 可留空,系统会跑完整分析并播报四段报告(耗时一两分钟属正常)。
+- query_bolba_tasks: 老板问「业务待办/要盯的事/板上有什么/今天有什么要盯的/按项目看看」——Bolba 板是报价、付款、会议、证书这类 agent 干不了、需要人盯的业务清单。只读查询,不派活;query 填老板的原始问法(含项目名)。responseToUser 可留空,系统渲染实际情况。
+- create_bolba_task: 老板说「记一下/加到待办/提醒我」且内容是业务事项 → bolbaTask 填事项本身,**去掉「周五前/明天/下周三」等时间词**(系统从原话解析日期);responseToUser 可留空。
+- complete_bolba_task: 老板说「完成 X/X 做完了」且 X 是业务事项 → bolbaTask 填 X 的指代(编号或标题);responseToUser 可留空。
+- reopen_bolba_task: 老板说「重开 X」且 X 是业务事项 → bolbaTask 填 X 的指代(编号或标题);responseToUser 可留空。
 - list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
 - general_response: 正常对话——寒暄、问你自己、闲聊、咨询建议、对老板想法的讨论,都走这条;对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
 - noop: 输入以 [系统事件] 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。
@@ -812,6 +832,7 @@ ${CONTRACT_TEMPLATE}
 【三态边界(重要,先判再答)】
 - 「问情况」走查询:做到哪了/进展/结果/谁在做/为什么还没好/查一下/看一下 → query_agent_output 或 list_agents;看日志/查日志/日志里出了什么错 → analyze_logs。老板说「去查一下/问一下 XX」也是查询,不是让你派活。
 - 「要人干活」才走派活:让 X 做/需要改成/安排/推进/催办/停掉某人的活/改用方案 → delegate_to_boss。
+- 业务待办(报价/付款/会议/证书/盯人盯事)走 Bolba 四动作;agent 的活(写代码/改 bug/推进项目)走 delegate_to_boss。拿不准先问一句,绝不混账。
 - 寒暄、闲聊、咨询建议、讨论想法 → general_response。
 拿不准是不是任务时,先按查询/对话处理并向老板确认一句,绝不擅自派活。
 
@@ -1818,6 +1839,25 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       return finish(result);
     }
 
+    if (BOLBA_CONTRACT_ACTIONS.has(contract.action)) {
+      // 任务13·⑩ 秘书 Bolba 桥:业务待办的查/建/完成/重开。
+      // 两本账边界:这里只碰 Bolba 账本,绝不走 ① 委派通道。
+      // hop1 话术由 SpeechGate 的显式 Bolba 门丢弃;结果由服务端确定性产出
+      // (handleBolbaContractAction 内部兜底,永不抛),degraded 如实透传。
+      const bolbaStartedAt = Date.now();
+      speech.discardHop1();
+      const outcome = await handleBolbaContractAction({
+        action: contract.action as BolbaContractAction,
+        userText: text,
+        contract: { bolbaTask: contract.bolbaTask, query: contract.query },
+        now: new Date(),
+      });
+      result.response = outcome.response;
+      result.degraded = outcome.degraded;
+      result.secondHopMs = Date.now() - bolbaStartedAt;
+      return finish(result);
+    }
+
     if (contract.action === 'noop') {
       result.response = '';
       return finish(result);
@@ -1837,6 +1877,39 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     }
     return finish(result);
   }));
+}
+
+/**
+ * 任务13·⑩:非用户回合的主动播报出口(供 Bolba 到期提醒复用)。
+ *
+ * 复用回合出口 finish() 的同两条通道(dialog out + broadcast/server-sent),
+ * 不新建队列、不碰客户端;action 字段供 ⑭ system_log 观测筛选。
+ * 注意:服务端目前没有真正的「推送到客户端语音」通道,这里落的是与普通回合
+ * 同形态的登记(客户端若接推送可从此通道消费)。
+ */
+export function logProactiveBroadcast(input: {
+  text: string;
+  action: string;
+  degraded?: boolean;
+  sessionId?: string;
+  taskId?: string;
+}): void {
+  logDialogMessage({
+    direction: 'out',
+    text: input.text,
+    sessionId: input.sessionId,
+    taskId: input.taskId,
+    action: input.action,
+    degraded: input.degraded,
+  });
+  logBroadcast({
+    text: input.text,
+    phase: 'server-sent',
+    action: input.action,
+    degraded: input.degraded,
+    sessionId: input.sessionId,
+    taskId: input.taskId,
+  });
 }
 
 // ============================================================================

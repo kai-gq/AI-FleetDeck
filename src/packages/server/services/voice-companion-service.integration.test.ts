@@ -324,6 +324,8 @@ interface TestContract {
   messageToAgent?: string;
   delivery?: string;
   query?: string;
+  /** 任务13·⑩：Bolba 动作的指代/事项（旧用例缺省空串，解析零影响）。 */
+  bolbaTask?: string;
   memoryOps?: Array<Record<string, unknown>>;
 }
 
@@ -336,6 +338,7 @@ function contractText(c: TestContract): string {
     messageToAgent: c.messageToAgent ?? '',
     delivery: c.delivery ?? 'queue',
     query: c.query ?? '',
+    bolbaTask: c.bolbaTask ?? '',
     memoryOps: c.memoryOps ?? [],
   });
 }
@@ -1600,5 +1603,263 @@ describe('任务07·④ 查进度走下属(委派树 query)', () => {
     expect(r.response).toContain('委派');
     const rows = queryChainRows();
     expect(rows[0]).toMatchObject({ phase: 'completed', route: 'boss-tree', hops: 2, subordinateCount: 5 });
+  });
+});
+
+// ============================================================================
+// 任务13·⑩ 秘书 Bolba 桥(业务待办:查/建/完成/重开;两本账不混)
+//
+// 与 bolba-bridge-service.test.ts(纯函数)互补:这里跑真实 processVoiceInput
+// 的契约 → 分派 → finish 全链路,只 mock fetch(Bolba HTTP)与既有系统边界。
+// ============================================================================
+
+describe('B 任务13·⑩ Bolba 桥(业务待办)', () => {
+  const originalUrl = process.env.BOLBA_TASKS_URL;
+  const originalToken = process.env.BOLBA_TASKS_TOKEN;
+
+  /** 本地日历日字符串(与服务端 classifyBolbaDue 同口径)。 */
+  function dayStr(offset: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** 镜像 bolba-bridge 周口径:「周X」= 含今天在内的下一次(周一为一周之始)。 */
+  function upcomingWeekday(target: number): string {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monday = new Date(today);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const candidate = new Date(monday);
+    candidate.setDate(candidate.getDate() + ((target + 6) % 7));
+    if (candidate.getTime() < today.getTime()) candidate.setDate(candidate.getDate() + 7);
+    return `${candidate.getFullYear()}-${`${candidate.getMonth() + 1}`.padStart(2, '0')}-${`${candidate.getDate()}`.padStart(2, '0')}`;
+  }
+
+  function bolbaJson(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  beforeEach(() => {
+    process.env.BOLBA_TASKS_URL = 'http://127.0.0.1:9876';
+    process.env.BOLBA_TASKS_TOKEN = 'test-token';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalUrl === undefined) delete process.env.BOLBA_TASKS_URL;
+    else process.env.BOLBA_TASKS_URL = originalUrl;
+    if (originalToken === undefined) delete process.env.BOLBA_TASKS_TOKEN;
+    else process.env.BOLBA_TASKS_TOKEN = originalToken;
+  });
+
+  it('B1 问「我今天有什么要盯的」→ 服务端渲染 due 列表;hop1 话术不流式出声;两本账不混', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: RequestInit) => bolbaJson({
+      count: 2,
+      tasks: [
+        { id: 5301, title: '准备 BOL-4472 报价', status: 'open', proj: 'BOL', due: dayStr(0) },
+        { id: 5302, title: '付款 ALT', status: 'open', proj: 'MDO', due: dayStr(-1) },
+        { id: 5399, title: '已完成的', status: 'done', due: dayStr(0) },
+      ],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const sentences: string[] = [];
+
+    const p = startProcess('我今天有什么要盯的', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'query_bolba_tasks',
+      responseToUser: '我先看看(这句不该播出去)。',
+      query: '今天有什么要盯的',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(r.action).toBe('query_bolba_tasks');
+    expect(r.response).toContain('今天要盯 2 件');
+    expect(r.response).toContain('准备 BOL-4472 报价');
+    expect(r.response).toContain('已过期 1 天');
+    expect(sentences.join('')).not.toContain('不该播'); // hop1 话术被显式 Bolba 门丢弃
+    expect(spawnCalls).toHaveLength(1);                 // 服务端确定性产出,不开第二跳
+    expect(sendCommandMock).not.toHaveBeenCalled();     // 绝不走 ① 委派通道
+    expect(stopAgentMock).not.toHaveBeenCalled();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://127.0.0.1:9876/tasks');
+
+    // 埋点:dialog out + broadcast 带 action;bolba-sync 读事件落 system_log
+    const dialogRows = querySystemLog({ category: 'dialog', source: 'voice-companion', limit: 20 })
+      .map((row) => logBody(row)).filter((b) => b.action === 'query_bolba_tasks');
+    expect(dialogRows.length).toBeGreaterThan(0);
+    const broadcastRows = querySystemLog({ category: 'broadcast', source: 'voice-companion', limit: 20 })
+      .map((row) => logBody(row)).filter((b) => b.action === 'query_bolba_tasks');
+    expect(broadcastRows.length).toBeGreaterThan(0);
+    const syncRows = querySystemLog({ category: 'system', source: 'bolba', limit: 20 }).map((row) => logBody(row));
+    expect(syncRows.some((b) => b.cat === 'bolba-sync' && b.op === 'query' && b.ok === true)).toBe(true);
+  });
+
+  it('B2 语音创建:「记一下,周五前准备 BOL-4472 报价」→ POST /tasks(title 无时间词 + due 计算值)', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return bolbaJson({ id: 5310, task: { id: 5310, title: '准备 BOL-4472 报价' }, warnings: [] }, 201);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const p = startProcess('记一下,周五前准备 BOL-4472 报价');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'create_bolba_task',
+      bolbaTask: '准备 BOL-4472 报价',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(r.action).toBe('create_bolba_task');
+    expect(r.response).toContain('记下了');
+    expect(r.response).toContain('准备 BOL-4472 报价');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('http://127.0.0.1:9876/tasks');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      title: '准备 BOL-4472 报价',
+      due: upcomingWeekday(5),
+    });
+    // 两本账负断言:业务待办绝不触碰 ① 委派通道。
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(stopAgentMock).not.toHaveBeenCalled();
+
+    const syncRows = querySystemLog({ category: 'system', source: 'bolba', limit: 20 }).map((row) => logBody(row));
+    expect(syncRows.some((b) => b.op === 'create' && b.ok === true)).toBe(true);
+  });
+
+  it('B3 「X 做完了」→ 按标题解析编号 → POST /tasks/:id/close {status:done}', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (init?.method === 'POST') return bolbaJson({ ok: true });
+      return bolbaJson({ tasks: [{ id: 5301, title: '准备 BOL-4472 报价', status: 'open', proj: 'BOL' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const p = startProcess('准备 BOL-4472 报价做完了');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'complete_bolba_task',
+      bolbaTask: '准备 BOL-4472 报价',
+    }));
+
+    const r = await p;
+    expect(r.response).toContain('标记完成了');
+    const post = calls.find((c) => c.init?.method === 'POST');
+    expect(post?.url).toBe('http://127.0.0.1:9876/tasks/5301/close');
+    expect(JSON.parse(String(post?.init?.body))).toEqual({ status: 'done' });
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(stopAgentMock).not.toHaveBeenCalled();
+  });
+
+  it('B4 「重开 5302」→ POST /tasks/:id/reopen(编号直配)', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (init?.method === 'POST') return bolbaJson({ ok: true });
+      return bolbaJson({ tasks: [{ id: 5302, title: '付款 ALT', status: 'open' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const p = startProcess('重开 5302');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'reopen_bolba_task',
+      bolbaTask: '5302',
+    }));
+
+    const r = await p;
+    expect(r.response).toContain('重开了');
+    const post = calls.find((c) => c.init?.method === 'POST');
+    expect(post?.url).toBe('http://127.0.0.1:9876/tasks/5302/reopen');
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(stopAgentMock).not.toHaveBeenCalled();
+  });
+
+  it('B5 板上没有 → 确定性「没找到」话术,不发任何 POST', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return bolbaJson({ tasks: [{ id: 5301, title: '别的活', status: 'open' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const p = startProcess('把不存在的活完成掉');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'complete_bolba_task',
+      bolbaTask: '不存在的活',
+    }));
+
+    const r = await p;
+    expect(r.response).toContain('没找到');
+    expect(calls.every((c) => c.init?.method !== 'POST')).toBe(true);
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(stopAgentMock).not.toHaveBeenCalled();
+  });
+
+  it('B6 Bolba 连不上 → degraded 透传(确定性降级话术,不抛)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
+
+    const p = startProcess('今天有什么要盯的');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'query_bolba_tasks', query: '今天要盯的' }));
+
+    const r = await p;
+    expect(r.action).toBe('query_bolba_tasks');
+    expect(r.degraded).toBe(true);
+    expect(r.response).toContain('连不上');
+
+    const syncRows = querySystemLog({ category: 'system', source: 'bolba', limit: 20 }).map((row) => logBody(row));
+    expect(syncRows.some((b) => b.ok === false)).toBe(true);
+  });
+
+  it('B7 闭环:完成→重开(done 列表命中被撤销的任务,真实场景走通)', async () => {
+    // 有状态的假板:close 置 done、reopen 置 open,验证 reopen 候选含最近完成。
+    let store = [{ id: 5301, title: '准备 BOL-4472 报价', status: 'open', proj: 'BOL' }];
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      calls.push({ url: u, init });
+      if (init?.method === 'POST') {
+        if (u.includes('/close')) store = store.map((t) => (t.id === 5301 ? { ...t, status: 'done' } : t));
+        else if (u.includes('/reopen')) store = store.map((t) => (t.id === 5301 ? { ...t, status: 'open' } : t));
+        return bolbaJson({ ok: true });
+      }
+      if (u.includes('status=done')) return bolbaJson({ tasks: store.filter((t) => t.status === 'done') });
+      return bolbaJson({ tasks: store.filter((t) => t.status === 'open') });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // 第 1 回合:标记完成(在办列表同步清空)
+    const p1 = startProcess('准备 BOL-4472 报价做完了');
+    const c1 = await waitSpawn(1);
+    await completeWith(c1.child, contractText({
+      action: 'complete_bolba_task',
+      bolbaTask: '准备 BOL-4472 报价',
+    }));
+    const r1 = await p1;
+    expect(r1.response).toContain('标记完成了');
+
+    // 第 2 回合:重开——在办列表已空,必须从 done 列表命中
+    const p2 = startProcess('重开 准备 BOL-4472 报价');
+    const c2 = await waitSpawn(2);
+    await completeWith(c2.child, contractText({
+      action: 'reopen_bolba_task',
+      bolbaTask: '准备 BOL-4472 报价',
+    }));
+    const r2 = await p2;
+    expect(r2.response).toContain('重开了');
+
+    const posts = calls.filter((c) => c.init?.method === 'POST').map((c) => c.url);
+    expect(posts).toEqual([
+      'http://127.0.0.1:9876/tasks/5301/close',
+      'http://127.0.0.1:9876/tasks/5301/reopen',
+    ]);
+    expect(calls.some((c) => c.url.includes('status=done&limit=8'))).toBe(true);
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(stopAgentMock).not.toHaveBeenCalled();
   });
 });
