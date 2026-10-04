@@ -33,6 +33,17 @@ npx tsx tools/jarvis-canary/run.ts --level=full --simulate-receipt   # ④ 用�
 
 退出码：`0` 全通过（dry-run 的前置检查通过）；`1` 有失败 / 全局错误 / 真跑存在跳过（未加 `--allow-skip`）；`2` 参数错误。dry-run 下「能力未交付」的跳过不阻断。
 
+## 跑法分级（2026-10-04 钉死，对应《任务总览》§5⑦）
+
+| 级别 | 跑法 | 验什么 | 失败含义 |
+| --- | --- | --- | --- |
+| **L2 接线层** | 真服务器 + **stub LLM**（固定契约 JSON；经 `TC_CLAUDE_EXECUTABLE` 注入，接缝交付后启用） | 契约解析 → Boss 派发/响应对接 → 回执 → `system_log` 事件链的**接线** | 接线 bug（与模型措辞无关） |
+| **L3 真 LLM** | 每波只跑 2 条关键链路：`--level=smoke`（播报）+ `--level=full --scenario=delegation`（派活） | 只看**结果类证据**（记录存在 / 事件落盘），不比对话文本 | 模型/prompt 问题或真链路故障 |
+
+- L3 其余场景（`receipt` / `cancel` 等）**季度抽跑**，不占每波预算；
+- **L3 失败允许重试 1 次；重试仍红 = 阻塞波次**，不得宣称完成（不是"记录一下"）；
+- 本工具全程 HTTP/WS + sqlite 只读，**不依赖浏览器 MCP** —— 可与日常 Chrome 操作并行执行，不排队、不互锁。
+
 ## 场景总览
 
 | 级别 | 场景（别名） | LLM? | 做什么 | 断言（全部落在 `system_log` 真行上） |

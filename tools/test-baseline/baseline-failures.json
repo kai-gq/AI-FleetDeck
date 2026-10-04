@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "capturedAt": null,
+  "capturedFrom": null,
+  "note": "骨架占位：白名单由 W5 波次门在干净树上 `node tools/test-baseline/check.mjs --record` 首次生成（判定权归本文件，详见 README.md）。白名单外新失败=阻塞；白名单内变绿=必须同步删除。",
+  "entries": []
+}
