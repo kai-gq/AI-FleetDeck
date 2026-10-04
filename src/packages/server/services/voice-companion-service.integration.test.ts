@@ -1863,3 +1863,94 @@ describe('B 任务13·⑩ Bolba 桥(业务待办)', () => {
     expect(stopAgentMock).not.toHaveBeenCalled();
   });
 });
+
+// ============================================================================
+// 任务36 · G8 故障注入(mock 传输,3 例)
+//
+// LLM 挂起超时 / 5xx 错误结果 / 畸形输出(全废话非 JSON)——全部在假子进程层注入。
+// 统一断言口径:processVoiceInput 永不抛出、有确定性降级话术、落盘状态无半写
+// (状态文件可解析、saveCompanionState 的原子 tmp 不残留)、会话不因故障重置。
+// ============================================================================
+
+describe('G8 故障注入(任务36)', () => {
+  it('G8-1 LLM 挂起超时:降级兜底,SIGTERM 收尾,状态文件完整无半写', async () => {
+    writeState({ sessionId: 'sess-hang', sessionStartedAt: Date.now(), turns: 3, personaKey: 'doubao' });
+    vi.useFakeTimers();
+    const p = startProcess('挂着不动');
+    while (spawnCalls.length === 0) await Promise.resolve();
+    const call = spawnCalls[0]!;
+    const promptPath = promptFileOf(call);
+    emitText(call.child, '{"action":"general_resp', 'delta'); // 半个契约到达后彻底挂起,不 close
+    await vi.advanceTimersByTimeAsync(5_001); // > hop1TimeoutMs(5000)
+
+    const r = await p; // 永不抛出:超时按降级处理
+    expect(r.degraded).toBe(true);
+    expect(r.response).toContain('没听清');
+    expect(call.child.kills).toContain('SIGTERM');
+    expect(fs.existsSync(promptPath)).toBe(false); // 临时提示词已清理
+
+    const stored = readStateFile(); // 能 JSON.parse = 落盘无半写
+    expect(stored.sessionId).toBe('sess-hang'); // 超时不重置会话
+    expect(stored.turns).toBe(3); // 失败回合不计轮数
+    expect(fs.existsSync(`${stateFilePath}.tmp`)).toBe(false); // 原子写不留 tmp
+  });
+
+  it('G8-2 LLM 返回错误结果(5xx 文案):降级兜底,错误原文不进用户回复,状态无半写', async () => {
+    writeState({ sessionId: 'sess-5xx', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    const p = startProcess('服务端报错了');
+    const call = await waitSpawn(1);
+    emitStderr(call.child, 'API Error: 500 Internal Server Error (upstream overloaded)');
+    emitLine(call.child, {
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: 'API Error: 500 Internal Server Error (upstream overloaded)',
+    });
+    await closeChild(call.child, 1);
+
+    const r = await p; // 永不抛出:错误文案当不可信输出,解析失败走降级
+    expect(r.degraded).toBe(true);
+    expect(r.response).toContain('没听清');
+    expect(r.response).not.toContain('500');
+    expect(r.response).not.toContain('API Error');
+
+    const stored = readStateFile();
+    expect(stored.sessionId).toBe('sess-5xx');
+    expect(stored.turns).toBe(2);
+    expect(fs.existsSync(`${stateFilePath}.tmp`)).toBe(false);
+  });
+
+  it('G8-3 畸形输出(全废话非 JSON):降级不泄漏半截话,会话保留,下一轮恢复', async () => {
+    writeState({ sessionId: 'sess-garbage', sessionStartedAt: Date.now(), turns: 4, personaKey: 'doubao' });
+    const sentences: string[] = [];
+    const p1 = startProcess('说点正经的', { onSentence: (s) => sentences.push(s) });
+    const call1 = await waitSpawn(1);
+    // 硬化(验证意见):必须走流式 delta 通道喂入——默认 assistant 通道不进播报管线,
+    // 句子/spoke 断言会退化成构造上恒真的空断言。分两段 delta(先半句、再余下)后 close,
+    // 让「非 responseToUser 字段的废话即使经增量到达也一字不得进播报队列」成为真断言。
+    emitLine(call1.child, { type: 'system', subtype: 'init', session_id: 'sess-garbage-2' });
+    emitText(call1.child, '嗯……让我先缓缓。', 'delta');
+    emitText(call1.child, '今天天气不错,我们聊点别的吧,JSON 那些东西我不想碰。', 'delta');
+    await closeChild(call1.child, 0);
+
+    const r1 = await p1; // 永不抛出
+    expect(r1.degraded).toBe(true);
+    expect(r1.response).toContain('没听清');
+    expect(sentences).toEqual([]); // 畸形输出一字不得播(经 delta 通道真实喂入,非恒真空断言)
+    expect(r1.spoke).toBeFalsy();
+
+    const st1 = readStateFile(); // 可解析 = 无半写
+    expect(st1.sessionId).toBe('sess-garbage-2'); // 解析失败也不重置会话(与 G5-5b 同口径)
+    expect(st1.turns).toBe(4); // 轮数不计
+    expect(fs.existsSync(`${stateFilePath}.tmp`)).toBe(false);
+
+    // 故障不粘滞:下一轮带 --resume 续上会话,正常契约 → 正常回复
+    const p2 = startProcess('现在说正经的');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBe('sess-garbage-2');
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '好的,我在。' }));
+    const r2 = await p2;
+    expect(r2.response).toBe('好的,我在。');
+    expect(r2.degraded).toBeUndefined();
+  });
+});

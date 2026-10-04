@@ -107,6 +107,149 @@ describe('parseContractJson', () => {
 });
 
 // ============================================================================
+// 任务36 · parseContractJson 模糊矩阵
+//
+// 不可信 LLM 输出的单点防御:类型混淆 / 截断 / 超长 / 多块选取 / 原型污染键。
+// 期望值全部以产品代码现行为准(parseContractJson:首 { → 末 } 切段 + 白名单 +
+// 逐字段 typeof 回退);「无 JSON 抛错后的调用方降级」是服务级行为,由
+// voice-companion-service.integration.test.ts 的 G8 故障注入组断言。
+// ============================================================================
+
+describe('parseContractJson 模糊矩阵(任务36)', () => {
+  it('非字符串 action:一律白名单回退 general_response', () => {
+    expect(parseContractJson('{"action":123}').action).toBe('general_response');
+    expect(parseContractJson('{"action":["delegate_to_boss"]}').action).toBe('general_response');
+    expect(parseContractJson('{"action":{"$ref":"delegate_to_boss"}}').action).toBe('general_response');
+    expect(parseContractJson('{"action":true}').action).toBe('general_response');
+    expect(parseContractJson('{"action":null}').action).toBe('general_response');
+  });
+
+  it('字段类型混淆:目标/文本/数组字段按类型回退缺省,不抛', () => {
+    const c = parseContractJson(JSON.stringify({
+      action: 'send_to_agent',
+      targetAgentId: 42,
+      targetAgentName: { name: '小美' },
+      messageToAgent: 123,
+      delivery: 'now',
+      query: ['进度'],
+      bolbaTask: 9,
+      responseToUser: { text: '你好' },
+      memoryOps: 'not-an-array',
+    }));
+    expect(c).toEqual({
+      action: 'send_to_agent',
+      targetAgentId: null,
+      targetAgentName: null,
+      messageToAgent: '',
+      delivery: 'queue',
+      query: '',
+      bolbaTask: '',
+      responseToUser: '',
+      memoryOps: [],
+    });
+  });
+
+  it('字符串字段 trim;空串目标回退 null;delivery 只认精确 interrupt', () => {
+    const c = parseContractJson('{"action":"send_to_agent","targetAgentId":"  a1  ","targetAgentName":"  小美 ","messageToAgent":"  干活  ","delivery":"INTERRUPT","query":"  进度  ","responseToUser":"  好的  "}');
+    expect(c.targetAgentId).toBe('a1');
+    expect(c.targetAgentName).toBe('小美');
+    expect(c.messageToAgent).toBe('干活');
+    expect(c.query).toBe('进度');
+    expect(c.responseToUser).toBe('好的');
+    expect(c.delivery).toBe('queue'); // 大小写不糊弄:非精确 'interrupt' 一律 queue
+    expect(parseContractJson('{"action":"noop","targetAgentId":"   ","delivery":"interrupt"}').targetAgentId).toBeNull();
+    expect(parseContractJson('{"action":"noop","delivery":"interrupt"}').delivery).toBe('interrupt');
+  });
+
+  it('memoryOps 里的非对象/类型不符条目逐条丢弃,不抛', () => {
+    const c = parseContractJson(JSON.stringify({
+      memoryOps: [
+        null, 'add', 42, ['add'],
+        { op: 'add', text: 5 },
+        { op: 'remove', id: 7 },
+        { op: 'setSummary', summary: false },
+        { op: 'add', text: 'ok' },
+      ],
+    }));
+    expect(c.memoryOps).toEqual([{ op: 'add', text: 'ok' }]);
+  });
+
+  it('截断 JSON(有首 { 无尾 }):抛 No JSON object,绝不吞成半个契约', () => {
+    const truncated = [
+      '{"action":"noop"',
+      '{"action":"general_response","responseToUser":"你好',
+      '前面 {"action":"noop" 后面(无闭合)',
+      '{',
+    ];
+    for (const raw of truncated) {
+      expect(() => parseContractJson(raw)).toThrow('No JSON object in response');
+    }
+  });
+
+  it('空串/纯文本/只有右花括号:抛错;空对象 {} 则全字段取缺省', () => {
+    for (const raw of ['', '   ', '抱歉,我听不懂', '}', '[]']) {
+      expect(() => parseContractJson(raw)).toThrow();
+    }
+    const c = parseContractJson('{}');
+    expect(c.action).toBe('general_response');
+    expect(c.targetAgentId).toBeNull();
+    expect(c.messageToAgent).toBe('');
+    expect(c.delivery).toBe('queue');
+    expect(c.memoryOps).toEqual([]);
+  });
+
+  it('超长输入(1MB 级)不抛、不截断响应字段;bolbaTask 仍按 200 字上限截断', () => {
+    // 合理上限:百万字符级;解析只做首尾花括号切段,不做全文正则。
+    const proseBefore = 'x'.repeat(500_000);
+    const proseAfter = '尾'.repeat(200_000);
+    const body = JSON.stringify({ action: 'general_response', responseToUser: '好'.repeat(100_000) });
+    const c = parseContractJson(`${proseBefore}${body}${proseAfter}`);
+    expect(c.action).toBe('general_response');
+    expect(c.responseToUser).toHaveLength(100_000);
+
+    const longAction = `{"action":"${'a'.repeat(200_000)}"}`;
+    expect(parseContractJson(longAction).action).toBe('general_response');
+
+    const longTask = parseContractJson(`{"action":"create_bolba_task","bolbaTask":"${'任'.repeat(300)}"}`);
+    expect(longTask.bolbaTask).toHaveLength(201); // 200 字 + 省略号
+    expect(longTask.bolbaTask.endsWith('…')).toBe(true);
+  });
+
+  it('多个完整 JSON 块:首 { → 末 } 切段后中间夹带文本,JSON.parse 必抛(不静默取首块)', () => {
+    expect(() => parseContractJson('{"action":"noop"}\n{"action":"delegate_to_boss"}')).toThrow();
+    expect(() => parseContractJson('{"action":"noop"} 中间说明 {"action":"delegate_to_boss"}')).toThrow();
+  });
+
+  it('首 { → 末 } 切段语义:段外干扰花括号破坏解析,段内字符串花括号无害', () => {
+    // 干扰 { 在真 JSON 之前 → 切段起点错位 → 抛
+    expect(() => parseContractJson('说明 { 干扰 {"action":"noop"}')).toThrow();
+    // 干扰 } 在真 JSON 之后 → 切段终点错位 → 抛
+    expect(() => parseContractJson('{"action":"noop"} 干扰 }')).toThrow();
+    // 干扰 } 全部在真 JSON 之前 → 段正确 → 解析成功
+    expect(parseContractJson('干扰 } 干扰 {"action":"noop"}').action).toBe('noop');
+    // 字符串值内的花括号只是文本(切段不受字符串内括号影响)
+    const c = parseContractJson('{"action":"noop","responseToUser":"花括号 { 和 } 都只是文本"}');
+    expect(c.responseToUser).toBe('花括号 { 和 } 都只是文本');
+  });
+
+  it('数组外壳 [{...}] 仍按首 { → 末 } 取内层对象(容错现状锁定)', () => {
+    expect(parseContractJson('[{"action":"list_agents"}]').action).toBe('list_agents');
+  });
+
+  it('__proto__/constructor 原型污染键:不污染全局原型,恶意键不得改变 action', () => {
+    const viaProto = parseContractJson('{"__proto__":{"action":"delegate_to_boss","polluted":true},"action":"noop"}');
+    expect(viaProto.action).toBe('noop'); // 自有 action 优先
+    // JSON.parse 的 __proto__ 是自有属性(不触发原型赋值),不参与属性查找
+    expect(parseContractJson('{"__proto__":{"action":"delegate_to_boss"}}').action).toBe('general_response');
+    expect(parseContractJson('{"constructor":{"prototype":{"polluted":true}},"action":"noop"}').action).toBe('noop');
+
+    expect(Object.getPrototypeOf(viaProto)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(({} as Record<string, unknown>).action).toBeUndefined();
+  });
+});
+
+// ============================================================================
 // 改① 派发路由:任务只走 Boss(决策观测点①)
 // ============================================================================
 

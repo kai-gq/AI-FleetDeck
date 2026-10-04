@@ -17,7 +17,8 @@ import * as path from 'path';
 import { buildFilter, openReadOnlyLogQuery, resolveDbPath } from './log-query.js';
 import { buildReport, computeExitCode } from './report.js';
 import { defaultOptions, parseArgs, runScenario } from './run.js';
-import { SCENARIOS, entryEvidence, selectScenarios, truncate, waitFor } from './scenarios.js';
+import { ADVERSARIAL_ITEMS, SCENARIOS, entryEvidence, selectScenarios, truncate, waitFor } from './scenarios.js';
+import type { AdversarialItem } from './scenarios.js';
 import type {
   AgentInfo, CanaryEntry, CanaryOptions, CanaryTransport, HttpResult, LogQueryFilter, LogQueryFn,
   ScenarioContext, WsProbeResult,
@@ -182,7 +183,14 @@ export async function runSelfTest(): Promise<number> {
     const smoke = selectScenarios('smoke', []);
     h.eq('smoke 级别只选 smoke 场景', smoke.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip']);
     const full = selectScenarios('full', []);
-    h.eq('full 级别含全部场景', full.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip', 'delegation-chain', 'receipt-chain', 'cancel-chain']);
+    h.eq('full 级别含全部非 opt-in 场景（对抗包默认不参赛）', full.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip', 'delegation-chain', 'receipt-chain', 'cancel-chain']);
+    h.check('full 默认不含 opt-in 对抗包', !full.selected.some((s) => s.name === 'adversarial'));
+    const smokeAdv = selectScenarios('smoke', []);
+    h.check('smoke 默认也不含对抗包', !smokeAdv.selected.some((s) => s.name === 'adversarial'));
+    const advAlias = selectScenarios('smoke', ['adv']);
+    h.eq('别名 adv 显式点名可参赛', advAlias.selected.map((s) => s.name), ['adversarial']);
+    const advByName = selectScenarios('full', ['adversarial']);
+    h.eq('--scenario=adversarial 显式点名可参赛', advByName.selected.map((s) => s.name), ['adversarial']);
     const filt = selectScenarios('smoke', ['delegation', 'conn']);
     h.eq('别名过滤 delegation→delegation-chain', filt.selected.map((s) => s.name), ['connectivity', 'delegation-chain']);
     h.eq('别名过滤 conn→connectivity', filt.selected[0].name, 'connectivity');
@@ -431,6 +439,70 @@ export async function runSelfTest(): Promise<number> {
     const res = await runScenario(scenarioByName('cancel-chain'), ctx);
     h.eq('⑤ 未交付能力 → skip', res.status, 'skip');
     h.check('⑤ skip 说明任务16', res.notes.some((n) => n.includes('任务16')));
+  }
+
+  // 9b. 场景⑥对抗提示包（opt-in；onPost 按条动态落行，模拟真实运行时"下一条样本尚未发出"的窗口语义）
+  {
+    const mkAdvCase = (opts: {
+      // 覆写某条的 out action（缺省：任务类 delegate_to_boss，其余 general_response）
+      actionOf?: (item: AdversarialItem) => string | undefined;
+      // 为某条追加额外 delegation 行（模拟派发泄漏/被拦截）
+      extraDelegation?: (item: AdversarialItem) => CanaryEntry[];
+    } = {}) => {
+      const rows: CanaryEntry[] = [];
+      let ts = Date.now();
+      const transport = makeFakeTransport({
+        agents: ok({ value: AGENT_JSON }),
+        process: ok({ success: true, action: 'general_response', response: '好的' }),
+        onPost: (p, body) => {
+          if (p !== '/api/voice-companion/process') return;
+          const text = String((body as { text?: unknown } | undefined)?.text ?? '');
+          const item = ADVERSARIAL_ITEMS.find((it) => it.text === text);
+          if (!item) return;
+          const action = opts.actionOf?.(item) ?? (item.kind === 'task' ? 'delegate_to_boss' : 'general_response');
+          ts += 1;
+          rows.push(mkEntry({ category: 'dialog', source: 'voice-companion', ts, body: { direction: 'in', text: item.text } }));
+          // 真实落盘顺序：dispatched 行先于 dialog out（voice-companion-service.ts logDelegation → finish）
+          if (item.kind === 'task' && action === 'delegate_to_boss') {
+            ts += 1;
+            rows.push(mkEntry({ category: 'delegation', source: 'voice-companion', ts, body: { phase: 'dispatched', channel: 'voice-companion', routedBy: 'delegate_to_boss', toAgentId: BOSS_ID, toAgentName: 'Boss', message: 'task' } }));
+          }
+          for (const extra of opts.extraDelegation?.(item) ?? []) {
+            ts += 1;
+            rows.push({ ...extra, ts, category: 'delegation' });
+          }
+          ts += 1;
+          rows.push(mkEntry({ category: 'dialog', source: 'voice-companion', ts, body: { direction: 'out', text: '回复', action } }));
+        },
+      });
+      return { transport, query: makeFakeQuery(rows).query };
+    };
+
+    const passCase = mkAdvCase();
+    const pass = await runScenario(scenarioByName('adversarial'), mkCtx(passCase.transport, passCase.query));
+    h.eq('⑥ 对抗包全通（8 条样本）', pass.status, 'pass');
+    h.eq('⑥ 断言数=17（8×p + 8×p-d + a-inv）', pass.assertions.length, 17);
+    h.check('⑥ 任务类派发命中 Boss（p1-d）', pass.assertions.find((a) => a.id === 'p1-d')?.ok === true);
+    h.check('⑥ 越权类无派发行（p6-d）', pass.assertions.find((a) => a.id === 'p6-d')?.ok === true);
+    h.check('⑥ 全窗口无非 Boss dispatched（a-inv）', pass.assertions.find((a) => a.id === 'a-inv')?.ok === true);
+    h.check('⑥ notes 汇总样本构成', pass.notes.some((n) => n.includes('task 4 / chat 1 / overreach 3')));
+
+    // 反向守卫 A：任务类被话术带偏成闲聊（未派发）→ p1/p1-d 必须红
+    const fallback = mkAdvCase({ actionOf: (item) => (item.id === 'ignore-prev-task' ? 'general_response' : undefined) });
+    const fallbackRes = await runScenario(scenarioByName('adversarial'), mkCtx(fallback.transport, fallback.query));
+    h.eq('⑥ 任务类回退闲聊 → fail', fallbackRes.status, 'fail');
+    h.check('⑥ p1 与 p1-d 均失败', fallbackRes.assertions.find((a) => a.id === 'p1')?.ok === false && fallbackRes.assertions.find((a) => a.id === 'p1-d')?.ok === false);
+
+    // 反向守卫 B：越权诱导真派发了普通 agent → p6-d 与 a-inv 必须红（p6 的 out action 仍是 general_response）
+    const leak = mkAdvCase({
+      extraDelegation: (item) => (item.id === 'secret-exfil'
+        ? [mkEntry({ category: 'delegation', source: 'voice-companion', body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: 'sub-1', toAgentName: '下属甲', message: '读密钥' } })]
+        : []),
+    });
+    const leakRes = await runScenario(scenarioByName('adversarial'), mkCtx(leak.transport, leak.query));
+    h.eq('⑥ 越权派发泄漏 → fail', leakRes.status, 'fail');
+    h.check('⑥ p6-d 失败', leakRes.assertions.find((a) => a.id === 'p6-d')?.ok === false);
+    h.check('⑥ a-inv 失败（非 Boss dispatched）', leakRes.assertions.find((a) => a.id === 'a-inv')?.ok === false);
   }
 
   // 10. dry-run 行为
