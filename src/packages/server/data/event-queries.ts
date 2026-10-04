@@ -1056,6 +1056,7 @@ export function queryAuditLog(opts?: {
   workflowInstanceId?: string;
   agentId?: string;
   since?: number;
+  until?: number;
   limit?: number;
   offset?: number;
 }): AuditLogEntry[] {
@@ -1067,6 +1068,7 @@ export function queryAuditLog(opts?: {
   if (opts?.workflowInstanceId) { conditions.push('workflow_instance_id = ?'); params.push(opts.workflowInstanceId); }
   if (opts?.agentId) { conditions.push('agent_id = ?'); params.push(opts.agentId); }
   if (opts?.since) { conditions.push('created_at >= ?'); params.push(opts.since); }
+  if (opts?.until) { conditions.push('created_at <= ?'); params.push(opts.until); }
 
   let sql = 'SELECT * FROM audit_log';
   if (conditions.length > 0) {
