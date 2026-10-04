@@ -225,6 +225,9 @@ describe('状态 / 重置 / 记忆接口', () => {
       lastUsedAt: 222,
       model: 'haiku',
       memory: { summary: 's', notes: [], updatedAt: 0, droppedCount: 0 },
+      // 任务18:上下文占用与常驻进程 pid 随状态接口透出(路由原样 spread)。
+      context: { tokensUsed: 1234, windowTokens: 200000, percent: 0.00617, updatedAt: 333 },
+      residentPid: 4242,
     });
     const res = await fetch(`${baseUrl}/api/voice-companion/status`);
     const json = (await res.json()) as Record<string, unknown>;
@@ -237,6 +240,8 @@ describe('状态 / 重置 / 记忆接口', () => {
       lastUsedAt: 222,
       model: 'haiku',
       memory: { summary: 's', notes: [], updatedAt: 0, droppedCount: 0 },
+      context: { tokensUsed: 1234, windowTokens: 200000, percent: 0.00617, updatedAt: 333 },
+      residentPid: 4242,
     });
   });
 

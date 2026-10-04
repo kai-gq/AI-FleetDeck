@@ -31,6 +31,8 @@ import { loadVolcengineSttConfig, type VolcengineSttConfig } from '../services/v
 import { VolcengineAsrSession, type VolcengineAsrError } from './volcengine-asr-client.js';
 import { logVoiceAsr } from '../services/activity-log.js';
 import { logger } from '../utils/index.js';
+// 任务18·秘书常驻化:进程卫生(启动清扫残留 + 退出钩子)——挂在这个唯一的服务启动钩子上。
+import { initCompanionProcessHygiene } from './companion-runner.js';
 
 const log = logger.server;
 
@@ -50,6 +52,9 @@ export function hasVolcengineCredentials(cfg: VolcengineSttConfig): boolean {
  * 与 terminal-proxy 的 upgrade 监听器按路径前缀互不干扰。
  */
 export function attachVoiceCompanionStream(server: HttpServer | import('node:https').Server): void {
+  // 任务18·秘书常驻化:启动时清扫上一代 server 留下的常驻 claude 进程 + 装退出钩子(幂等)。
+  initCompanionProcessHygiene();
+
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {

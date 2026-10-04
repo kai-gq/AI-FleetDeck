@@ -41,6 +41,15 @@ import { logger, sanitizeUnicode } from '../utils/index.js';
 import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction } from '../voice/speech-gate.js';
+// 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
+// 每回合 args 与既有 callClaudeOnce 逐字同构,权限姿态不变;hop2 保持一次性。
+import {
+  isCompanionResidentEnabled,
+  runCompanionTurn,
+  stopCompanionProcess,
+  getCompanionProcessInfo,
+  type CompanionContextUsage,
+} from '../voice/companion-runner.js';
 import type { Agent, DelegationDecision } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
 import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, sanitizePersonaCustom, sanitizePersonaId, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
@@ -125,6 +134,20 @@ export interface CompanionMemory {
   droppedCount: number;
 }
 
+/**
+ * 任务18·上下文占用快照(callClaudeOnce 原先 usage 全丢;常驻化后采集自 result 事件)。
+ * 观测点:⑭ 系统活动 4(context_stats)+ ⑮ 压缩触发率标定;压缩 v1 缺省 80%。
+ */
+export interface VoiceCompanionContextState {
+  /** 最近一次 result 的输入侧用量(input + cache_read + cache_creation)。 */
+  tokensUsed: number;
+  /** 判定用窗口尺寸(CLI modelUsage.contextWindow 优先,缺失用配置缺省)。 */
+  windowTokens: number;
+  /** tokensUsed / windowTokens(可能 >1)。 */
+  percent: number;
+  updatedAt: number;
+}
+
 export interface VoiceCompanionState {
   sessionId: string | null;
   sessionStartedAt: number | null;
@@ -133,6 +156,8 @@ export interface VoiceCompanionState {
   /** 上次使用的人设键(shared/voice-personas 的 personaKeyOf);变化 → 轮换会话。null = 旧状态。 */
   personaKey: string | null;
   memory: CompanionMemory;
+  /** 任务18:上下文占用(可选——旧状态文件/测试内联构造无此字段)。 */
+  context?: VoiceCompanionContextState | null;
 }
 
 export type CompanionAction =
@@ -237,6 +262,10 @@ export interface VoiceCompanionServerConfig {
   maxTurns: number;
   sessionMaxAgeDays: number;
   maxNotes: number;
+  /** 任务18:上下文压缩阈值(0-1;缺省 0.8 = 行业推导值,待 ⑭/⑮ 标定回写)。 */
+  contextCompactPercent: number;
+  /** 任务18:压缩判定窗口兜底(CLI modelUsage.contextWindow 缺失时用;缺省 200K)。 */
+  contextWindowTokens: number;
 }
 
 export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
@@ -247,6 +276,10 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   maxTurns: 120,
   sessionMaxAgeDays: 7,
   maxNotes: 40,
+  // 任务18 登记:80% 阈值为行业推导(Claude 官方 90% 服务端压缩 / 社区 70% 的折中),
+  // 非实测;窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
+  contextCompactPercent: 0.8,
+  contextWindowTokens: 200_000,
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -263,6 +296,7 @@ const DEFAULT_STATE: VoiceCompanionState = {
   lastUsedAt: null,
   personaKey: null,
   memory: DEFAULT_MEMORY,
+  context: null,
 };
 
 /** Agent 状态里算「正在干活」(打断有代价)的三种。 */
@@ -306,6 +340,12 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
+/** 小数版钳制(任务18:压缩阈值 0-1 不能被 Math.round 取整)。 */
+function clampFloat(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
 /** 读取 tools/voice-companion/config.json(服务端只关心 model / persona / brain.*);缺失回默认。 */
 export function loadServerConfig(): VoiceCompanionServerConfig {
   try {
@@ -323,6 +363,9 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
       maxTurns: clampNumber(brain.maxTurns, 10, 2_000, DEFAULT_SERVER_CONFIG.maxTurns),
       sessionMaxAgeDays: clampNumber(brain.sessionMaxAgeDays, 1, 365, DEFAULT_SERVER_CONFIG.sessionMaxAgeDays),
       maxNotes: clampNumber(brain.maxNotes, 5, 200, DEFAULT_SERVER_CONFIG.maxNotes),
+      // 任务18:可配置压缩阈值/窗口(缺省 0.8 / 200K;见 DEFAULT_SERVER_CONFIG 登记)。
+      contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.5, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
+      contextWindowTokens: clampNumber(brain.contextWindowTokens, 50_000, 1_000_000, DEFAULT_SERVER_CONFIG.contextWindowTokens),
     };
   } catch (err) {
     log.warn(`[VoiceCompanion] config.json 读取失败,用默认配置: ${(err as Error).message}`);
@@ -410,6 +453,21 @@ function sanitizeMemory(raw: unknown): CompanionMemory {
   return memory;
 }
 
+/** 任务18:旧状态文件无 context 字段 → null;非法值一律丢弃。 */
+function sanitizeContextState(raw: unknown): VoiceCompanionContextState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Partial<VoiceCompanionContextState>;
+  if (typeof r.tokensUsed !== 'number' || !Number.isFinite(r.tokensUsed)) return null;
+  if (typeof r.windowTokens !== 'number' || !(r.windowTokens > 0)) return null;
+  if (typeof r.percent !== 'number' || !Number.isFinite(r.percent)) return null;
+  return {
+    tokensUsed: r.tokensUsed,
+    windowTokens: r.windowTokens,
+    percent: r.percent,
+    updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : 0,
+  };
+}
+
 export function loadCompanionState(): VoiceCompanionState {
   try {
     if (!fs.existsSync(STATE_FILE)) return { ...structuredClone(DEFAULT_STATE) };
@@ -421,6 +479,7 @@ export function loadCompanionState(): VoiceCompanionState {
       lastUsedAt: typeof raw?.lastUsedAt === 'number' ? raw.lastUsedAt : null,
       personaKey: typeof raw?.personaKey === 'string' ? raw.personaKey : null,
       memory: sanitizeMemory(raw?.memory),
+      context: sanitizeContextState(raw?.context),
     };
     return state;
   } catch (err) {
@@ -586,6 +645,30 @@ export function shouldRotateSession(
  */
 export function shouldRotateForPersona(state: VoiceCompanionState, personaKey: string): boolean {
   return state.personaKey !== personaKey;
+}
+
+/**
+ * 任务18·压缩 v1:由 result usage 计算上下文占用快照(纯函数)。
+ * 输入侧 = input + cache_read + cache_creation(近似当前 prompt 总长);无用量 → null。
+ */
+export function computeContextState(
+  usage: CompanionContextUsage,
+  cfg: VoiceCompanionServerConfig,
+  now: number = Date.now(),
+): VoiceCompanionContextState | null {
+  const tokensUsed = usage.inputTokens + usage.cacheReadInputTokens + usage.cacheCreationInputTokens;
+  if (tokensUsed <= 0) return null;
+  const windowTokens = usage.contextWindow ?? cfg.contextWindowTokens;
+  if (!(windowTokens > 0)) return null;
+  return { tokensUsed, windowTokens, percent: tokensUsed / windowTokens, updatedAt: now };
+}
+
+/**
+ * 任务18·压缩 v1:到阈值(缺省 80%)即应摘要续跑——走既有 summarizeSession + 轮换路径
+ * (轮换块里 reason='context-compact'),不做 /compact、不发 stdin control_request。
+ */
+export function isContextCompactionDue(state: VoiceCompanionState, cfg: VoiceCompanionServerConfig): boolean {
+  return !!state.sessionId && !!state.context && state.context.percent >= cfg.contextCompactPercent;
 }
 
 /** 快照用的 agent 结构子集(Agent 天然满足,测试可造轻量对象)。 */
@@ -1635,6 +1718,45 @@ function callClaudeOnce(
   });
 }
 
+/**
+ * 任务18:hop1 收发经「常驻通道」——进程跨回合存活 + stdin 复用(省去每回合冷启动);
+ * 除收发环外与 callClaudeOnce 完全同构(同 args/同 stream-json 协议/同错误口径)。
+ * 回退开关 TC_JARVIS_COMPANION_RESIDENT=0 → 逐字走原一次性 spawn(等价路径钉住)。
+ */
+interface ClaudeHop1Result extends ClaudeCallResult {
+  /** 任务18:result 事件里的上下文占用(回退路径为 null = 不做压缩判定)。 */
+  context: CompanionContextUsage | null;
+}
+
+function callClaudeHop1(
+  systemPrompt: string,
+  userContent: string,
+  opts: {
+    model: string;
+    resumeId?: string | null;
+    timeoutMs: number;
+    reminder?: boolean;
+    onTextDelta?: (fullText: string) => void;
+    signal?: AbortSignal;
+  },
+): Promise<ClaudeHop1Result> {
+  if (!isCompanionResidentEnabled()) {
+    return callClaudeOnce(systemPrompt, userContent, opts).then((r) => ({ ...r, context: null }));
+  }
+  return runCompanionTurn({
+    systemPrompt,
+    userContent,
+    model: opts.model,
+    resumeId: opts.resumeId ?? null,
+    timeoutMs: opts.timeoutMs,
+    reminder: opts.reminder,
+    onTextDelta: opts.onTextDelta,
+    signal: opts.signal,
+    // abort 错误类型保持与一次性路径一致(voice/companion-runner 经工厂注入)。
+    makeAbortError: () => new VoiceCompanionAbortedError(),
+  });
+}
+
 /** --resume 指向的会话不存在时,claude CLI 的报错特征。 */
 function isResumeRejection(err: unknown): boolean {
   const e = err as { message?: string; stderr?: string };
@@ -1651,6 +1773,8 @@ interface Hop1Outcome {
   contract: VoiceContract;
   degraded: boolean;
   newSessionId: string | null;
+  /** 任务18:本回合 result 的上下文占用(回退路径为 null)。 */
+  context: CompanionContextUsage | null;
   elapsedMs: number;
 }
 
@@ -1699,7 +1823,7 @@ async function runHop1(
   // 体积打点(P5):agent 快照是 prompt 的最大变项,超预期先看这里。
   log.log(`[VoiceCompanion] system prompt ${systemPrompt.length} 字符`);
 
-  const attempt = (resumeId: string | null) => callClaudeOnce(systemPrompt, userText, {
+  const attempt = (resumeId: string | null) => callClaudeHop1(systemPrompt, userText, {
     model: cfg.model,
     resumeId,
     timeoutMs: cfg.hop1TimeoutMs,
@@ -1708,7 +1832,7 @@ async function runHop1(
     signal: stream?.signal,
   });
 
-  let result: ClaudeCallResult;
+  let result: ClaudeHop1Result;
   try {
     result = await attempt(state.sessionId);
   } catch (err) {
@@ -1717,6 +1841,8 @@ async function runHop1(
       const rejectedSessionId = state.sessionId;
       state.sessionId = null;
       state.sessionStartedAt = null;
+      // 任务18:常驻进程带着被拒的 --resume 建立过,重试前先停掉,下一次重试重新 spawn(不带 resume)。
+      stopCompanionProcess('resume-rejected');
       // 系统活动 5：--resume 被拒 → 清会话重试（重试结果由后续 created/异常自然观测）
       logSession({ phase: 'resume-rejected', sessionId: rejectedSessionId, reason: 'stale-session-id' });
       result = await attempt(null);
@@ -1746,7 +1872,7 @@ async function runHop1(
     throw e;
   }
   log.log(`[VoiceCompanion] hop1 ${Date.now() - started}ms → ${JSON.stringify(contract).slice(0, 500)}`);
-  return { contract, degraded: false, newSessionId: result.sessionId, elapsedMs: Date.now() - started };
+  return { contract, degraded: false, newSessionId: result.sessionId, context: result.context, elapsedMs: Date.now() - started };
 }
 
 async function runHop2(
@@ -2080,8 +2206,9 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     const state = loadCompanionState();
     const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);
 
-    if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey)) {
+    if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey) || isContextCompactionDue(state, cfg)) {
       // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
+      // 任务18:上下文到阈值(缺省 80%)同样走此路径 = 压缩 v1「摘要续跑」。
       if (state.sessionId) {
         await getJarvisMemory().engine.summarizeSession({ sessionId: state.sessionId, summary: state.memory.summary });
       }
@@ -2089,21 +2216,28 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
       resetCancelClarificationSession(); // 任务16·⑬：撤回反问挂起随会话轮换一并清空
       log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
-      // 系统活动 5：会话轮换留痕（超龄 → expired；轮数上限/人设切换 → rotated）。
+      // 系统活动 5：会话轮换留痕（超龄 → expired；轮数上限/人设切换/上下文压缩 → rotated）。
       if (state.sessionId) {
-        const rotateBySession = shouldRotateSession(state, cfg); // 纯判定,不影响状态
         const sessionAgeMs = state.sessionStartedAt != null ? Date.now() - state.sessionStartedAt : undefined;
         const ageExpired = sessionAgeMs != null && sessionAgeMs > cfg.sessionMaxAgeDays * 86_400_000;
+        const rotateByTurns = state.turns >= cfg.maxTurns;
+        const rotateByPersona = shouldRotateForPersona(state, personaKey);
         logSession({
           phase: ageExpired ? 'expired' : 'rotated',
           sessionId: state.sessionId,
-          reason: rotateBySession ? (ageExpired ? 'max-age' : 'max-turns') : 'persona-changed',
+          reason: ageExpired ? 'max-age'
+            : rotateByTurns ? 'max-turns'
+              : rotateByPersona ? 'persona-changed'
+                : 'context-compact', // 任务18:压缩 v1 触发(percent >= contextCompactPercent)
           ageMs: sessionAgeMs,
         });
       }
       state.sessionId = null;
       state.sessionStartedAt = null;
       state.turns = 0;
+      state.context = null; // 任务18:占用快照随会话一并清零
+      // 任务18:轮换后旧常驻进程(带旧 --resume/旧系统提示词)必须停掉,下一回合重新 spawn。
+      stopCompanionProcess('session-rotation');
     }
     state.personaKey = personaKey;
 
@@ -2204,6 +2338,24 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     state.lastUsedAt = Date.now();
     // 任务 02：hop1 成功后 sessionId 才就绪（含 resume），回填链路上下文供后续埋点复用。
     updateTraceContext({ sessionId: state.sessionId ?? undefined });
+
+    // 任务18:usage 采集落状态 + 观测(⑭ 系统活动 4 context_stats 采样通道;不新增 logSession 埋点)。
+    if (outcome.context) {
+      const ctx = computeContextState(outcome.context, cfg);
+      if (ctx) {
+        state.context = ctx;
+        logEvent('context_stats', {
+          source: 'voice-companion',
+          sessionId: state.sessionId ?? undefined,
+          body: {
+            tokensUsed: ctx.tokensUsed,
+            windowTokens: ctx.windowTokens,
+            percent: Math.round(ctx.percent * 1000) / 10,
+            compactPercent: Math.round(cfg.contextCompactPercent * 100),
+          },
+        });
+      }
+    }
 
     const { contract } = outcome;
     // 任务 27·尾 挂点3(模型确认):契约 memoryOps 双写进 vault;下方 applyMemoryOps 块保持原样(旧 CompanionMemory 独立运转)。
@@ -2720,6 +2872,10 @@ export function getCompanionStatus(): {
   lastUsedAt: number | null;
   model: 'haiku' | 'sonnet';
   memory: { summary: string; notes: CompanionMemoryNote[]; updatedAt: number; droppedCount: number };
+  /** 任务18:最近一次 hop1 的上下文占用(无 → null);canary 冒烟/设置面板读它。 */
+  context: VoiceCompanionContextState | null;
+  /** 任务18:常驻子进程 pid(未常驻/已退出 → null);L3 冷热对比与运维判活读它。 */
+  residentPid: number | null;
 } {
   const state = loadCompanionState();
   const cfg = loadServerConfig();
@@ -2730,6 +2886,8 @@ export function getCompanionStatus(): {
     lastUsedAt: state.lastUsedAt,
     model: cfg.model,
     memory: state.memory,
+    context: state.context ?? null,
+    residentPid: getCompanionProcessInfo()?.pid ?? null,
   };
 }
 
@@ -2739,10 +2897,13 @@ export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   state.sessionId = null;
   state.sessionStartedAt = null;
   state.turns = 0;
+  state.context = null; // 任务18:占用快照随重置清零
   if (!options.keepMemory) state.memory = { ...structuredClone(DEFAULT_MEMORY) };
   saveCompanionState(state);
   resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）一并清空
   resetCancelClarificationSession(); // 任务16·⑬：撤回反问挂起一并清空
+  // 任务18:重置后旧常驻进程(带旧会话/旧提示词)停掉,下回合重新 spawn。
+  stopCompanionProcess('reset');
   log.log(`[VoiceCompanion] 会话重置(keepMemory=${options.keepMemory !== false})`);
   // 系统活动 5：整体重置 → cleared（旧会话留痕；无会话时不发噪音）
   if (clearedSessionId) {
