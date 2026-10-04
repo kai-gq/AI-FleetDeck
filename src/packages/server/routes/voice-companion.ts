@@ -1,7 +1,7 @@
 /**
  * Voice Companion Route
  *
- * 「语音伙伴」服务端接口(与作者既有的 /api/voice-assistant 并行,互不影响):
+ * 「语音伙伴」服务端接口(统一语音入口;旧 /api/voice-assistant 路由已移除):
  *
  *   POST /api/voice-companion/process  { text, event? }  处理一段文本(语音转写或系统事件)
  *   GET  /api/voice-companion/status                     会话/记忆状态

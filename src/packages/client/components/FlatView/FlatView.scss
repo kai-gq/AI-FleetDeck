@@ -2228,8 +2228,7 @@ body.flat-splitter-dragging {
   // the FAB chrome inside flat view; its menu items are still reachable via
   // the bottom-nav (Settings / Commander / Spawn / Tracking / Search).
   .app.view-mode-flat .mobile-fab-toggle,
-  .app.view-mode-flat .mobile-fab-menu,
-  .app.view-mode-flat .voice-assistant-btn.mobile-voice-assistant {
+  .app.view-mode-flat .mobile-fab-menu {
     display: none !important;
   }
 

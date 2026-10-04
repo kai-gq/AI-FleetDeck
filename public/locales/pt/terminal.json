@@ -859,22 +859,6 @@
     "stopped": "Parado",
     "errored": "Com erro"
   },
-  "voiceAssistant": {
-    "title": "Assistente de Voz",
-    "listening": "Ouvindo...",
-    "processing": "Processando...",
-    "speak": "Fale seu comando",
-    "tapToSpeak": "Toque para falar",
-    "noMicrophone": "Sem acesso ao microfone",
-    "permissionDenied": "Permissao de microfone negada",
-    "error": "Erro",
-    "recording": "Gravando...",
-    "transcribing": "Transcrevendo...",
-    "speaking": "Falando...",
-    "notSupported": "Entrada de voz nao suportada neste navegador",
-    "failedToProcess": "Falha ao processar comando de voz",
-    "unavailable": "Assistente de voz indisponivel"
-  },
   "spotlight": {
     "placeholder": "Pesquisar comandos, agentes, arquivos...",
     "noResults": "Nenhum resultado encontrado",

@@ -233,24 +233,8 @@
   .shortcuts-toggle-btn,
   .skills-toggle-btn,
   .fab-spawn-btn,
-  .fab-workspace-wrapper,
-  .voice-assistant-btn:not(.mobile-voice-assistant) {
+  .fab-workspace-wrapper {
     display: none !important;
-  }
-
-  // Mobile voice assistant button - positioned at top right corner
-  .voice-assistant-btn.mobile-voice-assistant {
-    display: flex !important;
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    left: auto;
-    bottom: auto;
-    width: 44px;
-    height: 44px;
-    z-index: 1001;
-    background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
-    border: 1px solid var(--accent-green);
   }
 
   // Mobile view mode: Terminal (default) - hide battlefield, show terminal

@@ -254,13 +254,11 @@
   },
   "experimental": {
     "2dView": "2D 视图模式",
-    "voiceAssistant": "语音助手",
     "tts": "终端语音按钮",
     "echoPrompt": "回显提示词",
     "hint": "这些功能是实验性的，可能会发生变化",
     "2dViewTitle": "轻量级 2D 俯视视图，性能更好",
-    "voiceAssistantTitle": "语音助手，免手动控制智能体",
-    "ttsTitle": "终端里每行回复的朗读按钮与输入区麦克风;语音伙伴/语音助手的播报音色见「文字转语音」",
+    "ttsTitle": "终端里每行回复的朗读按钮与输入区麦克风;语音伙伴的播报音色见「文字转语音」",
     "echoPromptTitle": "复制系统提示词以提高 LLM 注意力覆盖。会增加输入 token 用量。"
   },
   "areas": {

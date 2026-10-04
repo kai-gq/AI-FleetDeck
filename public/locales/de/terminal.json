@@ -859,22 +859,6 @@
     "stopped": "Gestoppt",
     "errored": "Fehlerhaft"
   },
-  "voiceAssistant": {
-    "title": "Sprachassistent",
-    "listening": "Höre zu...",
-    "processing": "Verarbeite...",
-    "speak": "Sprich deinen Befehl",
-    "tapToSpeak": "Tippen zum Sprechen",
-    "noMicrophone": "Kein Mikrofonzugriff",
-    "permissionDenied": "Mikrofon-Berechtigung verweigert",
-    "error": "Fehler",
-    "recording": "Aufnahme...",
-    "transcribing": "Transkribiere...",
-    "speaking": "Spricht...",
-    "notSupported": "Spracheingabe wird in diesem Browser nicht unterstützt",
-    "failedToProcess": "Sprachbefehl konnte nicht verarbeitet werden",
-    "unavailable": "Sprachassistent nicht verfügbar"
-  },
   "spotlight": {
     "placeholder": "Befehle, Agenten, Dateien suchen...",
     "noResults": "Keine Ergebnisse gefunden",

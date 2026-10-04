@@ -1,7 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettings } from '../store';
-import { VoiceAssistant } from './VoiceAssistant';
 import { VoiceCompanion } from './VoiceCompanion';
 import { Tooltip } from './shared/Tooltip';
 import { Icon, type IconName } from './Icon';
@@ -40,7 +38,6 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
   onNewArea,
 }: FloatingActionButtonsProps) {
   const { t } = useTranslation(['common', 'terminal']);
-  const settings = useSettings();
   const [viewMode, setViewMode] = useViewMode();
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const viewMenuRef = useRef<HTMLDivElement>(null);
@@ -79,9 +76,6 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
 
   return (
     <>
-      {/* Voice Assistant button (experimental) */}
-      {settings.experimentalVoiceAssistant && <VoiceAssistant />}
-
       {/* Voice Companion(持续聆听/语音播报;config.json enabled=false 时自身返回 null) */}
       <VoiceCompanion />
 

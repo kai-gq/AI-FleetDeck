@@ -132,7 +132,7 @@
     "config:language.auto",
     "config:connection.forceReconnectTitle",
     "re:^config:(workflows|triggers|monitoring|statistics)\\.",
-    "re:^config:experimental\\.(2dViewTitle|voiceAssistantTitle|ttsTitle|echoPromptTitle)$",
+    "re:^config:experimental\\.(2dViewTitle|ttsTitle|echoPromptTitle)$",
     "re:^config:monitoringModal\\.",
     "re:^config:bulkManage\\.",
     "re:^config:workflowPanel\\.",

@@ -25,7 +25,6 @@ tags:
   - name: Config
   - name: TTS
   - name: STT
-  - name: Voice Assistant
   - name: Snapshots
 security:
   - BearerAuth: []
@@ -571,40 +570,6 @@ paths:
                 model:
                   type: string
                   default: medium
-      responses:
-        '200':
-          $ref: '#/components/responses/JsonSuccess'
-
-  /voice-assistant/process:
-    post:
-      tags: [Voice Assistant]
-      summary: Route natural-language voice command to an agent
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                text:
-                  type: string
-      responses:
-        '200':
-          $ref: '#/components/responses/JsonSuccess'
-
-  /voice-assistant/reset:
-    post:
-      tags: [Voice Assistant]
-      summary: Reset voice assistant session state
-      responses:
-        '200':
-          $ref: '#/components/responses/JsonSuccess'
-
-  /voice-assistant/status:
-    get:
-      tags: [Voice Assistant]
-      summary: Get voice assistant status
       responses:
         '200':
           $ref: '#/components/responses/JsonSuccess'

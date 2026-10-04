@@ -859,22 +859,6 @@
     "stopped": "停止",
     "errored": "エラー"
   },
-  "voiceAssistant": {
-    "title": "音声アシスタント",
-    "listening": "聞いています...",
-    "processing": "処理中...",
-    "speak": "コマンドを話してください",
-    "tapToSpeak": "タップして話す",
-    "noMicrophone": "マイクにアクセスできません",
-    "permissionDenied": "マイクの権限が拒否されました",
-    "error": "エラー",
-    "recording": "録音中...",
-    "transcribing": "文字起こし中...",
-    "speaking": "読み上げ中...",
-    "notSupported": "このブラウザでは音声入力はサポートされていません",
-    "failedToProcess": "音声コマンドの処理に失敗しました",
-    "unavailable": "音声アシスタントは利用できません"
-  },
   "spotlight": {
     "placeholder": "コマンド、エージェント、ファイルを検索...",
     "noResults": "結果が見つかりません",

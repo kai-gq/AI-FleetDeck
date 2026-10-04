@@ -859,22 +859,6 @@
     "stopped": "Fermato",
     "errored": "In errore"
   },
-  "voiceAssistant": {
-    "title": "Assistente vocale",
-    "listening": "In ascolto...",
-    "processing": "Elaborazione...",
-    "speak": "Pronuncia il tuo comando",
-    "tapToSpeak": "Tocca per parlare",
-    "noMicrophone": "Nessun accesso al microfono",
-    "permissionDenied": "Permesso microfono negato",
-    "error": "Errore",
-    "recording": "Registrazione...",
-    "transcribing": "Trascrizione...",
-    "speaking": "Riproduzione...",
-    "notSupported": "Input vocale non supportato in questo browser",
-    "failedToProcess": "Impossibile elaborare il comando vocale",
-    "unavailable": "Assistente vocale non disponibile"
-  },
   "spotlight": {
     "placeholder": "Cerca comandi, agenti, file...",
     "noResults": "Nessun risultato trovato",

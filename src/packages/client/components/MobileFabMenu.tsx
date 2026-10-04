@@ -1,9 +1,7 @@
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettings } from '../store';
 import { useViewMode } from '../hooks/useViewMode';
 import { VIEW_MODE_LABELS, VIEW_MODES, type ViewMode } from '../types/viewModes';
-import { VoiceAssistant } from './VoiceAssistant';
 import { VoiceCompanion } from './VoiceCompanion';
 import { Icon, type IconName } from './Icon';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -55,7 +53,6 @@ export const MobileFabMenu = memo(function MobileFabMenu({
   mobileView,
 }: MobileFabMenuProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const settings = useSettings();
   const [viewMode, setViewMode] = useViewMode();
 
   const handleAction = (action: () => void) => {
@@ -80,11 +77,6 @@ export const MobileFabMenu = memo(function MobileFabMenu({
 
   return (
     <>
-      {/* Voice Assistant button - shown separately from FAB menu when enabled */}
-      {settings.experimentalVoiceAssistant && (
-        <VoiceAssistant className="mobile-voice-assistant" />
-      )}
-
       {/* Voice Companion(同上;config.json enabled=false 时自身返回 null) */}
       <VoiceCompanion className="mobile-voice-companion" />
 

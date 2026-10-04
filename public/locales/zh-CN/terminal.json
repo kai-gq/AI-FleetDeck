@@ -1313,22 +1313,6 @@
     "noPM2Subordinates": "没有 PM2 管理的下属",
     "noMatchingLogs": "没有匹配的日志"
   },
-  "voiceAssistant": {
-    "title": "语音助手",
-    "listening": "正在听…",
-    "processing": "处理中…",
-    "speak": "说出你的命令",
-    "tapToSpeak": "点击说话",
-    "noMicrophone": "无法访问麦克风",
-    "permissionDenied": "麦克风权限被拒绝",
-    "error": "错误",
-    "recording": "录音中…",
-    "transcribing": "转录中…",
-    "speaking": "播放中…",
-    "notSupported": "此浏览器不支持语音输入",
-    "failedToProcess": "语音命令处理失败",
-    "unavailable": "语音助手不可用"
-  },
   "spotlight": {
     "placeholder": "搜索命令、智能体、文件…",
     "noResults": "未找到结果",

@@ -13,7 +13,7 @@
  *
  * 设计要点:
  * - 会话状态与记忆落盘 ~/.local/share/tide-commander/voice-companion.json(tmp+rename);
- * - 超时**不**重置会话(与作者旧 voice-assistant 路由相反,新会话由轮数/天数轮换);
+ * - 超时**不**重置会话(新会话由轮数/天数轮换;旧 voice-assistant 路由已移除);
  * - --resume 被拒(session 文件丢失)→ 清会话重试一次;
  * - 打断走 runtimeService.stopAgent + sendCommand(Claude 无 interruptTurn,
  *   forceInterrupt 对其无效);
@@ -602,7 +602,7 @@ ${formatMemory(memory)}
 ${agentsBlock}`;
 }
 
-const HOP2_SYSTEM_PROMPT = `你是语音助手的结果查询模块。基于下方给出的 agent 输出记录,直接回答老板的问题。
+const HOP2_SYSTEM_PROMPT = `你是语音伙伴的结果查询模块。基于下方给出的 agent 输出记录,直接回答老板的问题。
 要求:与老板提问相同的语言;1-3 句、口语化、无 emoji、无 markdown;只依据给出的记录,不要编造;记录里没有就直说。
 只输出 JSON:{"responseToUser":"…"}`;
 

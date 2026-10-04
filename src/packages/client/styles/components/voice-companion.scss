@@ -1,12 +1,12 @@
 @use 'sass:color';
 @use '../variables' as *;
 
-// 语音伙伴:左侧竖排悬浮钮(接在 .voice-assistant-btn 之上)+ 上方气泡。
-// 仅新增样式,不动全局;定位与 .voice-assistant-btn(bottom: 322px)错开。
+// 语音伙伴:左侧竖排悬浮钮(占用原语音助手按钮的 bottom:322px 槽位)+ 上方气泡。
+// 仅新增样式,不动全局;语音助手已移除,本按钮独立定位,不再依赖其它按钮。
 
 .voice-companion-btn {
   position: fixed;
-  bottom: 366px;
+  bottom: 322px;
   left: 16px;
   width: 36px;
   height: 36px;
@@ -104,7 +104,7 @@
 
 .voice-companion-pill {
   position: fixed;
-  bottom: 374px;
+  bottom: 330px;
   left: 60px;
   max-width: 240px;
   padding: 4px 10px;
@@ -123,7 +123,7 @@
 
 .voice-companion-bubble {
   position: fixed;
-  bottom: 410px;
+  bottom: 366px;
   left: 16px;
   width: 320px;
   max-width: calc(100vw - 32px);

@@ -985,22 +985,6 @@
     "noPM2Subordinates": "No PM2-managed subordinates",
     "noMatchingLogs": "No matching logs"
   },
-  "voiceAssistant": {
-    "title": "Voice Assistant",
-    "listening": "Listening...",
-    "processing": "Processing...",
-    "speak": "Speak your command",
-    "tapToSpeak": "Tap to speak",
-    "noMicrophone": "No microphone access",
-    "permissionDenied": "Microphone permission denied",
-    "error": "Error",
-    "recording": "Recording...",
-    "transcribing": "Transcribing...",
-    "speaking": "Speaking...",
-    "notSupported": "Voice input not supported in this browser",
-    "failedToProcess": "Failed to process voice command",
-    "unavailable": "Voice assistant unavailable"
-  },
   "spotlight": {
     "placeholder": "Search commands, agents, files...",
     "noResults": "No results found",

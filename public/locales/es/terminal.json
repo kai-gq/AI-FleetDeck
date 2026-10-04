@@ -860,22 +860,6 @@
     "stopped": "Detenido",
     "errored": "Error"
   },
-  "voiceAssistant": {
-    "title": "Asistente de voz",
-    "listening": "Escuchando...",
-    "processing": "Procesando...",
-    "speak": "Diga su comando",
-    "tapToSpeak": "Toque para hablar",
-    "noMicrophone": "Sin acceso al microfono",
-    "permissionDenied": "Permiso de microfono denegado",
-    "error": "Error",
-    "recording": "Grabando...",
-    "transcribing": "Transcribiendo...",
-    "speaking": "Reproduciendo...",
-    "notSupported": "La entrada de voz no es compatible con este navegador",
-    "failedToProcess": "Error al procesar comando de voz",
-    "unavailable": "Asistente de voz no disponible"
-  },
   "spotlight": {
     "placeholder": "Buscar comandos, agentes, archivos...",
     "noResults": "Sin resultados encontrados",

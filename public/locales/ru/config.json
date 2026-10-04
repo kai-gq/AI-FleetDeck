@@ -196,7 +196,6 @@
   },
   "experimental": {
     "2dView": "Режим 2D-вида",
-    "voiceAssistant": "Голосовой помощник",
     "tts": "Синтез речи",
     "echoPrompt": "Echo Prompt",
     "hint": "Эти функции экспериментальные и могут измениться"

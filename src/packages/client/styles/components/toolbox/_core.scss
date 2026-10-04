@@ -1,113 +1,6 @@
 @use 'sass:color';
 @use '../../variables' as *;
 
-.voice-assistant-btn {
-  position: fixed;
-  bottom: 322px;
-  left: 16px;
-  width: 36px;
-  height: 36px;
-  border-radius: $radius-lg;
-  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
-  border: 1px solid var(--text-muted);
-  color: var(--accent-green);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 150;
-  transition: all $transition-fast;
-  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
-
-  &:hover {
-    border-color: var(--accent-green);
-    color: var(--accent-green);
-    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  &.recording {
-    border-color: var(--accent-red);
-    color: var(--accent-red);
-    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
-    animation: voice-pulse 1s ease-in-out infinite;
-
-    svg {
-      animation: mic-pulse 0.5s ease-in-out infinite;
-    }
-  }
-
-  &.processing {
-    border-color: var(--accent-yellow);
-    color: var(--accent-yellow);
-    background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
-
-    .voice-assistant-indicator {
-      background: var(--accent-yellow);
-    }
-  }
-
-  &.speaking {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
-
-    .voice-assistant-indicator {
-      background: var(--accent-cyan);
-      animation: voice-speaking 0.3s ease-in-out infinite;
-    }
-  }
-
-  &.error {
-    border-color: var(--accent-orange);
-    color: var(--accent-orange);
-  }
-}
-
-.voice-assistant-indicator {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 8px;
-  height: 8px;
-  background: var(--accent-red);
-  border-radius: 50%;
-  animation: voice-pulse 1s ease-in-out infinite;
-}
-
-@keyframes voice-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-red) 40%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 8px transparent;
-  }
-}
-
-@keyframes mic-pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-@keyframes voice-speaking {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.7;
-  }
-}
-
 // Floating settings button
 .floating-settings-btn {
   position: fixed;
@@ -265,12 +158,6 @@
     height: 36px;
   }
 
-  // Voice assistant stays pinned bottom-ish — its `position: fixed` rule
-  // lives elsewhere and is unaffected by the rail layout.
-  .voice-assistant-btn {
-    position: fixed;
-  }
-
   // Workspace wrapper's dropdown is positioned further down with viewport caps.
 }
 
@@ -329,16 +216,6 @@
     &::after {
       opacity: 0;
     }
-  }
-
-  // Transform on the rail would otherwise become the containing block for
-  // this `position: fixed` button and pin it to a stale viewport slot.
-  // Fold it into the flex column so it hides and reveals with the rest.
-  .voice-assistant-btn {
-    position: relative;
-    top: auto;
-    left: auto;
-    bottom: auto;
   }
 }
 
@@ -1025,7 +902,7 @@
   font-style: italic;
 }
 
-// 功能分组标题(如「语音」组:语音转文字/文字转语音/语音伙伴/语音助手)
+// 功能分组标题(如「语音」组:语音转文字/文字转语音/语音伙伴)
 .config-group-heading {
   margin: 10px 0 2px;
   padding: 0 12px;

@@ -196,7 +196,6 @@
   },
   "experimental": {
     "2dView": "Modalità vista 2D",
-    "voiceAssistant": "Assistente vocale",
     "tts": "Sintesi vocale",
     "echoPrompt": "Echo Prompt",
     "hint": "Queste funzionalità sono sperimentali e potrebbero cambiare"
