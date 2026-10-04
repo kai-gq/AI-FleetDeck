@@ -10,6 +10,7 @@ import * as agentService from './agent-service.js';
 import type {
   Agent,
   DelegationDecision,
+  DelegationUserRating,
   SubordinateContext,
   TaskCard,
   TaskCardStatus,
@@ -22,6 +23,7 @@ import {
   getDelegationHistory as getHistoryFromStorage,
   deleteDelegationHistory,
 } from '../data/index.js';
+import { logEvent } from '../data/system-log.js';
 import { logger, sanitizeUnicode, generateId, truncateOrEmpty } from '../utils/index.js';
 import { canTransitionTaskCard } from './task-card-service.js';
 import { logTaskCardStatus } from './activity-log.js';
@@ -662,6 +664,148 @@ export function updateDelegationTaskCardStatus(
   });
 
   return card;
+}
+
+// ─── ⑧ 病历：完成事件 + 用户评价（改造点⑧，Spec §4.8，任务11） ───
+
+/**
+ * 🟡 决策观测点⑧ 病历追加（Spec §4.14 P2 项；任务11 预留通道，随 ⑭P2 启用）：
+ * 与 🔴⑦ logTaskCardStatus 同形态 —— delegation 通道 + 独立 phase + taskId 列。
+ * helper 落点在本模块（本地小函数直调 logEvent，纯加法）：activity-log.ts 不在
+ * 任务11 允许触碰清单内，避免越界；事件字段与此前埋点风格保持一致。
+ */
+function logDelegationRecord(
+  phase: 'completion-recorded' | 'rating-recorded',
+  refs: { decisionId: string; bossId: string; subordinateId?: string; taskId?: string },
+  body: Record<string, unknown>
+): void {
+  logEvent('delegation', {
+    source: 'boss',
+    taskId: refs.taskId,
+    agentId: refs.subordinateId ?? refs.bossId,
+    body: {
+      cat: 'delegation',
+      phase,
+      decisionId: refs.decisionId,
+      bossId: refs.bossId,
+      subordinateId: refs.subordinateId,
+      ...body,
+    },
+  });
+}
+
+export interface DelegationCompletionUpdateOptions {
+  /** 完成时刻（缺省 Date.now；回填/测试可显式传） */
+  at?: number;
+  /** 终态结果（缺省 completed） */
+  result?: 'completed' | 'failed';
+  /** 产出摘要（report-task 入口的 req.body.summary；空白按「未提供」处理） */
+  summary?: string;
+  /** 产出位置（当前入口不可得 → 缺省，不硬造） */
+  outputLocation?: string;
+  /** 触发原因：report-task / turn-complete 等 */
+  reason?: string;
+  subordinateId?: string;
+  /** 显式 taskId（跨进程/跨模块处由调用方透传，缺省不落） */
+  taskId?: string;
+}
+
+/** 非空白字符串才视为已提供（空白摘要/位置按「未提供」落缺省）。 */
+function nonBlank(value: string | undefined): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+/**
+ * ⑧ 病历写回：按 decisionId 定位委派史记录，固化 completion（完成时刻/耗时/结果/摘要/位置/原因）
+ * + status 迁移（'sent'/'pending' → 'completed'/'failed'）→ 落盘 + 🟡⑧ 埋点。
+ * - 幂等（主脑口径）：已有 completion 的记录不双写不覆盖，直接返回（第二次到达/重复入口稳定 no-op）；
+ * - 无此记录（未知 decisionId / 已被 MAX_DELEGATION_HISTORY_PER_BOSS 裁剪）→ 返回 undefined，不写盘；
+ * - 耗时 = at − decision.timestamp（时钟回拨的负值钳为 0）。
+ */
+export function recordDelegationCompletion(
+  bossId: string,
+  decisionId: string,
+  opts: DelegationCompletionUpdateOptions = {}
+): DelegationDecision | undefined {
+  const decision = delegationHistories.get(bossId)?.find((d) => d.id === decisionId);
+  if (!decision) {
+    log.warn?.(` Ignored completion record for unknown decision ${decisionId}`);
+    return undefined;
+  }
+  if (decision.completion) return decision;
+
+  const at = opts.at ?? Date.now();
+  const result = opts.result ?? 'completed';
+  const summary = nonBlank(opts.summary);
+  const outputLocation = nonBlank(opts.outputLocation);
+
+  decision.completion = {
+    completedAt: at,
+    durationMs: Math.max(0, at - decision.timestamp),
+    result,
+    ...(summary ? { summary } : {}),
+    ...(outputLocation ? { outputLocation } : {}),
+    ...(opts.reason ? { reason: opts.reason } : {}),
+  };
+  // ⑧ 状态迁移：现状永远停在 'sent'（本任务补齐）；重复入口在上方幂等分支已挡住
+  decision.status = result;
+  saveDelegationHistory(delegationHistories);
+
+  logDelegationRecord('completion-recorded', {
+    decisionId,
+    bossId,
+    subordinateId: opts.subordinateId,
+    taskId: opts.taskId,
+  }, {
+    at,
+    durationMs: decision.completion.durationMs,
+    result,
+    reason: opts.reason,
+    hasSummary: summary !== undefined,
+    hasOutputLocation: outputLocation !== undefined,
+  });
+
+  return decision;
+}
+
+export interface DelegationRatingUpdateOptions {
+  /** 评价时刻（缺省 Date.now；回填/测试可显式传） */
+  at?: number;
+  subordinateId?: string;
+  taskId?: string;
+}
+
+/**
+ * ⑧ 病历评价回写 API：满意/不满意 → 按 decisionId 写回 userRating/ratedAt → 落盘 + 🟡⑧ 埋点。
+ * - 自然语言入口延后（主脑裁决：需动契约表，与任务16 同批）；
+ * - 重复评价允许覆盖（用户改主意以最后一次为准，语义与完成事件的「不覆盖」幂等不同）；
+ * - 未知 decisionId → 返回 undefined，不写盘。
+ */
+export function rateDelegationCompletion(
+  bossId: string,
+  decisionId: string,
+  rating: DelegationUserRating,
+  opts: DelegationRatingUpdateOptions = {}
+): DelegationDecision | undefined {
+  const decision = delegationHistories.get(bossId)?.find((d) => d.id === decisionId);
+  if (!decision) {
+    log.warn?.(` Ignored rating for unknown decision ${decisionId}`);
+    return undefined;
+  }
+
+  const at = opts.at ?? Date.now();
+  decision.userRating = rating;
+  decision.ratedAt = at;
+  saveDelegationHistory(delegationHistories);
+
+  logDelegationRecord('rating-recorded', {
+    decisionId,
+    bossId,
+    subordinateId: opts.subordinateId ?? decision.selectedAgentId,
+    taskId: opts.taskId,
+  }, { at, rating });
+
+  return decision;
 }
 
 // ============================================================================

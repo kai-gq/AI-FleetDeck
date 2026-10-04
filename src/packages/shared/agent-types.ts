@@ -630,6 +630,29 @@ export interface TaskCard {
   statusUpdatedAt?: number;         // 状态最近迁移时间（⑦ 观测点：迁移 + 时间）
 }
 
+/**
+ * ⑧ 病历：完成事件（改造点⑧，Spec §4.8，任务11）。
+ * 完成入口（completeDelegation）在清理委派追踪前固化写回；旧 delegation-history
+ * 记录无此字段，读取方（⑦ 查询路径等）一律按「无完成事件」处理 —— 纯可选加法。
+ */
+export interface DelegationCompletion {
+  /** 完成时刻（epoch 毫秒，完成入口传入） */
+  completedAt: number;
+  /** 耗时 = completedAt − 委派决策 timestamp（毫秒；时钟回拨时钳为 0） */
+  durationMs: number;
+  /** 终态结果（按完成入口 success 迁移） */
+  result: 'completed' | 'failed';
+  /** 产出摘要（report-task 入口的 req.body.summary；runtime 入口无可得来源 → 缺省） */
+  summary?: string;
+  /** 产出位置（文件/目录/链接；当前两个入口均不可得 → 缺省，来源限制见任务11 报告） */
+  outputLocation?: string;
+  /** 触发原因：report-task / turn-complete 等 */
+  reason?: string;
+}
+
+/** ⑧ 病历：用户评价（满意/不满意）——回写 API 交付，自然语言入口延后（任务16 同批）。 */
+export type DelegationUserRating = 'satisfied' | 'unsatisfied';
+
 // Delegation decision record - tracks how boss routed a command
 export interface DelegationDecision {
   id: string;
@@ -643,6 +666,9 @@ export interface DelegationDecision {
   confidence: 'high' | 'medium' | 'low';
   status: 'pending' | 'sent' | 'completed' | 'failed';
   taskCard?: TaskCard;              // ⑦ 任务卡（旧记录无此字段，读取方按「无卡」处理）
+  completion?: DelegationCompletion; // ⑧ 病历完成事件（任务11；旧记录无此字段 → 按「未完成」处理）
+  userRating?: DelegationUserRating; // ⑧ 病历用户评价（任务11；旧记录无此字段）
+  ratedAt?: number;                  // ⑧ 病历评价时刻（epoch 毫秒）
 }
 
 // Context about a subordinate for delegation decision

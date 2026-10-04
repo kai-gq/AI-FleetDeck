@@ -192,7 +192,12 @@ describe('POST /api/agents/:id/report-task — 任务08② 回执通知接线', 
         broadcast,
       }),
     );
-    expect(completeDelegation).toHaveBeenCalledWith('agent-1', { success: true, reason: 'report-task' });
+    // ⑧ 病历（任务11）：req.body.summary 随完成入口透传（产出摘要来源）
+    expect(completeDelegation).toHaveBeenCalledWith('agent-1', {
+      success: true,
+      reason: 'report-task',
+      summary: '已完成并通过测试',
+    });
   });
 
   it('无 boss 早退：通知回执仍触发（不静默），completeDelegation 不被调用', async () => {

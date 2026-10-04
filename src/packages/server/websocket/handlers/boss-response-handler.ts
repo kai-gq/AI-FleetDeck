@@ -50,24 +50,55 @@ export function clearDelegation(subordinateId: string): void {
   activeDelegations.delete(subordinateId);
 }
 
+/** ⑧ 病历：完成入口可选透传字段（summary 由 report-task 入口提供；outputLocation 当前入口不可得）。 */
+export interface CompleteDelegationOptions {
+  success?: boolean;
+  reason?: string;
+  at?: number;
+  /** ⑧ 病历产出摘要（report-task 的 req.body.summary；runtime 入口无可得来源 → 缺省） */
+  summary?: string;
+  /** ⑧ 病历产出位置（当前入口不可得 → 缺省，不硬造） */
+  outputLocation?: string;
+}
+
 /**
- * ⑦ 任务卡完成入口：委派结束时把任务卡迁移到 done（🔴⑦ 埋点随迁移落盘），再清理追踪。
+ * ⑦⑧ 委派完成单一漏斗：委派结束时固化病历写回 + 任务卡迁移 done（🔴⑦ 埋点随迁移落盘），再清理追踪。
+ * - ⑧ 快照时序：先取 ActiveDelegation 快照（decisionId/taskId/taskDescription 所在），
+ *   全部写回完成后才 delete —— 事后补录会丢任务描述（Spec §4.8 关键时序）；
+ * - ⑧ 病历对所有带 decisionId 的委派生效（不止有卡者）；无追踪（第二次到达，追踪已被
+ *   第一入口清理）→ 不双写不覆盖，稳定幂等（口径由测试钉住）；
  * - 无追踪/无任务卡（旧纯文本委派）退化为 clearDelegation 行为，绝不拦断回执链路；
  * - decisionId/taskId 仅服务端进程内可达（任务 02 登记限制，下属进程事件不携带）。
  */
 export function completeDelegation(
   subordinateId: string,
-  opts: { success?: boolean; reason?: string; at?: number } = {}
+  opts: CompleteDelegationOptions = {}
 ): void {
   const delegation = activeDelegations.get(subordinateId);
-  if (delegation?.taskCard && delegation.decisionId) {
-    bossService.updateDelegationTaskCardStatus(delegation.bossId, delegation.decisionId, 'done', {
-      at: opts.at ?? Date.now(),
-      result: opts.success === false ? 'failed' : 'completed',
-      reason: opts.reason ?? 'turn-complete',
-      subordinateId,
-      taskId: delegation.taskId,
-    });
+  if (delegation) {
+    const at = opts.at ?? Date.now();
+    const result = opts.success === false ? 'failed' : 'completed';
+    if (delegation.taskCard && delegation.decisionId) {
+      bossService.updateDelegationTaskCardStatus(delegation.bossId, delegation.decisionId, 'done', {
+        at,
+        result,
+        reason: opts.reason ?? 'turn-complete',
+        subordinateId,
+        taskId: delegation.taskId,
+      });
+    }
+    // ⑧ 病历：完成事件写回（decisionId 在 delete 后不可达，必须在清理前落盘）
+    if (delegation.decisionId) {
+      bossService.recordDelegationCompletion(delegation.bossId, delegation.decisionId, {
+        at,
+        result,
+        summary: opts.summary,
+        outputLocation: opts.outputLocation,
+        reason: opts.reason ?? 'turn-complete',
+        subordinateId,
+        taskId: delegation.taskId,
+      });
+    }
   }
   activeDelegations.delete(subordinateId);
 }

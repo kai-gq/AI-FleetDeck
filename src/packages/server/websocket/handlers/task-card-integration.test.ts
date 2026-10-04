@@ -2,6 +2,10 @@
  * 任务10·⑦ 任务卡集成链路（验收 ⑥2 代理）：给 Boss 一张带验收标准的任务卡 →
  * 委派历史可见验收字段；并验证状态机 pending → running → done 的真实写盘 + 🔴⑦ 迁移埋点。
  *
+ * 任务11·⑧ 扩测：完成单一漏斗 completeDelegation 在清理追踪（delete）前固化
+ * 病历写回（completion 字段 + status 迁移 + summary 透传），并对第二次到达的
+ * 幂等口径（不双写不覆盖，真盘逐字节不变）钉行为。
+ *
  * 覆盖方式（真 LLM E2E 由金丝雀 full 承接，此处为进程内真实函数链路）：
  * - 真实：parseBossDelegation（Boss 围栏块解析）→ bossService.addDelegationToHistory
  *   → delegation-history.json（XDG 沙箱）→ bossService.updateDelegationTaskCardStatus
@@ -61,6 +65,13 @@ function taskCardStatusRows(): Array<{ body: Record<string, unknown>; row: Syste
     .filter(({ body }) => body.phase === 'task-card-status');
 }
 
+/** 任务11·🟡⑧：病历追加埋点行（delegation 通道 completion-recorded）。 */
+function completionRows(decisionId: string): Array<Record<string, unknown>> {
+  return querySystemLog({ category: 'delegation', limit: 500, order: 'asc' })
+    .map((row) => (row.body ? (JSON.parse(row.body) as Record<string, unknown>) : {}))
+    .filter((body) => body.phase === 'completion-recorded' && body.decisionId === decisionId);
+}
+
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状态机 + 🔴⑦ 埋点', () => {
@@ -118,11 +129,17 @@ describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状�
     expect(running.taskCard!.statusUpdatedAt!).toBeGreaterThanOrEqual(pending.taskCard!.statusUpdatedAt!);
 
     // 完成入口（report-task / turn-complete 共用函数）→ running → done，追踪清理
-    completeDelegation('agent-1', { success: true, reason: 'report-task' });
+    completeDelegation('agent-1', { success: true, reason: 'report-task', summary: '登录页完成并通过验收' });
     const done = readDecision('实现登录页');
     expect(done.taskCard?.status).toBe('done');
     expect(done.taskCard!.statusUpdatedAt!).toBeGreaterThanOrEqual(running.taskCard!.statusUpdatedAt!);
     expect(getBossForSubordinate('agent-1')).toBeUndefined();
+
+    // ⑧ 病历（任务11）：完成事件在 delete 前固化写回（结果/摘要/耗时 + status 迁移）
+    expect(done.status).toBe('completed');
+    expect(done.completion).toMatchObject({ result: 'completed', reason: 'report-task', summary: '登录页完成并通过验收' });
+    expect(done.completion!.completedAt).toBeGreaterThanOrEqual(pending.timestamp);
+    expect(done.completion!.durationMs).toBe(done.completion!.completedAt - pending.timestamp);
 
     // 🔴 决策观测点⑦：迁移 + 时间进 system_log（delegation 通道 task-card-status）
     const transitions = taskCardStatusRows().filter(({ body }) => body.decisionId === pending.id);
@@ -137,9 +154,14 @@ describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状�
     // taskId 服务端进程内可达（任务 02 登记限制），落埋点列供时间线关联
     expect(pending.id).toBeTruthy();
     expect(transitions[0].row.taskId).toBeTruthy();
+
+    // 🟡 决策观测点⑧：病历追加事件（预留通道）——有卡委派恰一条 completion-recorded
+    const recordRows = completionRows(pending.id);
+    expect(recordRows).toHaveLength(1);
+    expect(recordRows[0]).toMatchObject({ phase: 'completion-recorded', result: 'completed', hasSummary: true });
   });
 
-  it('向后兼容：旧纯文本委派（无卡）不产生 taskCard/迁移埋点，完成入口退化为原 clearDelegation', async () => {
+  it('向后兼容：旧纯文本委派（无卡）无 taskCard/迁移埋点；⑧ 病历完成事件照常写回（不止有卡者）', async () => {
     bossService.init();
     const rowsBefore = taskCardStatusRows().length;
 
@@ -149,14 +171,40 @@ describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状�
 
     const decision = readDecision('纯文本旧任务');
     expect(decision.taskCard).toBeUndefined();
-    expect(decision.status).toBe('sent'); // 旧字段语义不变
+    expect(decision.status).toBe('sent'); // 完成前：旧字段语义不变
 
     h.resolveSend();
     await tick();
     completeDelegation('agent-2', { success: true, reason: 'turn-complete' });
 
-    expect(readDecision('纯文本旧任务').taskCard).toBeUndefined();
+    const done = readDecision('纯文本旧任务');
+    expect(done.taskCard).toBeUndefined();
     expect(getBossForSubordinate('agent-2')).toBeUndefined();
     expect(taskCardStatusRows().length).toBe(rowsBefore); // 零任务卡迁移埋点
+    // ⑧ 病历：无卡委派同样留完成事件（对所有带 decisionId 的委派生效）
+    expect(done.status).toBe('completed');
+    expect(done.completion).toMatchObject({ result: 'completed', reason: 'turn-complete' });
+    expect(completionRows(decision.id)).toHaveLength(1);
+  });
+
+  it('⑧ 幂等口径：第二次到达（追踪已清）不双写不覆盖——真盘逐字节不变 + 无第二完成事件', async () => {
+    bossService.init();
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-3","selectedAgentName":"Builder Three","taskCommand":"幂等任务","confidence":"medium"}]
+\`\`\``, vi.fn());
+    h.resolveSend();
+    await tick();
+
+    // 第一入口（runtime turn-complete 通常先到）：无摘要完成写回并清理追踪
+    completeDelegation('agent-3', { success: true, reason: 'turn-complete' });
+    const bytesAfterFirst = fs.readFileSync(historyFile, 'utf8');
+    const decision = readDecision('幂等任务');
+    expect(decision.completion?.summary).toBeUndefined();
+
+    // 第二次到达（report-task 后到，activeDelegations 已空）：不双写不覆盖（含不补写迟到的摘要）
+    completeDelegation('agent-3', { success: true, reason: 'report-task', summary: '迟到的产出摘要' });
+    expect(fs.readFileSync(historyFile, 'utf8')).toBe(bytesAfterFirst);
+    expect(readDecision('幂等任务').completion?.summary).toBeUndefined();
+    expect(completionRows(decision.id)).toHaveLength(1);
   });
 });

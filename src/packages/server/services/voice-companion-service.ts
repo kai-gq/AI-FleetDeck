@@ -1240,6 +1240,9 @@ async function buildSubordinateQueryEntry(decision: DelegationDecision): Promise
     taskCardObjective: typeof objective === 'string' && objective.trim() ? objective.trim() : undefined,
     userCommand: decision.userCommand,
     excerpt,
+    // ⑧ 病历(任务11)透传:旧记录无 completion/userRating → undefined,材料层走原三分支
+    completion: decision.completion,
+    userRating: decision.userRating,
   };
 }
 

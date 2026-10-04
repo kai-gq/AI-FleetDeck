@@ -17,7 +17,7 @@
  * vcs.isBossLikeAgent 保持同一行判定(有单测钉行为)。
  */
 
-import type { DelegationDecision } from '../../shared/agent-types.js';
+import type { DelegationCompletion, DelegationDecision, DelegationUserRating } from '../../shared/agent-types.js';
 
 /** 只查最近委派条数上限 —— 与任务06【最近委派】注入(vcs MAX_DELEGATION_INJECT=5)同口径,不深追溯历史。 */
 export const DELEGATION_QUERY_MAX = 5;
@@ -89,6 +89,9 @@ export function hasSubstantiveOutput(excerpt: string): boolean {
 /** 「正在干活」状态集合 —— 与 vcs.ACTIVE_AGENT_STATUSES 同集合(此处独立列出以避免循环 import)。 */
 const ACTIVE_STATUSES: ReadonlySet<string> = new Set(['working', 'waiting', 'waiting_permission']);
 
+/** 产出位置(路径/链接)展示上限 —— 位置字段只需可定位,过长即截(固定口径,便于测试钉)。 */
+export const DELEGATION_OUTPUT_LOCATION_MAX = 200;
+
 /** 单个下属的查询条目:由编排层(vcs)取好 excerpt / agent 快照后传入,本模块只负责拼装。 */
 export interface SubordinateQueryEntry {
   agentId: string;
@@ -104,6 +107,13 @@ export interface SubordinateQueryEntry {
   userCommand: string;
   /** 该下属最近 assistant 产出(fetchAgentOutputExcerpt 结果;无产出为其占位串)。 */
   excerpt: string;
+  /**
+   * ⑧ 病历完成事件(任务11):有 completion 的委派走「执行者/耗时/产出」完成行,
+   * 无 completion(旧记录/未完成)的记录走原三分支不变。
+   */
+  completion?: DelegationCompletion;
+  /** ⑧ 病历用户评价(满意/不满意):仅回写后存在。 */
+  userRating?: DelegationUserRating;
 }
 
 /** Spec §4.4 行为定义 3:无委派记录时如实返回「未找到对应委派」(确定性话术,不跑 hop2 防编造)。 */
@@ -127,10 +137,49 @@ function taskTextOf(entry: SubordinateQueryEntry): string {
   return truncateTask(entry.taskCardObjective?.trim() || entry.userCommand || '(未记录任务)');
 }
 
-/** 单个下属分段:有产出 → 任务 + 产出;无产出 → working 说「正在做」,其余如实说无产出记录。 */
+/** ⑧ 耗时展示口径(任务11):<1 分钟用秒,其余保留 1 位小数分钟(固定口径,便于测试钉)。 */
+export function formatDelegationDuration(durationMs: number): string {
+  const safe = Math.max(0, durationMs);
+  if (safe < 60_000) return `${Math.round(safe / 1000)} 秒`;
+  return `${Math.round(safe / 6_000) / 10} 分钟`;
+}
+
+/**
+ * ⑧ 病历完成行(任务11):执行者(【名】)+ 任务 + 完成态/耗时 + 产出 + 产出位置 + 评价。
+ * 产出优先用 completion.summary(report-task 产出摘要);无摘要回退该下属最近产出(保住可读)。
+ */
+function buildCompletedSection(
+  entry: SubordinateQueryEntry,
+  name: string,
+  task: string,
+  excerptShare: number
+): string {
+  const completion = entry.completion!;
+  const duration = formatDelegationDuration(completion.durationMs);
+  const parts = [
+    completion.result === 'failed'
+      ? `【${name}】任务「${task}」执行失败（耗时 ${duration}）`
+      : `【${name}】任务「${task}」已完成（耗时 ${duration}）`,
+  ];
+  const summary = completion.summary?.trim();
+  if (summary) {
+    parts.push(`产出: ${clampText(summary, excerptShare)}`);
+  } else if (hasSubstantiveOutput(entry.excerpt)) {
+    // 病历无摘要(runtime 入口先到时)→ 回退下属最近产出,不因缺摘要丢「产出在哪」
+    parts.push(`产出:\n${clampText(entry.excerpt, excerptShare)}`);
+  }
+  const location = completion.outputLocation?.trim();
+  if (location) parts.push(`产出位置: ${clampText(location, DELEGATION_OUTPUT_LOCATION_MAX)}`);
+  if (entry.userRating) parts.push(`评价: ${entry.userRating === 'satisfied' ? '满意' : '不满意'}`);
+  return parts.join('｜');
+}
+
+/** 单个下属分段:已完成(有 ⑧ 病历)→ 执行者/耗时/产出;否则原三分支(有产出/working/如实无产出)。 */
 function buildSubordinateSection(entry: SubordinateQueryEntry, excerptShare: number): string {
   const name = entry.agentName || entry.agentId;
   const task = taskTextOf(entry);
+  // ⑧ 病历优先:完成/失败的委派回答「谁干的/花多久/产出在哪」(Spec §4.8 验收)
+  if (entry.completion) return buildCompletedSection(entry, name, task, excerptShare);
   if (hasSubstantiveOutput(entry.excerpt)) {
     return `【${name}】任务「${task}」\n产出:\n${clampText(entry.excerpt, excerptShare)}`;
   }

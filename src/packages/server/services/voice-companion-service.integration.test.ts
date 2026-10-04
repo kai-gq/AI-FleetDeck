@@ -31,7 +31,7 @@ import { closeEventDb, initEventDb } from '../data/event-db.js';
 import { querySystemLog } from '../data/system-log.js';
 // 任务07·④:委派史 fixture 走 bossService.init() 真实读取链路(沙箱内,不碰真实数据)
 import * as bossService from './boss-service.js';
-import type { DelegationDecision } from '../../shared/agent-types.js';
+import type { DelegationCompletion, DelegationDecision, DelegationUserRating } from '../../shared/agent-types.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -405,6 +405,10 @@ interface DecisionFixture {
   bossId?: string;
   /** ⑦ 任务卡(可选;旧记录无卡) */
   taskCard?: { objective: string };
+  /** ⑧ 病历完成事件(可选;旧记录无——任务11) */
+  completion?: DelegationCompletion;
+  /** ⑧ 病历用户评价(可选;任务11) */
+  userRating?: DelegationUserRating;
 }
 
 function delegationDecision(f: DecisionFixture): DelegationDecision {
@@ -418,10 +422,12 @@ function delegationDecision(f: DecisionFixture): DelegationDecision {
     reasoning: 'fixture',
     alternativeAgents: [],
     confidence: 'medium',
-    status: 'sent',
+    status: f.completion ? f.completion.result : 'sent',
     taskCard: f.taskCard
       ? { objective: f.taskCard.objective, acceptanceCriteria: [], dependencies: [], status: 'running' }
       : undefined,
+    ...(f.completion ? { completion: f.completion } : {}),
+    ...(f.userRating ? { userRating: f.userRating } : {}),
   };
 }
 
@@ -1603,6 +1609,55 @@ describe('任务07·④ 查进度走下属(委派树 query)', () => {
     expect(r.response).toContain('委派');
     const rows = queryChainRows();
     expect(rows[0]).toMatchObject({ phase: 'completed', route: 'boss-tree', hops: 2, subordinateCount: 5 });
+  });
+
+  it('G7-6 ⑧ 病历:已完成的委派输出执行者/耗时/产出/评价(任务11 编排层透传链)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push(
+      { id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'working' },
+      { id: 'a1', name: '小美', class: 'builder', status: 'idle' },
+    );
+    // 下属无 excerpt:病历行优先于产出三分支(恰好锁「完成行优先」,不因无产出退化成「正在做」)
+    mockHistoryByAgent.set('a1', []);
+    seedDelegationHistory({
+      b1: [
+        delegationDecision({
+          timestamp: 1_000, selectedAgentId: 'a1', selectedAgentName: '小美',
+          userCommand: '把登录页重构成 React 18',
+          completion: {
+            completedAt: 751_000,
+            durationMs: 750_000,
+            result: 'completed',
+            summary: '登录页重构完成，测试全绿',
+            outputLocation: '/reports/login.md',
+            reason: 'report-task',
+          },
+          userRating: 'satisfied',
+        }),
+      ],
+    });
+
+    const p = startProcess('团队那个任务到哪了');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'b1',
+      query: '团队那个任务到哪了',
+    }));
+
+    const call2 = await waitSpawn(2);
+    const hop2User = stdinUserContent(call2);
+    // ⑧ 病历行:执行者 + 耗时 + 产出 + 产出位置 + 评价(decision.completion/userRating → entry 透传)
+    expect(hop2User).toContain('【小美】任务「把登录页重构成 React 18」已完成（耗时 12.5 分钟）');
+    expect(hop2User).toContain('产出: 登录页重构完成，测试全绿');
+    expect(hop2User).toContain('产出位置: /reports/login.md');
+    expect(hop2User).toContain('评价: 满意');
+    expect(hop2User).not.toContain('正在做');
+
+    await completeWith(call2.child, '{"responseToUser":"小美的登录页重构已完成，产出在 reports/login.md。"}');
+    const r = await p;
+    expect(r.response).toContain('小美');
+    expect(r.targetAgent).toEqual({ id: 'b1', name: '大当家' });
   });
 });
 

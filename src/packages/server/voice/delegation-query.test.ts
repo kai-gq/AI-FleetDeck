@@ -17,12 +17,13 @@ import {
   buildDelegationQueryMaterial,
   buildNoDelegationResponse,
   buildQueryChainLogBody,
+  formatDelegationDuration,
   hasSubstantiveOutput,
   pickRecentDelegations,
   planQueryRoute,
   type SubordinateQueryEntry,
 } from './delegation-query.js';
-import type { DelegationDecision, TaskCard } from '../../shared/agent-types.js';
+import type { DelegationCompletion, DelegationDecision, TaskCard } from '../../shared/agent-types.js';
 // excerpt 护栏用例:mock agent-service(按 agentId 提供历史)后,复用 vcs 的真实取数护栏。
 import { fetchAgentOutputExcerpt } from '../services/voice-companion-service.js';
 
@@ -195,6 +196,110 @@ describe('buildDelegationQueryMaterial — 下属行拼接', () => {
     expect(material.length).toBeLessThanOrEqual(DELEGATION_MATERIAL_BUDGET);
     // 新→旧顺序即入参顺序,每段都保留(头部不下沉)
     for (let i = 0; i < entries.length; i++) expect(material).toContain(`下属${i}`);
+  });
+});
+
+// ============================================================================
+// ⑧ 病历完成行（任务11）：有 completion → 执行者/耗时/产出；无 → 原三分支不变
+// ============================================================================
+
+describe('buildDelegationQueryMaterial — ⑧ 病历完成行（任务11）', () => {
+  const completion = (overrides: Partial<DelegationCompletion> = {}): DelegationCompletion => ({
+    completedAt: 2_000_000,
+    durationMs: 750_000, // 12.5 分钟
+    result: 'completed',
+    ...overrides,
+  });
+
+  it('已完成：执行者/耗时/产出/产出位置/评价齐全；优先于 excerpt 三分支（working 也不说「正在做」）', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({
+        status: 'working',
+        excerpt: '', // 无产出也不得回退「正在做」分支
+        completion: completion({ summary: '登录页重构完成，测试全绿', outputLocation: '/reports/login.md' }),
+        userRating: 'satisfied',
+      })],
+    });
+    expect(material).toContain('【小美】任务「把登录页重构成 React 18」已完成（耗时 12.5 分钟）');
+    expect(material).toContain('产出: 登录页重构完成，测试全绿');
+    expect(material).toContain('产出位置: /reports/login.md');
+    expect(material).toContain('评价: 满意');
+    expect(material).not.toContain('正在做');
+  });
+
+  it('执行失败：明确说失败，不冒充已完成；不满意评价照常显示', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({
+        completion: completion({ result: 'failed', durationMs: 30_000, summary: '接口联调未通过' }),
+        userRating: 'unsatisfied',
+      })],
+    });
+    expect(material).toContain('执行失败（耗时 30 秒）');
+    expect(material).not.toContain('已完成');
+    expect(material).toContain('评价: 不满意');
+  });
+
+  it('病历无摘要（runtime 入口先到）：回退该下属最近产出为产出', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({
+        excerpt: '已经改完登录页并跑了测试',
+        completion: completion(),
+      })],
+    });
+    expect(material).toContain('已完成（耗时 12.5 分钟）');
+    expect(material).toContain('产出:\n已经改完登录页并跑了测试');
+  });
+
+  it('病历无摘要且无产出：只报完成态，不编造产出、不显示「正在做」', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({
+        status: 'working',
+        excerpt: '(最近没有助手输出)',
+        completion: completion(),
+      })],
+    });
+    expect(material).toContain('已完成（耗时 12.5 分钟）');
+    expect(material).not.toContain('产出:');
+    expect(material).not.toContain('产出位置');
+    expect(material).not.toContain('正在做');
+  });
+
+  it('无 completion 的旧记录：原三分支不变（负断言无完成话术）', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ status: 'idle', excerpt: '' })],
+    });
+    expect(material).not.toContain('已完成');
+    expect(material).not.toContain('耗时');
+    expect(material).toContain('暂无实质产出记录');
+  });
+
+  it('完成行摘要受份额截断，多下属总量不超预算', () => {
+    const entries = Array.from({ length: DELEGATION_QUERY_MAX }, (_, i) => entry({
+      agentId: `a${i}`,
+      agentName: `下属${i}`,
+      userCommand: `任务${i}`,
+      excerpt: '',
+      completion: completion({ summary: 'x'.repeat(2_000) }),
+    }));
+    const material = buildDelegationQueryMaterial({ bossName: '大当家', entries });
+    expect(material.length).toBeLessThanOrEqual(DELEGATION_MATERIAL_BUDGET);
+    for (let i = 0; i < entries.length; i++) expect(material).toContain(`下属${i}`);
+  });
+});
+
+describe('formatDelegationDuration — ⑧ 耗时展示口径', () => {
+  it('小于 1 分钟用秒；其余保留 1 位小数分钟；负值（时钟回拨）钳 0', () => {
+    expect(formatDelegationDuration(0)).toBe('0 秒');
+    expect(formatDelegationDuration(45_000)).toBe('45 秒');
+    expect(formatDelegationDuration(60_000)).toBe('1 分钟');
+    expect(formatDelegationDuration(750_000)).toBe('12.5 分钟');
+    // 注意用大负值：-5ms 会 Math.round 成 -0（模板串即 "0"），测不出钳位；-90_000 去钳位会得 '-90 秒'
+    expect(formatDelegationDuration(-90_000)).toBe('0 秒');
   });
 });
 

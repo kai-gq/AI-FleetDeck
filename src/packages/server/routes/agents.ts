@@ -2023,8 +2023,8 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
       } as any);
     }
 
-    // 2. ⑦ 完成入口：任务卡迁移到 done + 清理委派追踪（无追踪时 no-op）
-    completeDelegation(subordinateId, { success, reason: 'report-task' });
+    // 2. ⑦⑧ 完成入口：任务卡迁移到 done + 病历写回（⑧ summary 透传）+ 清理委派追踪（无追踪时 no-op）
+    completeDelegation(subordinateId, { success, reason: 'report-task', summary });
 
     // 3. Send a message to the boss so it knows the task finished and can decide next steps.
     // If the boss agent is no longer available, accept the report without failing.

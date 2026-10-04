@@ -649,7 +649,11 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         taskId: delegation.taskId,
       });
 
-      // ⑦ 任务卡完成入口：running → done（成功/失败都终结；结果进 🔴⑦ 埋点供 ⑧ 病历）
+      // ⑦⑧ 完成入口：running → done + 病历完成事件（成功/失败都终结；结果供 🔴⑦/🟡⑧ 埋点）。
+      // ⑧ 产出摘要来源限制（任务11 探明）：本作用域可得的最优值 = 无 —— complete 事件仅携带
+      //    agentId+success；Agent 快照无产出字段（currentTask 是任务名非结果），会话史摘要属异步
+      //    IO（fetchAgentOutputExcerpt）会改变同步完成链时序、超出调用点边界。summary 缺省，
+      //    产出摘要由 report-task 入口（req.body.summary）提供。
       completeDelegation(agentId, { success, reason: 'turn-complete' });
     }
 
