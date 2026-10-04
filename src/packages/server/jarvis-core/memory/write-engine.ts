@@ -13,8 +13,9 @@
  * 记忆（store 层强制拒收 inferred 进长期知识/成长日志）；promote 到长期知识
  * 时 store 同样拒收 inferred（InferredMemoryRejectedError）。
  *
- * 降级：写失败不阻断主链路（06-11 §11.4）——capture* 不抛异常，错误进
- * CaptureResult.errors 并走观测出口（reason='error'，⑭ 侧按 warn 落盘）。
+ * 降级：写失败不阻断主链路（06-11 §11.4）——capture* 与 sweep 均不抛异常，
+ * capture 错误进 CaptureResult.errors、sweep 返回零裁剪降级结果，两者都走
+ * 观测出口（reason='error'，⑭ 侧按 warn 落盘）。
  */
 
 import { jarvisLogger, type JarvisLogger } from '../executors.js';
@@ -27,6 +28,7 @@ import {
   type MemoryLifecycleStore,
   type MemoryObserver,
   type MemoryOpEvent,
+  type MemoryTotals,
   type SweepOptions,
   type SweepResult,
 } from './types.js';
@@ -77,6 +79,13 @@ export interface MemoryWriteEngineOptions {
 }
 
 export const DEFAULT_MAX_HITS_PER_CAPTURE = 10;
+
+/** 降级用零值统计（sweep 失败且 store.stats 也读不动时的兜底）。 */
+const EMPTY_TOTALS: MemoryTotals = {
+  active: 0,
+  marked: 0,
+  byLayer: { working: 0, 'long-term': 0, 'growth-log': 0, reflections: 0 },
+};
 
 // ============================================================================
 // 写入引擎
@@ -228,9 +237,38 @@ export class MemoryWriteEngine {
     return result;
   }
 
-  /** 过期/超容量裁剪（委托 store；返回 droppedCount 供 ⑭ 观测，接线尾/任务 28 调用）。 */
+  /**
+   * 过期/超容量裁剪（委托 store；返回 droppedCount 供 ⑭ 观测，接线尾/任务 28 调用）。
+   *
+   * 兜错（2026-10-04 验证后加固）：store.sweep 内部的 persist 会抛（磁盘满/权限/
+   * rename 失败），而调用点在语音契约回路内且未包 try/catch——一旦抛出会连带
+   * 整个回合失败。这里按「写失败不阻断主链路」捕获后返回**零裁剪降级结果**
+   * （不谎报 droppedCount），错误走 warn + 观测出口（op='sweep', reason='error'）。
+   * 标记是幂等的：本次未落盘的条目下次 sweep 会重新标记。
+   */
   async sweep(opts: SweepOptions = {}): Promise<SweepResult> {
-    return this.store.sweep(opts);
+    try {
+      return await this.store.sweep(opts);
+    } catch (error) {
+      const message = this.errorText(error);
+      this.logger.warn(`[MemoryWriteEngine] 记忆裁剪失败（降级，不阻断主链路）: ${message}`);
+      this.emit({
+        op: 'sweep',
+        applied: false,
+        reason: 'error',
+        at: opts.now ?? this.now(),
+        layer: 'working',
+        droppedCount: 0,
+        detail: { error: message },
+      });
+      return {
+        markedExpired: 0,
+        markedOverflow: 0,
+        droppedCount: 0,
+        markedIds: [],
+        totals: (await this.safeStats()) ?? EMPTY_TOTALS,
+      };
+    }
   }
 
   // --------------------------------------------------------------------------

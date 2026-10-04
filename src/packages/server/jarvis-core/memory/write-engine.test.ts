@@ -149,6 +149,16 @@ class FailingStore extends GatedStore {
   }
 }
 
+class FailingSweepStore extends GatedStore {
+  constructor(private readonly message: string) {
+    super();
+  }
+
+  override async sweep(): Promise<SweepResult> {
+    throw new Error(this.message);
+  }
+}
+
 // ============================================================================
 // 引擎行为
 // ============================================================================
@@ -239,13 +249,22 @@ describe('来源分层', () => {
   });
 });
 
-describe('降级：写失败不阻断回应', () => {
+describe('降级：写失败不阻断主链路', () => {
   it('store.add 抛错时 capture 正常 resolve，错误进 errors 且观测 reason=error', async () => {
     const engine = makeEngine(new FailingStore('disk full'));
     const result = await engine.captureUserTurn('记住我喜欢 pnpm', { sessionId: 's6' });
     expect(result.entries).toEqual([]);
     expect(result.errors).toEqual(['disk full']);
     expect(events.some((e) => e.op === 'capture' && e.applied === false && e.reason === 'error')).toBe(true);
+  });
+
+  it('store.sweep 抛错（persist 失败）时 engine.sweep 返回零裁剪降级结果，不阻断回环（2026-10-04 验证后加固）', async () => {
+    const engine = makeEngine(new FailingSweepStore('persist failed: EACCES'));
+    const result = await engine.sweep();
+    expect(result).toMatchObject({ markedExpired: 0, markedOverflow: 0, droppedCount: 0, markedIds: [] });
+    const event = events.find((e) => e.op === 'sweep');
+    expect(event).toMatchObject({ applied: false, reason: 'error', droppedCount: 0, layer: 'working' });
+    expect(String((event?.detail as { error?: string })?.error)).toContain('persist failed');
   });
 });
 
