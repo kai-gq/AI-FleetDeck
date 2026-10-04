@@ -14,6 +14,8 @@ import {
   setActiveWorkspace,
 } from '../services/workspace-service.js';
 import { createLogger } from '../utils/logger.js';
+// 任务19·A（⑭ P2·系统活动7）：workspace 切换配置变更埋点（helper 内部失败隔离）
+import { logConfig } from '../services/activity-log.js';
 
 const log = createLogger('WorkspaceRoutes');
 const router = Router();
@@ -47,6 +49,8 @@ router.put('/active', (req: Request, res: Response) => {
       return;
     }
     setActiveWorkspace(workspaceId ?? null);
+    // 任务19·A（⑭ P2·系统活动7）：配置变更埋点（active workspace 切换）
+    logConfig({ key: 'workspace', action: 'switch', value: workspaceId ?? null });
     res.json({ workspaceId: getActiveWorkspace() });
   } catch (err: any) {
     log.error(`Failed to set active workspace: ${err.message}`);

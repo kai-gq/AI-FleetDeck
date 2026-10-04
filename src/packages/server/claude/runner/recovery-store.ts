@@ -10,6 +10,8 @@ import {
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
 import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath, tmuxSessionName } from './tmux-helper.js';
+// 任务19·A（⑭ P2·系统活动6）：孤儿 tmux 会话清理埋点（helper 内部失败隔离）
+import { logProcess } from '../../services/activity-log.js';
 
 const log = createLogger('Runner');
 
@@ -147,6 +149,12 @@ export class RunnerRecoveryStore {
       }
       log.log(`🧹 [STARTUP] Killing orphan tmux session tc-${agentId} — agent no longer exists`);
       killTmuxSession(agentId);
+      logProcess({
+        phase: 'orphan-killed',
+        agentId,
+        tmuxSession: tmuxSessionName(agentId),
+        reason: 'agent-no-longer-exists',
+      });
       killed++;
     }
     if (killed > 0) {

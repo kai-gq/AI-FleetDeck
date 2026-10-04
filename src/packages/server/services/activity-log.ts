@@ -36,6 +36,11 @@ export const ACTIVITY_SOURCE = {
   memory: 'memory',
   security: 'security',
   resource: 'resource',
+  // 任务19·A（⑭ P2）：系统活动 5-8 —— 会话 / 进程 / 配置 / 技能
+  session: 'session',
+  process: 'process',
+  config: 'config',
+  skill: 'skill',
 } as const;
 
 // ─── 基础四类：对话 / 播报 / 委派 ───
@@ -442,4 +447,200 @@ export function estimateCostUsd(model: string | undefined, tokens?: ResourceToke
     ((tokens.cacheRead ?? 0) / 1e6) * price.cacheRead +
     ((tokens.cacheCreation ?? 0) / 1e6) * price.cacheCreation;
   return Math.round(cost * 1e6) / 1e6;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 系统活动 5-8（⑭ P2，任务19·A）
+//
+// 与 1-4 同形态：category='system' + source 常量承载子类 + body.cat 冗余可读。
+// 除 logEvent 自身的静默降级外，四个 helper 再包一层 try/catch —— 埋点调用点
+// （runner/restart-policy/recovery-store/routes/runtime-listeners）处于进程健康
+// 与配置主链路，任何 helper 缺陷都绝不允许倒灌主流程（失败隔离硬口径）。
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─── 系统活动 5：会话生命周期 ───
+
+export interface SessionLogFields {
+  /**
+   * created=会话创建；rotated=轮换（sessionMaxAgeDays/人设切换）；
+   * expired=超龄过期；resume-rejected=--resume 被拒；cleared=不可恢复会话被清（清会话重试）。
+   */
+  phase: 'created' | 'rotated' | 'expired' | 'resume-rejected' | 'cleared' | (string & {});
+  agentId?: string;
+  /** 被操作/新建的会话 id（cleared 时为被清掉的那个） */
+  sessionId?: string;
+  /** 轮换/清会话前的旧会话 id（时间线回溯用） */
+  previousSessionId?: string;
+  reason?: string;
+  /** 会话存活时长（过期/清会话时可得，epoch ms） */
+  ageMs?: number;
+  /** 清会话后的重试结果 */
+  retry?: 'succeeded' | 'failed';
+  error?: string;
+  level?: SystemLogLevel;
+}
+
+/** 系统活动 5 · 会话生命周期：sessionId 创建/轮换/过期、--resume 拒绝、清会话重试。 */
+export function logSession(f: SessionLogFields): number | undefined {
+  try {
+    return logEvent('system', {
+      source: ACTIVITY_SOURCE.session,
+      agentId: f.agentId,
+      sessionId: f.sessionId,
+      level: f.level ?? (f.phase === 'resume-rejected' || f.retry === 'failed' ? 'warn' : 'info'),
+      body: {
+        cat: 'session',
+        phase: f.phase,
+        previousSessionId: f.previousSessionId,
+        reason: f.reason,
+        ageMs: f.ageMs,
+        retry: f.retry,
+        error: f.error,
+      },
+    });
+  } catch {
+    return undefined; // 失败隔离：埋点绝不打断会话生命周期主流程
+  }
+}
+
+// ─── 系统活动 6：进程健康 ───
+
+export interface ProcessLogFields {
+  /**
+   * spawned=进程拉起；spawn-error=拉起失败；exited=进程退出；
+   * watchdog-missing=看门狗判定进程消失；restart=自动重启发起；
+   * restart-ok=重启成功；restart-failed=重启抛错；restart-exhausted=重启次数耗尽；
+   * orphan-killed=启动时清理孤儿 tmux 会话。
+   */
+  phase: 'spawned' | 'spawn-error' | 'exited' | 'watchdog-missing' | 'restart' | 'restart-ok' | 'restart-failed' | 'restart-exhausted' | 'orphan-killed' | (string & {});
+  agentId?: string;
+  sessionId?: string;
+  pid?: number;
+  exitCode?: number | null;
+  signal?: string | null;
+  runtimeMs?: number;
+  /** 自动重启尝试序号（第 N 次） */
+  attempt?: number;
+  maxAttempts?: number;
+  /** watchdog 判定时队列里待投递的消息数 */
+  queuedCount?: number;
+  turnState?: string;
+  tmuxSession?: string;
+  /** 本进程是否产出过 stdout（重启计数是否重置的判据） */
+  producedOutput?: boolean;
+  /** 处置动作：respawn / restart-policy / … */
+  action?: string;
+  wasTracked?: boolean;
+  reason?: string;
+  error?: string;
+  level?: SystemLogLevel;
+}
+
+/** 系统活动 6 · 进程健康：runner 重启、watchdog、crash 原因、孤儿清理。 */
+export function logProcess(f: ProcessLogFields): number | undefined {
+  try {
+    const defaultWarn =
+      f.phase === 'spawn-error' || f.phase === 'restart-failed' || f.phase === 'restart-exhausted';
+    return logEvent('system', {
+      source: ACTIVITY_SOURCE.process,
+      agentId: f.agentId,
+      sessionId: f.sessionId,
+      level: f.level ?? (defaultWarn ? 'warn' : 'info'),
+      body: {
+        cat: 'process',
+        phase: f.phase,
+        pid: f.pid,
+        exitCode: f.exitCode,
+        signal: f.signal,
+        runtimeMs: f.runtimeMs,
+        attempt: f.attempt,
+        maxAttempts: f.maxAttempts,
+        queuedCount: f.queuedCount,
+        turnState: f.turnState,
+        tmuxSession: f.tmuxSession,
+        producedOutput: f.producedOutput,
+        action: f.action,
+        wasTracked: f.wasTracked,
+        reason: f.reason,
+        error: f.error,
+      },
+    });
+  } catch {
+    return undefined; // 失败隔离：埋点绝不打断进程管理主流程
+  }
+}
+
+// ─── 系统活动 7：配置变更 ───
+
+export interface ConfigLogFields {
+  /** 配置项：'system-prompt' | 'tmux-mode' | 'pi-rpc-mode' | 'workspace' | … */
+  key: string;
+  /** set=设值；clear=清除；switch=切换 */
+  action: 'set' | 'clear' | 'switch' | (string & {});
+  /** 标量值（boolean/短字符串/null）；长文本用 valueLength 代替，不落全文 */
+  value?: unknown;
+  /** 长文本长度（如 system prompt 字符数） */
+  valueLength?: number;
+  reason?: string;
+  agentId?: string;
+  level?: SystemLogLevel;
+}
+
+/** 系统活动 7 · 配置变更：workspace 切换、prompt 修改、tmux/pi-rpc 开关（配合 ⑪ 回滚开关）。 */
+export function logConfig(f: ConfigLogFields): number | undefined {
+  try {
+    return logEvent('system', {
+      source: ACTIVITY_SOURCE.config,
+      agentId: f.agentId,
+      level: f.level,
+      body: {
+        cat: 'config',
+        key: f.key,
+        action: f.action,
+        value: f.value,
+        valueLength: f.valueLength,
+        reason: f.reason,
+      },
+    });
+  } catch {
+    return undefined; // 失败隔离：埋点绝不打断配置变更主流程
+  }
+}
+
+// ─── 系统活动 8：技能调用 ───
+
+export interface SkillLogFields {
+  /** invoked=发起调用；completed=返回；failed=返回且判定失败 */
+  phase: 'invoked' | 'completed' | 'failed' | (string & {});
+  /** skill 名（Skill 工具入参的 skill 字段） */
+  skill: string;
+  agentId?: string;
+  sessionId?: string;
+  /** 入参摘要（截断 300 字符，previewToolInput 产物） */
+  argsPreview?: string;
+  ok?: boolean;
+  error?: string;
+  level?: SystemLogLevel;
+}
+
+/** 系统活动 8 · 技能调用：agent 用了哪些 skill、成功/失败。 */
+export function logSkill(f: SkillLogFields): number | undefined {
+  try {
+    return logEvent('system', {
+      source: ACTIVITY_SOURCE.skill,
+      agentId: f.agentId,
+      sessionId: f.sessionId,
+      level: f.level ?? (f.phase === 'failed' || f.ok === false ? 'warn' : 'info'),
+      body: {
+        cat: 'skill',
+        phase: f.phase,
+        skill: f.skill,
+        argsPreview: f.argsPreview,
+        ok: f.ok,
+        error: f.error,
+      },
+    });
+  } catch {
+    return undefined; // 失败隔离：埋点绝不打断工具调用主流程
+  }
 }

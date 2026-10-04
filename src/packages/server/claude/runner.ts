@@ -26,6 +26,8 @@ import { RunnerWatchdog } from './runner/watchdog.js';
 import { RunnerRecoveryStore } from './runner/recovery-store.js';
 import { RunnerResourceMonitor } from './runner/resource-monitor.js';
 import { appendQueuedMessage, prependQueuedMessage } from '../../shared/message-queue.js';
+// 任务19·A（⑭ P2·系统活动6）：进程健康埋点（helper 内部失败隔离，永不上抛）
+import { logProcess } from '../services/activity-log.js';
 
 const log = createLogger('Runner');
 
@@ -177,6 +179,7 @@ export class ClaudeRunner {
 
     this.bus.on('runner.process_spawn_error', ({ agentId, error }) => {
       log.error(`❌ [SPAWN ERROR] Agent ${agentId}: Failed to spawn process: ${error.message}`);
+      logProcess({ phase: 'spawn-error', agentId, error: error.message });
       this.activeProcesses.delete(agentId);
       this.callbacks.onError(agentId, error.message);
     });
@@ -216,9 +219,28 @@ export class ClaudeRunner {
         && activeProcess.lastRequest
       ) {
         log.log(`🔁 [WATCHDOG] Agent ${agentId}: session died after turn complete with ${queuedCount} queued message(s), respawning to deliver`);
+        logProcess({
+          phase: 'watchdog-missing',
+          agentId,
+          sessionId: activeProcess.sessionId,
+          turnState: activeProcess.turnState,
+          queuedCount,
+          tmuxSession: activeProcess.tmuxSession,
+          action: 'respawn',
+        });
         this.respawnWithQueuedMessage(agentId, activeProcess);
         return;
       }
+      logProcess({
+        phase: 'watchdog-missing',
+        agentId,
+        sessionId: activeProcess.sessionId,
+        turnState: activeProcess.turnState,
+        queuedCount,
+        tmuxSession: activeProcess.tmuxSession,
+        action: 'restart-policy',
+        reason: wasMidTurn ? 'mid-turn-death' : 'turn-complete-no-queue',
+      });
       this.restartPolicy.maybeAutoRestart(agentId, activeProcess, null, null);
     });
 
@@ -260,6 +282,23 @@ export class ClaudeRunner {
 
       this.activeProcesses.delete(agentId);
       this.lastStderr.delete(agentId);
+
+      // 任务19·A·进程健康：退出事件（crash 原因/信号/运行时）。SIGINT/SIGTERM
+      // 是显式停止（用户中断/停请求），按 info 如实记；其余异常退出记 warn。
+      const abnormalExit =
+        (!!signal && signal !== 'SIGINT' && signal !== 'SIGTERM')
+        || (!signal && code !== 0);
+      logProcess({
+        phase: 'exited',
+        agentId,
+        sessionId: trackedProcess?.sessionId,
+        pid,
+        exitCode: code,
+        signal,
+        runtimeMs: runtime,
+        wasTracked,
+        level: abnormalExit ? 'warn' : 'info',
+      });
 
       if (signal) {
         if (signal === 'SIGINT') {

@@ -8,7 +8,7 @@ import { parseContextOutput } from '../../claude/backend.js';
 import type { OutputMetadata } from '../../claude/types.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
-import { logDelegation, logResourceUsage, logSecurity, previewToolInput } from '../../services/activity-log.js';
+import { logDelegation, logResourceUsage, logSecurity, logSkill, previewToolInput } from '../../services/activity-log.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
 import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
@@ -59,6 +59,10 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   });
 
   const pendingBashCommands = new Map<string, string>();
+  // 任务19·A（⑭ P2·系统活动8）：在途 Skill 调用的技能名（按 agent FIFO），
+  // 供 tool_result 侧配对记录完成/失败——StandardEvent 不带 is_error 标志，
+  // 配对是尽力而为（并行多次 Skill 调用时按到达顺序近似）。
+  const pendingSkillNames = new Map<string, string[]>();
   // Contents of the files a Bash command is about to write, captured BEFORE it
   // runs. Without this the "before" side came from `git show HEAD:…`, so an
   // edit in a scratch directory (no repo) diffed against nothing and the modal
@@ -246,6 +250,24 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         }
       }
 
+      // 任务19·A 埋点：系统活动 8 —— 技能调用（Skill 工具入参 skill/name 字段）
+      if (event.toolName === 'Skill' && !event.parentToolUseId) {
+        const skillInput = (event.toolInput as Record<string, unknown> | undefined) ?? {};
+        const skillRaw = skillInput.skill ?? skillInput.name;
+        const skill =
+          typeof skillRaw === 'string' && skillRaw.trim() ? skillRaw.trim() : 'unknown';
+        const queue = pendingSkillNames.get(agentId) ?? [];
+        queue.push(skill);
+        pendingSkillNames.set(agentId, queue);
+        logSkill({
+          phase: 'invoked',
+          skill,
+          agentId,
+          sessionId: agentService.getAgent(agentId)?.sessionId,
+          argsPreview: previewToolInput(skillInput.args ?? skillInput),
+        });
+      }
+
       if (event.toolName === 'TodoWrite' && !event.parentToolUseId) {
         const existing = agentService.getAgent(agentId)?.latestTodos || [];
         const todos = parseTodoWriteInput(event.toolInput, existing);
@@ -425,6 +447,20 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           },
         } as ServerMessage);
       }
+    } else if (event.type === 'tool_result' && event.toolName === 'Skill' && !event.parentToolUseId) {
+      // 任务19·A 埋点：系统活动 8 —— 技能返回。StandardEvent 不带 is_error，
+      // 失败判定用保守前缀启发式（宁漏不错标：仅明显错误前缀才记 failed）。
+      const queue = pendingSkillNames.get(agentId);
+      const skill = queue?.shift() ?? 'unknown';
+      if (queue && queue.length === 0) pendingSkillNames.delete(agentId);
+      const looksFailed = /^\s*(error\b|failed\b|失败)/i.test(event.toolOutput ?? '');
+      logSkill({
+        phase: looksFailed ? 'failed' : 'completed',
+        skill,
+        agentId,
+        sessionId: agentService.getAgent(agentId)?.sessionId,
+        ok: !looksFailed,
+      });
     }
 
     if (event.type === 'step_complete') {

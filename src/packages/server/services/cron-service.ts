@@ -458,3 +458,44 @@ export function stopNightlyReflectionJob(): void {
 
 // 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
 startNightlyReflectionJob();
+
+// ─── 任务19·A·⑮ P2：每日日志分析日报（07:00）注册点 ───
+
+/** 日报生成时段（本文件 = 服务端调度总入口；07:00 前置于 08:00 晨报聚合，可配）。 */
+export const DAILY_LOG_REPORT_CRON = '0 7 * * *';
+
+let dailyLogReportJob: CronJob | null = null;
+
+/**
+ * 任务19·A·⑮ P2 日报注册点（注册仅此一处）。07:00 生成昨日日志分析报告落盘，
+ * 08:00 的 ⑨ 晨报（任务12）经 readLatestDailyReport 只读聚合。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （daily-log-report-service → log-analysis/data，均不 import 本文件）。
+ * 开关 TC_JARVIS_DAILY_REPORT 在服务入口读（缺省开）。幂等：重复调用返回同一任务句柄。
+ */
+export function startDailyLogReportJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (dailyLogReportJob) return dailyLogReportJob;
+  dailyLogReportJob = schedule(
+    opts.expression ?? DAILY_LOG_REPORT_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./daily-log-report-service.js')
+        .then((m) => m.runDailyLogReportScan())
+        .catch((err) => log.warn('每日日志分析日报失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  dailyLogReportJob.timer?.unref();
+  return dailyLogReportJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopDailyLogReportJob(): void {
+  if (!dailyLogReportJob) return;
+  stop(dailyLogReportJob);
+  dailyLogReportJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startDailyLogReportJob();

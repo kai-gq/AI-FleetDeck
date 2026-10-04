@@ -42,6 +42,8 @@ import { loadDelegationHistory } from '../data/index.js';
 import { logEvent } from '../data/system-log.js';
 import { truncateOrEmpty } from '../utils/index.js';
 import { logProactiveBroadcast } from './voice-companion-service.js';
+// 任务19·A·⑮ P2：日报进 ⑨ 晨报聚合的只读数据源（缺文件静默跳过；只读，不写日报账）
+import { readLatestDailyReport, type DailyReportDigest } from './daily-log-report-service.js';
 
 // ─── 常量 ───
 
@@ -52,6 +54,8 @@ export const MORNING_REPORT_LOG_SOURCE = 'boss-morning-report';
 /** 目标/摘要/产出位置单字段展示上限（§7.2 播报从简；截断加省略号，不硬造内容）。 */
 const GOAL_MAX = 60;
 const DETAIL_MAX = 80;
+/** 日报聚合从句的摘要上限（日报摘要自身已 ≤200，此处再收口进晨报三句预算）。 */
+const DAILY_DIGEST_MAX = 160;
 /** 无项目归属的分段标签。 */
 const NO_PROJECT_LABEL = '未归项目';
 
@@ -109,7 +113,11 @@ function renderItem(record: DelegationDecision, completion: DelegationCompletion
  * 急迫性低，不必抢占紧急高分位；用 timeSensitive 表达「晨间定点」时效，过闸门④
  * 以 'time_sensitive' 走 SPEAK，但仍受闸门②③（深夜/打扰/预算/口播子配额）约束。
  */
-export function buildMorningReportSignal(records: readonly DelegationDecision[], now: Date): RawSignal | null {
+export function buildMorningReportSignal(
+  records: readonly DelegationDecision[],
+  now: Date,
+  dailyReport?: DailyReportDigest | null,
+): RawSignal | null {
   const todayStart = dayStartMillis(now);
   const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
 
@@ -119,7 +127,14 @@ export function buildMorningReportSignal(records: readonly DelegationDecision[],
         !!r.completion && r.completion.completedAt >= yesterdayStart && r.completion.completedAt < todayStart,
     )
     .sort((a, b) => a.completion.completedAt - b.completion.completedAt);
-  if (yesterday.length === 0) return null;
+
+  // 任务19·A·⑮ P2：日报聚合从句（只读 digest；无日报/摘要为空则完全保持原文本形态）。
+  const digest = dailyReport && dailyReport.summary.trim() ? dailyReport : null;
+  const digestClause = digest
+    ? `日志分析：${truncateOrEmpty(digest.summary.trim(), DAILY_DIGEST_MAX)}。`
+    : '';
+  // 昨日无产出且无日报 → null（原口径）；日报在时即使无产出也成信号（日报即当日要点）。
+  if (yesterday.length === 0 && !digestClause) return null;
 
   interface Segment {
     label: string;
@@ -139,7 +154,10 @@ export function buildMorningReportSignal(records: readonly DelegationDecision[],
   }
 
   const ordered = [...segments.values()];
-  const text = `昨日要点：${ordered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`;
+  const yesterdayClause = yesterday.length > 0
+    ? `昨日要点：${ordered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`
+    : '';
+  const text = `${yesterdayClause}${digestClause}`;
 
   return {
     source: 'memory',
@@ -153,6 +171,15 @@ export function buildMorningReportSignal(records: readonly DelegationDecision[],
       completed: yesterday.filter((r) => r.completion.result === 'completed').length,
       failed: yesterday.filter((r) => r.completion.result === 'failed').length,
       projects: ordered.map((s) => s.projectId),
+      ...(digest
+        ? {
+            dailyReport: {
+              file: digest.file,
+              dateLabel: digest.dateLabel,
+              generatedAt: digest.generatedAt,
+            },
+          }
+        : {}),
     },
     urgency: 65,
     relevance: 85,
@@ -217,6 +244,8 @@ interface MorningReportLogFields {
   dedupeKey?: string;
   tier?: BroadcastTier;
   reason?: BroadcastReason | 'disabled' | 'no-yesterday';
+  /** 任务19·A·⑮ P2：本条晨报是否聚合了日报（generate）。 */
+  dailyReport?: boolean;
   error?: string;
 }
 
@@ -236,6 +265,7 @@ function logMorningReport(fields: MorningReportLogFields): void {
       dedupeKey: fields.dedupeKey,
       tier: fields.tier,
       reason: fields.reason,
+      dailyReport: fields.dailyReport,
       error: fields.error,
     },
   });
@@ -298,6 +328,8 @@ export interface BossMorningReportScanDeps {
   ports?: DeliveryPorts;
   /** 投递覆盖（测试用：观察 ConsumedSignal，不真投递）。 */
   deliver?: (consumed: ConsumedSignal) => void | Promise<void>;
+  /** 日报摘要读取覆盖（测试用）；缺省 readLatestDailyReport（缺文件返回 null）。 */
+  readDailyReport?: () => DailyReportDigest | null;
 }
 
 export interface BossMorningReportScanResult {
@@ -314,6 +346,8 @@ export interface BossMorningReportScanResult {
   degraded: boolean;
   /** 命中 TC_JARVIS_MORNING_REPORT 关闭开关 → 未扫描未投递。 */
   disabled?: boolean;
+  /** 任务19·A·⑮ P2：本次晨报信号是否聚合了每日日志分析日报。 */
+  dailyReportIncluded: boolean;
 }
 
 /**
@@ -323,7 +357,7 @@ export async function runBossMorningReportScan(
   deps: BossMorningReportScanDeps = {},
 ): Promise<BossMorningReportScanResult> {
   const now = (deps.now ?? (() => new Date()))();
-  const empty = { bosses: 0, scanned: 0, yesterday: 0, segments: 0, decisions: [], degraded: false };
+  const empty = { bosses: 0, scanned: 0, yesterday: 0, segments: 0, decisions: [], degraded: false, dailyReportIncluded: false };
 
   // 关闭开关在扫描入口读：关 = 不读盘、不投递（06-11 §6.4）。
   if (!isMorningReportEnabled()) {
@@ -340,14 +374,24 @@ export async function runBossMorningReportScan(
     return { ...empty, degraded: true };
   }
 
+  // 任务19·A·⑮ P2：日报聚合只读源 —— 读最新一期日报摘要（缺文件/读取异常静默跳过，
+  // 绝不因日报缺失打断晨报；日报账与委派账两本账不混）。
+  let dailyReport: DailyReportDigest | null = null;
+  try {
+    dailyReport = (deps.readDailyReport ?? readLatestDailyReport)();
+  } catch {
+    dailyReport = null;
+  }
+
   const records = [...histories.values()].flat();
-  const signal = buildMorningReportSignal(records, now);
+  const signal = buildMorningReportSignal(records, now, dailyReport);
   if (!signal) {
     logMorningReport({ op: 'scan', ok: true, count: records.length, reason: 'no-yesterday' });
     return { ...empty, bosses: histories.size, scanned: records.length };
   }
 
   const payload = payloadOf(signal);
+  const dailyReportIncluded = !!((signal.payload ?? {}) as { dailyReport?: unknown }).dailyReport;
   logMorningReport({ op: 'scan', ok: true, count: records.length, yesterday: payload.count });
   logMorningReport({
     op: 'generate',
@@ -356,6 +400,7 @@ export async function runBossMorningReportScan(
     yesterday: payload.count,
     segments: payload.segments,
     dedupeKey: signal.dedupeKey,
+    dailyReport: dailyReportIncluded,
   });
 
   const decisions: { tier: BroadcastTier; reason: BroadcastReason }[] = [];
@@ -391,6 +436,7 @@ export async function runBossMorningReportScan(
       segments: payload.segments ?? 0,
       decisions,
       degraded: true,
+      dailyReportIncluded,
     };
   }
 
@@ -401,5 +447,6 @@ export async function runBossMorningReportScan(
     segments: payload.segments ?? 0,
     decisions,
     degraded: false,
+    dailyReportIncluded,
   };
 }

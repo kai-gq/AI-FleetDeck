@@ -6,21 +6,32 @@
  * 费用估算价格表。数据目录由 test-setup.ts 重定向到临时目录，不触碰真实 events.db。
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+// 探针包装真实 logEvent（默认委托真实实现，既有用例零影响）：
+// 任务19·A 用它注入一次性抛错，验证四个新 helper 的失败隔离。
+vi.mock('../data/system-log.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/system-log.js')>();
+  return { ...actual, logEvent: vi.fn(actual.logEvent) };
+});
 
 import { closeEventDb, initEventDb } from '../data/event-db.js';
-import { countSystemLog, querySystemLog, resetSystemLogStateForTests } from '../data/system-log.js';
+import { countSystemLog, logEvent, querySystemLog, resetSystemLogStateForTests } from '../data/system-log.js';
 import { ensureTaskId, runWithTrace } from '../utils/trace-context.js';
 import {
   ACTIVITY_SOURCE,
   ESTIMATED_PRICE_PER_MTOKENS,
   estimateCostUsd,
   logBroadcast,
+  logConfig,
   logDelegation,
   logDialogMessage,
   logMemoryOps,
+  logProcess,
   logResourceUsage,
   logSecurity,
+  logSession,
+  logSkill,
   logVoiceAsr,
   logVoiceTts,
   previewToolInput,
@@ -256,5 +267,131 @@ describe('previewToolInput', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(previewToolInput(circular)).toBeUndefined();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 任务19·A（⑭ P2）：系统活动 5-8（session / process / config / skill）
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('系统活动 5：会话生命周期（任务19·A）', () => {
+  it('created/rotated/resume-rejected/cleared 落 source=session；拒绝/清除默认 warn', () => {
+    resetSystemLogStateForTests();
+    logSession({ phase: 'created', agentId: 'ag-sess-log', sessionId: 's-sess-1' });
+    logSession({
+      phase: 'rotated', agentId: 'ag-sess-log', sessionId: 's-sess-2',
+      previousSessionId: 's-sess-1', reason: 'session-max-age',
+    });
+    logSession({
+      phase: 'resume-rejected', agentId: 'ag-sess-log', sessionId: 's-sess-2', error: 'resume_failed',
+    });
+    logSession({
+      phase: 'cleared', agentId: 'ag-sess-log', sessionId: 's-sess-2',
+      reason: 'unresumable-after-restarts', retry: 'failed',
+    });
+
+    const rows = querySystemLog({ agentId: 'ag-sess-log', order: 'asc' });
+    expect(rows).toHaveLength(4);
+    expect(rows.every((r) => r.category === 'system' && r.source === ACTIVITY_SOURCE.session)).toBe(true);
+    expect(rows.map((r) => r.level)).toEqual(['info', 'info', 'warn', 'warn']);
+    expect(bodyOf(rows[0])).toMatchObject({ cat: 'session', phase: 'created' });
+    expect(bodyOf(rows[1])).toMatchObject({ phase: 'rotated', previousSessionId: 's-sess-1', reason: 'session-max-age' });
+    expect(bodyOf(rows[2])).toMatchObject({ phase: 'resume-rejected', error: 'resume_failed' });
+    expect(bodyOf(rows[3])).toMatchObject({ phase: 'cleared', reason: 'unresumable-after-restarts', retry: 'failed' });
+  });
+});
+
+describe('系统活动 6：进程健康（任务19·A）', () => {
+  it('spawn-error/restart-failed/restart-exhausted 默认 warn；watchdog/exited/orphan 落详情', () => {
+    resetSystemLogStateForTests();
+    logProcess({ phase: 'spawn-error', agentId: 'ag-proc-log', error: 'ENOENT' });
+    logProcess({
+      phase: 'watchdog-missing', agentId: 'ag-proc-log', sessionId: 's-p1',
+      turnState: 'processing', queuedCount: 2, tmuxSession: 'tc-ag-proc-log', action: 'respawn',
+    });
+    logProcess({ phase: 'restart', agentId: 'ag-proc-log', attempt: 1, maxAttempts: 3 });
+    logProcess({ phase: 'restart-ok', agentId: 'ag-proc-log', attempt: 1, maxAttempts: 3 });
+    logProcess({ phase: 'restart-failed', agentId: 'ag-proc-log', attempt: 1, error: 'spawn fail' });
+    logProcess({
+      phase: 'restart-exhausted', agentId: 'ag-proc-log',
+      attempt: 3, maxAttempts: 3, producedOutput: false, action: 'give-up',
+    });
+    logProcess({
+      phase: 'exited', agentId: 'ag-proc-log', pid: 4321, exitCode: 1,
+      signal: null, runtimeMs: 800, wasTracked: true, level: 'warn',
+    });
+    logProcess({
+      phase: 'orphan-killed', agentId: 'ag-proc-log',
+      tmuxSession: 'tc-ag-proc-log', reason: 'agent-no-longer-exists',
+    });
+
+    const rows = querySystemLog({ agentId: 'ag-proc-log', order: 'asc' });
+    expect(rows).toHaveLength(8);
+    expect(rows.every((r) => r.category === 'system' && r.source === ACTIVITY_SOURCE.process)).toBe(true);
+    expect(rows.map((r) => r.level)).toEqual(['warn', 'info', 'info', 'info', 'warn', 'warn', 'warn', 'info']);
+    expect(bodyOf(rows[0])).toMatchObject({ cat: 'process', phase: 'spawn-error', error: 'ENOENT' });
+    expect(bodyOf(rows[1])).toMatchObject({
+      phase: 'watchdog-missing', turnState: 'processing', queuedCount: 2, action: 'respawn', tmuxSession: 'tc-ag-proc-log',
+    });
+    expect(bodyOf(rows[6])).toMatchObject({ phase: 'exited', pid: 4321, exitCode: 1, runtimeMs: 800, wasTracked: true });
+    expect(bodyOf(rows[7])).toMatchObject({ phase: 'orphan-killed', reason: 'agent-no-longer-exists' });
+  });
+});
+
+describe('系统活动 7：配置变更（任务19·A）', () => {
+  it('set/clear/switch 落 key/action/value/valueLength；prompt 只记长度不落全文', () => {
+    resetSystemLogStateForTests();
+    logConfig({ key: 'system-prompt', action: 'set', valueLength: 4200, agentId: 'ag-cfg-log' });
+    logConfig({ key: 'system-prompt', action: 'clear', agentId: 'ag-cfg-log' });
+    logConfig({ key: 'tmux-mode', action: 'set', value: true, agentId: 'ag-cfg-log' });
+    logConfig({ key: 'pi-rpc-mode', action: 'set', value: false, agentId: 'ag-cfg-log' });
+    logConfig({ key: 'workspace', action: 'switch', value: null, agentId: 'ag-cfg-log' });
+
+    const rows = querySystemLog({ agentId: 'ag-cfg-log', order: 'asc' });
+    expect(rows).toHaveLength(5);
+    expect(rows.every((r) => r.category === 'system' && r.source === ACTIVITY_SOURCE.config)).toBe(true);
+    expect(bodyOf(rows[0])).toMatchObject({ cat: 'config', key: 'system-prompt', action: 'set', valueLength: 4200 });
+    expect(bodyOf(rows[0]).value).toBeUndefined(); // prompt 全文不落
+    expect(bodyOf(rows[1])).toMatchObject({ key: 'system-prompt', action: 'clear' });
+    expect(bodyOf(rows[2])).toMatchObject({ key: 'tmux-mode', action: 'set', value: true });
+    expect(bodyOf(rows[3])).toMatchObject({ key: 'pi-rpc-mode', action: 'set', value: false });
+    expect(bodyOf(rows[4])).toMatchObject({ key: 'workspace', action: 'switch', value: null });
+  });
+});
+
+describe('系统活动 8：技能调用（任务19·A）', () => {
+  it('invoked/completed 默认 info；failed（或 ok=false）默认 warn', () => {
+    resetSystemLogStateForTests();
+    logSkill({ phase: 'invoked', skill: 'video-extract', agentId: 'ag-skill-log', argsPreview: '{"url":"x"}' });
+    logSkill({ phase: 'completed', skill: 'video-extract', agentId: 'ag-skill-log', ok: true });
+    logSkill({ phase: 'failed', skill: 'video-extract', agentId: 'ag-skill-log', ok: false, error: 'timeout' });
+
+    const rows = querySystemLog({ agentId: 'ag-skill-log', order: 'asc' });
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.category === 'system' && r.source === ACTIVITY_SOURCE.skill)).toBe(true);
+    expect(rows.map((r) => r.level)).toEqual(['info', 'info', 'warn']);
+    expect(bodyOf(rows[0])).toMatchObject({ cat: 'skill', phase: 'invoked', skill: 'video-extract', argsPreview: '{"url":"x"}' });
+    expect(bodyOf(rows[1])).toMatchObject({ phase: 'completed', ok: true });
+    expect(bodyOf(rows[2])).toMatchObject({ phase: 'failed', ok: false, error: 'timeout' });
+  });
+});
+
+describe('失败隔离（任务19·A 铁律：埋点绝不倒灌主流程）', () => {
+  it('logEvent 抛错时，logSession/logProcess/logConfig/logSkill 均不上抛且返回 undefined', () => {
+    const mocked = vi.mocked(logEvent);
+    mocked.mockClear();
+    const calls: Array<() => unknown> = [
+      () => logSession({ phase: 'created', agentId: 'ag-iso', sessionId: 's-iso' }),
+      () => logProcess({ phase: 'exited', agentId: 'ag-iso', exitCode: 0 }),
+      () => logConfig({ key: 'workspace', action: 'switch', value: 'w-1' }),
+      () => logSkill({ phase: 'invoked', skill: 'x', agentId: 'ag-iso' }),
+    ];
+    for (const call of calls) {
+      let result: unknown;
+      mocked.mockImplementationOnce(() => { throw new Error('sink down'); });
+      expect(() => { result = call(); }).not.toThrow();
+      expect(result).toBeUndefined();
+    }
+    expect(mocked).toHaveBeenCalledTimes(4);
   });
 });

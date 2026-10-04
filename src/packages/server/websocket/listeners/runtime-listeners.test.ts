@@ -28,6 +28,7 @@ vi.mock('../../services/activity-log.js', () => ({
   logDelegation: vi.fn(),
   logResourceUsage: vi.fn(),
   logSecurity: vi.fn(),
+  logSkill: vi.fn(),
   previewToolInput: vi.fn(() => ''),
 }));
 
@@ -88,12 +89,20 @@ import { setupRuntimeListeners } from './runtime-listeners.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
 import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
+import { logSkill } from '../../services/activity-log.js';
 
 /** 取 setupRuntimeListeners 注册到 runtimeService 的 'complete' 回调。 */
 function completeListener(): (agentId: string, success: boolean) => void {
   const call = vi.mocked(runtimeService.on).mock.calls.find(([event]) => event === 'complete');
   expect(call, 'runtimeService.on("complete") 应已注册').toBeTruthy();
   return call![1] as (agentId: string, success: boolean) => void;
+}
+
+/** 取 setupRuntimeListeners 注册到 runtimeService 的 'event' 回调。 */
+function eventListener(): (agentId: string, event: any) => void {
+  const call = vi.mocked(runtimeService.on).mock.calls.find(([event]) => event === 'event');
+  expect(call, 'runtimeService.on("event") 应已注册').toBeTruthy();
+  return call![1] as (agentId: string, event: any) => void;
 }
 
 describe('runtime complete 入口：委派终结 + 回执订阅播报接线', () => {
@@ -161,5 +170,54 @@ describe('runtime complete 入口：委派终结 + 回执订阅播报接线', ()
 
     expect(completeDelegation).not.toHaveBeenCalled();
     expect(notifyTaskCompletion).not.toHaveBeenCalled();
+  });
+});
+
+describe('任务19·A 埋点：Skill 技能调用（系统活动 8）', () => {
+  const broadcast = vi.fn();
+  const sendActivity = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupRuntimeListeners({ broadcast, sendActivity });
+  });
+
+  it('Skill tool_start → logSkill(invoked, 技能名/入参摘要)；tool_result 配对记 completed', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'ag-skill', sessionId: 'sess-skill' } as any);
+    const onEvent = eventListener();
+
+    onEvent('ag-skill', {
+      type: 'tool_start',
+      toolName: 'Skill',
+      toolUseId: 'tu-skill-1',
+      toolInput: { skill: 'video-extract', args: { url: 'https://x' } },
+    });
+    expect(logSkill).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'invoked',
+      skill: 'video-extract',
+      agentId: 'ag-skill',
+      sessionId: 'sess-skill',
+    }));
+
+    onEvent('ag-skill', { type: 'tool_result', toolName: 'Skill', toolUseId: 'tu-skill-1', toolOutput: 'ok' });
+    expect(logSkill).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'completed', skill: 'video-extract', agentId: 'ag-skill', ok: true,
+    }));
+    expect(logSkill).toHaveBeenCalledTimes(2);
+  });
+
+  it('结果带错误前缀 → best-effort 记 failed；name 字段兼容；子代理 Skill 事件不记', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'ag-skill', sessionId: 'sess-skill' } as any);
+    const onEvent = eventListener();
+
+    onEvent('ag-skill', { type: 'tool_start', toolName: 'Skill', toolInput: { name: 'bad-skill' } });
+    onEvent('ag-skill', { type: 'tool_result', toolName: 'Skill', toolOutput: 'Error: skill not found' });
+    expect(logSkill).toHaveBeenCalledWith(expect.objectContaining({ phase: 'failed', skill: 'bad-skill', ok: false }));
+
+    const before = vi.mocked(logSkill).mock.calls.length;
+    onEvent('ag-skill', {
+      type: 'tool_start', toolName: 'Skill', parentToolUseId: 'tu-parent', toolInput: { skill: 'sub-skill' },
+    });
+    expect(vi.mocked(logSkill).mock.calls.length).toBe(before);
   });
 });

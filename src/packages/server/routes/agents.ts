@@ -20,7 +20,7 @@ import { getTaskId, newTaskId } from '../utils/trace-context.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { completeDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
 import { notifyTaskCompletion } from '../websocket/handlers/task-receipt-notifier.js';
-import { logDelegation } from '../services/activity-log.js';
+import { logDelegation, logConfig } from '../services/activity-log.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getPiModelCatalog, getPiModelCatalogFetchedAt } from '../pi/model-catalog.js';
 import {
@@ -2109,6 +2109,8 @@ router.post('/system-settings/prompt', (req: Request, res: Response) => {
     }
 
     setSystemPrompt(prompt);
+    // 任务19·A（⑭ P2·系统活动7）：配置变更埋点（prompt 不落全文，只记长度）
+    logConfig({ key: 'system-prompt', action: 'set', valueLength: prompt.length });
 
     // The global system prompt is part of the injected instruction block. Claude
     // re-applies it on every resume, but the stdin backends (OpenCode/Codex) skip
@@ -2132,6 +2134,8 @@ router.post('/system-settings/prompt', (req: Request, res: Response) => {
 router.delete('/system-settings/prompt', (_req: Request, res: Response) => {
   try {
     clearSystemPrompt();
+    // 任务19·A（⑭ P2·系统活动7）：配置变更埋点
+    logConfig({ key: 'system-prompt', action: 'clear' });
 
     // Same as the update path: flag every agent so the stdin backends drop the
     // now-removed system prompt from their next resumed turn.
@@ -2225,6 +2229,8 @@ router.post('/system-settings/tmux-mode', (req: Request, res: Response) => {
       return;
     }
     setTmuxModeEnabled(enabled);
+    // 任务19·A（⑭ P2·系统活动7）：配置变更埋点（tmux 开关，配合 ⑪ 回滚开关）
+    logConfig({ key: 'tmux-mode', action: 'set', value: enabled });
     log.log(` Tmux mode setting updated: enabled=${enabled}`);
     res.json({ success: true, enabled });
   } catch (err: any) {
@@ -2337,6 +2343,8 @@ router.post('/system-settings/pi-rpc-mode', (req: Request, res: Response) => {
       return;
     }
     setPiRpcModeEnabled(enabled);
+    // 任务19·A（⑭ P2·系统活动7）：配置变更埋点（pi-rpc 开关，配合 ⑪ 回滚开关）
+    logConfig({ key: 'pi-rpc-mode', action: 'set', value: enabled });
     log.log(` Pi RPC mode setting updated: enabled=${enabled}`);
     res.json({ success: true, enabled });
   } catch (err: any) {

@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import type { ActiveProcess, RunnerCallbacks, RunnerRequest } from '../types.js';
 import { createLogger } from '../../utils/logger.js';
 import * as agentService from '../../services/agent-service.js';
+// 任务19·A（⑭ P2·系统活动5/6）：重启与「不可恢复会话被清」埋点（helper 内部失败隔离）
+import { logProcess, logSession } from '../../services/activity-log.js';
 
 const log = createLogger('Runner');
 
@@ -117,6 +119,15 @@ export class RunnerRestartPolicy {
 
     if (effectiveRestartCount >= MAX_RESTART_ATTEMPTS) {
       log.error(`🔄 [AUTO-RESTART] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached for ${agentId}`);
+      logProcess({
+        phase: 'restart-exhausted',
+        agentId,
+        sessionId: activeProcess.sessionId,
+        attempt: effectiveRestartCount,
+        maxAttempts: MAX_RESTART_ATTEMPTS,
+        producedOutput,
+        action: 'give-up',
+      });
 
       if (!producedOutput && activeProcess.sessionId) {
         // Every attempt replayed the same session and the CLI never wrote a
@@ -128,6 +139,7 @@ export class RunnerRestartPolicy {
         // context. Drop the id here so the next message starts a fresh session.
         // Deliberately narrow: only when stdout was completely empty.
         log.error(`🔄 [AUTO-RESTART] Session ${activeProcess.sessionId} is unresumable for ${agentId} — clearing it so the next message starts fresh`);
+        const clearedSessionId = activeProcess.sessionId;
         if (activeProcess.lastRequest) activeProcess.lastRequest.sessionId = undefined;
         activeProcess.sessionId = undefined;
         try {
@@ -135,6 +147,14 @@ export class RunnerRestartPolicy {
         } catch (err) {
           log.error(`🔄 [AUTO-RESTART] Failed to clear session for ${agentId}:`, err);
         }
+        // 任务19·A·会话生命周期：不可恢复会话被清。重试结果由下一条消息的
+        // session 事件（created）自然观测，此处不预设 retry 结论。
+        logSession({
+          phase: 'cleared',
+          agentId,
+          sessionId: clearedSessionId,
+          reason: 'unresumable-after-restarts',
+        });
       }
 
       this.callbacks.onError(
@@ -148,6 +168,14 @@ export class RunnerRestartPolicy {
     }
 
     log.log(`🔄 [AUTO-RESTART] Restarting ${agentId} (attempt ${effectiveRestartCount + 1}/${MAX_RESTART_ATTEMPTS})...`);
+    logProcess({
+      phase: 'restart',
+      agentId,
+      sessionId: activeProcess.sessionId,
+      attempt: effectiveRestartCount + 1,
+      maxAttempts: MAX_RESTART_ATTEMPTS,
+      producedOutput,
+    });
 
     setTimeout(async () => {
       try {
@@ -161,9 +189,22 @@ export class RunnerRestartPolicy {
         }
 
         log.log(`🔄 [AUTO-RESTART] Successfully restarted ${agentId}`);
+        logProcess({
+          phase: 'restart-ok',
+          agentId,
+          attempt: effectiveRestartCount + 1,
+          maxAttempts: MAX_RESTART_ATTEMPTS,
+        });
         this.callbacks.onOutput(agentId, '[System] Process was automatically restarted after crash');
       } catch (err) {
         log.error(`🔄 [AUTO-RESTART] Failed to restart ${agentId}:`, err);
+        logProcess({
+          phase: 'restart-failed',
+          agentId,
+          attempt: effectiveRestartCount + 1,
+          maxAttempts: MAX_RESTART_ATTEMPTS,
+          error: err instanceof Error ? err.message : String(err),
+        });
         this.callbacks.onError(agentId, `Auto-restart failed: ${err}`);
       }
     }, 1000);

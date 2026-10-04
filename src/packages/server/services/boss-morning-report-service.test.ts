@@ -454,3 +454,99 @@ describe('startBossMorningReportJob', () => {
     expect(cronService.BOLBA_DUE_SCAN_CRON).toBe('0 8 * * *');
   });
 });
+
+// ============================================================================
+// 任务19·A·⑮ P2：日报进晨报聚合（只读数据源）
+// ============================================================================
+
+const DIGEST = {
+  file: '/data/reports/daily/daily-log-report-2026-10-04.json',
+  dateLabel: '2026-10-04',
+  generatedAt: YDAY0 + 7 * 3600_000,
+  summary: '昨日日志 120 条（error 3 / warn 9）；异常 2 项，瓶颈 1 项，建议 3 项',
+};
+
+describe('buildMorningReportSignal — 日报聚合从句（任务19·A）', () => {
+  it('有日报：昨日要点后追加「日志分析」从句 + payload.dailyReport 元数据；无日报时文本逐字不变', () => {
+    const base = record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' });
+    const withDigest = buildMorningReportSignal([base], NOW8, DIGEST);
+    expect(withDigest?.text).toBe(
+      `昨日要点：未归项目：甲 完成「Y」。日志分析：${DIGEST.summary}。`,
+    );
+    expect(withDigest?.payload).toMatchObject({
+      count: 1,
+      dailyReport: { file: DIGEST.file, dateLabel: '2026-10-04', generatedAt: DIGEST.generatedAt },
+    });
+
+    const withoutDigest = buildMorningReportSignal([base], NOW8);
+    expect(withoutDigest?.text).toBe('昨日要点：未归项目：甲 完成「Y」。');
+    expect((withoutDigest?.payload as { dailyReport?: unknown }).dailyReport).toBeUndefined();
+  });
+
+  it('昨日无产出但日报在 → 仍成信号（日报即当日要点）；摘要为空视同无日报 → null', () => {
+    const only = buildMorningReportSignal([], NOW8, DIGEST);
+    expect(only).not.toBeNull();
+    expect(only?.text).toBe(`日志分析：${DIGEST.summary}。`);
+    expect(only?.payload).toMatchObject({ count: 0, segments: 0 });
+
+    expect(buildMorningReportSignal([], NOW8, { ...DIGEST, summary: '   ' })).toBeNull();
+    expect(buildMorningReportSignal([], NOW8, null)).toBeNull();
+  });
+});
+
+describe('runBossMorningReportScan — 日报只读聚合（任务19·A）', () => {
+  it('日报进信号：text 含从句、generate 埋点带 dailyReport=true、结果旗标回传', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue,
+      readDailyReport: () => DIGEST,
+    });
+
+    expect(r).toMatchObject({ degraded: false, dailyReportIncluded: true });
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining('日志分析：昨日日志 120 条'),
+    }));
+    expect(reportLogs().some((row) => row.op === 'generate' && row.dailyReport === true)).toBe(true);
+  });
+
+  it('日报缺失（缺省读取；沙箱无 reports 目录）→ 静默跳过、dailyReportIncluded=false、晨报照常', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue,
+    });
+
+    expect(r).toMatchObject({ degraded: false, dailyReportIncluded: false });
+    expect(reportLogs().some((row) => row.op === 'generate' && row.dailyReport === false)).toBe(true);
+  });
+
+  it('日报读取抛错 → 静默跳过（不打断晨报、不降级），正常投递', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue,
+      readDailyReport: () => { throw new Error('EACCES'); },
+    });
+
+    expect(r).toMatchObject({ degraded: false, dailyReportIncluded: false });
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'time_sensitive' }]);
+  });
+
+  it('昨日无产出但日报在 → 不发空信号，聚合日报播报', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NOW8,
+      queue,
+      readDailyReport: () => DIGEST,
+    });
+
+    expect(r).toMatchObject({ yesterday: 0, dailyReportIncluded: true, degraded: false });
+    expect(broadcastMock).toHaveBeenCalledTimes(1);
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('日志分析：') }));
+  });
+});
