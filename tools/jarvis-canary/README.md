@@ -44,6 +44,84 @@ npx tsx tools/jarvis-canary/run.ts --level=full --simulate-receipt   # ④ 用�
 - **L3 失败允许重试 1 次；重试仍红 = 阻塞波次**，不得宣称完成（不是"记录一下"）；
 - 本工具全程 HTTP/WS + sqlite 只读，**不依赖浏览器 MCP** —— 可与日常 Chrome 操作并行执行，不排队、不互锁。
 
+## L2 沙箱用法（l2-sandbox.ts，2026-10-04 交付）
+
+一条命令起「临时沙箱 + 真服务器 + stub LLM」，跑完自动回收进程与目录——L2 接线层验证**不要求本机 6200/5173 在线**，也**不写真实** `~/.local/share/tide-commander`（全部状态落在临时 XDG 沙箱）。
+
+```bash
+# 默认场景 dialog：stub 直接回契约 JSON（list_agents，不派活）
+npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=dialog
+
+# 只验连通性（HTTP / WS / EventDB）
+npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=conn
+
+# 排障：保留沙箱目录 + 镜像服务器日志
+npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=dialog --keep --server-logs
+
+# 离线自测（只测参数解析，不启动任何进程）
+npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
+```
+
+### 它做了什么
+
+1. `os.tmpdir()/jarvis-canary-l2-XXXX/` 建临时沙箱：`xdg/` 作 `XDG_DATA_HOME`（服务器全部状态与 `events.db` 都落这里）、`logs/` 收服务器输出；跑完即删（`--keep` 保留并打印路径）。
+2. 用 `node_modules/.bin/tsx`（缺失回退 `npx tsx`）spawn `src/packages/server/index.ts`，cwd=仓库根，Windows 下 `shell:true`（与 `scripts/dev-server.mjs` 同形）。
+3. 注入 L2 接缝：`TC_CLAUDE_EXECUTABLE=<stub 垫片>` + `TC_STUB_RULES=<规则文件>`。
+4. 轮询 `GET /api/health` 就绪（默认上限 90s，`--ready-timeout-ms` 可调）。
+5. 子进程调 `run.ts --level=… --scenario=… --base-url=http://127.0.0.1:<port> --db=<沙箱>/xdg/tide-commander/events.db`——断言全部落在**沙箱自己的** `events.db` 上。
+6. 结束回收服务端**进程树**（Windows `taskkill /T /F` 兜底）并清理沙箱；金丝雀退出码原样透传。
+
+### 环境变量（harness 注入，一般无需手动设置）
+
+| 变量 | 值 | 原因 |
+| --- | --- | --- |
+| `PORT` / `HOST` | `--port`（默认 6399）/ `127.0.0.1` | 沙箱独立端口，避免撞真实 dev server |
+| `XDG_DATA_HOME` | `<沙箱>/xdg` | 数据全隔离；events.db 落在其下 |
+| `TC_CLAUDE_EXECUTABLE` | `tools/jarvis-canary/stub-llm/claude-stub.cmd`（POSIX 自动生成 shim） | L2 接缝（见 stub-llm/README） |
+| `TC_STUB_RULES` | 默认 `stub-llm/rules-l2.json`（`--rules=` 可换） | 规则驱动契约 JSON 应答 |
+| `TC_STUB_TRACE` | `--trace` 时 = `<沙箱>/stub-trace.ndjson` | stub 原始收发记录（调试） |
+| `CLAUDE_CREDENTIAL_KEEPALIVE` | 恒置 `0` | 凭据保活服务直读写真实 `~/.claude`（不走 XDG），不关会在沙箱启动时刷新真实 OAuth token |
+| `DOTENV_CONFIG_PATH` | `<沙箱>/no-dotenv.env`（空文件） | 隔离仓库 `.env`，防 AUTH_TOKEN/HTTPS 等泄漏 |
+| `AUTH_TOKEN` / `LISTEN_ALL_INTERFACES` / `HTTPS` / `HTTPS_PORT` / `TLS_KEY_PATH` / `TLS_CERT_PATH` | 显式置空 | 沙箱无鉴权、纯 HTTP、仅本机监听 |
+| 预置 `xdg/tide-commander/backup-settings.json` = `{"enabled":false}` | 恒定 | 备份服务默认启用且**启动即跑** `scripts/backup-data.sh`，沙箱不需要（避免多余 bash 进程） |
+
+### 参数
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `--scenario=<name,...>` | `dialog` | 透传 run.ts（conn/dialog/delegation/receipt/cancel） |
+| `--level=smoke\|full` | `smoke` | 透传 run.ts |
+| `--port=<n>` | 6399 | 沙箱服务端端口 |
+| `--rules=<path>` | `stub-llm/rules-l2.json` | stub 规则文件（缺文件直接退出 2） |
+| `--ready-timeout-ms=<n>` | 90000 | 等待 `/api/health` 就绪 |
+| `--keep` | 关 | 保留沙箱目录（失败排查用） |
+| `--server-logs` | 关 | 服务器 stdout/stderr 镜像到控制台 |
+| `--trace` | 关 | 开 `TC_STUB_TRACE` |
+| `--self-test` / `--help` | — | 离线自测 / 帮助 |
+
+另有透传 run.ts 的白名单：`--token= --allow-skip --simulate-receipt --verbose --dry-run --report= --dialog-text= --task-text= --cancel-text= --log-wait-ms= --poll-ms= --wait-boss-ms= --wait-report-ms= --timeout-ms= --ws-timeout-ms= --scenario-timeout-ms=`。`--base-url` / `--db` 由沙箱自管，传了直接报错（退出 2）。
+
+### 退出码
+
+| 码 | 含义 |
+| --- | --- |
+| 0 | 金丝雀全通过（run.ts 透传） |
+| 1 | 金丝雀有失败/跳过，或 harness 内部错误 |
+| 2 | 参数错误（含规则文件缺失 / stub 路径含空格 / 误传 `--base-url`、`--db`） |
+| 3 | 沙箱服务端启动失败：未就绪/提前退出/端口占用（stderr/stdout 尾部会打印到控制台） |
+
+### 规则文件
+
+默认 `stub-llm/rules-l2.json`：`match:"列出团队成员"` → `list_agents` 契约（dialog 场景因此不派活）；`defaultReply` 是通用 `general_response` 契约。要跑其它场景就加规则或 `--rules=` 换一份——注意规则匹配的是**用户原文子串**（stub 只读 stdin 的 user 文本），不是系统提示词。
+
+### 已知边界
+
+1. 沙箱是**全新空团队**（无 agent）→ `bossExists` 前置失败，full 级 `delegation`/`receipt` 场景恒 SKIP、退出码 1（2026-10-04 实测确认）。沙箱 seed agent 团队不在本次范围（后续任务38）。
+2. 内置插件默认启用，但 `activate` 只注册命令 handler——启动不联网、无定时器；`bolba-tasks` 只在命令触发时才 GET `127.0.0.1:7492`（只读），沙箱不触发任何插件命令。
+3. `tools/voice-companion/config.json` 由服务器按 cwd=仓库根读取（persona/model 等，属既有行为）——harness **只读不碰、绝不回显内容**；沙箱会话状态写在 XDG 沙箱内。
+4. Windows 下服务端最终以 `taskkill /T /F` 强制回收（`shell:true` 的 cmd.exe 包装层使 SIGTERM 优雅路径不可达）；沙箱是一次性目录，WAL 残留无需恢复。
+5. 报告仍写 `tools/jarvis-canary/reports/`（gitignored，不在沙箱里）；沙箱目录在 `os.tmpdir()`，无需 .gitignore。
+
 ## 场景总览
 
 | 级别 | 场景（别名） | LLM? | 做什么 | 断言（全部落在 `system_log` 真行上） |

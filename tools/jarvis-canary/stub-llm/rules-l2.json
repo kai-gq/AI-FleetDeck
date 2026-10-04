@@ -1,0 +1,14 @@
+{
+  "_comment": "金丝雀 L2 沙箱默认规则（l2-sandbox.ts --rules 缺省指向本文件）。reply 必须是完整契约 JSON——服务器 parseContractJson 取首个 { 到末个 } 解析。规则按数组顺序、先到先得；match 为 stdin 用户原文的子串。默认 dialog 文本「列出团队成员」→ list_agents（不派活）。",
+  "rules": [
+    {
+      "match": "列出团队成员",
+      "reply": "{\"action\":\"list_agents\",\"responseToUser\":\"当前团队共 0 位成员：这是金丝雀 L2 沙箱实例，还没有添加 agent。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+    },
+    {
+      "match": "让团队做",
+      "reply": "{\"action\":\"delegate_to_boss\",\"responseToUser\":\"已交给主管安排。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"金丝雀 L2 冒烟任务：只回复收到即可，不要执行任何实际操作。\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+    }
+  ],
+  "defaultReply": "{\"action\":\"general_response\",\"responseToUser\":\"收到。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+}

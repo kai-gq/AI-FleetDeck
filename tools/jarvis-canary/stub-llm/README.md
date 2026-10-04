@@ -21,7 +21,7 @@ L2 全绿而 L3 红 → 问题出在模型/prompt（不是代码）；L2 红 →
 |---|---|
 | `claude-stub.mjs` | 引擎：按 stream-json 协议收发，规则驱动回复，零依赖零网络 |
 | `claude-stub.cmd` | Windows 垫片（服务器在 Windows 上以 `shell:true` spawn，`.cmd` 可直接执行）。**保持纯 ASCII**——cmd.exe 按系统码页(GBK)解码 .cmd，中文 UTF-8 注释会破坏脚本 |
-| 规则文件 | 由你提供（`TC_STUB_RULES` 指向），按 prompt 子串/正则 → 固定回复 |
+| 规则文件 | 由你提供（`TC_STUB_RULES` 指向），按 prompt 子串/正则 → 固定回复。**默认规则：`rules-l2.json`**（`../l2-sandbox.ts --rules` 缺省指向它；`match:"列出团队成员"` → `list_agents` 契约；含通用 `general_response` defaultReply） |
 
 ## 接入方式（接缝）
 
@@ -37,7 +37,7 @@ L2 全绿而 L3 红 → 问题出在模型/prompt（不是代码）；L2 红 →
 
 | 变量 | 缺省 | 作用 |
 |---|---|---|
-| `TC_STUB_RULES` | 无 | 规则文件路径（JSON，见下）；缺省全走 fallback |
+| `TC_STUB_RULES` | 无 | 规则文件路径（JSON，见下）；缺省全走 fallback（经 `../l2-sandbox.ts` 启动时缺省指向本目录 `rules-l2.json`） |
 | `TC_STUB_FALLBACK` | `收到。` | 无规则命中时的回复文本 |
 | `TC_STUB_MODEL` | `claude-opus-4-5` | 无 `--model` 参数时 init 事件的模型名 |
 | `TC_STUB_COST` | `0.0001` | 每轮 `result.total_cost_usd`（喂成本类埋点） |
