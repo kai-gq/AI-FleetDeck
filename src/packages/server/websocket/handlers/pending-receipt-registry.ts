@@ -38,6 +38,10 @@ export interface PendingReceiptRegistry {
   register(receipt: Omit<PendingReceipt, 'registeredAt'> & { registeredAt?: number }): void;
   /** 按 targetAgentId 匹配；过期即删并返回 undefined。 */
   match(targetAgentId: string, at: number): PendingReceiptMatch | undefined;
+  /** 枚举快照（任务17·A2 超时扫描消费；返回拷贝，外部修改不影响账本；顺带惰性清扫）。 */
+  list(at?: number): PendingReceipt[];
+  /** 按 targetAgentId 移除（任务16 撤回清理旧回执；返回是否命中）。 */
+  remove(targetAgentId: string): boolean;
   size(): number;
   clear(): void;
 }
@@ -104,9 +108,20 @@ export function createPendingReceiptRegistry(opts: {
     return { receipt: entry, duplicate: false };
   }
 
+  function list(at: number = Date.now()): PendingReceipt[] {
+    sweep(at);
+    return Array.from(entries.values(), (entry) => ({ ...entry }));
+  }
+
+  function remove(targetAgentId: string): boolean {
+    return entries.delete(targetAgentId);
+  }
+
   return {
     register,
     match,
+    list,
+    remove,
     size: () => entries.size,
     clear: () => entries.clear(),
   };
@@ -126,6 +141,16 @@ export function registerPendingReceipt(
 
 export function matchPendingReceipt(targetAgentId: string, at: number): PendingReceiptMatch | undefined {
   return registry.match(targetAgentId, at);
+}
+
+/** 任务17·A2：待回执枚举快照（超时扫描用）。 */
+export function listPendingReceipts(at?: number): PendingReceipt[] {
+  return registry.list(at);
+}
+
+/** 任务16：按 targetAgentId 移除待回执（撤回后不再匹配/播报；返回是否命中）。 */
+export function removePendingReceiptsForAgent(targetAgentId: string): boolean {
+  return registry.remove(targetAgentId);
 }
 
 export function pendingReceiptCount(): number {

@@ -18,19 +18,22 @@ import type { TaskCard, TaskCardPriority, TaskCardStatus } from '../../shared/ag
 
 // ─── 状态机 ───
 
-export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['pending', 'queued', 'running', 'done'];
+export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['pending', 'queued', 'running', 'done', 'cancelled'];
 
 /**
- * 已实现的四态迁移表；cancelled（任务 16 撤回）落地时在此扩展。
+ * 已实现的五态迁移表（任务 16 补 cancelled 边）。
  * pending → done 直连用于「运行标记未及落盘、回执先到」的乱序场景。
  * queued 边（任务 15·B 全局并发配额）：pending → queued（超预算入队）、
- * queued → running（出队派发；运行标记未及落盘前不接其他边，cancelled 留 16）。
+ * queued → running（出队派发；运行标记未及落盘前不接其他边）。
+ * cancelled 边（任务 16 ⑬ 撤回）：pending/queued/running → cancelled；
+ * done 与 cancelled 都是终态（done 无出边 = 天然拒回退/拒撤；cancelled 无出边 = 撤回不可逆）。
  */
 const TASK_CARD_TRANSITIONS: Readonly<Record<TaskCardStatus, readonly TaskCardStatus[]>> = {
-  pending: ['queued', 'running', 'done'],
-  queued: ['running'],
-  running: ['done'],
+  pending: ['queued', 'running', 'done', 'cancelled'],
+  queued: ['running', 'cancelled'],
+  running: ['done', 'cancelled'],
   done: [],
+  cancelled: [],
 };
 
 export function isTaskCardStatus(v: unknown): v is TaskCardStatus {
@@ -90,6 +93,21 @@ function normalizePriority(v: unknown, errors: string[]): TaskCardPriority | und
   return undefined;
 }
 
+/** 截止日归一化（任务17·A2）：只收 date-only 'YYYY-MM-DD'（与 Bolba 同形），非法同上记错误。 */
+function normalizeDue(v: unknown, errors: string[]): string | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (typeof v !== 'string') {
+    errors.push('taskCard.due must be a date-only string (YYYY-MM-DD)');
+    return undefined;
+  }
+  const s = v.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(s))) {
+    errors.push(`taskCard.due must be a date-only string YYYY-MM-DD (got "${s}")`);
+    return undefined;
+  }
+  return s;
+}
+
 /**
  * 归一化/校验原始 taskCard 对象（Boss delegation 块中携带）。
  * 失败返回 errors（调用方降级为无卡，不阻塞派活）；成功返回卡，status 一律 pending。
@@ -108,6 +126,7 @@ export function normalizeTaskCard(raw: unknown): TaskCardParseResult {
   const acceptanceCriteria = asStringArray(item.acceptanceCriteria, 'taskCard.acceptanceCriteria', errors);
   const dependencies = asStringArray(item.dependencies, 'taskCard.dependencies', errors);
   const priority = normalizePriority(item.priority, errors);
+  const due = normalizeDue(item.due, errors);
 
   if (errors.length > 0 || !objective) return { errors };
 
@@ -121,6 +140,7 @@ export function normalizeTaskCard(raw: unknown): TaskCardParseResult {
       projectId: asTrimmedString(item.projectId),
       sourceProject: asTrimmedString(item.sourceProject),
       status: 'pending',
+      due,
     },
   };
 }
@@ -159,6 +179,7 @@ export function formatTaskCard(card: TaskCard): string {
     lines.push('- (none)');
   }
   if (card.priority) lines.push(`Priority: ${card.priority}`);
+  if (card.due) lines.push(`Due: ${card.due}`);
   if (card.projectId) {
     lines.push(`Project: ${card.projectId}${card.sourceProject ? ` (source: ${card.sourceProject})` : ''}`);
   } else if (card.sourceProject) {
@@ -179,6 +200,7 @@ export function formatTaskCardForBoss(card: TaskCard): string {
     dependencies: card.dependencies,
   };
   if (card.priority) schema.priority = card.priority;
+  if (card.due) schema.due = card.due;
   if (card.projectId) schema.projectId = card.projectId;
   if (card.sourceProject) schema.sourceProject = card.sourceProject;
 

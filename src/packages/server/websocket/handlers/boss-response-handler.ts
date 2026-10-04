@@ -12,15 +12,22 @@ import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js
 import { getTaskId, newTaskId } from '../../utils/trace-context.js';
 import { logDelegation, logTaskCardStatus } from '../../services/activity-log.js';
 import { formatTaskCard, normalizeTaskCard } from '../../services/task-card-service.js';
-import { registerPendingReceipt, resetPendingReceiptsForTests } from './pending-receipt-registry.js';
-// 任务15·B ⑫ 全局并发配额：接线闸门（准入/排队/出队）+ 播报出口（只 import，不改 vcs）
+import {
+  registerPendingReceipt,
+  removePendingReceiptsForAgent,
+  resetPendingReceiptsForTests,
+} from './pending-receipt-registry.js';
+// 任务15·B ⑫ 全局并发配额：接线闸门（准入/排队/出队/⑬ 撤回）+ 播报出口（只 import，不改 vcs）
 import {
   DELEGATION_QUOTA_ACTION,
+  cancelDelegationQuotaSlot,
+  getDelegationQuotaSnapshot,
   onDelegationComplete,
   resetDelegationQuotaGateForTests,
   tryAdmitDelegation,
   type DelegationQuotaAdmitInput,
   type DelegationQuotaAdmitResult,
+  type DelegationQuotaCancelResult,
   type QueuedDelegation,
 } from '../../services/delegation-quota-gate.js';
 import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
@@ -68,8 +75,10 @@ export interface CompleteDelegationOptions {
   at?: number;
   /** ⑧ 病历产出摘要（report-task 的 req.body.summary；runtime 入口无可得来源 → 缺省） */
   summary?: string;
-  /** ⑧ 病历产出位置（当前入口不可得 → 缺省，不硬造） */
+  /** ⑧ 病历产出位置（report-task 入口回传；任务17·A3 接通） */
   outputLocation?: string;
+  /** ⑧ 病历验收打勾（report-task 入口回传；任务17·A3 接通） */
+  acceptance?: Array<{ item: string; done: boolean }>;
 }
 
 /**
@@ -107,6 +116,7 @@ export function completeDelegation(
         result,
         summary: opts.summary,
         outputLocation: opts.outputLocation,
+        acceptance: opts.acceptance,
         reason: opts.reason ?? 'turn-complete',
         subordinateId,
         taskId: delegation.taskId,
@@ -177,7 +187,9 @@ function buildDelegatedMessage(input: {
 }): string {
   const baseUrl = getCommanderBaseUrl();
   const cardBlock = input.taskCard ? `\n\n${formatTaskCard(input.taskCard)}` : '';
-  return `[DELEGATED TASK from boss "${input.bossName}" (${input.bossId})]\n\n${input.taskCommand}${cardBlock}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+  // 任务17·A3 契约：completed 回执必须带非空 acceptance（逐条 {item,done}）+ 非空白 outputLocation，
+  // 否则 report-task 返回 400（内联示例即新契约，下属首轮即合规；failed 回执不强制这两字段）。
+  return `[DELEGATED TASK from boss "${input.bossName}" (${input.bossId})]\n\n${input.taskCommand}${cardBlock}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed","outputLocation":"path or link to the deliverable","acceptance":[{"item":"acceptance criterion from the task card","done":true}]}'\n\nA "completed" report MUST include a non-blank "outputLocation" and a non-empty "acceptance" array of {"item","done"} objects (one per acceptance criterion above, checked off) — otherwise it is rejected with HTTP 400. If the task could not be completed, report "status":"failed" (acceptance/outputLocation optional).`;
 }
 
 /** 🔴 决策观测点⑦：落卡 none → pending（准入与排队路径共用；排队路径随后 pending→queued）。 */
@@ -296,6 +308,310 @@ function dispatchQueuedDelegation(payload: QueuedDelegation): void {
       });
   } catch (err) {
     log.error(`[quota] dequeued dispatch failed (completion funnel unaffected):`, err);
+  }
+}
+
+// ============================================================================
+// 任务16·⑬ 撤回执行面（vcs 只调本导出；配额走 gate 新增 cancel API，15·A 零改动）
+// ============================================================================
+
+/** ⑬ 撤回入参（定位顺序：subordinateId live 追踪 → decisionId/taskId 反查；均缺省时报 not-found）。 */
+export interface CancelDelegationInput {
+  subordinateId?: string;
+  bossId?: string;
+  decisionId?: string;
+  taskId?: string;
+  /** ⑬ 观测发起方（user=语音撤回；api/system 等）。 */
+  initiator?: string;
+  /** ⑬ 观测原因摘要（vcs 传用户原话截断；账本不解释语义）。 */
+  reason?: string;
+  at?: number;
+}
+
+export interface CancelDelegationOutcome {
+  status: 'cancelled' | 'already-cancelled' | 'rejected-done' | 'not-found';
+  /** 撤回发生的位置：queued=从未派发；running=已派发在跑；tracking=仅卡片残留（重启后）。 */
+  cancelledFrom?: 'queued' | 'running' | 'tracking';
+  bossId?: string;
+  subordinateId?: string;
+  subordinateName?: string;
+  decisionId?: string;
+  taskId?: string;
+  /** 任务展示文本（话术/审计原样透传）。 */
+  label?: string;
+  /** 是否已向下属投递取消通知（queued 撤回未派发 → false）。 */
+  notified: boolean;
+  /** 通知失败摘要（投递失败且兜底失败时如实登记，不上抛）。 */
+  notifyError?: string;
+  /** 通知投递耗时（确认到达时刻 − 通知开始；失败路径为失败时刻，亦如实）。 */
+  notifyMs?: number;
+  /** 通知失败后 stopAgent 兜底是否成功。 */
+  stopFallbackUsed?: boolean;
+  /** 任务卡已迁移到 cancelled（无卡/已结束记录为 false）。 */
+  cardMigrated: boolean;
+  /** 释放槽位时被出队的队首 decisionId（已由本函数派发）。 */
+  dequeuedDecisionId?: string;
+}
+
+function isBossLikeAgentRef(agent: { isBoss?: boolean; class?: string }): boolean {
+  return agent.isBoss === true || agent.class === 'boss';
+}
+
+/** 委派史定位（bossId 未知时扫描全部 Boss 历史；有 decisionId 精确匹配，否则取该下属最新一条）。 */
+function findDelegationDecision(refs: {
+  bossId?: string;
+  decisionId?: string;
+  subordinateId?: string;
+}): DelegationDecision | undefined {
+  const bossIds = refs.bossId
+    ? [refs.bossId]
+    : agentService.getAllAgents().filter(isBossLikeAgentRef).map((a) => a.id);
+  let newest: DelegationDecision | undefined;
+  for (const bossId of bossIds) {
+    let history: DelegationDecision[] = [];
+    try {
+      history = bossService.getDelegationHistory(bossId);
+    } catch {
+      continue;
+    }
+    for (const decision of history) {
+      if (refs.decisionId) {
+        if (decision.id === refs.decisionId) return decision;
+      } else if (refs.subordinateId && decision.selectedAgentId === refs.subordinateId) {
+        if (!newest || decision.timestamp > newest.timestamp) newest = decision;
+      }
+    }
+  }
+  return newest;
+}
+
+/** 取消通知文案（forceInterrupt 投递；要求下属停手并简单说明现状）。 */
+function buildCancelNotice(input: { bossName: string; taskText: string; reason?: string }): string {
+  const reasonLine = input.reason ? `\n撤回原因：${summarizeQuotaText(input.reason, 120)}` : '';
+  // 任务17·A3 契约对齐：停止回执用 status="failed" 免验收/产出字段；若确已完成而报 completed，
+  // 必须带 outputLocation + 非空 acceptance，否则 report-task 400 被拒（避免停手回执先 400 再重发）。
+  return `[TASK CANCELLED by boss "${input.bossName}"]\n\n这个任务已被撤回，请立即停止当前工作，不要再继续执行。已经产生的阶段性产出保留现状，简单说一句进度即可。${reasonLine}\n\n若要回报停手：用 "status":"failed"（无需 acceptance/outputLocation）；若确已完成而报 "completed"，必须带 outputLocation 与非空 acceptance（逐条 {"item","done"}），否则会被 report-task 以 HTTP 400 拒绝。\n\n任务：${summarizeQuotaText(input.taskText, 120)}`;
+}
+
+/** 配额撤回安全壳：gate 异常不得拦断撤回链路（15·A/gate 内部审计已自包，这里兜底）。 */
+function cancelQuotaSafely(input: Parameters<typeof cancelDelegationQuotaSlot>[0]): DelegationQuotaCancelResult {
+  try {
+    return cancelDelegationQuotaSlot(input);
+  } catch (err) {
+    log.error(`[quota] cancel failed — continuing cancel chain:`, err);
+    return { status: 'not-found' };
+  }
+}
+
+/**
+ * 任务16·⑬ 撤回执行链（单一漏斗；vcs 解析目标后调用，本函数不猜口味）：
+ * 1. 定位：activeDelegations（running）→ 配额排队快照（queued）→ 委派史卡片（tracking 残留）；
+ * 2. 守卫：卡 done → rejected-done（拒撤，零副作用）；卡 cancelled → already-cancelled（幂等）；
+ * 3. 配额：queued 从队列移除（不派发）；running 释放槽位并复用完成语义出队队首；
+ * 4. 卡迁移 cancelled + 追踪清理 + 旧回执移除（removePendingReceiptsForAgent）；
+ * 5. 通知下属：sendCommand(forceInterrupt)；失败降级 stopAgent 兜底，再失败如实登记，**绝不上抛**；
+ * 6. ⑬ 审计：logDelegation phase='cancelled'（发起方/原因/目标/投递；status 记撤回结论）。
+ * 返回结果供 vcs 播报；重复撤回第二次稳定走 already-cancelled（不重复通知）。
+ * 边界（v1 从简，测试钉住）：撤回只作用于「已派发/在排队」的任务，不追回已产出结果；
+ * 不做「停止确认回执」登记（下属停止确认依赖其下一轮输出，见任务16 报告登记项）。
+ */
+export async function cancelDelegation(input: CancelDelegationInput): Promise<CancelDelegationOutcome> {
+  const at = input.at ?? Date.now();
+  const outcome: CancelDelegationOutcome = { status: 'not-found', notified: false, cardMigrated: false };
+
+  // ── 1) 定位 live 追踪 / 排队载荷 / 委派史 ──
+  let liveSubordinateId: string | undefined;
+  let live: ActiveDelegation | undefined;
+  if (input.subordinateId && activeDelegations.has(input.subordinateId)) {
+    liveSubordinateId = input.subordinateId;
+    live = activeDelegations.get(input.subordinateId);
+  } else {
+    for (const [sid, entry] of activeDelegations) {
+      const hit = (input.decisionId && entry.decisionId === input.decisionId)
+        || (input.taskId && entry.taskId === input.taskId);
+      if (hit) {
+        liveSubordinateId = sid;
+        live = entry;
+        break;
+      }
+    }
+  }
+
+  const snapshot = getDelegationQuotaSnapshotForCancel();
+  const queuedHit = snapshot.find((p) =>
+    (input.taskId !== undefined && p.taskId === input.taskId)
+    || (input.decisionId !== undefined && p.decisionId === input.decisionId)
+  );
+
+  const bossId = input.bossId ?? live?.bossId ?? queuedHit?.bossId;
+  const decisionId = input.decisionId ?? live?.decisionId ?? queuedHit?.decisionId;
+  const targetSubordinateId =
+    liveSubordinateId ?? queuedHit?.selectedAgentId ?? input.subordinateId;
+  const decision = findDelegationDecision({
+    ...(bossId ? { bossId } : {}),
+    ...(decisionId ? { decisionId } : {}),
+    ...(!decisionId && targetSubordinateId ? { subordinateId: targetSubordinateId } : {}),
+  });
+  const card = decision?.taskCard;
+  const label = card?.objective?.trim() || live?.taskDescription || queuedHit?.taskCommand || decision?.userCommand;
+  if (bossId) outcome.bossId = bossId;
+  if (decisionId) outcome.decisionId = decisionId;
+  if (targetSubordinateId) {
+    outcome.subordinateId = targetSubordinateId;
+    const name = agentService.getAgent(targetSubordinateId)?.name;
+    if (name) outcome.subordinateName = name;
+  }
+  const resolvedTaskId = input.taskId ?? live?.taskId ?? queuedHit?.taskId;
+  if (resolvedTaskId) outcome.taskId = resolvedTaskId;
+  if (label) outcome.label = label;
+
+  // ── 2) 守卫（卡状态是权威）：done 拒撤 / cancelled 幂等 ──
+  if (card?.status === 'done') {
+    outcome.status = 'rejected-done';
+    auditCancellation(outcome, input, at);
+    return outcome;
+  }
+  if (card?.status === 'cancelled') {
+    outcome.status = 'already-cancelled';
+    auditCancellation(outcome, input, at);
+    return outcome;
+  }
+
+  // ── 3) 模式选择 ──
+  let mode: 'queued' | 'running' | 'tracking' | undefined;
+  if (live && liveSubordinateId) mode = 'running';
+  else if (queuedHit) mode = 'queued';
+  else if (card && (card.status === 'pending' || card.status === 'queued' || card.status === 'running')) mode = 'tracking';
+  if (!mode) {
+    // 无目标可撤（无追踪/无排队/无在办卡）：明确 not-found，不猜不写
+    outcome.status = 'not-found';
+    auditCancellation(outcome, input, at);
+    return outcome;
+  }
+  outcome.status = 'cancelled';
+  outcome.cancelledFrom = mode;
+
+  // ── 4) 配额账本处理（⑬ 独立通路；gate 内部绝不上抛）──
+  let dequeued: QueuedDelegation | null = null;
+  if (mode === 'queued' && queuedHit) {
+    cancelQuotaSafely({
+      quotaId: queuedHit.taskId ?? queuedHit.decisionId,
+      ...(queuedHit.taskId ? { taskId: queuedHit.taskId } : {}),
+      decisionId: queuedHit.decisionId,
+      bossId: queuedHit.bossId,
+      selectedAgentId: queuedHit.selectedAgentId,
+      initiator: input.initiator,
+      reason: input.reason,
+      at,
+    });
+  } else if (mode === 'running' && live) {
+    const quotaId = live.taskId ?? live.decisionId;
+    if (quotaId) {
+      const gateResult = cancelQuotaSafely({
+        quotaId,
+        ...(live.taskId ? { taskId: live.taskId } : {}),
+        ...(live.decisionId ? { decisionId: live.decisionId } : {}),
+        bossId: live.bossId,
+        ...(liveSubordinateId ? { selectedAgentId: liveSubordinateId } : {}),
+        initiator: input.initiator,
+        reason: input.reason,
+        at,
+      });
+      if (gateResult.status === 'running-released' && gateResult.dequeued) dequeued = gateResult.dequeued;
+    }
+  }
+
+  // ── 5) 卡迁移 cancelled（无卡/史裁剪 → no-op，不拦断）──
+  if (card && bossId && decision?.id) {
+    const migrated = bossService.updateDelegationTaskCardStatus(bossId, decision.id, 'cancelled', {
+      at,
+      reason: input.reason ?? 'cancelled',
+      subordinateId: targetSubordinateId,
+      taskId: resolvedTaskId,
+    });
+    outcome.cardMigrated = !!migrated;
+  }
+
+  // ── 6) 追踪清理 + 旧回执移除（撤后不再匹配/播报回执）──
+  if (targetSubordinateId) {
+    activeDelegations.delete(targetSubordinateId);
+    removePendingReceiptsForAgent(targetSubordinateId);
+  }
+
+  // ── 7) 通知下属（queued 未派发 → 不通知；失败降级 stopAgent，绝不上抛）──
+  if (mode !== 'queued' && targetSubordinateId) {
+    const notifyStarted = Date.now();
+    const bossName = bossId ? agentService.getAgent(bossId)?.name ?? bossId : '主管';
+    const targetAgent = agentService.getAgent(targetSubordinateId);
+    const customAgentConfig = targetAgent
+      ? buildCustomAgentConfig(targetSubordinateId, targetAgent.class)
+      : undefined;
+    try {
+      await runtimeService.sendCommand(
+        targetSubordinateId,
+        buildCancelNotice({
+          bossName,
+          taskText: label || '(未记录任务)',
+          reason: input.reason,
+        }),
+        undefined,
+        undefined,
+        customAgentConfig,
+        { forceInterrupt: true }
+      );
+      outcome.notified = true;
+    } catch (err) {
+      outcome.notifyError = err instanceof Error ? err.message : String(err);
+      try {
+        await runtimeService.stopAgent(targetSubordinateId);
+        outcome.stopFallbackUsed = true;
+      } catch (fallbackErr) {
+        outcome.notifyError += `; stopAgent failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`;
+      }
+    }
+    outcome.notifyMs = Date.now() - notifyStarted;
+  }
+
+  // ── 8) ⑬ 审计 + 出队派发（派发放最后；若与撤回同一 subordinate，通知已先送达）──
+  auditCancellation(outcome, input, at);
+  if (dequeued) {
+    outcome.dequeuedDecisionId = dequeued.decisionId;
+    dispatchQueuedDelegation(dequeued);
+  }
+  return outcome;
+}
+
+/** ⑬ 审计：撤回事件（谁发/原因/目标/通知投递）。审计是旁路，绝不上抛。 */
+function auditCancellation(outcome: CancelDelegationOutcome, input: CancelDelegationInput, at: number): void {
+  try {
+    const status = outcome.cancelledFrom ? `cancelled-${outcome.cancelledFrom}` : outcome.status;
+    logDelegation({
+      phase: 'cancelled',
+      channel: 'boss',
+      fromAgentId: outcome.bossId,
+      toAgentId: outcome.subordinateId,
+      toAgentName: outcome.subordinateName,
+      message: outcome.label,
+      status,
+      error: outcome.notifyError,
+      initiator: input.initiator ?? 'unknown',
+      reason: input.reason,
+      notified: outcome.notified,
+      notifyMs: outcome.notifyMs,
+      taskId: outcome.taskId,
+    });
+  } catch (err) {
+    log.error(`[cancel] audit failed (cancel chain unaffected):`, err);
+  }
+}
+
+/** 配额排队快照（撤回定位用；缺省容错——快照异常按空队列，撤回退化为 tracking/not-found）。 */
+function getDelegationQuotaSnapshotForCancel(): QueuedDelegation[] {
+  try {
+    return getDelegationQuotaSnapshot().queued;
+  } catch (err) {
+    log.error(`[quota] snapshot failed during cancel — falling back to history only:`, err);
+    return [];
   }
 }
 

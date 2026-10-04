@@ -109,9 +109,10 @@ export function logBroadcast(f: BroadcastLogFields): number | undefined {
 export interface DelegationLogFields {
   /**
    * dispatched=派活出站；delegated=Boss 拆解写入；reported=下属回执；closed=委派追踪关闭；
-   * failed=派活抛错；blocked=违规直派被拦截（决策观测点① 告警，任务 05·改①）
+   * failed=派活抛错；blocked=违规直派被拦截（决策观测点① 告警，任务 05·改①）；
+   * cancelled=⑬ 任务撤回（任务 16：谁发/原因/目标/通知投递，status 记撤回结论）
    */
-  phase: 'dispatched' | 'delegated' | 'reported' | 'closed' | 'failed' | 'blocked';
+  phase: 'dispatched' | 'delegated' | 'reported' | 'closed' | 'failed' | 'blocked' | 'cancelled';
   /** 来源渠道：voice-companion / boss / api / subordinate */
   channel: string;
   /** 路由判定（决策观测点①）：delegate_to_boss / send_to_agent / send_to_agent-rerouted 等 */
@@ -134,6 +135,13 @@ export interface DelegationLogFields {
   taskId?: string;
   sessionId?: string;
   agentId?: string;
+  /** ⑬ 撤回（phase='cancelled'）：发起方（user/boss/system）与原因摘要（最小加法，其余 phase 不落） */
+  initiator?: string;
+  reason?: string;
+  /** ⑬ 撤回：是否已向下属投递取消通知（queued 撤回未派发 → false） */
+  notified?: boolean;
+  /** ⑬ 撤回：通知投递耗时（sendCommand 确认到达时刻 − 撤回开始；不可得 → 缺省不落） */
+  notifyMs?: number;
 }
 
 /** 委派链路（基础四类 ③）：秘书派活 → Boss 拆解 → 下属回执 → 关闭（含违规直派拦截告警）。 */
@@ -160,6 +168,10 @@ export function logDelegation(f: DelegationLogFields): number | undefined {
       summary: f.summary,
       forwarded: f.forwarded,
       error: f.error,
+      initiator: f.initiator,
+      reason: f.reason,
+      notified: f.notified,
+      notifyMs: f.notifyMs,
     },
   });
 }

@@ -10,7 +10,10 @@
  *     sendCommand → running，见 boss-response-handler.ts dispatchQueuedDelegation）；
  *   - `onDelegationComplete`：完成 → 释放预算；队首存在则自动出队并**返回其载荷**
  *     供调用方派发（播报「排队任务开始了」由调用方做）；
- *   - 🟡⑫ 审计：排队/出队时 `logEvent`（category='delegation' + 既有 source 'boss'，
+ *   - `cancelDelegationQuotaSlot`（任务16·⑬ 独立通路）：queued → 移除队列 + 删载荷（不派发）；
+ *     running → 释放槽位并复用完成语义自动出队（队首载荷返回给调用方派发）；
+ *     未知/已释放 → not-found（幂等）；**15·A `delegation-quota.ts` 零改动**；
+ *   - 🟡⑫ 审计：排队/出队/撤回时 `logEvent`（category='delegation' + 既有 source 'boss'，
  *     不新增 ACTIVITY_SOURCE；字段含 taskId/bossId/queueMs/phase），**永不上抛**；
  *   - 启动重建（best-effort，见下）。
  *
@@ -55,9 +58,11 @@ export const DELEGATION_QUOTA_ENABLED_ENV = 'TC_JARVIS_DELEGATION_QUOTA';
 /** 全局并发预算 N：缺省 3（15·A DEFAULT_CONCURRENCY_BUDGET，初始值非最优待 ⑭⑮ 标定）。 */
 export const DELEGATION_QUOTA_BUDGET_ENV = 'TC_JARVIS_QUOTA_BUDGET';
 
-/** 🟡⑫ 审计 phase：入队 / 出队（⑭ 观测点筛选与 19·A 验收按此查询）。 */
+/** 🟡⑫ 审计 phase：入队 / 出队 / 撤回（⑭ 观测点筛选与 19·A 验收按此查询）。 */
 export const DELEGATION_QUOTA_PHASE_QUEUED = 'quota-queued';
 export const DELEGATION_QUOTA_PHASE_DEQUEUED = 'quota-dequeued';
+/** 任务16·⑬：撤回配额占用（queued=移除队列不派发；running=释放并自动出队，见 cancelDelegationQuotaSlot）。 */
+export const DELEGATION_QUOTA_PHASE_CANCELLED = 'quota-cancelled';
 /** 播报 action（logProactiveBroadcast 的 action 字段，供 ⑭ system_log 筛选）。 */
 export const DELEGATION_QUOTA_ACTION = 'delegation_quota';
 
@@ -268,6 +273,49 @@ function auditQuota(
   }
 }
 
+/**
+ * 任务16·⑬ 撤回审计（quota-cancelled）：撤销从哪里撤（queued/running）+ 发起方/原因。
+ * payload 可缺（running 撤回只按 id 记账，无载荷）；绝不上抛。
+ */
+function auditQuotaCancelled(input: {
+  cancelledFrom: 'queued' | 'running';
+  quotaId: string;
+  payload?: QueuedDelegation;
+  taskId?: string;
+  bossId?: string;
+  decisionId?: string;
+  selectedAgentId?: string;
+  initiator?: string;
+  reason?: string;
+  at: number;
+}): void {
+  try {
+    logEvent('delegation', {
+      source: QUOTA_LOG_SOURCE,
+      taskId: input.payload?.taskId ?? input.taskId,
+      agentId: input.selectedAgentId ?? input.payload?.selectedAgentId,
+      projectId: input.payload?.taskCard?.projectId,
+      body: {
+        cat: 'delegation',
+        phase: DELEGATION_QUOTA_PHASE_CANCELLED,
+        taskId: input.payload?.taskId ?? input.taskId ?? null,
+        quotaId: input.quotaId,
+        bossId: input.bossId ?? input.payload?.bossId ?? null,
+        decisionId: input.decisionId ?? input.payload?.decisionId ?? null,
+        projectId: input.payload?.taskCard?.projectId ?? null,
+        cancelledFrom: input.cancelledFrom,
+        initiator: input.initiator ?? null,
+        reason: input.reason ?? null,
+        activeCount: quotaState.activeIds.length,
+        queuedCount: quotaState.queuedIds.length,
+        at: input.at,
+      },
+    });
+  } catch {
+    // 🟡⑫ 审计是旁路：任何异常都不得影响撤回主链路
+  }
+}
+
 // ============================================================================
 // 准入 / 出队
 // ============================================================================
@@ -332,4 +380,93 @@ export function onDelegationComplete(taskId: string): QueuedDelegation | null {
     auditQuota(DELEGATION_QUOTA_PHASE_DEQUEUED, payload, Date.now() - payload.queuedAt, decision);
   }
   return payload;
+}
+
+/** ⑬ 撤回入参（配额 id 解析顺序：quotaId ?? taskId ?? decisionId）。 */
+export interface DelegationQuotaCancelInput {
+  /** 显式配额 id（live 条目 = taskId；重建条目 = decisionId）。 */
+  quotaId?: string;
+  taskId?: string;
+  decisionId?: string;
+  /** 审计用（撤回应答可缺省；gate 不据此判定目标）。 */
+  bossId?: string;
+  selectedAgentId?: string;
+  initiator?: string;
+  reason?: string;
+  at?: number;
+}
+
+/** ⑬ 撤回结果：queued-cancelled=移除队列不派发；running-released=释放槽位（可能带出队载荷）。 */
+export interface DelegationQuotaCancelResult {
+  status: 'queued-cancelled' | 'running-released' | 'not-found';
+  /** status='queued-cancelled' 时被移除的排队载荷（供调用方清追踪/补审计）。 */
+  payload?: QueuedDelegation;
+  /** status='running-released' 时被自动放行的队首载荷（调用方负责派发）；无出队 → null。 */
+  dequeued?: QueuedDelegation | null;
+}
+
+/**
+ * 任务16·⑬：撤回一个配额占用（⑬ 独立通路，激活 15·A `delegation-quota.ts` :179-180
+ * 预留的「queued 取消不走 15·A cancel 事件」意图——这里用「移除队列」与「complete 释放」
+ * 两种既有原语组合实现，15·A 纯函数零 diff）：
+ * - queued：从 FIFO 移除 + 删载荷 + `quota-cancelled` 审计；**不派发**（撤回即不执行）；
+ * - running：复用完成语义释放槽位 → 队首自动出队（载荷返回调用方派发；与完成同语义）；
+ * - 未知 id / 已释放 / 开关关闭 → not-found（幂等：重复撤回第二次即此态）；
+ * - 绝不上抛：gate 异常由调用方安全壳兜底（本函数内部仅审计自带 try/catch）。
+ */
+export function cancelDelegationQuotaSlot(input: DelegationQuotaCancelInput): DelegationQuotaCancelResult {
+  if (!isDelegationQuotaEnabled()) return { status: 'not-found' };
+  const quotaId = input.quotaId ?? input.taskId ?? input.decisionId;
+  if (!quotaId) return { status: 'not-found' };
+  const at = input.at ?? Date.now();
+
+  if (quotaState.queuedIds.includes(quotaId)) {
+    const payload = queuedPayloads.get(quotaId);
+    quotaState = createQuotaState({
+      activeIds: quotaState.activeIds,
+      queuedIds: quotaState.queuedIds.filter((id) => id !== quotaId),
+    });
+    queuedPayloads.delete(quotaId);
+    auditQuotaCancelled({
+      cancelledFrom: 'queued',
+      quotaId,
+      payload,
+      taskId: input.taskId,
+      bossId: input.bossId,
+      decisionId: input.decisionId,
+      selectedAgentId: input.selectedAgentId,
+      initiator: input.initiator,
+      reason: input.reason,
+      at,
+    });
+    return { status: 'queued-cancelled', payload };
+  }
+
+  if (!quotaState.activeIds.includes(quotaId)) return { status: 'not-found' };
+
+  // running：与完成同语义释放（复用 15·A complete 事件：释放 + 队首自动出队）
+  const budget = resolveDelegationQuotaBudget();
+  const { state, decision } = applyQuotaEvent(quotaState, { kind: 'complete', taskId: quotaId }, budget);
+  quotaState = state;
+
+  let dequeued: QueuedDelegation | null = null;
+  if (decision.action === 'dequeued' && decision.dequeuedId) {
+    dequeued = queuedPayloads.get(decision.dequeuedId) ?? null;
+    queuedPayloads.delete(decision.dequeuedId);
+    if (dequeued) {
+      auditQuota(DELEGATION_QUOTA_PHASE_DEQUEUED, dequeued, at - dequeued.queuedAt, decision);
+    }
+  }
+  auditQuotaCancelled({
+    cancelledFrom: 'running',
+    quotaId,
+    taskId: input.taskId,
+    bossId: input.bossId,
+    decisionId: input.decisionId,
+    selectedAgentId: input.selectedAgentId,
+    initiator: input.initiator,
+    reason: input.reason,
+    at,
+  });
+  return { status: 'running-released', dequeued };
 }

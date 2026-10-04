@@ -608,8 +608,9 @@ export interface SubagentStreamEntry {
 
 // 任务卡状态机（改造点⑦，Spec §4.7）：pending → running → done；
 // 任务 15·B（全局并发配额）扩展 queued：pending → queued → running（超预算先排队，出队再开工）；
-// cancelled 由任务 16（任务撤回）在同表扩展，仍留协同。
-export type TaskCardStatus = 'pending' | 'queued' | 'running' | 'done';
+// 任务 16（⑬ 撤回）扩展 cancelled 终态：pending/queued/running → cancelled；
+// done / cancelled 均为终态，不接任何出边（done 天然拒回退 = done 拒撤）。
+export type TaskCardStatus = 'pending' | 'queued' | 'running' | 'done' | 'cancelled';
 
 // 任务卡优先级（P0 最高 —— P3 最低；解析时也接受 high/medium/low 归一化）
 export type TaskCardPriority = 'P0' | 'P1' | 'P2' | 'P3';
@@ -629,6 +630,7 @@ export interface TaskCard {
   sourceProject?: string;           // 跨项目任务的来源项目
   status: TaskCardStatus;           // 状态机当前态（落卡即 pending）
   statusUpdatedAt?: number;         // 状态最近迁移时间（⑦ 观测点：迁移 + 时间）
+  due?: string;                     // 截止日（任务17·A2；date-only 'YYYY-MM-DD'，与 Bolba 同形）
 }
 
 /**
@@ -647,6 +649,8 @@ export interface DelegationCompletion {
   summary?: string;
   /** 产出位置（文件/目录/链接；当前两个入口均不可得 → 缺省，来源限制见任务11 报告） */
   outputLocation?: string;
+  /** 验收自检逐条打勾（任务17·A3；report-task 入口回传，旧记录无此字段 → 按「未提供」处理） */
+  acceptance?: Array<{ item: string; done: boolean }>;
   /** 触发原因：report-task / turn-complete 等 */
   reason?: string;
 }

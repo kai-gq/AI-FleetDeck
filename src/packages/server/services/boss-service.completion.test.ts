@@ -112,6 +112,50 @@ describe('⑧ 病历服务级：完成写回 + 评价回写（真盘 + 🟡⑧ �
     expect(rows[0]!.entry.source).toBe('boss');
   });
 
+  it('完成写回 acceptance（任务17·A3 承接）：真盘读到逐条 {item,done} 内容本身；未提供/空数组不写该字段', () => {
+    bossService.init();
+    bossService.addDelegationToHistory('boss-1', makeDecision('d-acc'));
+
+    const decision = bossService.recordDelegationCompletion('boss-1', 'd-acc', {
+      at: 60_000,
+      result: 'completed',
+      outputLocation: 'reports/acc.md',
+      acceptance: [
+        { item: '登录表单校验通过', done: true },
+        { item: '移动端适配回归', done: false },
+      ],
+      reason: 'report-task',
+    });
+
+    // 内存 + 真盘都要读到数组内容本身（剥离 `...(acceptance ? { acceptance } : {})` 透传的变异必须变红）
+    expect(decision?.completion?.acceptance).toEqual([
+      { item: '登录表单校验通过', done: true },
+      { item: '移动端适配回归', done: false },
+    ]);
+    const disk = readDiskDecision('d-acc');
+    expect(disk.completion?.acceptance).toEqual([
+      { item: '登录表单校验通过', done: true },
+      { item: '移动端适配回归', done: false },
+    ]);
+    expect(disk.completion?.acceptance?.[1]).toMatchObject({ item: '移动端适配回归', done: false });
+
+    // 未提供 → 记录中无该字段（不是空数组、不是 undefined 键；内存 + 真盘双查）
+    bossService.addDelegationToHistory('boss-1', makeDecision('d-noacc'));
+    const noAcc = bossService.recordDelegationCompletion('boss-1', 'd-noacc', { at: 61_000, result: 'completed' });
+    expect(noAcc?.completion).not.toHaveProperty('acceptance');
+    expect(readDiskDecision('d-noacc').completion).not.toHaveProperty('acceptance');
+
+    // 空数组按「未提供」处理（与 summary/outputLocation 的空白口径一致）
+    bossService.addDelegationToHistory('boss-1', makeDecision('d-emptyacc'));
+    const emptyAcc = bossService.recordDelegationCompletion('boss-1', 'd-emptyacc', {
+      at: 62_000,
+      result: 'completed',
+      acceptance: [],
+    });
+    expect(emptyAcc?.completion).not.toHaveProperty('acceptance');
+    expect(readDiskDecision('d-emptyacc').completion).not.toHaveProperty('acceptance');
+  });
+
   it('失败结果 + 时钟回拨：result failed、耗时钳 0、空白摘要按未提供', () => {
     bossService.init();
     bossService.addDelegationToHistory('boss-1', makeDecision('d-failed'));

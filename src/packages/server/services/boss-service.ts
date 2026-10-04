@@ -701,8 +701,10 @@ export interface DelegationCompletionUpdateOptions {
   result?: 'completed' | 'failed';
   /** 产出摘要（report-task 入口的 req.body.summary；空白按「未提供」处理） */
   summary?: string;
-  /** 产出位置（当前入口不可得 → 缺省，不硬造） */
+  /** 产出位置（report-task 入口回传；任务17·A3 接通） */
   outputLocation?: string;
+  /** 验收打勾（report-task 入口回传；任务17·A3 接通；空数组按「未提供」处理） */
+  acceptance?: Array<{ item: string; done: boolean }>;
   /** 触发原因：report-task / turn-complete 等 */
   reason?: string;
   subordinateId?: string;
@@ -738,6 +740,8 @@ export function recordDelegationCompletion(
   const result = opts.result ?? 'completed';
   const summary = nonBlank(opts.summary);
   const outputLocation = nonBlank(opts.outputLocation);
+  const acceptance =
+    Array.isArray(opts.acceptance) && opts.acceptance.length > 0 ? opts.acceptance : undefined;
 
   decision.completion = {
     completedAt: at,
@@ -745,6 +749,7 @@ export function recordDelegationCompletion(
     result,
     ...(summary ? { summary } : {}),
     ...(outputLocation ? { outputLocation } : {}),
+    ...(acceptance ? { acceptance } : {}),
     ...(opts.reason ? { reason: opts.reason } : {}),
   };
   // ⑧ 状态迁移：现状永远停在 'sent'（本任务补齐）；重复入口在上方幂等分支已挡住

@@ -11,6 +11,8 @@
  * - analyze_logs 的报告由分析 agent 产出(外部进程),hop1 的 responseToUser 同样丢弃;
  * - 任务13·⑩:query/create/complete/reopen_bolba_task 的结果由服务端 Bolba 桥确定性
  *   产出,hop1 的 responseToUser 一律丢弃(显式 GateAction 成员,不借别名);
+ * - 任务16·⑬:cancel_delegation / rate_delegation 的结果同样由服务端确定性产出
+ *   (撤回结论/评价确认),hop1 话术一律丢弃(显式 GateAction 成员);
  * - general_response / list_agents 一旦 action 确定就即时放行(低延迟路径)。
  */
 
@@ -26,6 +28,9 @@ export type GateAction =
   | 'create_bolba_task'
   | 'complete_bolba_task'
   | 'reopen_bolba_task'
+  // 任务16·⑬ 撤回/评价:撤回结论与评价确认由服务端确定性产出,hop1 话术一律丢弃。
+  | 'cancel_delegation'
+  | 'rate_delegation'
   | 'noop';
 
 /** 派发类动作:确认话术要等派发成功才放行(失败即丢弃)。 */
@@ -53,7 +58,8 @@ export class SpeechGate {
     }
     if (this.mode === 'noop' || this.mode === 'query_agent_output' || this.mode === 'analyze_logs'
       || this.mode === 'query_bolba_tasks' || this.mode === 'create_bolba_task'
-      || this.mode === 'complete_bolba_task' || this.mode === 'reopen_bolba_task') return;
+      || this.mode === 'complete_bolba_task' || this.mode === 'reopen_bolba_task'
+      || this.mode === 'cancel_delegation' || this.mode === 'rate_delegation') return;
     this.flushEmit(text);
   }
 
@@ -65,7 +71,8 @@ export class SpeechGate {
     this.mode = action;
     if (action === 'noop' || action === 'query_agent_output' || action === 'analyze_logs'
       || action === 'query_bolba_tasks' || action === 'create_bolba_task'
-      || action === 'complete_bolba_task' || action === 'reopen_bolba_task') {
+      || action === 'complete_bolba_task' || action === 'reopen_bolba_task'
+      || action === 'cancel_delegation' || action === 'rate_delegation') {
       this.buffered = [];
     } else if (!isDispatchGateAction(action)) {
       this.release();

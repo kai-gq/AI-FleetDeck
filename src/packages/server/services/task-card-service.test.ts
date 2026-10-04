@@ -61,6 +61,29 @@ describe('normalizeTaskCard — 任务卡解析/归一化', () => {
     const { card } = normalizeTaskCard({ objective: 'x', status: 'done' });
     expect(card?.status).toBe('pending');
   });
+
+  it('due 归一化（任务17·A2 承接）：合法 date-only 保留；非法记错并整卡降级；缺省不硬造', () => {
+    const ok = normalizeTaskCard({ objective: '实现登录页', due: ' 2026-10-04 ' });
+    expect(ok.errors).toEqual([]);
+    expect(ok.card?.due).toBe('2026-10-04'); // 变异「忽略 due」在此变红
+
+    // 非法形态：格式不对/日期越界（Date.parse NaN）→ 与其它非法字段同一条降级路径（无卡）+ 如实记错
+    for (const bad of ['2026/10/04', '2026-10-99', '2026-2-3', '明天']) {
+      const { card, errors } = normalizeTaskCard({ objective: '实现登录页', due: bad });
+      expect(card).toBeUndefined();
+      expect(errors.join()).toContain('due');
+    }
+    // 非字符串同样记错降级
+    const numeric = normalizeTaskCard({ objective: '实现登录页', due: 20261004 });
+    expect(numeric.card).toBeUndefined();
+    expect(numeric.errors.join()).toContain('due');
+
+    // 缺省/空串 = 未提供（不记错、不硬造）
+    expect(normalizeTaskCard({ objective: '实现登录页', due: '' }).errors).toEqual([]);
+    expect(normalizeTaskCard({ objective: '实现登录页' }).card?.due).toBeUndefined();
+    // 围栏块解析：卡校验失败 → undefined（沿用既有降级）
+    expect(parseTaskCardFromText('```task-card\n{"objective":"x","due":"2026-10-99"}\n```')).toBeUndefined();
+  });
 });
 
 describe('parseTaskCardFromText — ```task-card 围栏块解析 + 回退纯文本', () => {
@@ -88,7 +111,7 @@ describe('parseTaskCardFromText — ```task-card 围栏块解析 + 回退纯文�
   });
 });
 
-describe('状态机守卫 canTransitionTaskCard（pending → queued/running → done）', () => {
+describe('状态机守卫 canTransitionTaskCard（pending → queued/running → done/cancelled）', () => {
   it('合法迁移', () => {
     expect(canTransitionTaskCard('pending', 'running')).toBe(true);
     expect(canTransitionTaskCard('pending', 'done')).toBe(true);   // 乱序回执：运行标记未及落盘
@@ -96,11 +119,16 @@ describe('状态机守卫 canTransitionTaskCard（pending → queued/running →
     // 任务15·B 并发配额：pending → queued（超预算入队）、queued → running（出队派发）
     expect(canTransitionTaskCard('pending', 'queued')).toBe(true);
     expect(canTransitionTaskCard('queued', 'running')).toBe(true);
+    // 任务16·⑬ 撤回：pending/queued/running 三条边 → cancelled（终态）
+    expect(canTransitionTaskCard('pending', 'cancelled')).toBe(true);
+    expect(canTransitionTaskCard('queued', 'cancelled')).toBe(true);
+    expect(canTransitionTaskCard('running', 'cancelled')).toBe(true);
   });
 
   it('非法迁移（终态出边为空 / 同态重复 / queued 只接 running）', () => {
     expect(canTransitionTaskCard('done', 'running')).toBe(false);
     expect(canTransitionTaskCard('done', 'pending')).toBe(false);
+    expect(canTransitionTaskCard('done', 'cancelled')).toBe(false); // done 天然拒回退 = done 拒撤
     expect(canTransitionTaskCard('pending', 'pending')).toBe(false);
     expect(canTransitionTaskCard('running', 'running')).toBe(false);
     expect(canTransitionTaskCard('queued', 'queued')).toBe(false);
@@ -108,14 +136,21 @@ describe('状态机守卫 canTransitionTaskCard（pending → queued/running →
     expect(canTransitionTaskCard('queued', 'done')).toBe(false); // 排队不得直接完成
     expect(canTransitionTaskCard('running', 'queued')).toBe(false);
     expect(canTransitionTaskCard('done', 'queued')).toBe(false);
+    // cancelled 同为终态：零出边（同态重复由调用方幂等判定，迁移守卫一律 false）
+    expect(canTransitionTaskCard('cancelled', 'pending')).toBe(false);
+    expect(canTransitionTaskCard('cancelled', 'queued')).toBe(false);
+    expect(canTransitionTaskCard('cancelled', 'running')).toBe(false);
+    expect(canTransitionTaskCard('cancelled', 'done')).toBe(false);
+    expect(canTransitionTaskCard('cancelled', 'cancelled')).toBe(false);
   });
 
-  it('isTaskCardStatus 认四态（queued 已落地；cancelled 仍留任务 16）', () => {
+  it('isTaskCardStatus 认五态（cancelled 任务16 已落地；未知字符串拒绝）', () => {
     expect(isTaskCardStatus('pending')).toBe(true);
     expect(isTaskCardStatus('running')).toBe(true);
     expect(isTaskCardStatus('done')).toBe(true);
     expect(isTaskCardStatus('queued')).toBe(true);
-    expect(isTaskCardStatus('cancelled')).toBe(false);
+    expect(isTaskCardStatus('cancelled')).toBe(true);
+    expect(isTaskCardStatus('withdrawn')).toBe(false); // 负控：别名不冒充 cancelled
   });
 });
 
@@ -152,5 +187,15 @@ describe('渲染 formatTaskCard / formatTaskCardForBoss', () => {
     const text = formatTaskCardForBoss(card);
     expect(text).toContain('"taskCard":');
     expect(text).toContain('"acceptanceCriteria":["types 通过","单测覆盖回退"]');
+  });
+
+  it('due 渲染：可读卡出 Due 行、Boss 注入版 schema 带 due；无 due 两处都不出现', () => {
+    const withDue = normalizeTaskCard({ objective: '实现登录页', due: '2026-10-04' }).card!;
+    expect(formatTaskCard(withDue)).toContain('Due: 2026-10-04');
+    expect(formatTaskCardForBoss(withDue)).toContain('"due":"2026-10-04"');
+
+    const withoutDue = normalizeTaskCard({ objective: '实现登录页' }).card!;
+    expect(formatTaskCard(withoutDue)).not.toContain('Due:');
+    expect(formatTaskCardForBoss(withoutDue)).not.toContain('"due"');
   });
 });

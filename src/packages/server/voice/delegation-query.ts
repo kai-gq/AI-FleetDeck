@@ -259,3 +259,275 @@ export function buildQueryChainLogBody(input: QueryChainLogInput): Record<string
   if (input.error) body.error = input.error;
   return body;
 }
+
+// ============================================================================
+// 任务16·⑬ 撤回/评价 —— 目标解析与话术（纯逻辑;IO 留在 vcs / boss-response-handler）
+// ============================================================================
+
+/** ⑬ 撤回候选当前态（live 源 = 运行追踪/配额账本实时；history 源 = 任务卡落盘态）。 */
+export type CancelCandidateState = 'pending' | 'queued' | 'running' | 'done' | 'cancelled';
+
+/** 撤回目标候选（vcs 从 activeDelegations + 配额排队快照 + 委派史拼出，本模块只做匹配）。 */
+export interface CancelCandidate {
+  /** 目标下属 agent id（执行面按此清追踪/通知）。 */
+  subordinateId: string;
+  subordinateName?: string;
+  bossId: string;
+  decisionId?: string;
+  taskId?: string;
+  /** 任务展示/匹配文本（taskCard.objective 优先，回退委派原话）。 */
+  label: string;
+  projectId?: string;
+  state: CancelCandidateState;
+  /** 来源：active=运行追踪；queued=配额排队账本；history=仅委派史（已结束/重启后）。 */
+  source: 'active' | 'queued' | 'history';
+}
+
+/** 仍可撤回的状态（done/cancelled 为终态）。 */
+export function isActionableCancelState(state: CancelCandidateState): boolean {
+  return state === 'pending' || state === 'queued' || state === 'running';
+}
+
+/** 关键词最小命中长度（2 = 中文双字词；再短误伤率不可接受，短于它的按「无关键词」处理）。 */
+export const CANCEL_KEYWORD_MIN_LEN = 2;
+/** 反问时最多列出的候选数（超出提示按名字回答，防播报过长）。 */
+export const CANCEL_ASK_MAX_CANDIDATES = 5;
+
+const MATCH_PUNCT_RE = /[\s,，。．.!！?？、;；:：'"“”‘’「」『』【】()（）\[\]{}<>—－_/\\|·~～-]+/g;
+
+/** 匹配用归一化：小写 + 去空白/标点（中文无词边界，标点只会伤 LCS 命中）。 */
+export function normalizeCancelMatchText(text: string): string {
+  return text.toLowerCase().replace(MATCH_PUNCT_RE, '');
+}
+
+/** 撤回动词（从原话里剥掉，剩下的才是「撤回对象」线索）。 */
+const CANCEL_VERB_RE = /撤回|撤销|取消|作废|终止|停止|停掉|停下|别做了|不做了|不要做了|不要做|别做|别干|不用做|不用做了|不干了|算了/g;
+/** 指代/语气填充词（不携带对象信息，剥掉避免假命中）。 */
+const CANCEL_FILLER_RE = /那个|这个|这些|那些|刚刚|刚才|请|帮我|给我|一下|的任务|的活|活儿|事情/g;
+/** 剥完后只剩这些词 = 「裸撤回」（没说撤哪个，按全部在途候选处理）。 */
+const GENERIC_SUBJECT_RE = /^(任务|活|活儿|事|事情|的|了|吧|呢|啊)*$/;
+
+/** 从用户原话抽出「撤回对象」文本（归一化后）。 */
+export function extractCancelSubject(text: string): string {
+  const stripped = text.replace(CANCEL_VERB_RE, '').replace(CANCEL_FILLER_RE, '');
+  return normalizeCancelMatchText(stripped);
+}
+
+/** 裸撤回 = 没给出可匹配的对象线索。 */
+export function isBareCancelSubject(subject: string): boolean {
+  return subject.length === 0 || GENERIC_SUBJECT_RE.test(subject);
+}
+
+/** 最长公共子串长度（短文本 DP；命中靠「词面重合」而不是顺序包含，容忍口语插字）。 */
+export function longestCommonSubstringLength(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const [s, t] = a.length <= b.length ? [a, b] : [b, a];
+  let prev = new Array<number>(s.length + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= t.length; i++) {
+    const curr = new Array<number>(s.length + 1).fill(0);
+    for (let j = 1; j <= s.length; j++) {
+      if (t[i - 1] === s[j - 1]) {
+        curr[j] = prev[j - 1] + 1;
+        if (curr[j] > best) best = curr[j];
+      }
+    }
+    prev = curr;
+  }
+  return best;
+}
+
+/** 候选命中分：与「下属名 / 项目名 / 任务文本」三个字段的 LCS 取最大。 */
+function cancelCandidateScore(subject: string, candidate: CancelCandidate): number {
+  const fields = [candidate.subordinateName, candidate.projectId, candidate.label];
+  let best = 0;
+  for (const field of fields) {
+    if (!field) continue;
+    best = Math.max(best, longestCommonSubstringLength(subject, normalizeCancelMatchText(field)));
+  }
+  return best;
+}
+
+/**
+ * 关键词匹配候选（按得分降序）：
+ * - 裸撤回 → 全部「仍可撤回」候选（候选本身即全集，等上层判唯一/多候选）；
+ * - 有关键词 → 得分 ≥ {@link CANCEL_KEYWORD_MIN_LEN} 的候选，高分在前。
+ */
+export function rankCancelCandidates(text: string, candidates: readonly CancelCandidate[]): CancelCandidate[] {
+  const subject = extractCancelSubject(text);
+  if (isBareCancelSubject(subject)) {
+    return candidates.filter((c) => isActionableCancelState(c.state));
+  }
+  return candidates
+    .map((candidate) => ({ candidate, score: cancelCandidateScore(subject, candidate) }))
+    .filter((x) => x.score >= CANCEL_KEYWORD_MIN_LEN)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.candidate);
+}
+
+/** 撤回计划（vcs 只消费此结果，不自行猜目标）。 */
+export type CancelPlan =
+  | { kind: 'match'; candidate: CancelCandidate }
+  | { kind: 'ask'; question: string; candidates: CancelCandidate[] }
+  | { kind: 'rejected-done'; candidate: CancelCandidate }
+  | { kind: 'already-cancelled'; candidate: CancelCandidate }
+  | { kind: 'none' };
+
+/** 反问话术：编号 + 谁 + 在做什么（超上限只提示按名字回答）。 */
+export function buildCancelClarifyQuestion(
+  candidates: readonly CancelCandidate[],
+  maxAsk: number = CANCEL_ASK_MAX_CANDIDATES,
+): string {
+  const items = candidates.slice(0, maxAsk).map((c, i) => {
+    const who = c.subordinateName?.trim() || c.subordinateId;
+    return `${i + 1}）${who}：${truncateTask(c.label || '(未记录任务)')}`;
+  });
+  const overflow = candidates.length > maxAsk ? `（还有 ${candidates.length - maxAsk} 个未列出，可报名字）` : '';
+  return `要撤回哪一个？${items.join('；')}。回个编号或名字就行。${overflow}`;
+}
+
+/**
+ * 撤回三态决策（任务16 口径）：
+ * - live（运行追踪 + 配额排队）优先：唯一命中 → match；多候选 → 一次反问；
+ * - live 无命中 → 委派史兜底：唯一且 done → 拒撤话术；唯一且 cancelled → 已撤过；唯一在途（重启后残留）→ match；
+ * - 史源多个可撤候选 → 反问；仅有已结束的多个候选 → none（不追问已完成的任务）。
+ */
+export function planCancelAction(input: {
+  text: string;
+  live: readonly CancelCandidate[];
+  history: readonly CancelCandidate[];
+  maxAsk?: number;
+}): CancelPlan {
+  const liveMatches = rankCancelCandidates(input.text, input.live);
+  if (liveMatches.length === 1) return { kind: 'match', candidate: liveMatches[0] };
+  if (liveMatches.length > 1) {
+    return {
+      kind: 'ask',
+      question: buildCancelClarifyQuestion(liveMatches, input.maxAsk),
+      candidates: liveMatches,
+    };
+  }
+
+  const subject = extractCancelSubject(input.text);
+  const bare = isBareCancelSubject(subject);
+  const historyMatches = rankCancelCandidates(input.text, input.history);
+  if (historyMatches.length === 0) return { kind: 'none' };
+
+  const actionable = historyMatches.filter((c) => isActionableCancelState(c.state));
+  if (!bare && actionable.length === 0) {
+    // 关键词指向的全是已结束任务：唯一时给确定话术，多个时不猜（回归 none 明确话术）。
+    if (historyMatches.length === 1) {
+      const only = historyMatches[0];
+      if (only.state === 'done') return { kind: 'rejected-done', candidate: only };
+      if (only.state === 'cancelled') return { kind: 'already-cancelled', candidate: only };
+    }
+    return { kind: 'none' };
+  }
+
+  const pool = actionable.length > 0 ? actionable : historyMatches;
+  if (pool.length > 1) {
+    return { kind: 'ask', question: buildCancelClarifyQuestion(pool, input.maxAsk), candidates: pool };
+  }
+  const only = pool[0];
+  if (only.state === 'done') return { kind: 'rejected-done', candidate: only };
+  if (only.state === 'cancelled') return { kind: 'already-cancelled', candidate: only };
+  return { kind: 'match', candidate: only };
+}
+
+/** 反问的下一回合回答解析结果。 */
+export type CancelClarifyAnswer =
+  | { kind: 'pick'; candidate: CancelCandidate }
+  | { kind: 'abort' }
+  | { kind: 'unmatched' };
+
+/** 放弃话术（「算了/不撤了/不用了」）。 */
+const CANCEL_ABORT_RE = /不撤|算了|不用了|不用|不了|没事|先别|别撤/;
+const ZH_ORDINALS: Readonly<Record<string, number>> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+
+/** 编号解析（「第2个/第二个/2」；超出候选数返回 undefined）。 */
+export function parseCancelOrdinalIndex(text: string, size: number): number | undefined {
+  const normalized = normalizeCancelMatchText(text);
+  const digit = /([1-9])/.exec(normalized);
+  if (digit) {
+    const index = Number(digit[1]);
+    if (index <= size) return index;
+  }
+  const zh = /[一二两三四五六七八九]/.exec(normalized);
+  if (zh) {
+    const index = ZH_ORDINALS[zh[0]];
+    if (index && index <= size) return index;
+  }
+  return undefined;
+}
+
+/**
+ * 消费一次反问回答（只消费一次：unmatched 由调用方丢弃挂起、按普通回合继续）：
+ * 关键词/名字唯一命中 → pick；裸回答按编号 → pick；放弃话术 → abort；其余 → unmatched。
+ */
+export function consumeCancelClarifyAnswer(
+  text: string,
+  candidates: readonly CancelCandidate[],
+): CancelClarifyAnswer {
+  const subject = extractCancelSubject(text);
+  if (!isBareCancelSubject(subject)) {
+    const matches = rankCancelCandidates(text, candidates);
+    if (matches.length === 1) return { kind: 'pick', candidate: matches[0] };
+    if (matches.length > 1) return { kind: 'unmatched' };
+  }
+  const index = parseCancelOrdinalIndex(text, candidates.length);
+  if (index !== undefined) return { kind: 'pick', candidate: candidates[index - 1] };
+  if (CANCEL_ABORT_RE.test(text)) return { kind: 'abort' };
+  return { kind: 'unmatched' };
+}
+
+/** 无目标话术（撤回）。 */
+export function buildCancelNoneResponse(): string {
+  return '现在没有可以撤回的在办任务。';
+}
+
+// ─── ⑧ 评价自然语言入口（任务16 收官：承接任务11 回写 API） ───
+
+export type RatingPolarity = 'satisfied' | 'unsatisfied' | 'unknown';
+
+/** 不满意词先判（「不满意」含「满意」，顺序不能反；「不太行」「不太满意」是口语高频负评，显式收录）。 */
+const UNSATISFIED_RE = /不满|不太满意|不怎么样|不太行|不行|太差|很差|差劲|有意见|不靠谱|搞砸|糟糕|不好|失望|一般/;
+const SATISFIED_RE = /满意|干得好|干得不错|做得好|做得不错|做的不错|不错|很好|挺好|太棒|靠谱|给力|赞|辛苦了|谢谢/;
+
+/** 从用户原话解析评价极性；两不沾 → unknown（vcs 追问一次，不猜）。 */
+export function parseRatingPolarity(text: string): RatingPolarity {
+  if (UNSATISFIED_RE.test(text)) return 'unsatisfied';
+  if (SATISFIED_RE.test(text)) return 'satisfied';
+  return 'unknown';
+}
+
+/** 取「最近完成且未评价」的委派（completedAt 倒序；只认成功完成的，失败任务不走评价入口）。 */
+export function pickLatestUnratedCompletion(
+  history: readonly DelegationDecision[],
+): DelegationDecision | undefined {
+  return [...history]
+    .filter((d) => d.completion?.result === 'completed' && !d.userRating)
+    .sort((a, b) => (b.completion?.completedAt ?? b.timestamp) - (a.completion?.completedAt ?? a.timestamp))[0];
+}
+
+/** 评价目标展示文本（任务卡目标优先，回退委派原话）。 */
+function ratingTaskText(decision: DelegationDecision): string {
+  return truncateTask(decision.taskCard?.objective?.trim() || decision.userCommand || '(未记录任务)');
+}
+
+/** 待评价目标确认话术（写入评价后的结果播报）。 */
+export function buildRatingConfirmResponse(decision: DelegationDecision): string {
+  const name = decision.selectedAgentName || decision.selectedAgentId;
+  const rating = decision.userRating === 'unsatisfied' ? '不满意' : '满意';
+  return `已记下：对「${name}」的「${ratingTaskText(decision)}」评价为${rating}。`;
+}
+
+/** 极性不明时的一句追问（下一回合说「满意/不满意」，目标仍是同一条——选取确定性）。 */
+export function buildRatingTargetQuestion(decision: DelegationDecision): string {
+  const name = decision.selectedAgentName || decision.selectedAgentId;
+  return `要给「${name}」的「${ratingTaskText(decision)}」打满意还是不满意？`;
+}
+
+/** 无待评价目标话术。 */
+export function buildNoRatingTargetResponse(): string {
+  return '最近没有已完成、还没评价的任务。';
+}
