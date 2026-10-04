@@ -10,7 +10,9 @@
  *   3. 按契约执行:任务一律 delegate_to_boss 交团队主管(改①;委托消息复用
  *      buildBossMessage 注入团队上下文,默认排队、急迫语义才打断)、查询 agent
  *      最近输出(第二跳 claude 总结)、列 agent、纯聊天;
- *   4. 维护跨会话的持久记忆(notes + summary),每轮注入系统提示词。
+ *   4. 维护跨会话的持久记忆(notes + summary),每轮注入系统提示词;
+ *   5. 团队认知(改③):只读注入委派史摘要(Boss→下属→任务→状态),agent 快照的
+ *      Boss 行展开下属结构/忙闲/最近委派(delegation-history 永不写)。
  *
  * 设计要点:
  * - 会话状态与记忆落盘 ~/.local/share/tide-commander/voice-companion.json(tmp+rename);
@@ -21,7 +23,7 @@
  * - 单一互斥队列:主动汇报与用户语音不会并发两次 claude 调用。
  *
  * 纯函数(parseContractJson / applyMemoryOps / buildAgentSnapshotLines /
- * shouldRotateSession)导出以便单测;IO 部分保持薄。
+ * buildDelegationSummaryLines / shouldRotateSession)导出以便单测;IO 部分保持薄。
  */
 
 import { spawn, type ChildProcess } from 'child_process';
@@ -31,12 +33,14 @@ import path from 'path';
 import os from 'os';
 import { ClaudeBackend } from '../claude/index.js';
 import * as agentService from './agent-service.js';
+import * as bossService from './boss-service.js';
+import { formatTimeSince } from './subordinate-context-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
 import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction } from '../voice/speech-gate.js';
-import type { Agent } from '../../shared/agent-types.js';
+import type { Agent, DelegationDecision } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
 import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, sanitizePersonaCustom, sanitizePersonaId, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
 import {
@@ -201,6 +205,10 @@ const SUMMARY_MAX_TEXT = 1500;
 const MAX_SNAPSHOT_AGENTS = 60;
 const TASK_TRUNCATE = 60;
 const ERROR_TRUNCATE = 80;
+/** 注入 prompt 的委派史条数上限:§8.1 已验证常量,镜像 subordinate-context-service.ts:135 的 slice(0,5),不改值。 */
+const MAX_DELEGATION_INJECT = 5;
+/** Boss 卡片最多展开的下属个数,超出只报「…另N人」——防单行随团队规模失控(60 快照上限之外的体积护栏)。 */
+const MAX_SNAPSHOT_SUBORDINATES = 8;
 const HISTORY_MESSAGES = 30;
 const HISTORY_EXCERPT_COUNT = 6;
 const HISTORY_ITEM_CHARS = 400;
@@ -516,6 +524,10 @@ export interface SnapshotAgent {
   class?: string;
   status: string;
   isBoss?: boolean;
+  /** 直属主管 id(下属侧反向指针)。 */
+  bossId?: string;
+  /** 直管下属 id 列表(主管侧指针);与 agent.bossId 取并集,兼容两侧只填一边的数据。 */
+  subordinateIds?: readonly string[];
   taskLabel?: string;
   lastAssignedTask?: string;
   lastError?: string;
@@ -524,12 +536,49 @@ export interface SnapshotAgent {
 }
 
 /**
+ * Boss 卡片的「下属结构」摘要:人数 + 忙闲统计 + 逐个下属状态(带所属区域)。
+ * 下属来源 = subordinateIds ∪ {bossId 指向本 Boss 的 agent};超出上限只报剩余人数。
+ */
+function formatSubordinateSummary(
+  boss: SnapshotAgent,
+  byId: ReadonlyMap<string, SnapshotAgent>,
+  areasByAgent: ReadonlyMap<string, string[]>,
+): string {
+  const ids = new Set<string>(boss.subordinateIds ?? []);
+  for (const agent of byId.values()) {
+    if (agent.bossId === boss.id && agent.id !== boss.id) ids.add(agent.id);
+  }
+  const subs = [...ids]
+    .map((id) => byId.get(id))
+    .filter((s): s is SnapshotAgent => !!s && s.id !== boss.id);
+
+  const busy = subs.filter((s) => ACTIVE_AGENT_STATUSES.has(s.status)).length;
+  const ordered = [...subs].sort((a, b) => {
+    const ab = ACTIVE_AGENT_STATUSES.has(a.status) ? 0 : 1;
+    const bb = ACTIVE_AGENT_STATUSES.has(b.status) ? 0 : 1;
+    if (ab !== bb) return ab - bb;
+    return a.name.localeCompare(b.name);
+  });
+  const shown = ordered.slice(0, MAX_SNAPSHOT_SUBORDINATES).map((s) => {
+    const areaNames = areasByAgent.get(s.id);
+    const area = areaNames?.length ? `·${areaNames.join('、')}` : '';
+    return `${s.name}(${s.status}${area})`;
+  });
+  const rest = ordered.length - shown.length;
+  if (rest > 0) shown.push(`…另${rest}人`);
+
+  return `下属(${subs.length}): ${busy}忙/${subs.length - busy}闲${shown.length ? ` — ${shown.join('、')}` : ''}`;
+}
+
+/**
  * 把 agent 列表压缩成 prompt 里的一行一个:按最近活动排序、截断、上限 60。
+ * Boss 卡额外展开下属结构 / 忙闲 / 最近委派(改③,团队认知);委派史只读,可为空。
  * 同时返回是否发生了截断(供 prompt 说明)。
  */
 export function buildAgentSnapshotLines(
   agents: readonly SnapshotAgent[],
   areas: readonly DrawingArea[],
+  delegationHistory: readonly DelegationDecision[] = [],
 ): { lines: string[]; total: number; truncated: boolean } {
   const areasByAgent = new Map<string, string[]>();
   for (const area of areas) {
@@ -539,6 +588,13 @@ export function buildAgentSnapshotLines(
       list.push(area.name);
       areasByAgent.set(id, list);
     }
+  }
+
+  const byId = new Map(agents.map((a) => [a.id, a]));
+  // 每个 Boss 只取最近一条委派(输入可能跨 Boss 交错,先按时间倒序再取首个)。
+  const recentByBoss = new Map<string, DelegationDecision>();
+  for (const d of [...delegationHistory].sort((a, b) => b.timestamp - a.timestamp)) {
+    if (!recentByBoss.has(d.bossId)) recentByBoss.set(d.bossId, d);
   }
 
   const sorted = [...agents].sort((a, b) => {
@@ -551,9 +607,17 @@ export function buildAgentSnapshotLines(
   const selected = sorted.slice(0, MAX_SNAPSHOT_AGENTS);
   const lines = selected.map((a) => {
     const parts = [`- ${a.name} | id: ${a.id} | ${a.class ?? 'unknown'} | ${a.status}`];
-    if (a.isBoss) parts.push('[BOSS]');
+    const isBoss = isBossLikeAgent(a);
+    if (isBoss) parts.push('[BOSS]');
     const agentAreas = areasByAgent.get(a.id);
     if (agentAreas?.length) parts.push(`[区域: ${agentAreas.join('、')}]`);
+    if (isBoss) {
+      parts.push(`| ${formatSubordinateSummary(a, byId, areasByAgent)}`);
+      const recent = recentByBoss.get(a.id);
+      if (recent) {
+        parts.push(`| 最近委派: "${truncate(recent.userCommand, TASK_TRUNCATE)}" → ${recent.selectedAgentName} (${recent.status})`);
+      }
+    }
     const task = a.taskLabel || a.lastAssignedTask;
     if (task) parts.push(`| 任务: ${truncate(task, TASK_TRUNCATE)}`);
     if (a.lastError) parts.push(`| 最近错误: ${truncate(a.lastError, ERROR_TRUNCATE)}`);
@@ -561,6 +625,47 @@ export function buildAgentSnapshotLines(
   });
 
   return { lines, total: sorted.length, truncated: sorted.length > selected.length };
+}
+
+/**
+ * 委派史摘要(改③,镜像 subordinate-context-service.ts:135-137 的
+ * `getDelegationHistory().slice(0,5)` 范式):按时间倒序取最近 MAX_DELEGATION_INJECT
+ * 条,格式 Boss → 下属: 任务 [状态];空历史返回 []。
+ */
+export function buildDelegationSummaryLines(
+  history: readonly DelegationDecision[],
+  bossNames?: ReadonlyMap<string, string>,
+): string[] {
+  return [...history]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, MAX_DELEGATION_INJECT)
+    .map((d) => {
+      const boss = bossNames?.get(d.bossId) ?? d.bossId;
+      return `- [${formatTimeSince(d.timestamp)}前] ${boss} → ${d.selectedAgentName}: "${truncate(d.userCommand, TASK_TRUNCATE)}" [状态: ${d.status}]`;
+    });
+}
+
+/**
+ * 汇总所有 Boss 的委派史(只读)。
+ * 决策观测点③「委派史变更」通道预留(随任务 08 回执链路一起启用,本任务不实现):
+ * 现有接缝是 boss-service.subscribe('delegation_decision'),但它只在
+ * analyzeAndDelegate 路径 emit;回执链路真正写盘走 addDelegationToHistory
+ * (boss-response-handler),写入侧不 emit —— 任务 08 需在写入侧补事件或改订阅,
+ * 这里保持每次读实时 map、不做缓存。
+ * 文件缺失/读取失败 → 返回空数组,不打断 hop1。
+ */
+export function collectDelegationHistory(agents: readonly SnapshotAgent[]): DelegationDecision[] {
+  const merged: DelegationDecision[] = [];
+  for (const agent of agents) {
+    if (!isBossLikeAgent(agent)) continue;
+    try {
+      merged.push(...bossService.getDelegationHistory(agent.id));
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 读取委派史失败(boss ${agent.id}),按空处理: ${(err as Error).message}`);
+    }
+  }
+  // 各 Boss 内部已是新→旧;跨 Boss 合并后按时间倒序,保证「最近 5 条」是全局最近。
+  return merged.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 // ============================================================================
@@ -645,7 +750,7 @@ const CONTRACT_TEMPLATE = `{"action":"${COMPANION_ACTIONS.join('|')}",`
   + '"targetAgentId":null,"targetAgentName":null,"messageToAgent":"","delivery":"queue|interrupt",'
   + '"query":"","memoryOps":[]}';
 
-/** 组装 hop1 系统提示词:角色 + 人设 + 契约 + 规则 + 记忆 + agent 快照。 */
+/** 组装 hop1 系统提示词:角色 + 人设 + 契约 + 规则 + 记忆 + agent 快照 + 委派史摘要。 */
 export function buildCompanionSystemPrompt(input: {
   agentLines: string[];
   totalAgents: number;
@@ -653,11 +758,17 @@ export function buildCompanionSystemPrompt(input: {
   memory: CompanionMemory;
   nowText: string;
   persona?: VoicePersonaConfig;
+  /** 团队委派史(只读注入;内部按时间倒序取最近 {@link MAX_DELEGATION_INJECT} 条,空/缺省输出「暂无委派记录」)。 */
+  delegationHistory?: readonly DelegationDecision[];
+  /** bossId → Boss 名,把委派史里的 bossId 显示成人名(缺省回退 bossId)。 */
+  bossNames?: ReadonlyMap<string, string>;
 }): string {
   const { agentLines, totalAgents, truncated, memory, nowText } = input;
   const agentsBlock = agentLines.length > 0
     ? agentLines.join('\n') + (truncated ? `\n(仅显示最近活动的 ${agentLines.length} 个,共 ${totalAgents} 个)` : '')
     : '(暂无 agent)';
+  const delegationBlock = buildDelegationSummaryLines(input.delegationHistory ?? [], input.bossNames).join('\n')
+    || '(暂无委派记录)';
   const personaStyle = resolvePersonaStyle(
     input.persona?.preset ?? DEFAULT_PERSONA_ID,
     input.persona?.custom,
@@ -701,8 +812,11 @@ ${CONTRACT_TEMPLATE}
 【长期记忆】
 ${formatMemory(memory)}
 
-【agent 列表】(共 ${totalAgents} 个;其中标 [BOSS] 的才能用 send_to_agent 直接对话,其余 agent 仅供查询与状态了解,派活一律 delegate_to_boss)
-${agentsBlock}`;
+【agent 列表】(共 ${totalAgents} 个;其中标 [BOSS] 的才能用 send_to_agent 直接对话,其余 agent 仅供查询与状态了解,派活一律 delegate_to_boss;标 [BOSS] 的行内含其下属结构/忙闲与最近委派,团队整体忙不忙看这里)
+${agentsBlock}
+
+【最近委派】(只读团队委派史,最多 ${MAX_DELEGATION_INJECT} 条、新→旧;回答「谁在给谁干活」用它。status: sent 只表示已派出,执行进展以 agent 快照与查询为准)
+${delegationBlock}`;
 }
 
 const HOP2_SYSTEM_PROMPT = `你是语音伙伴的结果查询模块。基于下方给出的 agent 输出记录,直接回答老板的问题。
@@ -921,14 +1035,16 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
   } catch (err) {
     log.warn(`[VoiceCompanion] loadAreas 失败: ${(err as Error).message}`);
   }
-  const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas);
+  const delegationHistory = collectDelegationHistory(agents);
+  const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas, delegationHistory);
   const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
   // 体积告警(P9):记忆是仅次于 agent 快照的 prompt 变项,超阈值先提示清理。
   const memoryChars = formatMemory(memory).length;
   if (memoryChars > MEMORY_WARN_CHARS) {
     log.warn(`[VoiceCompanion] 记忆注入体积偏大:${memoryChars} 字符 / ${memory.notes.length} 条笔记(阈值 ${MEMORY_WARN_CHARS}),建议清理`);
   }
-  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona });
+  const bossNames = new Map<string, string>(agents.filter(isBossLikeAgent).map((a): [string, string] => [a.id, a.name]));
+  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona, delegationHistory, bossNames });
 }
 
 async function runHop1(
