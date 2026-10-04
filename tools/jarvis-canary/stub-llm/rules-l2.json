@@ -1,13 +1,22 @@
 {
   "_comment": "金丝雀 L2 沙箱默认规则（l2-sandbox.ts --rules 缺省指向本文件）。reply 必须是完整契约 JSON——服务器 parseContractJson 取首个 { 到末个 } 解析。规则按数组顺序、先到先得；match 为 stdin 用户原文的子串。默认 dialog 文本「列出团队成员」→ list_agents（不派活）。",
+  "_comment_delegation": "派活/回执链规则（任务38）：hop1 任务文本 → delegate_to_boss（messageToAgent 携带 [L2-BOSS-DISPATCH] 标记）→ Boss 回合命中该标记 → 输出 ```delegation 围栏块（parseBossDelegation 解析）→ 下属回合命中 [L2-SUB-TURN] → 普通文本收尾（不产契约/不派活）。{{BOSS_ID}}/{{SUB1_ID}} 等占位符由 l2-sandbox.ts 在 seed agent 团队后替换（未 seed 时原样保留，仅 dialog/conn 场景不触发这些规则）。",
   "rules": [
     {
       "match": "列出团队成员",
-      "reply": "{\"action\":\"list_agents\",\"responseToUser\":\"当前团队共 0 位成员：这是金丝雀 L2 沙箱实例，还没有添加 agent。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+      "reply": "{\"action\":\"list_agents\",\"responseToUser\":\"当前团队成员如下（详见系统实际数据）。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+    },
+    {
+      "match": "[L2-BOSS-DISPATCH]",
+      "reply": "已按 L2 stub 规则拆解任务并交给下属甲。\n\n```delegation\n{\"selectedAgentId\":\"{{SUB1_ID}}\",\"selectedAgentName\":\"{{SUB1_NAME}}\",\"taskCommand\":\"[L2-SUB-TURN] 金丝雀 L2 接线验证任务：只回复收到即可，不要执行任何实际操作。\",\"reasoning\":\"L2 sandbox stub：固定派给 seed 的下属甲（接线验证，不做选择语义判断）\",\"alternativeAgents\":[],\"confidence\":\"high\"}\n```"
+    },
+    {
+      "match": "[L2-SUB-TURN]",
+      "reply": "收到。L2 下属 stub 已完成本回合（未执行任何实际操作）。"
     },
     {
       "match": "让团队做",
-      "reply": "{\"action\":\"delegate_to_boss\",\"responseToUser\":\"已交给主管安排。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"金丝雀 L2 冒烟任务：只回复收到即可，不要执行任何实际操作。\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
+      "reply": "{\"action\":\"delegate_to_boss\",\"responseToUser\":\"已交给主管安排。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"[L2-BOSS-DISPATCH] 金丝雀 L2 接线验证任务：请拆解并交给下属，只回复收到即可，不要执行任何实际操作。\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"
     }
   ],
   "defaultReply": "{\"action\":\"general_response\",\"responseToUser\":\"收到。\",\"targetAgentId\":null,\"targetAgentName\":null,\"messageToAgent\":\"\",\"delivery\":\"queue\",\"query\":\"\",\"memoryOps\":[]}"

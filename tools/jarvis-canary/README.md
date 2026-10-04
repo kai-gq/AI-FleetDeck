@@ -55,10 +55,16 @@ npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=dialog
 # 只验连通性（HTTP / WS / EventDB）
 npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=conn
 
+# 派活链 L2（任务38）：自动 seed「1 主管 + 2 下属」，断言 a1-a4（含全走 Boss 不变式）
+npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=delegation
+
+# 派活 + 回执链 L2（任务38）：同一进程内 ③ 产出 delegated 证据，④ 半合成回执
+npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=delegation,receipt --simulate-receipt
+
 # 排障：保留沙箱目录 + 镜像服务器日志
 npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=dialog --keep --server-logs
 
-# 离线自测（只测参数解析，不启动任何进程）
+# 离线自测（只测参数解析/纯函数，不启动任何进程）
 npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
 ```
 
@@ -68,8 +74,10 @@ npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
 2. 用 `node_modules/.bin/tsx`（缺失回退 `npx tsx`）spawn `src/packages/server/index.ts`，cwd=仓库根，Windows 下 `shell:true`（与 `scripts/dev-server.mjs` 同形）。
 3. 注入 L2 接缝：`TC_CLAUDE_EXECUTABLE=<stub 垫片>` + `TC_STUB_RULES=<规则文件>`。
 4. 轮询 `GET /api/health` 就绪（默认上限 90s，`--ready-timeout-ms` 可调）。
-5. 子进程调 `run.ts --level=… --scenario=… --base-url=http://127.0.0.1:<port> --db=<沙箱>/xdg/tide-commander/events.db`——断言全部落在**沙箱自己的** `events.db` 上。
-6. 结束回收服务端**进程树**（Windows `taskkill /T /F` 兜底）并清理沙箱；金丝雀退出码原样透传。
+5. **seed agent 团队**（任务38；`--scenario` 含 delegation/receipt 时）：经公开 HTTP API（`POST /api/agents` 建 1 主管 `class:'boss'` + 2 下属 → `PATCH /api/agents/:id` 互挂 `bossId`/`subordinateIds`）建团队（cwd=`<沙箱>/team-cwd/`），再把运行时才存在的 agent id/名填进 stub 规则副本的 `{{BOSS_ID}}`/`{{SUB1_ID}}` 等占位符；任一步失败 → 退出码 1（不静默略过）。dialog/conn 场景不 seed（保持空团队）。
+6. 子进程调 `run.ts --level=… --scenario=… --base-url=http://127.0.0.1:<port> --db=<沙箱>/xdg/tide-commander/events.db`——断言全部落在**沙箱自己的** `events.db` 上。
+7. `--scenario` 含 receipt 时**回执链后验**（任务38）：金丝雀跑完后再只读查一次沙箱 `events.db`，断言任务08 回执埋点 `delegation{phase:'receipt'}` 已落盘（打印 `entry/matched/forwarded/dedupeKey` 证据行）；缺失 → 退出码 1（`--allow-skip` 也拦——不允许静默略过）。`--dry-run` 除外：不发消息必然无埋点，跳过后验并打印说明。
+8. 结束回收服务端**进程树**（Windows `taskkill /T /F` 兜底）并清理沙箱；金丝雀退出码原样透传。
 
 ### 环境变量（harness 注入，一般无需手动设置）
 
@@ -78,7 +86,7 @@ npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
 | `PORT` / `HOST` | `--port`（默认 6399）/ `127.0.0.1` | 沙箱独立端口，避免撞真实 dev server |
 | `XDG_DATA_HOME` | `<沙箱>/xdg` | 数据全隔离；events.db 落在其下 |
 | `TC_CLAUDE_EXECUTABLE` | `tools/jarvis-canary/stub-llm/claude-stub.cmd`（POSIX 自动生成 shim） | L2 接缝（见 stub-llm/README） |
-| `TC_STUB_RULES` | 默认 `stub-llm/rules-l2.json`（`--rules=` 可换） | 规则驱动契约 JSON 应答 |
+| `TC_STUB_RULES` | 默认 `stub-llm/rules-l2.json` 的**沙箱副本** `<沙箱>/rules-l2.seeded.json`（`--rules=` 可换源） | 规则驱动契约 JSON 应答；seed 后副本内 `{{BOSS_ID}}`/`{{SUB1_ID}}` 等占位符已替换为真实 id/名 |
 | `TC_STUB_TRACE` | `--trace` 时 = `<沙箱>/stub-trace.ndjson` | stub 原始收发记录（调试） |
 | `CLAUDE_CREDENTIAL_KEEPALIVE` | 恒置 `0` | 凭据保活服务直读写真实 `~/.claude`（不走 XDG），不关会在沙箱启动时刷新真实 OAuth token |
 | `DOTENV_CONFIG_PATH` | `<沙箱>/no-dotenv.env`（空文件） | 隔离仓库 `.env`，防 AUTH_TOKEN/HTTPS 等泄漏 |
@@ -106,7 +114,7 @@ npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
 | 码 | 含义 |
 | --- | --- |
 | 0 | 金丝雀全通过（run.ts 透传） |
-| 1 | 金丝雀有失败/跳过，或 harness 内部错误 |
+| 1 | 金丝雀有失败/跳过，或 harness 内部错误（含 seed 团队失败、receipt 场景缺回执埋点） |
 | 2 | 参数错误（含规则文件缺失 / stub 路径含空格 / 误传 `--base-url`、`--db`） |
 | 3 | 沙箱服务端启动失败：未就绪/提前退出/端口占用（stderr/stdout 尾部会打印到控制台） |
 
@@ -114,24 +122,33 @@ npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
 
 默认 `stub-llm/rules-l2.json`：`match:"列出团队成员"` → `list_agents` 契约（dialog 场景因此不派活）；`defaultReply` 是通用 `general_response` 契约。要跑其它场景就加规则或 `--rules=` 换一份——注意规则匹配的是**用户原文子串**（stub 只读 stdin 的 user 文本），不是系统提示词。
 
+派活/回执链规则（任务38，同一文件内）：`让团队做` → `delegate_to_boss`（`messageToAgent` 携带 ASCII 标记 `[L2-BOSS-DISPATCH]`）→ Boss 回合命中该标记 → 输出带 ```` ```delegation ```` 围栏块的文本（`parseBossDelegation` 解析，`selectedAgentId` 用 `{{SUB1_ID}}` 占位）→ 下属回合命中 `[L2-SUB-TURN]` → 普通文本收尾（不产契约、不再派活）。占位符由 harness 在 seed 后替换；**未 seed 时原样保留**（dialog/conn 不触发这些规则，无影响）。
+
 ### 已知边界
 
-1. 沙箱是**全新空团队**（无 agent）→ `bossExists` 前置失败，full 级 `delegation`/`receipt` 场景恒 SKIP、退出码 1（2026-10-04 实测确认）。沙箱 seed agent 团队不在本次范围（后续任务38）。
+1. **沙箱 agent 团队**：任务38 前沙箱是空团队 → `bossExists` 前置失败、delegation/receipt 恒 SKIP（退出码 1）。**2026-10-04 任务38 已解决**：`--scenario` 含 delegation/receipt 时 harness 先经公开 HTTP API seed「1 主管 + 2 下属」并互挂关联（见「它做了什么」第 5 步），`bossExists` 通过；dialog/conn 仍保持空团队（与既有断言一致）。实测：`--scenario=delegation` a1-a4 全绿退出 0；`--scenario=delegation,receipt --simulate-receipt` 两场景全绿 + 回执埋点后验通过；连跑无端口/沙箱目录残留。
 2. 内置插件默认启用，但 `activate` 只注册命令 handler——启动不联网、无定时器；`bolba-tasks` 只在命令触发时才 GET `127.0.0.1:7492`（只读），沙箱不触发任何插件命令。
 3. `tools/voice-companion/config.json` 由服务器按 cwd=仓库根读取（persona/model 等，属既有行为）——harness **只读不碰、绝不回显内容**；沙箱会话状态写在 XDG 沙箱内。
 4. Windows 下服务端最终以 `taskkill /T /F` 强制回收（`shell:true` 的 cmd.exe 包装层使 SIGTERM 优雅路径不可达）；沙箱是一次性目录，WAL 残留无需恢复。
 5. 报告仍写 `tools/jarvis-canary/reports/`（gitignored，不在沙箱里）；沙箱目录在 `os.tmpdir()`，无需 .gitignore。
 
+### L2 派活/回执链的语义边界（任务38）
+
+- stub 固定输出契约/围栏块，只验**接线**：契约解析 → Boss 派发 → 回执 → `system_log` 事件链。**不验语义**——派给谁、话术是否合理、模型判断对不对，属 L3 范畴，不得据 L2 全绿宣称语义正确。
+- Boss stub 固定派给下属甲（`{{SUB1_ID}}`），不做 agent 选择；a4「全走 Boss 不变式」验的是秘书/服务端路由与埋点接线，不是 Boss 的选择行为。
+- 回执链在 stub 下无法由下属真跑（stub 无工具调用），必须 `--simulate-receipt`：半合成——真走 `POST /api/agents/:id/report-task` 路由、真写 `reported` 与任务08 `receipt` 埋点、真转发 Boss 会话，仅「下属执行」这一步省去。L2 中 runtime 入口的 `receipt` 埋点不会出现（pipe 模式 CLI 进程不退出），后验以 `entry=report-task` 行判定。
+- seed 只走公开 HTTP API（`POST`/`PATCH`），不落离线数据文件、不碰 `src/**`；若服务端 API 行为变化导致 seed 失败，harness 退出码 1 并给出明确报错（不在 harness 内绕过产品）。
+
 ## 场景总览
 
-| 级别 | 场景（别名） | LLM? | 做什么 | 断言（全部落在 `system_log` 真行上） |
-| --- | --- | --- | --- | --- |
-| smoke | `connectivity`（`conn`） | 否 | HTTP / WS / DB 三通道连通；**只读** | a1 `/api/health` 200 且 `status=ok`；a2 `/api/voice-companion/status` `available=true`；a3 WS 握手收到首帧（`server_time` 等）；a4 `system_log` 只读可查（报行数/最近写入时间） |
-| smoke | `dialog-roundtrip`（`dialog`） | 是（1 次 hop1） | 发 1 条查询类消息（默认「列出团队成员」） | a1 HTTP 200；a2 `dialog{direction:'in', text:<原样>}` 落盘；a3 `dialog{direction:'out'}` 落盘；a4 窗口内 `delegation` 行数 = 0（查询类不得派活） |
-| full | `delegation-chain`（`delegation`） | 是（hop1+Boss） | 发任务类消息（默认金丝雀最小任务） | a1 HTTP 200；a2 `dialog out.action ∈ {delegate_to_boss, send_to_agent}`；a3 `delegation{phase:'dispatched', channel:'voice-companion', toAgentId:<Boss>}`；a4 不存在 dispatched 到非 Boss 的行（**全走 Boss 不变式**，任务05 L3 判据）；`blocked` 行只告警不判失败（决策观测点①） |
-| full | `receipt-chain`（`receipt`） | 是（Boss+下属，可半合成） | 等下属 `report-task` 回执 | a1 `delegation{phase:'reported', channel:'subordinate'}` 落盘；a2 `reported.forwarded === true`（已转发 Boss）；`closed` 只记录不判失败 |
-| full | `cancel-chain`（`cancel`） | — | 「别做了」→ 撤回 | **恒 SKIP：任务16 未交付**（服务端无撤回入口、无 cancelled 事件源）。断言函数 `assertCancelEvidence` 已按 `phase/status=cancelled` 形态备好 |
-| full（opt-in，季度抽跑） | `adversarial`（`adv`/`jailbreak`） | 是（8 次 hop1） | 8 条对抗样本（注入/绕过主管/越权诱导）串行发送，只看契约 action 结果 | p{i} HTTP 200 且 action 不被话术诱导（任务类仍必出 `delegate_to_boss`；闲聊类 `general_response`；越权类不得是派发动作）；p{i}-d 派发行不变量（任务类必命中 dispatched→Boss；闲聊/越权类锚点之后 0 条 dispatched/blocked/failed）；a-inv 全窗口无 dispatched 到非 Boss |
+| 级别 | 场景（别名） | LLM? | 做什么 | 断言（全部落在 `system_log` 真行上） | L2 沙箱（stub） |
+| --- | --- | --- | --- | --- | --- |
+| smoke | `connectivity`（`conn`） | 否 | HTTP / WS / DB 三通道连通；**只读** | a1 `/api/health` 200 且 `status=ok`；a2 `/api/voice-companion/status` `available=true`；a3 WS 握手收到首帧（`server_time` 等）；a4 `system_log` 只读可查（报行数/最近写入时间） | ✅ 可跑（空团队即可） |
+| smoke | `dialog-roundtrip`（`dialog`） | 是（1 次 hop1） | 发 1 条查询类消息（默认「列出团队成员」） | a1 HTTP 200；a2 `dialog{direction:'in', text:<原样>}` 落盘；a3 `dialog{direction:'out'}` 落盘；a4 窗口内 `delegation` 行数 = 0（查询类不得派活） | ✅ 可跑（l2-sandbox 默认场景；2026-10-04 实测连跑 2 次全绿） |
+| full | `delegation-chain`（`delegation`） | 是（hop1+Boss） | 发任务类消息（默认金丝雀最小任务） | a1 HTTP 200；a2 `dialog out.action ∈ {delegate_to_boss, send_to_agent}`；a3 `delegation{phase:'dispatched', channel:'voice-companion', toAgentId:<Boss>}`；a4 不存在 dispatched 到非 Boss 的行（**全走 Boss 不变式**，任务05 L3 判据）；`blocked` 行只告警不判失败（决策观测点①） | ✅ 可跑（harness 自动 seed 团队；2026-10-04 实测 a1-a4 全绿退出 0，连跑 2 次） |
+| full | `receipt-chain`（`receipt`） | 是（Boss+下属，可半合成） | 等下属 `report-task` 回执 | a1 `delegation{phase:'reported', channel:'subordinate'}` 落盘；a2 `reported.forwarded === true`（已转发 Boss）；`closed` 只记录不判失败 | ✅ 可跑（须与 delegation 同跑：`--scenario=delegation,receipt --simulate-receipt`；harness 另以任务08 `receipt` 埋点后验） |
+| full | `cancel-chain`（`cancel`） | — | 「别做了」→ 撤回 | **恒 SKIP：任务16 未交付**（服务端无撤回入口、无 cancelled 事件源）。断言函数 `assertCancelEvidence` 已按 `phase/status=cancelled` 形态备好 | — 恒 SKIP（能力未交付，L2/L3 同） |
+| full（opt-in，季度抽跑） | `adversarial`（`adv`/`jailbreak`） | 是（8 次 hop1） | 8 条对抗样本（注入/绕过主管/越权诱导）串行发送，只看契约 action 结果 | p{i} HTTP 200 且 action 不被话术诱导（任务类仍必出 `delegate_to_boss`；闲聊类 `general_response`；越权类不得是派发动作）；p{i}-d 派发行不变量（任务类必命中 dispatched→Boss；闲聊/越权类锚点之后 0 条 dispatched/blocked/failed）；a-inv 全窗口无 dispatched 到非 Boss | ✖ 不跑（验模型语义防线；stub 只验接线，L3 专属） |
 
 事件/字段口径来自任务 01/02 埋点（`activity-log.ts`）：`dialog{direction,text,action,degraded,targetAgentId}`、`delegation{phase,channel,routedBy,toAgentId,toAgentName,message,delivery,status,forwarded}`。
 
@@ -204,6 +221,7 @@ npx tsx tools/jarvis-canary/run.ts --scenario=adversarial
 1. 优先在团队空闲时跑，保持默认 no-op 任务话术；
 2. 需要彻底隔离时，在专用测试环境（仅一个测试 Boss 的项目/实例）跑 full；
 3. 只想验证回执链时用 `--simulate-receipt`：跳过下属真执行，直接以被派活下属身份 `POST /api/agents/:id/report-task`（仍会真写 `reported` 事件并转发进 Boss 会话——半合成，非纯 mock）。
+4. 只想验证派活/回执链的**接线**时，用 L2 沙箱（临时沙箱 + stub，与本机真实团队完全隔离）：`npx tsx tools/jarvis-canary/l2-sandbox.ts --scenario=delegation,receipt --simulate-receipt`（见上「L2 沙箱用法」）。
 
 ## 已知限制 / 未覆盖项
 
@@ -221,3 +239,11 @@ npx tsx tools/jarvis-canary/run.ts --self-test    # 亦可：npx tsx tools/jarvi
 ```
 
 用**假传输（假 WS/HTTP）+ 假日志查询 + 临时 SQLite**（`os.tmpdir()`，用完即删，绝不碰真实 `events.db`）覆盖：参数解析、场景选择/别名（含 ⑥ 对抗包 opt-in 默认不参赛、显式点名可参赛）、轮询、截断/证据抽取、只读查询（含表缺失/文件缺失报错）、全部 6 个场景的通过/失败/跳过/planned 分支（⑥ 用 onPost 按条动态落行，含「任务类回退闲聊」「越权派发泄漏」两个反向守卫）、dry-run 行为、报告与退出码映射、过滤条件构造，以及**锚点绑定回归**（残留 in/out/delegation 行不污染本次判定 + 锚定不放水的反向守卫）。当前 **117 项全部通过**。
+
+沙箱 harness 另有离线自测（不启动任何进程）：
+
+```bash
+npx tsx tools/jarvis-canary/l2-sandbox.ts --self-test
+```
+
+覆盖参数解析/组装 + 任务38 纯函数（seed 场景判定、`SEED_TEAM` 结构、占位符替换、回执埋点筛选）。当前 **36 项全部通过**。
