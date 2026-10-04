@@ -57,6 +57,8 @@ const EVENT_TABLES: Array<{ table: string; timestampCol: string }> = [
   { table: 'workflow_step_log', timestampCol: 'entered_at' },
   { table: 'workflow_variable_changes', timestampCol: 'changed_at' },
   { table: 'audit_log', timestampCol: 'created_at' },
+  // ⑭ 统一事件流（migration 011）：保留期跟随同一 90 天策略，并计入体积统计
+  { table: 'system_log', timestampCol: 'ts' },
 ];
 
 export function cleanupOldEvents(retentionDays: number): void {
