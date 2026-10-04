@@ -465,6 +465,13 @@ function queryChainRows(): Array<Record<string, unknown>> {
     .map((row) => logBody(row));
 }
 
+/** 任务19·A·尾：会话生命周期事件(source='session',body.cat==='session')；sessionId 在列上,并入返回体。 */
+function sessionRows(): Array<Record<string, unknown>> {
+  return querySystemLog({ category: 'system', source: 'session', limit: 200 })
+    .filter((row) => logBody(row).cat === 'session')
+    .map((row) => ({ ...logBody(row), sessionId: row.sessionId }));
+}
+
 // ============================================================================
 // G1 契约解析与三源防翻倍
 // ============================================================================
@@ -758,6 +765,115 @@ describe('G4 --resume 被拒重试', () => {
     const r = await p;
     expect(r.degraded).toBe(true);
     expect(spawnCalls).toHaveLength(1); // 没有 session 可清,不做「清会话重试」
+  });
+});
+
+// ============================================================================
+// 任务19·A·尾:vcs 会话生命周期埋点(session 类四落点)
+// ============================================================================
+
+describe('任务19·A·尾:vcs 会话生命周期埋点', () => {
+  it('created:首轮无会话→建立 sessionId 落一条 created;次轮 resume 不重复', async () => {
+    writeState({ personaKey: 'doubao' });
+    const p1 = startProcess('第一轮');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), { sessionId: 'sess-lc-new' });
+    await p1;
+    expect(sessionRows().filter((row) => row.sessionId === 'sess-lc-new' && row.phase === 'created')).toHaveLength(1);
+
+    // 次轮 --resume 命中同一会话 → 只在 null→id 记账,不重复 created
+    // (次轮必须显式回显同一 sessionId:否则 result.sessionId=null,守卫分支不进,断言空转)
+    const p2 = startProcess('第二轮');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBe('sess-lc-new');
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-lc-new' });
+    await p2;
+    expect(sessionRows().filter((row) => row.sessionId === 'sess-lc-new' && row.phase === 'created')).toHaveLength(1);
+  });
+
+  it('rotated(max-turns):轮数上限轮换落 rotated/max-turns 且带旧会话 id', async () => {
+    writeState({ sessionId: 'sess-lc-turns', sessionStartedAt: Date.now(), turns: 10, personaKey: 'doubao' });
+    const p = startProcess('到点了');
+    const call = await waitSpawn(1);
+    expect(resumeIdOf(call)).toBeNull();
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '轮换。' }), { sessionId: 'sess-lc-t2' });
+    await p;
+
+    const rows = sessionRows().filter((row) => row.sessionId === 'sess-lc-turns');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ phase: 'rotated', reason: 'max-turns' });
+  });
+
+  it('expired(max-age):超龄轮换落 expired/max-age 且 ageMs 超阈值', async () => {
+    writeState({ sessionId: 'sess-lc-age', sessionStartedAt: Date.now() - 8 * 86_400_000, turns: 2, personaKey: 'doubao' });
+    const p = startProcess('好久不见');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '过期。' }), { sessionId: 'sess-lc-t3' });
+    await p;
+
+    const rows = sessionRows().filter((row) => row.sessionId === 'sess-lc-age');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ phase: 'expired', reason: 'max-age' });
+    expect(Number(rows[0].ageMs)).toBeGreaterThan(7 * 86_400_000);
+  });
+
+  it('rotated(persona):旧状态 personaKey 缺失 → 轮换落 rotated/persona-changed', async () => {
+    writeState({ sessionId: 'sess-lc-legacy', sessionStartedAt: Date.now(), turns: 3, personaKey: null });
+    const p = startProcess('旧状态');
+    const call = await waitSpawn(1);
+    expect(resumeIdOf(call)).toBeNull();
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '一。' }), { sessionId: 'sess-lc-legacy2' });
+    await p;
+
+    const rows = sessionRows().filter((row) => row.sessionId === 'sess-lc-legacy');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ phase: 'rotated', reason: 'persona-changed' });
+  });
+
+  it('resume-rejected:--resume 被拒落 reject 事件,重试成功的新会话落 created', async () => {
+    writeState({ sessionId: 'sess-lc-dead', sessionStartedAt: Date.now(), turns: 5, personaKey: 'doubao' });
+    const p = startProcess('还在吗');
+    const call1 = await waitSpawn(1);
+    expect(resumeIdOf(call1)).toBe('sess-lc-dead');
+    emitStderr(call1.child, 'No conversation found with session ID: sess-lc-dead');
+    await closeChild(call1.child, 1);
+
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBeNull();
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '我在。' }), { sessionId: 'sess-lc-fresh' });
+    await p;
+
+    const rejected = sessionRows().filter((row) => row.sessionId === 'sess-lc-dead');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({ phase: 'resume-rejected', sessionId: 'sess-lc-dead', reason: 'stale-session-id' });
+    // 重试成功 → 新会话 created(重试结果自然观测)
+    expect(sessionRows().filter((row) => row.sessionId === 'sess-lc-fresh' && row.phase === 'created')).toHaveLength(1);
+  });
+
+  it('cleared:resetCompanion 清会话落 cleared/旧 id;无会话时不发噪音', () => {
+    const nullRowsBefore = sessionRows().filter((row) => !row.sessionId).length;
+    writeState({ sessionId: 'sess-lc-reset', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    service.resetCompanion({ keepMemory: true });
+
+    const rows = sessionRows().filter((row) => row.sessionId === 'sess-lc-reset');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ phase: 'cleared', sessionId: 'sess-lc-reset', reason: 'reset-companion' });
+
+    service.resetCompanion({ keepMemory: true }); // 已无会话 → 不重复落、不发 null-session 噪音行
+    expect(sessionRows().filter((row) => row.sessionId === 'sess-lc-reset')).toHaveLength(1);
+    expect(sessionRows().filter((row) => !row.sessionId).length).toBe(nullRowsBefore);
+  });
+
+  it('护栏:无会话时轮换不落噪音行(sessionId 为空的行数不变)', async () => {
+    const nullRowsBefore = sessionRows().filter((row) => !row.sessionId).length;
+    writeState({ personaKey: null }); // 旧状态:人设缺失+无会话 → 轮换判定进入,但无会话可轮换
+    const p = startProcess('无会话旧状态');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '一。' }), { sessionId: 'sess-lc-quiet' });
+    await p;
+
+    expect(sessionRows().filter((row) => row.sessionId === 'sess-lc-quiet' && row.phase === 'created')).toHaveLength(1);
+    expect(sessionRows().filter((row) => !row.sessionId).length).toBe(nullRowsBefore);
   });
 });
 

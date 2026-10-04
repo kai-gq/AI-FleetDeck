@@ -49,6 +49,7 @@ import {
   logBroadcast,
   logDelegation,
   logMemoryOps,
+  logSession,
   type MemoryOpDetail,
 } from './activity-log.js';
 import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-context.js';
@@ -1499,8 +1500,11 @@ async function runHop1(
   } catch (err) {
     if (state.sessionId && isResumeRejection(err)) {
       log.warn(`[VoiceCompanion] --resume 被拒(session 已失效),清会话重试一次`);
+      const rejectedSessionId = state.sessionId;
       state.sessionId = null;
       state.sessionStartedAt = null;
+      // 系统活动 5：--resume 被拒 → 清会话重试（重试结果由后续 created/异常自然观测）
+      logSession({ phase: 'resume-rejected', sessionId: rejectedSessionId, reason: 'stale-session-id' });
       result = await attempt(null);
     } else {
       throw err;
@@ -1509,6 +1513,10 @@ async function runHop1(
 
   // 会话记账:记住 sessionId(turns/时间戳由调用方统一落盘)
   if (result.sessionId) {
+    if (!state.sessionId) {
+      // 系统活动 5：会话创建（含 resume 被拒后清会话重试成功的新建）
+      logSession({ phase: 'created', sessionId: result.sessionId });
+    }
     state.sessionId = result.sessionId;
   }
   if (!state.sessionStartedAt) state.sessionStartedAt = Date.now();
@@ -1866,6 +1874,18 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       await getJarvisMemory().engine.sweep();
       resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
       log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
+      // 系统活动 5：会话轮换留痕（超龄 → expired；轮数上限/人设切换 → rotated）。
+      if (state.sessionId) {
+        const rotateBySession = shouldRotateSession(state, cfg); // 纯判定,不影响状态
+        const sessionAgeMs = state.sessionStartedAt != null ? Date.now() - state.sessionStartedAt : undefined;
+        const ageExpired = sessionAgeMs != null && sessionAgeMs > cfg.sessionMaxAgeDays * 86_400_000;
+        logSession({
+          phase: ageExpired ? 'expired' : 'rotated',
+          sessionId: state.sessionId,
+          reason: rotateBySession ? (ageExpired ? 'max-age' : 'max-turns') : 'persona-changed',
+          ageMs: sessionAgeMs,
+        });
+      }
       state.sessionId = null;
       state.sessionStartedAt = null;
       state.turns = 0;
@@ -2414,6 +2434,7 @@ export function getCompanionStatus(): {
 
 export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   const state = loadCompanionState();
+  const clearedSessionId = state.sessionId ?? undefined;
   state.sessionId = null;
   state.sessionStartedAt = null;
   state.turns = 0;
@@ -2421,6 +2442,10 @@ export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   saveCompanionState(state);
   resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）一并清空
   log.log(`[VoiceCompanion] 会话重置(keepMemory=${options.keepMemory !== false})`);
+  // 系统活动 5：整体重置 → cleared（旧会话留痕；无会话时不发噪音）
+  if (clearedSessionId) {
+    logSession({ phase: 'cleared', sessionId: clearedSessionId, reason: 'reset-companion' });
+  }
 }
 
 export function getCompanionMemory(): CompanionMemory {
