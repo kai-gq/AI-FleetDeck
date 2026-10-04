@@ -58,7 +58,7 @@ npx tsx tools/jarvis-canary/run.ts --level=full --simulate-receipt   # ④ 用�
 
 ### 断言实现要点
 
-- **时间窗口**：发消息前记 `t0 = now - 5s`（`CLOCK_MARGIN_MS`，抵消时钟漂移/写入延迟），所有断言查询都带 `since >= t0`，只认本次链路新写入的行，不会被历史事件误判。
+- **时间窗口 + 锚点绑定**：发消息前记 `t0 = now - 5s`（`CLOCK_MARGIN_MS`，抵消时钟漂移/写入延迟），所有断言查询都带 `since >= t0`；再以**本次消息的 dialog in 行**为锚点（文本精确匹配，取最新一条），凡"本次链路的回复/派生事件"（dialog out、dispatched、a4 不变式、delegated、dialog 场景的 a3/a4）只认 **id > 锚点 id** 的行——上一次运行落在 5s 余量窗内的残留行不会被误判成本次结果（2026-10-04 L3 实测踩坑后加固：smoke 刚结束 5.4s 跑 full，smoke 的 `list_agents` out 行落进窗口，a2 误红）。锚点缺失（日志写入异常）时退回窗口全域判定，并在 notes 显式告警。
 - **轮询**：`waitFor` 按 `--poll-ms` 轮询到 `--log-wait-ms`（默认 30s）；full③ 另有 `--wait-boss-ms`（默认 180s）等 Boss 的 `delegated` 二级证据；full④ `--wait-report-ms`（默认 300s）等真回执。
 - **证据**：每条命中给 `logId + ISO 时间 + category/source + 关键字段`（长文本截断到 120 字，不回显全文/密钥）；失败时打印「缺失证据明细」：哪场景、期望什么事件、实际查到什么、窗口内观测摘要（≤50 条）。
 - **④ 的证据来源**：优先用本次③在进程内共享的 `delegationChain`；③ 未跑时回溯最近 30 分钟内真实发生的 `delegated` 事件。
@@ -131,4 +131,4 @@ npx tsx tools/jarvis-canary/run.ts --scenario=delegation,receipt
 npx tsx tools/jarvis-canary/run.ts --self-test    # 亦可：npx tsx tools/jarvis-canary/selftest.ts
 ```
 
-用**假传输（假 WS/HTTP）+ 假日志查询 + 临时 SQLite**（`os.tmpdir()`，用完即删，绝不碰真实 `events.db`）覆盖：参数解析、场景选择/别名、轮询、截断/证据抽取、只读查询（含表缺失/文件缺失报错）、全部 5 个场景的通过/失败/跳过/planned 分支、dry-run 行为、报告与退出码映射、过滤条件构造。当前 **91 项全部通过**。
+用**假传输（假 WS/HTTP）+ 假日志查询 + 临时 SQLite**（`os.tmpdir()`，用完即删，绝不碰真实 `events.db`）覆盖：参数解析、场景选择/别名、轮询、截断/证据抽取、只读查询（含表缺失/文件缺失报错）、全部 5 个场景的通过/失败/跳过/planned 分支、dry-run 行为、报告与退出码映射、过滤条件构造，以及**锚点绑定回归**（残留 in/out/delegation 行不污染本次判定 + 锚定不放水的反向守卫）。当前 **102 项全部通过**。

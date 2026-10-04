@@ -66,6 +66,26 @@ function bodyString(e: CanaryEntry, key: string): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
+/**
+ * 定位"本次发送"的 dialog in 锚点：direction=in 且文本与所发消息精确匹配的行（同文本重复发送时取最新一条）。
+ *
+ * 为什么需要锚点：`since = now - 5s` 的时钟余量窗可能把**上一次运行**的残留行圈进来
+ * （2026-10-04 L3 实测：smoke 刚结束 5.4s 后跑 full，smoke 的 `dialog out action=list_agents`
+ * 行落进 full 的窗口，a2 取了窗口内第一条 out 行 → 误判失败，而本次真实行 `send_to_agent`
+ * 就在窗口内）。因此凡"本次链路的回复/派生事件"的断言，一律只认 id > 锚点 id 的行。
+ */
+function findOwnDialogIn(entries: CanaryEntry[], text: string): CanaryEntry | undefined {
+  const target = text.trim();
+  return entries
+    .filter((e) => bodyString(e, 'direction') === 'in' && bodyString(e, 'text')?.trim() === target)
+    .at(-1);
+}
+
+/** 锚点缺失（理论上仅出现在日志写入异常时）时的退回说明，附进 notes 防静默降级。 */
+const ANCHOR_FALLBACK_NOTE =
+  '未找到本次消息的 dialog in 锚点（文本精确匹配失败）——断言退回窗口全域判定；' +
+  '若与上一次运行间隔不足 5s，残留行可能被误判成本次结果，建议拉开间隔复跑。';
+
 /** 抽取证据：命中行 id + 时间 + 关键字段（长文本截断；不回显全文/密钥） */
 export function entryEvidence(e: CanaryEntry, bodyFields: string[] = [], maxText = 120): Evidence {
   const fields: Record<string, unknown> = {};
@@ -387,35 +407,44 @@ const dialogRoundtrip: ScenarioDef = {
     ));
 
     let inRow: CanaryEntry | undefined;
+    let ownIn: CanaryEntry | undefined;
     let outRow: CanaryEntry | undefined;
     const waitMs = ctx.options.logWaitMs;
     const found = await waitFor(() => {
       const rows = ctx.query({ category: 'dialog', since, order: 'asc', limit: 200 });
       inRow = rows.find((e) => bodyString(e, 'direction') === 'in');
-      outRow = rows.find((e) => bodyString(e, 'direction') === 'out');
-      return inRow && outRow ? { inRow, outRow } : undefined;
+      // 锚点绑定：out 只认本次 in 锚点之后的行（详见 findOwnDialogIn 注释）
+      ownIn = findOwnDialogIn(rows, text) ?? ownIn;
+      outRow = rows.find((e) => bodyString(e, 'direction') === 'out' && e.id > (ownIn?.id ?? 0));
+      return ownIn && outRow ? { ownIn, outRow } : undefined;
     }, { timeoutMs: waitMs, pollMs: ctx.options.pollMs });
-    inRow = found?.inRow ?? inRow;
+    ownIn = found?.ownIn ?? ownIn;
     outRow = found?.outRow ?? outRow;
 
+    const inEvidenceRow = ownIn ?? inRow;
     assertions.push(assertThat(
       'a2', 'dialog in 已落盘',
-      !!inRow && bodyString(inRow, 'text')?.trim() === text.trim(),
+      !!ownIn,
       `system_log 中 category=dialog、body.direction='in'、body.text='${truncate(text)}'、ts>=${new Date(since).toISOString()}`,
-      inRow
-        ? (bodyString(inRow, 'text')?.trim() === text.trim() ? `命中 #${inRow.id}` : `命中文本不一致：'${truncate(bodyString(inRow, 'text'))}'`)
-        : `未找到（轮询 ${waitMs}ms）`,
-      inRow ? [entryEvidence(inRow, ['direction', 'text', 'isEvent'])] : [],
+      ownIn
+        ? `命中 #${ownIn.id}`
+        : inRow
+          ? `窗口内有 dialog in（#${inRow.id}）但文本不一致：'${truncate(bodyString(inRow, 'text'))}'`
+          : `未找到（轮询 ${waitMs}ms）`,
+      inEvidenceRow ? [entryEvidence(inEvidenceRow, ['direction', 'text', 'isEvent'])] : [],
     ));
     assertions.push(assertThat(
       'a3', 'dialog out 已落盘',
       !!outRow && !!bodyString(outRow, 'text')?.trim(),
-      `system_log 中 category=dialog、body.direction='out'、body.text 非空、ts>=${new Date(since).toISOString()}`,
+      `system_log 中 category=dialog、body.direction='out'、body.text 非空、ts>=${new Date(since).toISOString()}（id > 本次 in 锚点）`,
       outRow ? `命中 #${outRow.id} action=${String(outRow.body?.action ?? '?')}` : `未找到（轮询 ${waitMs}ms）`,
       outRow ? [entryEvidence(outRow, ['direction', 'text', 'action', 'degraded', 'targetAgentId'])] : [],
     ));
+    if (!ownIn) notes.push(ANCHOR_FALLBACK_NOTE);
 
-    const delegationRows = ctx.query({ category: 'delegation', since, order: 'asc', limit: 50 });
+    const delegationRows = ctx
+      .query({ category: 'delegation', since, order: 'asc', limit: 50 })
+      .filter((e) => e.id > (ownIn?.id ?? 0));
     assertions.push(assertThat(
       'a4', '未触发派活',
       delegationRows.length === 0,
@@ -477,14 +506,20 @@ const delegationChain: ScenarioDef = {
       [],
     ));
 
+    // 锚点绑定：本次链路的 out/dispatched 一律只认 id > 本次 dialog in 锚点的行
+    // （2026-10-04 L3 实测缺陷：窗口余量圈进了上一次 smoke 的 dialog out，a2 误判）。
+    const ownIn = findOwnDialogIn(ctx.query({ category: 'dialog', since, order: 'asc', limit: 200 }), text);
+    const anchorId = ownIn?.id ?? 0;
+    if (!ownIn) notes.push(ANCHOR_FALLBACK_NOTE);
+
     let outRow: CanaryEntry | undefined;
     let dispatched: CanaryEntry | undefined;
     const waitMs = ctx.options.logWaitMs;
     const found = await waitFor(() => {
       const dialogs = ctx.query({ category: 'dialog', since, order: 'asc', limit: 200 });
-      outRow = dialogs.find((e) => bodyString(e, 'direction') === 'out');
+      outRow = dialogs.find((e) => bodyString(e, 'direction') === 'out' && e.id > anchorId);
       const dels = ctx.query({ category: 'delegation', since, order: 'asc', limit: 200 });
-      dispatched = dels.find((e) => phaseOf(e) === 'dispatched' && bodyString(e, 'channel') === 'voice-companion');
+      dispatched = dels.find((e) => phaseOf(e) === 'dispatched' && bodyString(e, 'channel') === 'voice-companion' && e.id > anchorId);
       return outRow && dispatched ? { outRow, dispatched } : undefined;
     }, { timeoutMs: waitMs, pollMs: ctx.options.pollMs });
     outRow = found?.outRow ?? outRow;
@@ -494,8 +529,8 @@ const delegationChain: ScenarioDef = {
     assertions.push(assertThat(
       'a2', '秘书判定为任务类并派发',
       (TASK_ACTIONS as readonly string[]).includes(action),
-      'dialog out 的 body.action ∈ {delegate_to_boss, send_to_agent}',
-      outRow ? `action='${action}'` : `未找到 dialog out（轮询 ${waitMs}ms）`,
+      'dialog out 的 body.action ∈ {delegate_to_boss, send_to_agent}（锚点后的本次回复）',
+      outRow ? `action='${action}'` : `未找到（锚点后）dialog out（轮询 ${waitMs}ms）`,
       outRow ? [entryEvidence(outRow, ['direction', 'action', 'targetAgentId', 'text'])] : [],
     ));
 
@@ -510,20 +545,22 @@ const delegationChain: ScenarioDef = {
     ));
 
     const windowRows = ctx.query({ category: 'delegation', since, order: 'asc', limit: 200 });
-    const dispatchedToNonBoss = windowRows.filter(
+    // 断言语义 = "本次消息触发的行"：残留行（锚点之前）不参与 全走 Boss 不变式 判定
+    const scopedRows = windowRows.filter((e) => e.id > anchorId);
+    const dispatchedToNonBoss = scopedRows.filter(
       (e) => phaseOf(e) === 'dispatched' && !!bodyString(e, 'toAgentId') && bodyString(e, 'toAgentId') !== bossId,
     );
     assertions.push(assertThat(
       'a4', '不存在非 Boss 的 dispatched 目标',
       dispatchedToNonBoss.length === 0,
-      '窗口内 dispatched 且 toAgentId ≠ Boss 的行数 = 0（全走 Boss 不变式）',
+      '本次消息（锚点后）dispatched 且 toAgentId ≠ Boss 的行数 = 0（全走 Boss 不变式）',
       dispatchedToNonBoss.length === 0
         ? '0 条'
         : `${dispatchedToNonBoss.length} 条：${dispatchedToNonBoss.map((e) => `#${e.id}→${bodyString(e, 'toAgentId')}`).join(', ')}`,
       dispatchedToNonBoss.slice(0, 5).map((e) => entryEvidence(e, ['phase', 'channel', 'toAgentId', 'toAgentName', 'status'])),
     ));
 
-    const blockedRows = windowRows.filter((e) => phaseOf(e) === 'blocked');
+    const blockedRows = scopedRows.filter((e) => phaseOf(e) === 'blocked');
     if (blockedRows.length > 0) {
       notes.push(`决策观测点①：检测到 ${blockedRows.length} 条 blocked（违规直派被拦截并改道 Boss）：` +
         blockedRows.map((e) => `#${e.id}→${bodyString(e, 'toAgentId')}`).join(', ') +
@@ -535,7 +572,7 @@ const delegationChain: ScenarioDef = {
     if (ctx.options.bossWaitMs > 0) {
       delegated = await waitFor(() => {
         const rows = ctx.query({ category: 'delegation', since, order: 'asc', limit: 200 });
-        return rows.find((e) => phaseOf(e) === 'delegated');
+        return rows.find((e) => phaseOf(e) === 'delegated' && e.id > anchorId);
       }, { timeoutMs: ctx.options.bossWaitMs, pollMs: Math.max(1000, ctx.options.pollMs) });
     }
     if (delegated) {
@@ -546,6 +583,7 @@ const delegationChain: ScenarioDef = {
 
     ctx.shared.delegationChain = {
       since,
+      anchorLogId: ownIn?.id,
       dispatchedLogId: dispatched?.id,
       delegated: delegated
         ? {

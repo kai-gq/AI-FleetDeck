@@ -299,6 +299,18 @@ export async function runSelfTest(): Promise<number> {
     h.eq('② 意外派活 → fail', withDelegation.status, 'fail');
     h.check('② a4 失败', withDelegation.assertions.find((a) => a.id === 'a4')?.ok === false);
 
+    // 回归（2026-10-04 L3 实测）：5s 余量窗混入上一次运行的残留行（in/out 文本不同 + delegation 行）——
+    // 断言必须绑定"本次消息"（等文本 dialog in 为锚点），残留行不得污染 a2/a3/a4。
+    const stalePrev = [
+      mkEntry({ category: 'dialog', source: 'voice-companion', ts: Date.now(), body: { direction: 'in', text: '上一个问题（残留）', cat: 'dialog' } }),
+      mkEntry({ category: 'dialog', source: 'voice-companion', ts: Date.now(), body: { direction: 'out', text: '上一个回答（残留）', action: 'list_agents', cat: 'dialog' } }),
+      mkEntry({ category: 'delegation', source: 'voice-companion', ts: Date.now(), body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: BOSS_ID, cat: 'delegation' } }),
+    ];
+    const staleMix = await runScenario(scenarioByName('dialog-roundtrip'), mkCtx(t, makeFakeQuery([...stalePrev, ...baseRows()]).query));
+    h.eq('② 上次运行残留（含 delegation）不污染本次 → pass', staleMix.status, 'pass');
+    h.check('② a2 锚定本次文本（非残留 in）', staleMix.assertions.find((a) => a.id === 'a2')?.ok === true);
+    h.check('② a4 锚点前的残留 delegation 不计入', staleMix.assertions.find((a) => a.id === 'a4')?.ok === true);
+
     const httpDown = await runScenario(scenarioByName('dialog-roundtrip'), mkCtx(makeFakeTransport({ process: fail(500, 'boom') }), makeFakeQuery(baseRows()).query));
     h.eq('② HTTP 500 → fail', httpDown.status, 'fail');
   }
@@ -334,6 +346,40 @@ export async function runSelfTest(): Promise<number> {
       mkCtx(makeFakeTransport({ agents: bossHttp }), makeFakeQuery(blockedRows).query, mkOpts));
     h.eq('③ blocked（已改道）仍通过', blockedCase.status, 'pass');
     h.check('③ blocked 写入 notes 告警', blockedCase.notes.some((n) => n.includes('观测点①')));
+
+    // 回归（2026-10-04 L3 实测失败现场复现）：上一次 smoke 的 dialog out（action=list_agents）残留在
+    // 窗口内、位于本次 dialog in 锚点之前——a2 必须取锚点后的本次 out（send_to_agent），不得取残留行。
+    const mkChain = (staleBefore: CanaryEntry[], outAction = 'send_to_agent', toAgentId = BOSS_ID): CanaryEntry[] => [
+      ...staleBefore,
+      mkEntry({ category: 'dialog', source: 'voice-companion', ts: Date.now(), body: { direction: 'in', text: defaultOptions().taskText } }),
+      mkEntry({ category: 'dialog', source: 'voice-companion', ts: Date.now(), body: { direction: 'out', action: outAction, text: '回复文本' } }),
+      mkEntry({ category: 'delegation', source: 'voice-companion', ts: Date.now(), body: { phase: 'dispatched', channel: 'voice-companion', routedBy: 'send_to_agent', toAgentId, toAgentName: '目标', message: 'task' } }),
+    ];
+
+    const staleSmokeOut = [mkEntry({ category: 'dialog', source: 'voice-companion', ts: Date.now(), body: { direction: 'out', action: 'list_agents', text: '团队成员共 3 位：Boss、Nova、Reese，目前都空闲。' } })];
+    const leakCase = await runScenario(scenarioByName('delegation-chain'),
+      mkCtx(makeFakeTransport({ agents: bossHttp }), makeFakeQuery(mkChain(staleSmokeOut)).query, mkOpts));
+    h.eq('③ 上次 smoke 残留 out 不污染本次 a2 → pass', leakCase.status, 'pass');
+    h.eq('③ a2 取锚点后的 send_to_agent', leakCase.assertions.find((a) => a.id === 'a2')?.actual, "action='send_to_agent'");
+
+    // 锚点前残留的非 Boss dispatched 行不得触发 a4 假红（断言语义 = 本次消息触发的行）
+    const staleNonBoss = [mkEntry({ category: 'delegation', source: 'voice-companion', ts: Date.now(), body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: 'sub-1', toAgentName: '下属甲' } })];
+    const staleNonBossCase = await runScenario(scenarioByName('delegation-chain'),
+      mkCtx(makeFakeTransport({ agents: bossHttp }), makeFakeQuery(mkChain(staleNonBoss)).query, mkOpts));
+    h.eq('③ 锚点前残留非 Boss dispatched 不触发 a4 假红 → pass', staleNonBossCase.status, 'pass');
+    h.check('③ a4 通过', staleNonBossCase.assertions.find((a) => a.id === 'a4')?.ok === true);
+
+    // 反向守卫：锚定不得把断言放水——本次回复真不是任务类 action / 真直派了非 Boss，仍必须失败
+    const wrongOutSelf = await runScenario(scenarioByName('delegation-chain'),
+      mkCtx(makeFakeTransport({ agents: bossHttp, process: ok({ success: true, action: 'general_response', response: '好的' }) }),
+        makeFakeQuery(mkChain([], 'general_response')).query, mkOpts));
+    h.eq('③ 本次回复非任务类 action → 仍 fail', wrongOutSelf.status, 'fail');
+    h.check('③ a2 失败', wrongOutSelf.assertions.find((a) => a.id === 'a2')?.ok === false);
+
+    const ownToSub = await runScenario(scenarioByName('delegation-chain'),
+      mkCtx(makeFakeTransport({ agents: bossHttp }), makeFakeQuery(mkChain([], 'send_to_agent', 'sub-1')).query, mkOpts));
+    h.eq('③ 本次真直派非 Boss → 仍 fail', ownToSub.status, 'fail');
+    h.check('③ a3/a4 均失败（锚点内违规不放行）', ownToSub.assertions.find((a) => a.id === 'a3')?.ok === false && ownToSub.assertions.find((a) => a.id === 'a4')?.ok === false);
 
     // bossWaitMs>0：捕获 delegated → shared 供④
     const delegatedRow = mkEntry({ category: 'delegation', source: 'boss', ts: Date.now() + 5, body: { phase: 'delegated', fromAgentId: BOSS_ID, toAgentId: 'sub-1', toAgentName: '下属甲' } });
