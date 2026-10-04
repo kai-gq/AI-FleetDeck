@@ -88,23 +88,33 @@ describe('parseTaskCardFromText — ```task-card 围栏块解析 + 回退纯文�
   });
 });
 
-describe('状态机守卫 canTransitionTaskCard（pending → running → done）', () => {
+describe('状态机守卫 canTransitionTaskCard（pending → queued/running → done）', () => {
   it('合法迁移', () => {
     expect(canTransitionTaskCard('pending', 'running')).toBe(true);
     expect(canTransitionTaskCard('pending', 'done')).toBe(true);   // 乱序回执：运行标记未及落盘
     expect(canTransitionTaskCard('running', 'done')).toBe(true);
+    // 任务15·B 并发配额：pending → queued（超预算入队）、queued → running（出队派发）
+    expect(canTransitionTaskCard('pending', 'queued')).toBe(true);
+    expect(canTransitionTaskCard('queued', 'running')).toBe(true);
   });
 
-  it('非法迁移（终态出边为空 / 同态重复）', () => {
+  it('非法迁移（终态出边为空 / 同态重复 / queued 只接 running）', () => {
     expect(canTransitionTaskCard('done', 'running')).toBe(false);
     expect(canTransitionTaskCard('done', 'pending')).toBe(false);
     expect(canTransitionTaskCard('pending', 'pending')).toBe(false);
     expect(canTransitionTaskCard('running', 'running')).toBe(false);
+    expect(canTransitionTaskCard('queued', 'queued')).toBe(false);
+    expect(canTransitionTaskCard('queued', 'pending')).toBe(false);
+    expect(canTransitionTaskCard('queued', 'done')).toBe(false); // 排队不得直接完成
+    expect(canTransitionTaskCard('running', 'queued')).toBe(false);
+    expect(canTransitionTaskCard('done', 'queued')).toBe(false);
   });
 
-  it('isTaskCardStatus 只认三态（queued/cancelled 留任务 15/16）', () => {
+  it('isTaskCardStatus 认四态（queued 已落地；cancelled 仍留任务 16）', () => {
     expect(isTaskCardStatus('pending')).toBe(true);
-    expect(isTaskCardStatus('queued')).toBe(false);
+    expect(isTaskCardStatus('running')).toBe(true);
+    expect(isTaskCardStatus('done')).toBe(true);
+    expect(isTaskCardStatus('queued')).toBe(true);
     expect(isTaskCardStatus('cancelled')).toBe(false);
   });
 });

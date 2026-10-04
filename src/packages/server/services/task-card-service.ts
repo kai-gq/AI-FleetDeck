@@ -18,14 +18,17 @@ import type { TaskCard, TaskCardPriority, TaskCardStatus } from '../../shared/ag
 
 // ─── 状态机 ───
 
-export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['pending', 'running', 'done'];
+export const TASK_CARD_STATUSES: readonly TaskCardStatus[] = ['pending', 'queued', 'running', 'done'];
 
 /**
- * 已实现的三态迁移表；queued（任务 15 全局并发配额）、cancelled（任务 16 撤回）
- * 落地时在此扩展。pending → done 直连用于「运行标记未及落盘、回执先到」的乱序场景。
+ * 已实现的四态迁移表；cancelled（任务 16 撤回）落地时在此扩展。
+ * pending → done 直连用于「运行标记未及落盘、回执先到」的乱序场景。
+ * queued 边（任务 15·B 全局并发配额）：pending → queued（超预算入队）、
+ * queued → running（出队派发；运行标记未及落盘前不接其他边，cancelled 留 16）。
  */
 const TASK_CARD_TRANSITIONS: Readonly<Record<TaskCardStatus, readonly TaskCardStatus[]>> = {
-  pending: ['running', 'done'],
+  pending: ['queued', 'running', 'done'],
+  queued: ['running'],
   running: ['done'],
   done: [],
 };

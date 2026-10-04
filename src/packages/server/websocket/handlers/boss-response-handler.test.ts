@@ -21,16 +21,23 @@ vi.mock('../../services/index.js', () => ({
   },
 }));
 
-vi.mock('../../utils/index.js', () => ({
-  logger: {
-    ws: {
-      log: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
+// 任务15·B：handler 静态 import 播报出口（voice-companion-service）后，模块图会带上
+// utils 的真实消费者（createLogger/generateId 等）——partial mock 保真，仅静音 ws 通道。
+vi.mock('../../utils/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../utils/index.js')>();
+  return {
+    ...actual,
+    logger: {
+      ...actual.logger,
+      ws: {
+        log: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+      },
     },
-  },
-  getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
-}));
+    getCommanderBaseUrl: vi.fn(() => 'http://localhost:6200'),
+  };
+});
 
 vi.mock('./command-handler.js', () => ({
   getLastBossCommand: vi.fn(),

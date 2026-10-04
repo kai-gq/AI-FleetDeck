@@ -13,6 +13,17 @@ import { getTaskId, newTaskId } from '../../utils/trace-context.js';
 import { logDelegation, logTaskCardStatus } from '../../services/activity-log.js';
 import { formatTaskCard, normalizeTaskCard } from '../../services/task-card-service.js';
 import { registerPendingReceipt, resetPendingReceiptsForTests } from './pending-receipt-registry.js';
+// 任务15·B ⑫ 全局并发配额：接线闸门（准入/排队/出队）+ 播报出口（只 import，不改 vcs）
+import {
+  DELEGATION_QUOTA_ACTION,
+  onDelegationComplete,
+  resetDelegationQuotaGateForTests,
+  tryAdmitDelegation,
+  type DelegationQuotaAdmitInput,
+  type DelegationQuotaAdmitResult,
+  type QueuedDelegation,
+} from '../../services/delegation-quota-gate.js';
+import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
 
 const log = logger.ws;
 
@@ -75,6 +86,8 @@ export function completeDelegation(
   opts: CompleteDelegationOptions = {}
 ): void {
   const delegation = activeDelegations.get(subordinateId);
+  // 任务15·B：配额释放所需的 taskId 必须在清理（delete）前快照
+  const quotaTaskId = delegation?.taskId;
   if (delegation) {
     const at = opts.at ?? Date.now();
     const result = opts.success === false ? 'failed' : 'completed';
@@ -100,7 +113,13 @@ export function completeDelegation(
       });
     }
   }
+  // 任务15·B ⑫：释放配额（:103 删除前的旧挂点语义）——只动配额账本，不碰 activeDelegations，
+  // 双入口幂等下只在「真正完成」（delegation 存在）那次释放；gate 内部绝不上抛。
+  const dequeued = quotaTaskId ? releaseQuotaSlotSafely(quotaTaskId) : null;
   activeDelegations.delete(subordinateId);
+  // 出队派发必须放在 delete 之后：被出队任务可能恰好派给同一 subordinate，
+  // 若先派发再 delete，会把刚写好的运行期追踪立即清掉。
+  if (dequeued) dispatchQueuedDelegation(dequeued);
 }
 
 /**
@@ -110,10 +129,175 @@ export function resetBossDelegationStateForTests(): void {
   processedDelegations.clear();
   activeDelegations.clear();
   resetPendingReceiptsForTests(); // 任务08②：待回执登记随解析器状态一并复位
+  resetDelegationQuotaGateForTests(); // 任务15·B：配额账本（含重建标志）随解析器状态复位
 }
 
 export type BroadcastFn = (message: ServerMessage) => void;
 export type SendActivityFn = (agentId: string, message: string) => void;
+
+// ============================================================================
+// 任务15·B ⑫ 全局并发配额接线 helpers（Spec §4.12）
+// ============================================================================
+
+/** 任务摘要（播报/日志用；压空白 + 截断）。 */
+function summarizeQuotaText(text: string, max = 80): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+/** 准入安全壳：闸门任何异常都不得拦断派活（审计已自包，这里兜底主链路）。 */
+function admitDelegationSafely(input: DelegationQuotaAdmitInput): DelegationQuotaAdmitResult {
+  try {
+    return tryAdmitDelegation(input);
+  } catch (err) {
+    log.error(`[quota] gate admit failed — falling back to direct dispatch:`, err);
+    return { status: 'admitted' };
+  }
+}
+
+/** 完成入口安全壳：配额释放/出队异常不得影响 ⑦⑧ 完成漏斗与回执链路。 */
+function releaseQuotaSlotSafely(taskId: string): QueuedDelegation | null {
+  try {
+    return onDelegationComplete(taskId);
+  } catch (err) {
+    log.error(`[quota] release failed for task ${taskId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * 派发消息构造（自原 :515-521 提取共用，行为不变）——首次派发与出队派发同构：
+ * Boss 上下文 + 任务卡（⑦ 验收标准对下属可见）+ report-task 回执指引。
+ */
+function buildDelegatedMessage(input: {
+  bossId: string;
+  bossName: string;
+  taskCommand: string;
+  taskCard?: TaskCard;
+}): string {
+  const baseUrl = getCommanderBaseUrl();
+  const cardBlock = input.taskCard ? `\n\n${formatTaskCard(input.taskCard)}` : '';
+  return `[DELEGATED TASK from boss "${input.bossName}" (${input.bossId})]\n\n${input.taskCommand}${cardBlock}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+}
+
+/** 🔴 决策观测点⑦：落卡 none → pending（准入与排队路径共用；排队路径随后 pending→queued）。 */
+function logTaskCardPending(refs: {
+  decisionId: string;
+  bossId: string;
+  subordinateId: string;
+  taskCard: TaskCard;
+  taskId?: string;
+  at: number;
+}): void {
+  logTaskCardStatus({
+    decisionId: refs.decisionId,
+    from: 'none',
+    to: 'pending',
+    at: refs.at,
+    bossId: refs.bossId,
+    subordinateId: refs.subordinateId,
+    projectId: refs.taskCard.projectId,
+    sourceProject: refs.taskCard.sourceProject,
+    reason: 'delegated',
+    taskId: refs.taskId,
+  });
+}
+
+/**
+ * 任务15·B：出队派发（completeDelegation 释放配额后，由 onDelegationComplete 返回载荷触发）。
+ * 与 parseBossDelegation 首次派发同构：activeDelegations.set → registerPendingReceipt
+ * → sendCommand → running（.then）；失败走 ⑫ 埋点。载荷自带任务卡与 decisionId，
+ * 重启重建条目也能直接恢复（taskId 缺失时新生成——旧 taskId 进程内不可达）。
+ *
+ * 已知缺口（登记）：出口在完成漏斗内，拿不到 WS broadcast 上下文 →
+ * 不发 delegation_decision / agent_task_started 广播；播报走 logProactiveBroadcast
+ * （projectId 用 taskCard 原值，任务 14 项目别名映射未落地）。
+ * 绝不上抛：任何异常只记日志，不拦断完成入口。
+ */
+function dispatchQueuedDelegation(payload: QueuedDelegation): void {
+  try {
+    const taskId = payload.taskId ?? newTaskId();
+    const bossName = agentService.getAgent(payload.bossId)?.name ?? payload.bossId;
+    const targetAgent = agentService.getAgent(payload.selectedAgentId);
+    const customAgentConfig = targetAgent
+      ? buildCustomAgentConfig(payload.selectedAgentId, targetAgent.class)
+      : undefined;
+
+    activeDelegations.set(payload.selectedAgentId, {
+      bossId: payload.bossId,
+      taskDescription: payload.taskCommand,
+      taskId,
+      decisionId: payload.decisionId,
+      taskCard: payload.taskCard,
+    });
+    // 任务08②：待回执登记延到出队（排队中未派发，不存在回执）
+    registerPendingReceipt({
+      targetAgentId: payload.selectedAgentId,
+      bossId: payload.bossId,
+      taskId,
+      decisionId: payload.decisionId,
+      taskSummary: payload.taskCommand,
+    });
+
+    // 任务 02 埋点：同 channel，status 标记出队派发（与首次派发行区分）
+    logDelegation({
+      phase: 'delegated',
+      channel: 'boss',
+      fromAgentId: payload.bossId,
+      fromName: bossName,
+      toAgentId: payload.selectedAgentId,
+      toAgentName: payload.selectedAgentName,
+      message: payload.taskCommand,
+      delivery: 'queue',
+      status: 'dequeued',
+      taskId,
+    });
+
+    // ⑩ 播报出口（vcs 既有通道，只 import 不改）：排队任务开始了
+    const projectLabel = payload.taskCard?.projectId ? `（项目 ${payload.taskCard.projectId}）` : '';
+    logProactiveBroadcast({
+      text: `[并发配额] 排队任务开始了${projectLabel}：${summarizeQuotaText(payload.taskCommand)}`,
+      action: DELEGATION_QUOTA_ACTION,
+      taskId,
+    });
+
+    const delegatedMessage = buildDelegatedMessage({
+      bossId: payload.bossId,
+      bossName,
+      taskCommand: payload.taskCommand,
+      taskCard: payload.taskCard,
+    });
+    runtimeService.sendCommand(payload.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
+      .then(() => {
+        // 🔴 决策观测点⑦：queued → running（出队派发成功）
+        if (payload.taskCard) {
+          bossService.updateDelegationTaskCardStatus(payload.bossId, payload.decisionId, 'running', {
+            at: Date.now(),
+            reason: 'dispatched',
+            subordinateId: payload.selectedAgentId,
+            taskId,
+          });
+        }
+      })
+      .catch(err => {
+        log.error(`Failed to dispatch dequeued task to ${payload.selectedAgentName}:`, err);
+        logDelegation({
+          phase: 'failed',
+          channel: 'boss',
+          fromAgentId: payload.bossId,
+          fromName: bossName,
+          toAgentId: payload.selectedAgentId,
+          toAgentName: payload.selectedAgentName,
+          message: payload.taskCommand,
+          status: 'failed',
+          error: err instanceof Error ? err.message : String(err),
+          taskId,
+        });
+      });
+  } catch (err) {
+    log.error(`[quota] dequeued dispatch failed (completion funnel unaffected):`, err);
+  }
+}
 
 type DelegationPayload = {
   selectedAgentId: string;
@@ -434,8 +618,83 @@ export function parseBossDelegation(
         ...(taskCard ? { taskCard } : {}),
       };
 
+      // 任务 02：委派创建点生成 taskId（链路上下文已有则复用），回执/关闭埋点据此关联
+      // 任务15·B：生成提前到闸门之前——配额账本按 taskId 记账（与完成入口同一把钥匙）
+      const delegationTaskId = getTaskId() ?? newTaskId();
+
+      // ── 任务15·B ⑫ 全局并发配额准入（在落卡/落史之前判定；超预算 → queued）──
+      // 本循环只处理 Boss 委派链路（秘书自留区不经 parseBossDelegation），scope='delegation' 计配。
+      const admission = admitDelegationSafely({
+        taskId: delegationTaskId,
+        bossId: agentId,
+        decisionId: decision.id,
+        selectedAgentId: decision.selectedAgentId,
+        selectedAgentName: decision.selectedAgentName,
+        taskCommand: decision.userCommand,
+        taskCard,
+        scope: 'delegation',
+      });
+
       bossService.addDelegationToHistory(agentId, decision);
       broadcast({ type: 'delegation_decision', payload: decision });
+
+      if (admission.status === 'queued') {
+        // 任务15·B ⑤1：超预算 → 任务卡先 pending 后转 queued（走既有状态日志流）；
+        // 跳过运行期登记（activeDelegations/registerPendingReceipt/sendCommand/running 均延到出队）
+        if (taskCard) {
+          logTaskCardPending({
+            decisionId: decision.id,
+            bossId: agentId,
+            subordinateId: decision.selectedAgentId,
+            taskCard,
+            taskId: delegationTaskId,
+            at: decisionTimestamp,
+          });
+          bossService.updateDelegationTaskCardStatus(agentId, decision.id, 'queued', {
+            at: Date.now(),
+            reason: 'quota-exhausted',
+            subordinateId: decision.selectedAgentId,
+            taskId: delegationTaskId,
+          });
+        }
+
+        const queuedCount = admission.decision?.queuedCount ?? 0;
+        // 不假装已开工：给排队说明（不发 agent_task_started 广播）
+        broadcast({
+          type: 'output',
+          payload: {
+            agentId: decision.selectedAgentId,
+            text: `⏳ **Task delegated from ${bossName} — queued (concurrency quota):**\n\n${decision.userCommand}`,
+            isStreaming: false,
+            timestamp: Date.now(),
+            isDelegation: true,
+          },
+        });
+        // ⑩ 播报（vcs 既有通道，只 import 不改）：有 N 个排队。
+        // projectId 用 taskCard 原值——任务 14 项目别名映射未落地，不做别名替换。
+        const queueProjectLabel = taskCard?.projectId ? `（项目 ${taskCard.projectId}）` : '';
+        logProactiveBroadcast({
+          text: `[并发配额] 任务已排队${queueProjectLabel}：${summarizeQuotaText(decision.userCommand)}（当前 ${queuedCount} 个排队）`,
+          action: DELEGATION_QUOTA_ACTION,
+          taskId: delegationTaskId,
+        });
+        // 任务 02 埋点：派活决策写入照常（delivery='queue'，status='queued' 标记延后派发）
+        logDelegation({
+          phase: 'delegated',
+          channel: 'boss',
+          fromAgentId: agentId,
+          fromName: bossName,
+          toAgentId: decision.selectedAgentId,
+          toAgentName: decision.selectedAgentName,
+          message: decision.userCommand,
+          delivery: 'queue',
+          status: 'queued',
+          taskId: delegationTaskId,
+        });
+        continue; // 运行期登记整体延到出队（dispatchQueuedDelegation）
+      }
+
+      // ── 准入路径：与 15·B 前行为一致（sendCommand 定运行期）──
 
       broadcast({
         type: 'output',
@@ -450,8 +709,6 @@ export function parseBossDelegation(
 
       log.log(`Sending command to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
 
-      // 任务 02：委派创建点生成 taskId（链路上下文已有则复用），回执/关闭埋点据此关联
-      const delegationTaskId = getTaskId() ?? newTaskId();
       activeDelegations.set(decision.selectedAgentId, {
         bossId: agentId,
         taskDescription: decision.userCommand,
@@ -485,17 +742,13 @@ export function parseBossDelegation(
 
       // 🔴 决策观测点⑦：落卡 none → pending（任务卡状态机起点 + 时间）
       if (taskCard) {
-        logTaskCardStatus({
+        logTaskCardPending({
           decisionId: decision.id,
-          from: 'none',
-          to: 'pending',
-          at: decisionTimestamp,
           bossId: agentId,
           subordinateId: decision.selectedAgentId,
-          projectId: taskCard.projectId,
-          sourceProject: taskCard.sourceProject,
-          reason: 'delegated',
+          taskCard,
           taskId: delegationTaskId,
+          at: decisionTimestamp,
         });
       }
 
@@ -516,13 +769,17 @@ export function parseBossDelegation(
       // - Who delegated the task (boss name + ID)
       // - That it should report back when done using the report-task endpoint
       // ⑦ 任务卡：随委托消息附上卡（验收标准对下属可见），旧无卡链路输出不变
-      const baseUrl = getCommanderBaseUrl();
-      const cardBlock = taskCard ? `\n\n${formatTaskCard(taskCard)}` : '';
-      const delegatedMessage = `[DELEGATED TASK from boss "${bossName}" (${agentId})]\n\n${decision.userCommand}${cardBlock}\n\n---\nThis task was delegated by your boss agent. When you finish, report completion using:\ncurl -s -X POST ${baseUrl}/api/agents/YOUR_AGENT_ID/report-task -H "Content-Type: application/json" -d '{"summary":"Brief result summary","status":"completed"}'`;
+      // 任务15·B：构造提为 buildDelegatedMessage（出队派发共用，行为不变）
+      const delegatedMessage = buildDelegatedMessage({
+        bossId: agentId,
+        bossName,
+        taskCommand: decision.userCommand,
+        taskCard,
+      });
 
       runtimeService.sendCommand(decision.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
         .then(() => {
-          // 🔴 决策观测点⑦：交付成功 → pending → running（卡状态；queued 语义留任务 15）
+          // 🔴 决策观测点⑦：交付成功 → pending → running（卡状态；queued 语义见 15·B 出队路径）
           if (taskCard) {
             bossService.updateDelegationTaskCardStatus(agentId, decision.id, 'running', {
               at: Date.now(),

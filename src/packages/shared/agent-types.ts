@@ -606,9 +606,10 @@ export interface SubagentStreamEntry {
 // Boss Agent Types
 // ============================================================================
 
-// 任务卡状态机（改造点⑦，Spec §4.7）：pending → running → done。
-// queued 由任务 15（全局并发配额）、cancelled 由任务 16（任务撤回）扩展，本任务先只实现三态。
-export type TaskCardStatus = 'pending' | 'running' | 'done';
+// 任务卡状态机（改造点⑦，Spec §4.7）：pending → running → done；
+// 任务 15·B（全局并发配额）扩展 queued：pending → queued → running（超预算先排队，出队再开工）；
+// cancelled 由任务 16（任务撤回）在同表扩展，仍留协同。
+export type TaskCardStatus = 'pending' | 'queued' | 'running' | 'done';
 
 // 任务卡优先级（P0 最高 —— P3 最低；解析时也接受 high/medium/low 归一化）
 export type TaskCardPriority = 'P0' | 'P1' | 'P2' | 'P3';
