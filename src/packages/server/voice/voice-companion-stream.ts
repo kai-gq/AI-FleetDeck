@@ -29,6 +29,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { validateWebSocketAuth } from '../auth/index.js';
 import { loadVolcengineSttConfig, type VolcengineSttConfig } from '../services/voice-companion-service.js';
 import { VolcengineAsrSession, type VolcengineAsrError } from './volcengine-asr-client.js';
+import { logVoiceAsr } from '../services/activity-log.js';
 import { logger } from '../utils/index.js';
 
 const log = logger.server;
@@ -97,25 +98,42 @@ function handleConnection(ws: WebSocket): void {
 
   let session: VolcengineAsrSession | null = null;
   let sessionAudioBytes = 0;
+  // 任务 02 语音链路埋点：记录一段流式会话的起点，onFinal/onError 落 ASR 文本与耗时。
+  let sessionStartedAt: number | null = null;
   let closed = false;
 
   const dropSession = (): void => {
     session = null;
     sessionAudioBytes = 0;
+    sessionStartedAt = null;
   };
 
   const ensureSession = (): VolcengineAsrSession => {
     if (session) return session;
     sessionAudioBytes = 0;
+    sessionStartedAt = Date.now();
     const s = new VolcengineAsrSession({
       credentials: cfg,
       onPartial: (text) => send({ type: 'partial', text }),
       onFinal: (text) => {
+        logVoiceAsr({
+          channel: 'volcengine-stream',
+          text,
+          durationMs: sessionStartedAt !== null ? Date.now() - sessionStartedAt : 0,
+          ok: true,
+        });
         send({ type: 'final', text });
         dropSession();
       },
       onError: (err: VolcengineAsrError) => {
         log.warn(`[VoiceCompanion] 流式识别错误:${err.message}`);
+        logVoiceAsr({
+          channel: 'volcengine-stream',
+          text: '',
+          ok: false,
+          error: err.message,
+          durationMs: sessionStartedAt !== null ? Date.now() - sessionStartedAt : 0,
+        });
         send({ type: 'error', code: err.code ?? 'asr_error', message: err.message });
         dropSession();
       },

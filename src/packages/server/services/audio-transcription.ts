@@ -23,6 +23,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createLogger } from '../utils/logger.js';
+import { logVoiceAsr } from './activity-log.js';
 
 const log = createLogger('AudioTranscription');
 
@@ -73,20 +74,40 @@ export interface TranscribeOpts {
 }
 
 /**
- * Transcribe an audio file via whisper. Returns the transcribed text, or
- * `null` on any failure (whisper missing, non-zero exit, timeout, missing
- * file). Never throws.
+ * 转写结果（任务 02 扩展）：文本 + 服务端耗时。
+ * 原返回 `string | null`，为语音链路埋点（ASR 文本与耗时，Spec §4.14 系统活动 1）
+ * 扩为对象；调用方取 `.text`。失败仍返回 null，绝不抛异常。
+ */
+export interface TranscribeResult {
+  text: string;
+  /** 本次调用服务端耗时（含缓存命中路径的极短耗时） */
+  durationMs: number;
+  /** true = 命中已有的 <base>.txt，未实际调用 whisper */
+  cached: boolean;
+}
+
+/**
+ * Transcribe an audio file via whisper. Returns the transcribed text (plus
+ * server-side duration for logging), or `null` on any failure (whisper
+ * missing, non-zero exit, timeout, missing file). Never throws.
  */
 export async function transcribeAudio(
   audioPath: string,
   opts: TranscribeOpts = {},
-): Promise<string | null> {
+): Promise<TranscribeResult | null> {
+  const startedAt = Date.now();
+  const audioFile = path.basename(audioPath);
+
   if (!(await isWhisperAvailable())) return null;
 
   try {
     await fs.access(audioPath);
   } catch {
     log.warn(`transcribeAudio: file not found ${audioPath}`);
+    logVoiceAsr({
+      channel: 'whisper', text: '', ok: false, error: 'file-not-found',
+      durationMs: Date.now() - startedAt, audioFile, model: opts.model ?? 'medium', language: opts.language,
+    });
     return null;
   }
 
@@ -102,8 +123,13 @@ export async function transcribeAudio(
     if (stat.isFile() && stat.size > 0) {
       const cachedText = (await fs.readFile(txtPath, 'utf-8')).trim();
       if (cachedText) {
+        const durationMs = Date.now() - startedAt;
         log.debug(`transcribeAudio: cache-hit ${txtPath}`);
-        return cachedText;
+        logVoiceAsr({
+          channel: 'whisper', text: cachedText, cached: true, ok: true,
+          durationMs, audioFile, model: opts.model ?? 'medium', language: opts.language,
+        });
+        return { text: cachedText, durationMs, cached: true };
       }
     }
   } catch { /* no cache, fall through */ }
@@ -124,13 +150,16 @@ export async function transcribeAudio(
     args.push('--language', opts.language);
   }
 
-  const started = Date.now();
   return new Promise((resolve) => {
     let proc;
     try {
       proc = spawn('whisper', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (err) {
       log.warn(`transcribeAudio: spawn threw: ${err}`);
+      logVoiceAsr({
+        channel: 'whisper', text: '', ok: false, error: 'spawn-threw',
+        durationMs: Date.now() - startedAt, audioFile, model, language: opts.language,
+      });
       resolve(null);
       return;
     }
@@ -141,6 +170,10 @@ export async function transcribeAudio(
       killed = true;
       try { proc.kill('SIGTERM'); } catch { /* ignore */ }
       log.warn(`transcribeAudio: timeout after ${timeoutMs}ms for ${audioPath}`);
+      logVoiceAsr({
+        channel: 'whisper', text: '', ok: false, error: 'timeout',
+        durationMs: Date.now() - startedAt, audioFile, model, language: opts.language,
+      });
     }, timeoutMs);
 
     proc.stderr?.on('data', (chunk) => {
@@ -150,6 +183,10 @@ export async function transcribeAudio(
     proc.on('error', (err) => {
       clearTimeout(timer);
       log.warn(`transcribeAudio: spawn error: ${err}`);
+      logVoiceAsr({
+        channel: 'whisper', text: '', ok: false, error: `spawn-error`,
+        durationMs: Date.now() - startedAt, audioFile, model, language: opts.language,
+      });
       resolve(null);
     });
     proc.on('exit', async (code) => {
@@ -157,17 +194,30 @@ export async function transcribeAudio(
       if (killed) { resolve(null); return; }
       if (code !== 0) {
         log.warn(`transcribeAudio: whisper exit ${code} for ${audioPath}: ${stderr.slice(-500)}`);
+        logVoiceAsr({
+          channel: 'whisper', text: '', ok: false, error: `exit-${code}`,
+          durationMs: Date.now() - startedAt, audioFile, model, language: opts.language,
+        });
         resolve(null);
         return;
       }
       try {
         const raw = await fs.readFile(txtPath, 'utf-8');
         const text = raw.trim();
-        const tookSec = ((Date.now() - started) / 1000).toFixed(1);
+        const durationMs = Date.now() - startedAt;
+        const tookSec = (durationMs / 1000).toFixed(1);
         log.log(`transcribed ${audioPath} in ${tookSec}s (${text.length} chars, model=${model}${opts.language ? ` lang=${opts.language}` : ''})`);
-        resolve(text || null);
+        logVoiceAsr({
+          channel: 'whisper', text, cached: false, ok: true,
+          durationMs, audioFile, model, language: opts.language,
+        });
+        resolve(text ? { text, durationMs, cached: false } : null);
       } catch (err) {
         log.warn(`transcribeAudio: failed to read ${txtPath}: ${err}`);
+        logVoiceAsr({
+          channel: 'whisper', text: '', ok: false, error: 'read-output-failed',
+          durationMs: Date.now() - startedAt, audioFile, model, language: opts.language,
+        });
         resolve(null);
       }
     });

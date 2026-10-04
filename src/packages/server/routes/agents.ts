@@ -16,8 +16,10 @@ import { getAllCustomClasses } from '../services/custom-class-service.js';
 import { createLogger } from '../utils/logger.js';
 import { withAgentContext } from '../utils/log-context.js';
 import { truncateOrEmpty } from '../utils/string.js';
+import { getTaskId, newTaskId } from '../utils/trace-context.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { clearDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
+import { logDelegation } from '../services/activity-log.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getPiModelCatalog, getPiModelCatalogFetchedAt } from '../pi/model-catalog.js';
 import {
@@ -1826,14 +1828,40 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
     const expandedMessage = await expandFileMentions(message, agent.cwd);
 
     // Handle boss agents with their special context building
-    if (agent.isBoss || agent.class === 'boss') {
-      const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, expandedMessage);
-      await runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
-    } else {
-      // Regular agents get custom agent config (identity header, class instructions, skills)
-      const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
-      await runtimeService.sendCommand(agentId, expandedMessage, undefined, undefined, customAgentConfig);
+    try {
+      if (agent.isBoss || agent.class === 'boss') {
+        const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agentId, expandedMessage);
+        await runtimeService.sendCommand(agentId, bossMessage, systemPrompt);
+      } else {
+        // Regular agents get custom agent config (identity header, class instructions, skills)
+        const customAgentConfig = buildCustomAgentConfig(agentId, agent.class);
+        await runtimeService.sendCommand(agentId, expandedMessage, undefined, undefined, customAgentConfig);
+      }
+    } catch (err) {
+      // 任务 02 埋点：基础四类 ③ —— API 直发派活失败行（channel 与成功行一致，原错误继续上抛）
+      logDelegation({
+        phase: 'failed',
+        channel: 'api',
+        toAgentId: agent.id,
+        toAgentName: agent.name,
+        message: expandedMessage.slice(0, 1000),
+        status: 'failed',
+        error: err instanceof Error ? err.message : String(err),
+        taskId: getTaskId() ?? newTaskId(),
+      });
+      throw err;
     }
+
+    // 任务 02 埋点：基础四类 ③ —— API 直发派活（只记录出站，不做委派追踪/回执收敛）
+    logDelegation({
+      phase: 'dispatched',
+      channel: 'api',
+      toAgentId: agent.id,
+      toAgentName: agent.name,
+      message: expandedMessage.slice(0, 1000),
+      delivery: 'queue',
+      taskId: getTaskId() ?? newTaskId(),
+    });
 
     res.status(200).json({
       success: true,
@@ -1938,6 +1966,17 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
 
     if (!resolvedBossId) {
       log.log(`Agent ${agent.name} reported task ${taskStatus} but has no boss association. Accepting and logging: "${(summary || '').slice(0, 120)}"`);
+      // 任务 02 埋点：基础四类 ③ —— 回执（无 boss 关联，未转发）
+      logDelegation({
+        phase: 'reported',
+        channel: 'subordinate',
+        fromAgentId: agent.id,
+        fromName: agent.name,
+        message: summary,
+        status: taskStatus,
+        forwarded: false,
+        taskId: delegation?.taskId,
+      });
       res.status(200).json({
         success: true,
         subordinateId: agent.id,
@@ -1999,6 +2038,20 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
     } else {
       log.log(` Boss agent ${resolvedBossId} not found — accepting report without forwarding.`);
     }
+
+    // 任务 02 埋点：基础四类 ③ —— 下属回执（taskId 与 delegated/closed 关联）
+    logDelegation({
+      phase: 'reported',
+      channel: 'subordinate',
+      fromAgentId: agent.id,
+      fromName: agent.name,
+      toAgentId: resolvedBossId,
+      toAgentName: bossName,
+      message: summary,
+      status: taskStatus,
+      forwarded,
+      taskId: delegation?.taskId,
+    });
 
     res.status(200).json({
       success: true,

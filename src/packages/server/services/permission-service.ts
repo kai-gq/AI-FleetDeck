@@ -9,6 +9,7 @@ import * as os from 'os';
 import type { PermissionRequest, PermissionResponse, AgentStatus } from '../../shared/types.js';
 import { createLogger } from '../utils/logger.js';
 import * as agentService from './agent-service.js';
+import { logSecurity, previewToolInput } from './activity-log.js';
 
 const log = createLogger('Permission');
 
@@ -72,6 +73,16 @@ export async function createPermissionRequest(
 
   log.log(`Permission request created: ${request.id} for tool ${request.tool}`);
 
+  // 任务 02 埋点：系统活动 3 —— 权限请求（工具入参摘要落盘前自动脱敏）
+  logSecurity({
+    phase: 'request',
+    agentId,
+    sessionId: request.sessionId,
+    requestId: request.id,
+    tool: request.tool,
+    toolInputPreview: previewToolInput(request.toolInput),
+  });
+
   // Get current agent status before changing to waiting_permission
   const agent = agentService.getAgent(agentId);
   const previousStatus: AgentStatus = agent?.status || 'working';
@@ -83,6 +94,14 @@ export async function createPermissionRequest(
     // Set up timeout
     const timeout = setTimeout(() => {
       log.log(`Permission request ${request.id} timed out`);
+      // 任务 02 埋点：系统活动 3 —— 权限请求超时（warn 级、全量）
+      logSecurity({
+        phase: 'timeout',
+        agentId,
+        sessionId: request.sessionId,
+        requestId: request.id,
+        tool: request.tool,
+      });
       pendingRequests.delete(request.id);
       // Restore previous status on timeout
       agentService.updateAgent(agentId, { status: previousStatus }, false);
@@ -114,6 +133,17 @@ export function respondToPermissionRequest(response: PermissionResponse): boolea
   }
 
   log.log(`Permission response received for ${response.requestId}: ${response.approved ? 'approved' : 'denied'}${response.remember ? ' (remembering)' : ''}`);
+
+  // 任务 02 埋点：系统活动 3 —— 批准/拒绝（含 remember 与拒绝原因）
+  logSecurity({
+    phase: response.approved ? 'approved' : 'denied',
+    agentId: pending.request.agentId,
+    sessionId: pending.request.sessionId,
+    requestId: response.requestId,
+    tool: pending.request.tool,
+    reason: response.reason,
+    remember: response.remember,
+  });
 
   // Clear timeout
   clearTimeout(pending.timeout);
@@ -166,6 +196,15 @@ export function cancelRequestsForAgent(agentId: string): string[] {
   for (const [id, pending] of pendingRequests) {
     if (pending.request.agentId === agentId) {
       log.log(`Cancelling permission request ${id} for stopped agent ${agentId}`);
+      // 任务 02 埋点：系统活动 3 —— 因 agent 停止而取消
+      logSecurity({
+        phase: 'cancelled',
+        agentId,
+        sessionId: pending.request.sessionId,
+        requestId: id,
+        tool: pending.request.tool,
+        reason: 'Agent was stopped',
+      });
       clearTimeout(pending.timeout);
       // Restore agent status (though agent is being stopped, this keeps state consistent)
       agentService.updateAgent(agentId, { status: pending.previousStatus }, false);

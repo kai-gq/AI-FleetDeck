@@ -11,6 +11,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
+import { logVoiceTts } from '../services/activity-log.js';
 
 const router = Router();
 
@@ -183,6 +184,8 @@ export function buildPiperArgs(
  */
 router.post('/speak', async (req: Request, res: Response) => {
   const { text, voice, lang, rate, volume } = req.body;
+  // 任务 02 语音链路埋点：服务端合成耗时（播放时长在客户端，见缺口清单）。
+  const startedAt = Date.now();
 
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Text is required' });
@@ -227,6 +230,10 @@ router.post('/speak', async (req: Request, res: Response) => {
 
   if (!fs.existsSync(modelPath)) {
     logger.server.error(`[TTS] Voice model not found: ${modelPath}`);
+    logVoiceTts({
+      voice: selectedVoice, textChars: cleanedText.length,
+      durationMs: Date.now() - startedAt, ok: false, error: 'model-not-found',
+    });
     res.status(500).json({ error: 'TTS voice model not installed' });
     return;
   }
@@ -290,12 +297,20 @@ router.post('/speak', async (req: Request, res: Response) => {
     });
 
     // Send WAV audio back to browser
+    logVoiceTts({
+      voice: selectedVoice, textChars: cleanedText.length,
+      durationMs: Date.now() - startedAt, audioBytes: audioData.length, ok: true,
+    });
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Content-Length', audioData.length);
     res.send(audioData);
 
   } catch (err) {
     logger.server.error(`[TTS] Error generating audio: ${err}`);
+    logVoiceTts({
+      voice: selectedVoice, textChars: cleanedText.length,
+      durationMs: Date.now() - startedAt, ok: false, error: err instanceof Error ? err.message : String(err),
+    });
     res.status(500).json({ error: 'Failed to generate audio' });
   }
 });

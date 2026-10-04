@@ -409,11 +409,11 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
               config.transcribeAudio !== false &&
               (await isWhisperAvailable())
             ) {
-              const text = await transcribeAudio(payload.attachment.path, {
+              const transcribed = await transcribeAudio(payload.attachment.path, {
                 model: config.whisperModel || 'medium',
                 language: config.whisperLanguage?.trim() || undefined,
               });
-              if (text) payload.audioTranscription = text;
+              if (transcribed) payload.audioTranscription = transcribed.text;
             }
           })()
         : Promise.resolve();

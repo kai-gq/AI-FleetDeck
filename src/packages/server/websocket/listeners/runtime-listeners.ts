@@ -8,6 +8,7 @@ import { parseContextOutput } from '../../claude/backend.js';
 import type { OutputMetadata } from '../../claude/types.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
 import { agentService, runtimeService } from '../../services/index.js';
+import { logDelegation, logResourceUsage, logSecurity, previewToolInput } from '../../services/activity-log.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, clearDelegation } from '../handlers/boss-response-handler.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
@@ -229,6 +230,21 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       const details = formatToolActivity(event.toolName, event.toolInput);
       ctx.sendActivity(agentId, details);
 
+      // 任务 02 埋点：系统活动 3 —— bypass 模式工具调用无权限请求环节，采样记录调用本身
+      if (!event.parentToolUseId && event.toolName) {
+        const permAgent = agentService.getAgent(agentId);
+        if (permAgent?.permissionMode === 'bypass') {
+          logSecurity({
+            phase: 'bypass-tool-call',
+            agentId,
+            sessionId: permAgent.sessionId,
+            tool: event.toolName,
+            toolInputPreview: previewToolInput(event.toolInput),
+            sampled: true,
+          });
+        }
+      }
+
       if (event.toolName === 'TodoWrite' && !event.parentToolUseId) {
         const existing = agentService.getAgent(agentId)?.latestTodos || [];
         const todos = parseTodoWriteInput(event.toolInput, existing);
@@ -423,6 +439,24 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           parseBossSpawn(agentId, agent.name, textForParsing, ctx.broadcast, ctx.sendActivity);
         }
       }
+      // 任务 02 埋点：系统活动 4 —— 每回合 tokens/耗时/上下文/费用（子代理事件不计入父代理）
+      if (!event.parentToolUseId) {
+        logResourceUsage({
+          agentId,
+          sessionId: agent?.sessionId,
+          provider: agent?.provider,
+          model: event.model ?? agent?.detectedModel,
+          tokens: event.tokens,
+          costUsd: typeof event.cost === 'number' ? event.cost : undefined,
+          durationMs: event.durationMs,
+          contextUsed: agent?.contextUsed,
+          contextLimit: agent?.contextLimit,
+          contextPercent: agent && agent.contextLimit > 0
+            ? Math.round((agent.contextUsed / agent.contextLimit) * 1000) / 10
+            : undefined,
+          sub: 'turn',
+        });
+      }
     }
 
     // Real-time context tracking: broadcast lightweight context_update on usage_snapshot and step_complete
@@ -453,6 +487,19 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           contextUsed: stats.totalTokens,
           contextLimit: stats.contextWindow,
         }, false);
+
+        // 任务 02 埋点：系统活动 4 —— 上下文占用轮询（高频通道，默认 1:10 采样）
+        const statsAgent = agentService.getAgent(agentId);
+        logResourceUsage({
+          agentId,
+          sessionId: statsAgent?.sessionId,
+          provider: statsAgent?.provider,
+          model: statsAgent?.detectedModel,
+          contextUsed: stats.totalTokens,
+          contextLimit: stats.contextWindow,
+          contextPercent: stats.usedPercent,
+          sub: 'context',
+        });
 
         ctx.broadcast({
           type: 'context_stats',
@@ -589,6 +636,17 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
           success,
         },
       } as any);
+
+      // 任务 02 埋点：基础四类 ③ —— 委派追踪关闭（下属回合结束，taskId 与 delegated 关联）
+      logDelegation({
+        phase: 'closed',
+        channel: 'boss',
+        fromAgentId: delegation.bossId,
+        toAgentId: agentId,
+        toAgentName: agentService.getAgent(agentId)?.name,
+        status: success ? 'completed' : 'failed',
+        taskId: delegation.taskId,
+      });
 
       clearDelegation(agentId);
     }

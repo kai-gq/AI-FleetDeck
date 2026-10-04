@@ -9,6 +9,7 @@ import { writeFile, unlink, mkdir } from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { logger } from '../utils/logger.js';
+import { logVoiceAsr } from '../services/activity-log.js';
 
 const router = Router();
 
@@ -33,6 +34,8 @@ router.post('/transcribe', async (req: Request, res: Response) => {
   // Generate unique filename
   const filename = `audio_${Date.now()}.webm`;
   const filepath = path.join(TEMP_DIR, filename);
+  // 任务 02 语音链路埋点：ASR 耗时（批量兜底通道；流式通道见 voice-companion-stream）
+  const startedAt = Date.now();
 
   try {
     // Decode base64 audio and save to temp file
@@ -100,6 +103,12 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     // Clean up audio file
     unlink(filepath).catch(() => {});
 
+    // 任务 02 埋点：系统活动 1 —— ASR 文本与耗时
+    logVoiceAsr({
+      channel: 'whisper', text: transcription, cached: false, ok: true,
+      durationMs: Date.now() - startedAt, audioFile: filename, model, language,
+    });
+
     logger.server.log(`[STT] Transcription complete: "${transcription.substring(0, 100)}..."`);
 
     res.json({ success: true, text: transcription });
@@ -107,6 +116,12 @@ router.post('/transcribe', async (req: Request, res: Response) => {
   } catch (err) {
     // Clean up on error
     unlink(filepath).catch(() => {});
+
+    logVoiceAsr({
+      channel: 'whisper', text: '', ok: false,
+      error: String(err).slice(0, 200),
+      durationMs: Date.now() - startedAt, audioFile: filename, model, language,
+    });
 
     logger.server.error(`[STT] Error transcribing audio: ${err}`);
     res.status(500).json({ error: 'Failed to transcribe audio', details: String(err) });

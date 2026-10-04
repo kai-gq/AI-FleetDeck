@@ -9,6 +9,8 @@ import { agentService, runtimeService, bossService, workPlanService, skillServic
 import { getAllCustomClasses, getClassDefaultSkillIds } from '../../services/custom-class-service.js';
 import { logger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js';
+import { getTaskId, newTaskId } from '../../utils/trace-context.js';
+import { logDelegation } from '../../services/activity-log.js';
 
 const log = logger.ws;
 
@@ -18,12 +20,13 @@ const DELEGATION_DEDUP_WINDOW_MS = 60000; // 1 minute window
 
 // Track active delegations: subordinateId -> { bossId, taskDescription }
 // Used to route subordinate outputs/completion to the boss terminal
-export const activeDelegations = new Map<string, { bossId: string; taskDescription: string }>();
+// (任务 02 扩展 taskId：委派创建点生成，回执/关闭埋点据此关联同一时间线)
+export const activeDelegations = new Map<string, { bossId: string; taskDescription: string; taskId?: string }>();
 
 /**
  * Get the boss ID for an active delegation (if any)
  */
-export function getBossForSubordinate(subordinateId: string): { bossId: string; taskDescription: string } | undefined {
+export function getBossForSubordinate(subordinateId: string): { bossId: string; taskDescription: string; taskId?: string } | undefined {
   return activeDelegations.get(subordinateId);
 }
 
@@ -359,9 +362,25 @@ export function parseBossDelegation(
 
       log.log(`Sending command to ${decision.selectedAgentName} (${decision.selectedAgentId}): "${decision.userCommand.slice(0, 50)}..."`);
 
+      // 任务 02：委派创建点生成 taskId（链路上下文已有则复用），回执/关闭埋点据此关联
+      const delegationTaskId = getTaskId() ?? newTaskId();
       activeDelegations.set(decision.selectedAgentId, {
         bossId: agentId,
         taskDescription: decision.userCommand,
+        taskId: delegationTaskId,
+      });
+
+      // 任务 02 埋点：基础四类 ③ —— Boss 拆解写入（派活出站）
+      logDelegation({
+        phase: 'delegated',
+        channel: 'boss',
+        fromAgentId: agentId,
+        fromName: bossName,
+        toAgentId: decision.selectedAgentId,
+        toAgentName: decision.selectedAgentName,
+        message: decision.userCommand,
+        delivery: 'queue',
+        taskId: delegationTaskId,
       });
 
       broadcast({
@@ -386,6 +405,19 @@ export function parseBossDelegation(
       runtimeService.sendCommand(decision.selectedAgentId, delegatedMessage, undefined, undefined, customAgentConfig)
         .catch(err => {
           log.error(`Failed to auto-forward command to ${decision.selectedAgentName}:`, err);
+          // 任务 02 埋点：基础四类 ③ —— Boss 派活失败行（channel 与成功行一致）
+          logDelegation({
+            phase: 'failed',
+            channel: 'boss',
+            fromAgentId: agentId,
+            fromName: bossName,
+            toAgentId: decision.selectedAgentId,
+            toAgentName: decision.selectedAgentName,
+            message: decision.userCommand,
+            status: 'failed',
+            error: err instanceof Error ? err.message : String(err),
+            taskId: delegationTaskId,
+          });
         });
     }
   }

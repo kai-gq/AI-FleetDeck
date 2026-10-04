@@ -124,6 +124,33 @@ describe('applyMemoryOps', () => {
     expect(applied).toBe(0);
     expect(out).toBe(memory);
   });
+
+  it('reports per-op details（任务 02：生效/未生效逐条列出）', () => {
+    const { details } = applyMemoryOps(emptyMemory(), [
+      { op: 'add', text: '喜好A' },
+      { op: 'add', text: '喜好A' }, // 重复 → 未生效
+      { op: 'add', text: ' ' },     // 过短 → 未生效
+      { op: 'remove', id: 'nope' }, // 未找到 → 未生效
+      { op: 'setSummary', summary: '喜欢简洁' },
+    ], 40, 1000);
+    expect(details).toEqual([
+      { op: 'add', applied: true, droppedCount: 0 },
+      { op: 'add', applied: false },
+      { op: 'add', applied: false },
+      { op: 'remove', applied: false },
+      { op: 'setSummary', applied: true },
+    ]);
+  });
+
+  it('reports droppedCount per add when the cap evicts notes（任务 02：裁剪计入明细）', () => {
+    const memory = emptyMemory();
+    memory.notes.push({ id: 'auto-a', text: 'A', createdAt: 1, source: 'auto' });
+    memory.notes.push({ id: 'auto-b', text: 'B', createdAt: 2, source: 'auto' });
+    const { details, memory: out } = applyMemoryOps(memory, [{ op: 'add', text: '新笔记' }], 2, 999);
+    expect(details).toEqual([{ op: 'add', applied: true, droppedCount: 1 }]);
+    expect(out.droppedCount).toBe(1);
+    expect(out.notes).toHaveLength(2);
+  });
 });
 
 describe('shouldRotateSession', () => {

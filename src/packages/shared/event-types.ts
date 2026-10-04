@@ -14,7 +14,9 @@ export type DriveAction = 'created' | 'updated' | 'deleted';
 export type JiraAction = 'created' | 'updated' | 'transitioned' | 'commented';
 type WorkflowInstanceStatus = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 type WorkflowStepStatus = 'entered' | 'executing' | 'completed' | 'failed' | 'skipped';
-export type AuditCategory = 'trigger' | 'slack' | 'email' | 'calendar' | 'drive' | 'document' | 'jira' | 'workflow' | 'system';
+// 任务 02：补 'http'（请求审计）/ 'process'（进程生命周期）枚举位（Spec §4.14 类别清单；
+// 当前无生产者，待对应任务接入，避免届时代码改用 magic string）。
+export type AuditCategory = 'trigger' | 'slack' | 'email' | 'calendar' | 'drive' | 'document' | 'jira' | 'workflow' | 'system' | 'http' | 'process';
 type AuditLevel = 'debug' | 'info' | 'warn' | 'error';
 
 // ─── Trigger Events ───

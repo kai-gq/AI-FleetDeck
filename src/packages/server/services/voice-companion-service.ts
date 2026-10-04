@@ -38,6 +38,14 @@ import type { GateAction } from '../voice/speech-gate.js';
 import type { Agent } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
 import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, sanitizePersonaCustom, sanitizePersonaId, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
+import {
+  logDialogMessage,
+  logBroadcast,
+  logDelegation,
+  logMemoryOps,
+  type MemoryOpDetail,
+} from './activity-log.js';
+import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-context.js';
 
 const log = logger.server;
 
@@ -410,14 +418,17 @@ function newNoteId(now: number): string {
 /**
  * 应用模型给出的 memoryOps:add 去重、上限裁剪(先裁最旧的 auto 条目);
  * remove 按 id;setSummary 覆盖总结。返回新 memory 与生效条数。
+ * (任务 02 扩展:details 逐条记录每个 op 是否生效及 add 触发的 droppedCount,
+ *  供 logMemoryOps 落盘;调用方解构 {memory, applied} 的现用法不受影响。)
  */
 export function applyMemoryOps(
   memory: CompanionMemory,
   ops: VoiceMemoryOp[] | undefined,
   maxNotes: number,
   now: number = Date.now(),
-): { memory: CompanionMemory; applied: number } {
-  if (!ops || ops.length === 0) return { memory, applied: 0 };
+): { memory: CompanionMemory; applied: number; details: MemoryOpDetail[] } {
+  const details: MemoryOpDetail[] = [];
+  if (!ops || ops.length === 0) return { memory, applied: 0, details };
 
   const next: CompanionMemory = {
     summary: memory.summary,
@@ -430,9 +441,16 @@ export function applyMemoryOps(
   for (const op of ops) {
     if (op.op === 'add' && typeof op.text === 'string') {
       const text = op.text.replace(/\s+/g, ' ').trim().slice(0, NOTES_MAX_TEXT);
-      if (text.length < 2) continue;
+      if (text.length < 2) {
+        details.push({ op: 'add', applied: false });
+        continue;
+      }
       const dup = next.notes.some((n) => n.text.toLowerCase() === text.toLowerCase());
-      if (dup) continue;
+      if (dup) {
+        details.push({ op: 'add', applied: false });
+        continue;
+      }
+      const droppedBefore = next.droppedCount;
       while (next.notes.length >= maxNotes) {
         const autoIdx = next.notes.findIndex((n) => n.source === 'auto');
         next.notes.splice(autoIdx === -1 ? 0 : autoIdx, 1);
@@ -440,21 +458,26 @@ export function applyMemoryOps(
       }
       next.notes.push({ id: newNoteId(now), text, createdAt: now, source: 'user' });
       applied++;
+      details.push({ op: 'add', applied: true, droppedCount: next.droppedCount - droppedBefore });
     } else if (op.op === 'remove' && typeof op.id === 'string') {
       const before = next.notes.length;
       next.notes = next.notes.filter((n) => n.id !== op.id);
-      if (next.notes.length !== before) applied++;
+      const removed = next.notes.length !== before;
+      if (removed) applied++;
+      details.push({ op: 'remove', applied: removed });
     } else if (op.op === 'setSummary' && typeof op.summary === 'string') {
       const summary = op.summary.trim().slice(0, SUMMARY_MAX_TEXT);
-      if (summary !== next.summary) {
+      const changed = summary !== next.summary;
+      if (changed) {
         next.summary = summary;
         applied++;
       }
+      details.push({ op: 'setSummary', applied: changed });
     }
   }
 
-  if (applied === 0) return { memory, applied: 0 };
-  return { memory: next, applied };
+  if (applied === 0) return { memory, applied: 0, details };
+  return { memory: next, applied, details };
 }
 
 /** 会话轮换判定:轮数上限或存活天数上限。轮换 = 清 sessionId,保留记忆。 */
@@ -1129,13 +1152,9 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
  * spawn 失败(ENOENT 等)才抛出。
  */
 export async function processVoiceInput(text: string, opts: VoiceProcessOptions = {}): Promise<VoiceProcessResult> {
-  return withMutex(async () => {
+  // 任务 02：语音回合是链路起点，runWithTrace 让本回合所有埋点共享 taskId/sessionId。
+  return withMutex(async () => runWithTrace({ source: 'voice-companion' }, async () => {
     const speech = createSpeechPipeline(opts.onSentence);
-    const finish = (r: VoiceProcessResult): VoiceProcessResult => {
-      speech.dispose(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)
-      if (speech.spoke) r.spoke = true;
-      return r;
-    };
 
     const started = Date.now();
     const cfg = loadServerConfig();
@@ -1149,6 +1168,43 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       state.turns = 0;
     }
     state.personaKey = personaKey;
+
+    // 任务 02 埋点：本回合 taskId 在此生成一次（对话 in/out、播报、委派共用同一时间线）。
+    // 「任务类」与否由 hop1 判定，taskId 仅作关联 ID，纯聊天回合多一个 ID 无副作用。
+    const taskId = ensureTaskId();
+    logDialogMessage({
+      direction: 'in',
+      text,
+      sessionId: state.sessionId ?? undefined,
+      taskId,
+      isEvent: !!opts.isEvent,
+    });
+
+    const finish = (r: VoiceProcessResult): VoiceProcessResult => {
+      speech.dispose(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)
+      if (speech.spoke) r.spoke = true;
+      // 任务 02 埋点：回合最终回应 = 对话(out) + 播报(phase=server-sent，实际播放链路在客户端)
+      if (r.response) {
+        logDialogMessage({
+          direction: 'out',
+          text: r.response,
+          sessionId: state.sessionId ?? undefined,
+          taskId,
+          action: r.action,
+          degraded: r.degraded,
+          targetAgentId: r.targetAgent?.id,
+        });
+        logBroadcast({
+          text: r.response,
+          phase: 'server-sent',
+          action: r.action,
+          degraded: r.degraded,
+          sessionId: state.sessionId ?? undefined,
+          taskId,
+        });
+      }
+      return r;
+    };
 
     let outcome: Hop1Outcome;
     try {
@@ -1179,18 +1235,29 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
 
     state.turns += 1;
     state.lastUsedAt = Date.now();
+    // 任务 02：hop1 成功后 sessionId 才就绪（含 resume），回填链路上下文供后续埋点复用。
+    updateTraceContext({ sessionId: state.sessionId ?? undefined });
 
     const { contract } = outcome;
     // 流式期间若 action 尚未解析出来,这里兜底补上(缓冲的句子按语义放行/丢弃)。
     speech.setHop1Action(contract.action);
     let memoryOpsApplied = 0;
     if (contract.memoryOps.length > 0) {
-      const { memory, applied } = applyMemoryOps(state.memory, contract.memoryOps, cfg.maxNotes);
+      const { memory, applied, details } = applyMemoryOps(state.memory, contract.memoryOps, cfg.maxNotes);
       if (applied > 0) {
         state.memory = memory;
         memoryOpsApplied = applied;
         log.log(`[VoiceCompanion] 记忆更新 ${applied} 条(共 ${memory.notes.length} 条)`);
       }
+      // 任务 02 埋点：系统活动 2 —— 每个 op 的生效明细与裁剪 droppedCount 全量落盘
+      logMemoryOps({
+        applied,
+        details,
+        notesTotal: state.memory.notes.length,
+        droppedTotal: state.memory.droppedCount,
+        sessionId: state.sessionId ?? undefined,
+        channel: 'voice',
+      });
     }
     saveCompanionState(state);
 
@@ -1214,11 +1281,40 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         result.response = contract.responseToUser || '我没听清要让它做什么,请再说一遍。';
         return finish(result);
       }
-      const interrupted = await deliverToAgent(target, contract.messageToAgent, contract.delivery);
+      let interrupted: boolean;
+      try {
+        interrupted = await deliverToAgent(target, contract.messageToAgent, contract.delivery);
+      } catch (err) {
+        // 任务 02 埋点：基础四类 ③ —— 派活失败行（channel 与成功行一致，原错误继续上抛）
+        logDelegation({
+          phase: 'failed',
+          channel: 'voice-companion',
+          toAgentId: target.id,
+          toAgentName: target.name,
+          message: contract.messageToAgent,
+          status: 'failed',
+          error: err instanceof Error ? err.message : String(err),
+          taskId,
+          sessionId: state.sessionId ?? undefined,
+        });
+        throw err;
+      }
       result.targetAgent = { id: target.id, name: target.name };
       result.messageSent = contract.messageToAgent;
       result.delivery = contract.delivery;
       result.interrupted = interrupted;
+      // 任务 02 埋点：基础四类 ③ —— 派活出站（voice-companion 渠道）
+      logDelegation({
+        phase: 'dispatched',
+        channel: 'voice-companion',
+        toAgentId: target.id,
+        toAgentName: target.name,
+        message: contract.messageToAgent,
+        delivery: contract.delivery,
+        interrupted,
+        taskId,
+        sessionId: state.sessionId ?? undefined,
+      });
       if (!result.response) {
         result.response = interrupted
           ? `已打断 ${target.name},改用新任务。`
@@ -1283,7 +1379,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }
     }
     return finish(result);
-  });
+  }));
 }
 
 // ============================================================================
@@ -1331,8 +1427,16 @@ export function updateCompanionMemory(input: { ops?: VoiceMemoryOp[]; clear?: bo
     state.memory = { ...structuredClone(DEFAULT_MEMORY) };
   } else if (input.ops && input.ops.length > 0) {
     const cfg = loadServerConfig();
-    const { memory } = applyMemoryOps(state.memory, input.ops, cfg.maxNotes);
+    const { memory, applied, details } = applyMemoryOps(state.memory, input.ops, cfg.maxNotes);
     state.memory = memory;
+    // 任务 02 埋点：系统活动 2 —— 设置面板/接口渠道的记忆改动同样落盘
+    logMemoryOps({
+      applied,
+      details,
+      notesTotal: memory.notes.length,
+      droppedTotal: memory.droppedCount,
+      channel: 'settings',
+    });
   }
   saveCompanionState(state);
   return state.memory;
