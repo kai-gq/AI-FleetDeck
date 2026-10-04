@@ -29,6 +29,9 @@ import { logger } from '../utils/index.js';
 // 违规直派告警断言(决策观测点①):走真实 EventDB(XDG 沙箱内)
 import { closeEventDb, initEventDb } from '../data/event-db.js';
 import { querySystemLog } from '../data/system-log.js';
+// 任务07·④:委派史 fixture 走 bossService.init() 真实读取链路(沙箱内,不碰真实数据)
+import * as bossService from './boss-service.js';
+import type { DelegationDecision } from '../../shared/agent-types.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -108,11 +111,18 @@ interface MockAgent {
 
 const mockAgents: MockAgent[] = [];
 let mockHistory: Array<{ type: string; content: string }> = [];
+/** 任务07·④:按 agentId 区分历史(委派树要对每个下属各取其产出);未登记的回退全局 mockHistory。 */
+const mockHistoryByAgent = new Map<string, Array<{ type: string; content: string }>>();
+/** 任务07·④:记录 getAgentHistory 被查过哪些 agent(断言「查了下属而不是 Boss 自己」)。 */
+const historyQueriedIds: string[] = [];
 
 vi.mock('./agent-service.js', () => ({
   getAllAgents: () => mockAgents,
   getAgent: (id: string) => mockAgents.find((a) => a.id === id),
-  getAgentHistory: async () => ({ messages: mockHistory }),
+  getAgentHistory: async (id: string) => {
+    historyQueriedIds.push(id);
+    return { messages: mockHistoryByAgent.get(id) ?? mockHistory };
+  },
 }));
 
 vi.mock('../data/index.js', async () => {
@@ -150,6 +160,8 @@ const dataHome = process.env.XDG_DATA_HOME;
 if (!dataHome) throw new Error('XDG_DATA_HOME 未设置:test-setup 沙箱失效,拒绝加载本测试文件');
 
 const stateFilePath = path.join(dataHome, 'tide-commander', 'voice-companion.json');
+/** 任务07·④:委派史 fixture 文件(仅沙箱;真实文件绝不被本测试触碰)。 */
+const delegationHistoryPath = path.join(dataHome, 'tide-commander', 'delegation-history.json');
 
 interface StateFile {
   sessionId: string | null;
@@ -242,10 +254,15 @@ beforeEach(() => {
   throwOnNextSpawn = null;
   mockAgents.length = 0;
   mockHistory = [];
+  mockHistoryByAgent.clear();
+  historyQueriedIds.length = 0;
   stopAgentMock.mockReset();
   sendCommandMock.mockReset();
   sendCommandMock.mockImplementation(async () => {});
   fs.rmSync(stateFilePath, { force: true });
+  // 委派史每用例回到空(沙箱内);需要 fixture 的用例自行 seedDelegationHistory。
+  fs.rmSync(delegationHistoryPath, { force: true });
+  bossService.init();
   writeConfig();
 });
 
@@ -371,6 +388,52 @@ function stdinUserContent(call: SpawnCall): string {
 /** system_log 行的 body 解析(违规直派告警断言用)。 */
 function logBody(row: { body?: string }): Record<string, unknown> {
   return JSON.parse(row.body ?? '{}') as Record<string, unknown>;
+}
+
+// ============================================================================
+// 任务07·④:委派史 fixture(沙箱内)与查询链路日志断言 helpers
+// ============================================================================
+
+interface DecisionFixture {
+  timestamp: number;
+  selectedAgentId: string;
+  selectedAgentName: string;
+  userCommand: string;
+  bossId?: string;
+  /** ⑦ 任务卡(可选;旧记录无卡) */
+  taskCard?: { objective: string };
+}
+
+function delegationDecision(f: DecisionFixture): DelegationDecision {
+  return {
+    id: `del-${f.timestamp}`,
+    timestamp: f.timestamp,
+    bossId: f.bossId ?? 'b1',
+    userCommand: f.userCommand,
+    selectedAgentId: f.selectedAgentId,
+    selectedAgentName: f.selectedAgentName,
+    reasoning: 'fixture',
+    alternativeAgents: [],
+    confidence: 'medium',
+    status: 'sent',
+    taskCard: f.taskCard
+      ? { objective: f.taskCard.objective, acceptanceCriteria: [], dependencies: [], status: 'running' }
+      : undefined,
+  };
+}
+
+/** 沙箱内写委派史 fixture 并走 bossService.init() 真实读取链路(与 snapshot.test.ts 同范式)。 */
+function seedDelegationHistory(histories: Record<string, DelegationDecision[]>): void {
+  fs.mkdirSync(path.dirname(delegationHistoryPath), { recursive: true });
+  fs.writeFileSync(delegationHistoryPath, JSON.stringify({ histories, savedAt: 0, version: '1.0.0' }));
+  bossService.init();
+}
+
+/** 🔴④ 查询链路事件(最新在前):body.cat==='query-chain'。 */
+function queryChainRows(): Array<Record<string, unknown>> {
+  return querySystemLog({ category: 'system', source: 'voice-companion', limit: 50 })
+    .filter((row) => logBody(row).cat === 'query-chain')
+    .map((row) => logBody(row));
 }
 
 // ============================================================================
@@ -1315,5 +1378,154 @@ describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () =>
     // 旧通道(applyMemoryOps)未被替换:vault 双写之外,state.memory 仍落盘
     const st = readStateFile();
     expect(st.memory.notes.some((n) => n.text === '称呼用户为老板')).toBe(true);
+  });
+});
+
+// ============================================================================
+// 任务07·④ 查进度走下属(query 链路修正,Spec §4.4 / 验收 ⑥2)
+//
+// 场景:老板问「团队那个任务到哪了」,hop1 把 query 目标解析成 Boss。
+// 修复前材料来源 = Boss 自己的 excerpt(全是调度文本)→「查一下→没下文」;
+// 修复后 = 委派树(最近委派 → 每个下属的 assistant 产出)汇总给 hop2。
+// ============================================================================
+
+describe('任务07·④ 查进度走下属(委派树 query)', () => {
+  it('G7-1 Boss 目标触发委派树:材料含下属实质进展而非 Boss 调度话术(验收 ⑥2)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push(
+      { id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'working', taskLabel: '统筹发布' },
+      { id: 'a1', name: '小美', class: 'builder', status: 'idle' },
+      { id: 'a2', name: '阿强', class: 'builder', status: 'working' },
+    );
+    // Boss 自己的历史只有调度文本(旧实现的材料来源)—— 修复后不应进入材料。
+    mockHistoryByAgent.set('b1', [{ type: 'assistant', content: '已安排小美去做登录页' }]);
+    // 小美:8 条 assistant(护栏只取最近 6 条)+ 1 条 user(必须被排除)。
+    mockHistoryByAgent.set('a1', [
+      ...Array.from({ length: 8 }, (_, i) => ({ type: 'assistant', content: `产出-${i}` })),
+      { type: 'user', content: '用户消息不应出现' },
+    ]);
+    mockHistoryByAgent.set('a2', []); // working 中无产出
+    seedDelegationHistory({
+      b1: [
+        delegationDecision({
+          timestamp: 2_000, selectedAgentId: 'a2', selectedAgentName: '阿强',
+          userCommand: '把接口层改一下', taskCard: { objective: '改造接口层' },
+        }),
+        delegationDecision({
+          timestamp: 1_000, selectedAgentId: 'a1', selectedAgentName: '小美',
+          userCommand: '把登录页重构成 React 18',
+        }),
+      ],
+    });
+
+    const sentences: string[] = [];
+    const p = startProcess('团队那个任务到哪了', { onSentence: (s) => sentences.push(s) });
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'b1',
+      targetAgentName: '大当家',
+      query: '团队那个任务到哪了',
+    }));
+
+    const call2 = await waitSpawn(2);
+    const hop2User = stdinUserContent(call2);
+    expect(hop2User).toContain('产出-7');                          // 小美的实质产出
+    expect(hop2User).toContain('产出-2');
+    expect(hop2User).not.toContain('产出-1');                      // excerpt 护栏:只取最近 6 条
+    expect(hop2User).not.toContain('产出-0');
+    expect(hop2User).not.toContain('用户消息不应出现');             // 只取 assistant 消息
+    expect(hop2User).toContain('正在做「改造接口层」,暂无实质进展'); // 行为定义 2:working 无产出
+    expect(hop2User).not.toContain('已安排小美去做登录页');          // 不再拿 Boss 自己的调度文本
+    expect([...historyQueriedIds].sort()).toEqual(['a1', 'a2']);   // 查的是下属,不是 Boss 自己
+
+    await completeWith(call2.child, '{"responseToUser":"小美已经完成登录页重构,阿强还在改接口层。"}', { via: 'delta' });
+    const r = await p;
+    expect(r.response).toContain('小美');
+    expect(r.targetAgent).toEqual({ id: 'b1', name: '大当家' });
+    expect(sentences).toEqual(['小美已经完成登录页重构,阿强还在改接口层。']); // 只播 hop2(hop1 话术被闸门丢弃)
+
+    // 🔴④ 观测点:system_log 可查出 路由判定 / 查了哪些下属 / hop 次数 / 耗时 / 返回摘要
+    const rows = queryChainRows();
+    expect(rows[0]).toMatchObject({ phase: 'completed', route: 'boss-tree', targetAgentId: 'b1', hops: 2 });
+    expect(rows[0]!.subordinateCount).toBe(2);
+    expect([...(rows[0]!.subordinateIds as string[])].sort()).toEqual(['a1', 'a2']);
+    expect(typeof rows[0]!.durationMs).toBe('number');
+    expect(String(rows[0]!.responsePreview)).toContain('小美');
+    expect(rows[1]).toMatchObject({ phase: 'request', route: 'boss-tree', targetAgentId: 'b1' });
+  });
+
+  it('G7-2 Boss 无委派记录:如实「未找到对应委派」,不跑 hop2(行为定义 3)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push({ id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
+
+    const p = startProcess('团队那个任务到哪了');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'b1',
+      query: '团队那个任务到哪了',
+    }));
+
+    const r = await p;
+    expect(r.response).toContain('未找到对应委派');
+    expect(r.response).toContain('大当家');
+    expect(r.degraded).toBeUndefined();
+    expect(spawnCalls).toHaveLength(1); // 确定性话术,不开第二跳
+
+    const rows = queryChainRows();
+    expect(rows[0]).toMatchObject({ phase: 'completed', route: 'boss-tree', hops: 1, subordinateCount: 0 });
+  });
+
+  it('G7-3 普通 agent 目标行为不变:仍走自身 excerpt(route=single-agent)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push({ id: 'a1', name: '小美', class: 'builder', status: 'idle' });
+    mockHistoryByAgent.set('a1', [{ type: 'assistant', content: '完成了登录页' }]);
+
+    const p = startProcess('小美最近干了什么');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'a1',
+      query: '最近干了什么',
+    }));
+    const call2 = await waitSpawn(2);
+    const hop2User = stdinUserContent(call2);
+    expect(hop2User).toContain('完成了登录页');
+    expect(hop2User).not.toContain('以下为主管'); // 不走委派树材料
+    expect(historyQueriedIds).toEqual(['a1']);
+
+    await completeWith(call2.child, '{"responseToUser":"小美刚完成了登录页。"}');
+    const r = await p;
+    expect(r.response).toBe('小美刚完成了登录页。');
+
+    const rows = queryChainRows();
+    expect(rows[0]).toMatchObject({ phase: 'completed', route: 'single-agent', hops: 2 });
+    expect(rows[0]!.subordinateIds).toBeUndefined();
+  });
+
+  it('G7-4 hop2 降级路径也留痕(phase=failed + degraded + error)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push({ id: 'a1', name: '小美', class: 'builder', status: 'idle' });
+    mockHistoryByAgent.set('a1', [{ type: 'assistant', content: '完成了登录页' }]);
+
+    const p = startProcess('小美最近干了什么');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'a1',
+      query: '最近干了什么',
+    }));
+    const call2 = await waitSpawn(2);
+    await closeChild(call2.child, 1); // 第二跳失败 → 确定性摘要兜底
+
+    const r = await p;
+    expect(r.degraded).toBe(true);
+    expect(r.response).toContain('「小美」最近的输出:');
+
+    const rows = queryChainRows();
+    expect(rows[0]).toMatchObject({ phase: 'failed', route: 'single-agent', hops: 2, degraded: true });
+    expect(typeof rows[0]!.error).toBe('string');
+    expect(rows[0]!.error).not.toBe('');
   });
 });

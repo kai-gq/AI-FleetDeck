@@ -1,0 +1,297 @@
+/**
+ * 任务07·④ 查进度走下属 —— query 链路纯函数单测(验收 ⑥1)。
+ *
+ * 覆盖:
+ *   - 路由判定:目标为 Boss 触发委派树解析,普通 agent / 无目标行为边界;
+ *   - 委派树解析:只取最近 N 条、同一下属去重;
+ *   - 材料拼接三分支:有产出 / 无产出(working 与 idle)/ 无委派;
+ *   - 体积护栏:多下属汇总不超预算;
+ *   - 🔴观测点④ 查询链路事件字段;
+ *   - excerpt 对下属取 assistant 产出的护栏行为(6 条 / 400 字每条 / 1500 字总量,§8.1)。
+ */
+import { describe, it, expect, vi } from 'vitest';
+import {
+  DELEGATION_MATERIAL_BUDGET,
+  DELEGATION_QUERY_MAX,
+  DELEGATION_TASK_TRUNCATE,
+  buildDelegationQueryMaterial,
+  buildNoDelegationResponse,
+  buildQueryChainLogBody,
+  hasSubstantiveOutput,
+  pickRecentDelegations,
+  planQueryRoute,
+  type SubordinateQueryEntry,
+} from './delegation-query.js';
+import type { DelegationDecision, TaskCard } from '../../shared/agent-types.js';
+// excerpt 护栏用例:mock agent-service(按 agentId 提供历史)后,复用 vcs 的真实取数护栏。
+import { fetchAgentOutputExcerpt } from '../services/voice-companion-service.js';
+
+const agentHistoryMock = vi.hoisted(() => ({
+  byAgent: new Map<string, Array<{ type: string; content: string }>>(),
+}));
+
+vi.mock('../services/agent-service.js', () => ({
+  getAgentHistory: async (id: string) => ({ messages: agentHistoryMock.byAgent.get(id) ?? [] }),
+}));
+
+let decisionSeq = 0;
+
+function decision(overrides: {
+  selectedAgentId?: string;
+  selectedAgentName?: string;
+  userCommand?: string;
+  timestamp?: number;
+  taskCard?: TaskCard;
+} = {}): DelegationDecision {
+  decisionSeq += 1;
+  return {
+    id: `del-${decisionSeq}`,
+    timestamp: overrides.timestamp ?? 1_000,
+    bossId: 'b1',
+    userCommand: overrides.userCommand ?? '把登录页重构成 React 18',
+    selectedAgentId: overrides.selectedAgentId ?? 'a1',
+    selectedAgentName: overrides.selectedAgentName ?? '小美',
+    reasoning: 'fixture',
+    alternativeAgents: [],
+    confidence: 'high',
+    status: 'sent',
+    taskCard: overrides.taskCard,
+  };
+}
+
+function entry(overrides: Partial<SubordinateQueryEntry> = {}): SubordinateQueryEntry {
+  return {
+    agentId: 'a1',
+    agentName: '小美',
+    status: 'idle',
+    userCommand: '把登录页重构成 React 18',
+    excerpt: '完成了登录页,又修了一个 bug',
+    ...overrides,
+  };
+}
+
+// ============================================================================
+// 路由判定(验收 ⑥1:目标是 Boss → 委派树)
+// ============================================================================
+
+describe('planQueryRoute — Boss 触发委派树', () => {
+  it('Boss 类(isBoss 或 class==="boss")→ boss-tree', () => {
+    expect(planQueryRoute({ isBoss: true })).toBe('boss-tree');
+    expect(planQueryRoute({ class: 'boss' })).toBe('boss-tree');
+  });
+
+  it('普通 agent → single-agent(行为不变);目标缺失 → no-target', () => {
+    expect(planQueryRoute({ class: 'builder', isBoss: false })).toBe('single-agent');
+    expect(planQueryRoute({})).toBe('single-agent');
+    expect(planQueryRoute(undefined)).toBe('no-target');
+  });
+});
+
+// ============================================================================
+// 委派树解析:只查最近委派
+// ============================================================================
+
+describe('pickRecentDelegations — 最近 N 条 + 按下属去重', () => {
+  it('按时间倒序取最近 N 条(缺省口径与任务06一致)', () => {
+    const history = Array.from({ length: 8 }, (_, i) => decision({
+      selectedAgentId: `a${i}`,
+      selectedAgentName: `下属${i}`,
+      timestamp: 1_000 + i,
+    }));
+    const picked = pickRecentDelegations(history);
+    expect(picked).toHaveLength(DELEGATION_QUERY_MAX);
+    expect(picked[0]!.timestamp).toBe(1_007);
+    expect(picked.map((d) => d.selectedAgentId)).toEqual(['a7', 'a6', 'a5', 'a4', 'a3']);
+  });
+
+  it('同一下属的多次委派只保留最近一条(更早任务已过时)', () => {
+    const history = [
+      decision({ selectedAgentId: 'a1', selectedAgentName: '小美', userCommand: '旧任务', timestamp: 1_000 }),
+      decision({ selectedAgentId: 'a2', selectedAgentName: '阿强', userCommand: '阿强的活', timestamp: 2_000 }),
+      decision({ selectedAgentId: 'a1', selectedAgentName: '小美', userCommand: '新任务', timestamp: 3_000 }),
+    ];
+    const picked = pickRecentDelegations(history);
+    expect(picked.map((d) => d.userCommand)).toEqual(['新任务', '阿强的活']);
+  });
+
+  it('不修改输入数组(纯函数)', () => {
+    const history = [
+      decision({ selectedAgentId: 'a1', timestamp: 1_000 }),
+      decision({ selectedAgentId: 'a2', timestamp: 2_000 }),
+    ];
+    const before = history.map((d) => d.id);
+    pickRecentDelegations(history);
+    expect(history.map((d) => d.id)).toEqual(before);
+  });
+});
+
+// ============================================================================
+// 材料拼接:三分支
+// ============================================================================
+
+describe('buildDelegationQueryMaterial — 下属行拼接', () => {
+  it('有产出:任务取任务卡目标(优先),附该下属 excerpt', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ taskCardObjective: '登录页重构', excerpt: '完成了登录页' })],
+    });
+    expect(material).toContain('主管「大当家」');
+    expect(material).toContain('【小美】任务「登录页重构」');
+    expect(material).toContain('完成了登录页');
+  });
+
+  it('无卡:任务回退委派原话;超长截断', () => {
+    const longCommand = '把登录页重构成 React 18 并补齐测试'.repeat(5);
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ userCommand: longCommand, excerpt: 'done' })],
+    });
+    expect(material).toContain(`「${longCommand.slice(0, DELEGATION_TASK_TRUNCATE)}…」`);
+    expect(material).not.toContain(longCommand);
+  });
+
+  it('无产出 + working:输出「正在做 Y,暂无实质进展」(Y=任务卡目标)', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ status: 'working', taskCardObjective: '改造接口层', excerpt: '(最近没有助手输出)' })],
+    });
+    expect(material).toContain('【小美】正在做「改造接口层」,暂无实质进展');
+  });
+
+  it('无产出 + working + 无卡:「正在做 Y」回退委派原话(占位串不当作产出)', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ status: 'working', userCommand: '把接口层改一下', excerpt: '(没有可用的会话记录)' })],
+    });
+    expect(material).toContain('【小美】正在做「把接口层改一下」,暂无实质进展');
+    expect(material).not.toContain('(没有可用的会话记录)');
+  });
+
+  it('无产出 + 非 working:如实说暂无实质产出记录', () => {
+    const material = buildDelegationQueryMaterial({
+      bossName: '大当家',
+      entries: [entry({ status: 'idle', excerpt: '' })],
+    });
+    expect(material).toContain('状态 idle');
+    expect(material).toContain('暂无实质产出记录');
+    expect(material).not.toContain('正在做');
+  });
+
+  it('无委派记录(entries 为空):确定性「未找到对应委派」', () => {
+    const expected = buildNoDelegationResponse('大当家');
+    expect(buildDelegationQueryMaterial({ bossName: '大当家', entries: [] })).toBe(expected);
+    expect(expected).toContain('未找到对应委派');
+    expect(expected).toContain('大当家');
+  });
+
+  it('多下属汇总受总量护栏约束(每段 excerpt 按份额截断)', () => {
+    const entries = Array.from({ length: DELEGATION_QUERY_MAX }, (_, i) => entry({
+      agentId: `a${i}`,
+      agentName: `下属${i}`,
+      userCommand: `任务${i}`,
+      excerpt: 'x'.repeat(1_500), // fetchAgentOutputExcerpt 单下属上限
+    }));
+    const material = buildDelegationQueryMaterial({ bossName: '大当家', entries });
+    expect(material.length).toBeLessThanOrEqual(DELEGATION_MATERIAL_BUDGET);
+    // 新→旧顺序即入参顺序,每段都保留(头部不下沉)
+    for (let i = 0; i < entries.length; i++) expect(material).toContain(`下属${i}`);
+  });
+});
+
+describe('hasSubstantiveOutput — 产出判定', () => {
+  it('占位串/空白 = 无产出;真实文本 = 有产出', () => {
+    expect(hasSubstantiveOutput('(没有可用的会话记录)')).toBe(false);
+    expect(hasSubstantiveOutput('(最近没有助手输出)')).toBe(false);
+    expect(hasSubstantiveOutput('  ')).toBe(false);
+    expect(hasSubstantiveOutput('完成了登录页')).toBe(true);
+  });
+});
+
+// ============================================================================
+// 🔴 观测点④ 查询链路事件字段
+// ============================================================================
+
+describe('buildQueryChainLogBody — 🔴④ 查询链路字段', () => {
+  it('Boss 树完成:请求/路由/下属/hop/耗时/摘要齐全', () => {
+    const body = buildQueryChainLogBody({
+      phase: 'completed',
+      request: '团队那个任务到哪了',
+      route: 'boss-tree',
+      targetAgentId: 'b1',
+      targetName: '大当家',
+      subordinateIds: ['a1', 'a2'],
+      hops: 2,
+      durationMs: 1_234,
+      responsePreview: '小美完成了登录页',
+    });
+    expect(body).toEqual({
+      cat: 'query-chain',
+      phase: 'completed',
+      request: '团队那个任务到哪了',
+      route: 'boss-tree',
+      targetAgentId: 'b1',
+      targetName: '大当家',
+      subordinateIds: ['a1', 'a2'],
+      subordinateCount: 2,
+      hops: 2,
+      durationMs: 1_234,
+      responsePreview: '小美完成了登录页',
+    });
+  });
+
+  it('降级路径:degraded + error 落盘;request 入口事件可只带路由字段', () => {
+    const failed = buildQueryChainLogBody({
+      phase: 'failed',
+      request: '团队任务进展',
+      route: 'single-agent',
+      targetAgentId: 'a1',
+      hops: 2,
+      durationMs: 900,
+      degraded: true,
+      error: 'hop2 empty response',
+    });
+    expect(failed.phase).toBe('failed');
+    expect(failed.degraded).toBe(true);
+    expect(failed.error).toBe('hop2 empty response');
+
+    const request = buildQueryChainLogBody({ phase: 'request', request: '查一下', route: 'no-target' });
+    expect(request).toEqual({ cat: 'query-chain', phase: 'request', request: '查一下', route: 'no-target' });
+  });
+});
+
+// ============================================================================
+// excerpt 护栏(对下属取 assistant 产出的行为,§8.1:6 条 / 400 字每条 / 1500 字总量)
+// ============================================================================
+
+describe('fetchAgentOutputExcerpt — 下属产出的护栏行为', () => {
+  it('只取 assistant 消息;条多时截取最近 6 条', async () => {
+    agentHistoryMock.byAgent.set('sub-a', [
+      ...Array.from({ length: 8 }, (_, i) => ({ type: 'assistant', content: `产出-${i}` })),
+      { type: 'user', content: '用户消息不应出现' },
+    ]);
+    const excerpt = await fetchAgentOutputExcerpt('sub-a');
+    expect(excerpt).toContain('产出-7');
+    expect(excerpt).toContain('产出-2');
+    expect(excerpt).not.toContain('产出-1'); // 第 7 新(上限 6 条)
+    expect(excerpt).not.toContain('产出-0');
+    expect(excerpt).not.toContain('用户消息不应出现');
+  });
+
+  it('总量 1500 字护栏:超出即停(未取满条数)', async () => {
+    agentHistoryMock.byAgent.set('sub-b', Array.from({ length: 6 }, () => ({
+      type: 'assistant',
+      content: 'y'.repeat(400),
+    })));
+    const excerpt = await fetchAgentOutputExcerpt('sub-b');
+    expect(excerpt.split('\n---\n')).toHaveLength(3); // 400×3=1200,第 4 条会超 1500
+    expect(excerpt.length).toBeLessThanOrEqual(1_500 + 2 * '\n---\n'.length);
+  });
+
+  it('没有历史 / 没有 assistant 输出:返回占位串(材料层按无产出处理)', async () => {
+    agentHistoryMock.byAgent.set('sub-empty', []);
+    agentHistoryMock.byAgent.set('sub-user-only', [{ type: 'user', content: '只有用户消息' }]);
+    expect(await fetchAgentOutputExcerpt('sub-empty')).toBe('(没有可用的会话记录)');
+    expect(await fetchAgentOutputExcerpt('sub-user-only')).toBe('(最近没有助手输出)');
+    expect(hasSubstantiveOutput(await fetchAgentOutputExcerpt('sub-user-only'))).toBe(false);
+  });
+});

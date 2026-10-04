@@ -54,6 +54,16 @@ import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-c
 import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
 import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
 import { logEvent } from '../data/system-log.js';
+// 任务07·④ 查进度走下属:query 目标为 Boss 时的委派树解析/材料拼接/观测点④字段(纯逻辑在 voice/ 下)
+import {
+  buildDelegationQueryMaterial,
+  buildNoDelegationResponse,
+  buildQueryChainLogBody,
+  pickRecentDelegations,
+  planQueryRoute,
+  type QueryChainLogInput,
+  type SubordinateQueryEntry,
+} from '../voice/delegation-query.js';
 
 const log = logger.server;
 
@@ -210,6 +220,8 @@ const SUMMARY_MAX_TEXT = 1500;
 const MAX_SNAPSHOT_AGENTS = 60;
 const TASK_TRUNCATE = 60;
 const ERROR_TRUNCATE = 80;
+/** 🔴 决策观测点④ 查询链路:请求/返回摘要的截断长度(Spec §4.14「返回摘要(截断)」)。 */
+const QUERY_LOG_PREVIEW_CHARS = 120;
 /** 注入 prompt 的委派史条数上限:§8.1 已验证常量,镜像 subordinate-context-service.ts:135 的 slice(0,5),不改值。 */
 const MAX_DELEGATION_INJECT = 5;
 /** Boss 卡片最多展开的下属个数,超出只报「…另N人」——防单行随团队规模失控(60 快照上限之外的体积护栏)。 */
@@ -1171,6 +1183,61 @@ export async function fetchAgentOutputExcerpt(agentId: string): Promise<string> 
 }
 
 // ============================================================================
+// 任务07·④ 委派树查询(query 目标为 Boss)
+// ============================================================================
+
+/** 读单个 Boss 的委派史:文件缺失/读取失败按空处理,不打断查询链路(与 collectDelegationHistory 同一降级口径)。 */
+function readBossDelegationHistory(bossId: string): DelegationDecision[] {
+  try {
+    return bossService.getDelegationHistory(bossId);
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 读取委派史失败(boss ${bossId}),按空处理: ${(err as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * 把一条委派决策转成 hop2 材料的下属条目:
+ * agent 已不在快照(被删/未加载)→ 名字回退委派记录、状态未知;
+ * 历史读取失败 → 按「无产出」处理(材料会如实说暂无进展,不编造)。
+ */
+async function buildSubordinateQueryEntry(decision: DelegationDecision): Promise<SubordinateQueryEntry> {
+  const subordinate = agentService.getAgent(decision.selectedAgentId);
+  let excerpt: string;
+  try {
+    excerpt = await fetchAgentOutputExcerpt(decision.selectedAgentId);
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 读取下属产出失败(${decision.selectedAgentId}),按无产出处理: ${(err as Error).message}`);
+    excerpt = '';
+  }
+  // ⑦ 任务卡为可选字段(旧委派记录无卡) → 按无卡处理,绝不假定存在。
+  const objective = decision.taskCard?.objective;
+  return {
+    agentId: decision.selectedAgentId,
+    agentName: subordinate?.name ?? decision.selectedAgentName,
+    status: subordinate?.status,
+    taskCardObjective: typeof objective === 'string' && objective.trim() ? objective.trim() : undefined,
+    userCommand: decision.userCommand,
+    excerpt,
+  };
+}
+
+/**
+ * 🔴 决策观测点④ 查询链路:落一条 system_log(category='system' + source='voice-companion' +
+ * body.cat='query-chain')。phase='request' 在请求入口即写,保证 hop2 卡住/中止时也有「查过谁」
+ * 的证据(「查一下→没下文」复现依据);phase='failed' 走 warn 全量落盘。
+ */
+function logQueryChain(input: QueryChainLogInput, ctx: { sessionId?: string; taskId?: string }): void {
+  logEvent('system', {
+    source: 'voice-companion',
+    sessionId: ctx.sessionId,
+    taskId: ctx.taskId,
+    level: input.phase === 'failed' ? 'warn' : 'info',
+    body: buildQueryChainLogBody(input),
+  });
+}
+
+// ============================================================================
 // Dispatch
 // ============================================================================
 
@@ -1615,17 +1682,72 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     }
 
     if (contract.action === 'query_agent_output' && contract.targetAgentId) {
+      const queryStartedAt = Date.now();
+      const question = contract.query || text;
+      const requestPreview = truncate(question, QUERY_LOG_PREVIEW_CHARS);
+      const logCtx = { sessionId: state.sessionId ?? undefined, taskId };
       const target = agentService.getAgent(contract.targetAgentId);
+      const route = planQueryRoute(target);
+
+      // 🔴 决策观测点④:请求入口 + 路由判定先落一条 —— hop 卡住/中止时仍有「查过谁」的证据。
+      logQueryChain({
+        phase: 'request',
+        request: requestPreview,
+        route,
+        targetAgentId: target?.id ?? contract.targetAgentId,
+        targetName: target?.name ?? contract.targetAgentName ?? undefined,
+      }, logCtx);
+
       if (!target) {
         speech.discardHop1();
         result.response = contract.responseToUser || `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
+        logQueryChain({
+          phase: 'completed',
+          request: requestPreview,
+          route: 'no-target',
+          targetAgentId: contract.targetAgentId,
+          targetName: contract.targetAgentName ?? undefined,
+          hops: 1,
+          durationMs: Date.now() - queryStartedAt,
+          responsePreview: truncate(result.response, QUERY_LOG_PREVIEW_CHARS),
+        }, logCtx);
         return finish(result);
       }
-      const excerpt = await fetchAgentOutputExcerpt(target.id);
+
+      // 任务07·④:目标是 Boss 时不再只取它自己的 excerpt(旧的 Boss 历史只有调度文本),
+      // 改为解析委派树 —— 最近委派 → 每个下属的 assistant 产出 → 汇总材料(边界:只查最近委派)。
+      let material: string | null = null;
+      let subordinateIds: string[] | undefined;
+      if (route === 'boss-tree') {
+        const recent = pickRecentDelegations(readBossDelegationHistory(target.id));
+        if (recent.length === 0) {
+          // 行为定义 3:无委派记录 → 如实告知,不跑 hop2(确定性话术,防模型编造)。
+          speech.discardHop1();
+          result.response = buildNoDelegationResponse(target.name);
+          result.targetAgent = { id: target.id, name: target.name };
+          logQueryChain({
+            phase: 'completed',
+            request: requestPreview,
+            route,
+            targetAgentId: target.id,
+            targetName: target.name,
+            subordinateIds: [],
+            hops: 1,
+            durationMs: Date.now() - queryStartedAt,
+            responsePreview: truncate(result.response, QUERY_LOG_PREVIEW_CHARS),
+          }, logCtx);
+          return finish(result);
+        }
+        const entries = await Promise.all(recent.map((d) => buildSubordinateQueryEntry(d)));
+        material = buildDelegationQueryMaterial({ bossName: target.name, entries });
+        subordinateIds = entries.map((e) => e.agentId);
+      }
+
+      const excerpt = material ?? await fetchAgentOutputExcerpt(target.id);
       const hop2Started = Date.now();
       try {
         const answer = await runHop2(
-          contract.query || text,
+          question,
           target.name,
           target.status,
           target.taskLabel || target.lastAssignedTask,
@@ -1635,6 +1757,17 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           { onTextDelta: speech.onHop2Delta, signal: opts.signal },
         );
         result.response = answer;
+        logQueryChain({
+          phase: 'completed',
+          request: requestPreview,
+          route,
+          targetAgentId: target.id,
+          targetName: target.name,
+          subordinateIds,
+          hops: 2,
+          durationMs: Date.now() - queryStartedAt,
+          responsePreview: truncate(answer, QUERY_LOG_PREVIEW_CHARS),
+        }, logCtx);
       } catch (err) {
         if (err instanceof VoiceCompanionAbortedError) {
           speech.dispose();
@@ -1643,6 +1776,20 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         log.warn(`[VoiceCompanion] hop2 失败,用确定性摘要: ${(err as Error).message}`);
         result.response = `「${target.name}」最近的输出:${excerpt.slice(0, 160)}${excerpt.length > 160 ? '…' : ''}`;
         result.degraded = true;
+        // 🔴④ 降级路径也要留痕(否则「查一下→没下文」无从复现)。
+        logQueryChain({
+          phase: 'failed',
+          request: requestPreview,
+          route,
+          targetAgentId: target.id,
+          targetName: target.name,
+          subordinateIds,
+          hops: 2,
+          durationMs: Date.now() - queryStartedAt,
+          responsePreview: truncate(result.response, QUERY_LOG_PREVIEW_CHARS),
+          degraded: true,
+          error: (err as Error).message,
+        }, logCtx);
       }
       result.secondHopMs = Date.now() - hop2Started;
       result.targetAgent = { id: target.id, name: target.name };
