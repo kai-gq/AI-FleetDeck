@@ -34,6 +34,7 @@ import os from 'os';
 import { ClaudeBackend } from '../claude/index.js';
 import * as agentService from './agent-service.js';
 import * as bossService from './boss-service.js';
+import * as workspaceService from './workspace-service.js';
 import { formatTimeSince } from './subordinate-context-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
@@ -54,6 +55,25 @@ import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-c
 import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
 import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
 import { logEvent } from '../data/system-log.js';
+// 任务14·⑪ 项目感知与路由：纯逻辑全在 jarvis-core/projects/**（本文件只做接线）。
+import { buildProjectCards, collectRecentProjectIds } from '../jarvis-core/projects/cards.js';
+import { emptyAliasTable, loadAliasTable, saveAliasTable, seedAliasesForWorkspaces } from '../jarvis-core/projects/aliases.js';
+import { planClarificationAnswer, resolveProjectTarget, type ClarificationAnswerPlan } from '../jarvis-core/projects/resolve.js';
+import { renderProjectSnapshotLines } from '../jarvis-core/projects/render.js';
+import { createProjectRoutingLogObserver } from '../jarvis-core/projects/observability.js';
+import { isProjectRoutingEnabled } from '../jarvis-core/projects/types.js';
+import type {
+  ProjectAgentInput,
+  ProjectAliasEntry,
+  ProjectAliasTable,
+  ProjectAreaInput,
+  ProjectBossRef,
+  ProjectCard,
+  ProjectResolveInput,
+  ProjectResolveResult,
+  ProjectRoutingEvent,
+  ProjectWorkspaceInput,
+} from '../jarvis-core/projects/types.js';
 // 任务13·⑩ 秘书 Bolba 桥：业务待办（报价/付款/会议…）的只读查询与创建/完成/重开。
 // 两本账边界：本文件里这四动作只碰 Bolba 账本，绝不进 ① 委派通道。
 import {
@@ -606,12 +626,15 @@ function formatSubordinateSummary(
 /**
  * 把 agent 列表压缩成 prompt 里的一行一个:按最近活动排序、截断、上限 60。
  * Boss 卡额外展开下属结构 / 忙闲 / 最近委派(改③,团队认知);委派史只读,可为空。
+ * 任务14·⑪:`projectLines` 传入时在快照头部注入「项目感知」块(开关关/无卡 = 不传,
+ * 输出与旧版逐字一致);项目行由 jarvis-core/projects/render 渲染。
  * 同时返回是否发生了截断(供 prompt 说明)。
  */
 export function buildAgentSnapshotLines(
   agents: readonly SnapshotAgent[],
   areas: readonly DrawingArea[],
   delegationHistory: readonly DelegationDecision[] = [],
+  projectLines?: readonly string[],
 ): { lines: string[]; total: number; truncated: boolean } {
   const areasByAgent = new Map<string, string[]>();
   for (const area of areas) {
@@ -657,7 +680,11 @@ export function buildAgentSnapshotLines(
     return parts.join(' ');
   });
 
-  return { lines, total: sorted.length, truncated: sorted.length > selected.length };
+  // 任务14·⑪ 项目快照块（当前项目 + 各项目在做/主管/最近活跃；空 = 零变化）。
+  const projectBlock = projectLines && projectLines.length > 0
+    ? ['【项目感知】(当前/各项目在做与最近活跃;派活归属先看这里)', ...projectLines, '']
+    : [];
+  return { lines: [...projectBlock, ...lines], total: sorted.length, truncated: sorted.length > selected.length };
 }
 
 /**
@@ -726,19 +753,23 @@ export interface DispatchViolation {
 
 /**
  * 派发路由结果:
- * - boss    = 唯一合法目标(团队主管;Boss 仍可用 send_to_agent 直接对话);
- * - missing = send_to_agent 指定的目标不存在;
- * - no_boss = 团队里没有主管可转交(违规直派且无 Boss 时也会带 violation)。
+ * - boss     = 唯一合法目标(团队主管;Boss 仍可用 send_to_agent 直接对话);
+ * - missing  = send_to_agent 指定的目标不存在;
+ * - no_boss  = 团队里没有主管可转交(违规直派且无 Boss 时也会带 violation);
+ * - need_ask = 任务14·⑪ 项目歧义(All + 多主管 + 三层消不掉):不派发,回去反问一次。
  */
 export type DispatchRoute<T extends DispatchTargetAgent = DispatchTargetAgent> =
-  | { route: 'boss'; agent: T; violation?: DispatchViolation }
+  | { route: 'boss'; agent: T; violation?: DispatchViolation; projectRouting?: ProjectResolveResult }
   | { route: 'missing' }
-  | { route: 'no_boss'; violation?: DispatchViolation };
+  | { route: 'no_boss'; violation?: DispatchViolation }
+  | { route: 'need_ask'; decision: ProjectResolveResult; violation?: DispatchViolation };
 
 /**
  * 把契约意图解析成唯一合法的派发目标(改①,决策观测点①):
  * - delegate_to_boss:任务语义,目标固定为主管——模型给了主管 id 就尊重(多主管世界),
  *   给普通 agent id 或留空都改走第一位主管;给普通 agent id 记违规(观测用)。
+ *   任务14·⑪:第 4 参传入三层消歧结果(缺省 undefined = 旧行为逐字不变):
+ *   模型显式主管 > 项目命中主管 > 歧义反问(need_ask) > 现状首位 Boss 兜底。
  * - send_to_agent:仅主管可达;指向普通 agent = 违规直派 → 标记 violation 并改道主管,
  *   保住「全走 Boss」不变式(供 ⑮ 分析告警频率,而不是让任务丢失)。
  */
@@ -746,6 +777,7 @@ export function resolveDispatchRoute<T extends DispatchTargetAgent>(
   action: 'delegate_to_boss' | 'send_to_agent',
   requestedAgentId: string | null,
   agents: readonly T[],
+  projectDecision?: ProjectResolveResult,
 ): DispatchRoute<T> {
   const boss = agents.find((a) => isBossLikeAgent(a));
   const requested = requestedAgentId ? agents.find((a) => a.id === requestedAgentId) : undefined;
@@ -758,12 +790,353 @@ export function resolveDispatchRoute<T extends DispatchTargetAgent>(
   }
 
   // delegate_to_boss:目标由系统解析,不选执行人。
-  if (requested && isBossLikeAgent(requested)) return { route: 'boss', agent: requested };
-  if (!boss) return { route: 'no_boss' };
+  if (requested && isBossLikeAgent(requested)) {
+    return { route: 'boss', agent: requested, ...(projectDecision ? { projectRouting: projectDecision } : {}) };
+  }
   const violation: DispatchViolation | undefined = requested
     ? { requestedAgentId: requested.id, requestedAgentName: requested.name ?? null }
     : undefined;
-  return violation ? { route: 'boss', agent: boss, violation } : { route: 'boss', agent: boss };
+  // ⑪ 歧义：不派发、不猜，回去只问一次（violation 仍如实带上供观测）。
+  if (projectDecision?.needAsk) {
+    return { route: 'need_ask', decision: projectDecision, ...(violation ? { violation } : {}) };
+  }
+  if (!boss) return { route: 'no_boss' };
+  // ⑪ 命中（任一层）→ 该项目主管优先于现状首位 Boss。
+  if (projectDecision?.bossId) {
+    const projectBoss = agents.find((a) => a.id === projectDecision.bossId && isBossLikeAgent(a));
+    if (projectBoss) {
+      return { route: 'boss', agent: projectBoss, projectRouting: projectDecision, ...(violation ? { violation } : {}) };
+    }
+  }
+  return {
+    route: 'boss',
+    agent: boss,
+    ...(projectDecision ? { projectRouting: projectDecision } : {}),
+    ...(violation ? { violation } : {}),
+  };
+}
+
+// ============================================================================
+// 任务14·⑪ 项目感知与路由 · 接线层
+// 世界构建（workspaces/areas/agents/委派史 → 项目卡）+ 快照行 + 一次调用完成的
+// 三层消歧 + 一次性反问消费；决策逻辑全在 jarvis-core/projects/**，本节只是服务侧
+// 数据接线与内存态。**开关关 = 本节零调用**（快照不注、路由无第 4 参、不产 ⑪ 观测）。
+// ============================================================================
+
+/** 消歧反问挂起时效：超时丢弃挂起、按新一轮处理（初始值非实测，待 ⑭ 标定回写）。 */
+export const PROJECT_CLARIFY_TTL_MS = 10 * 60_000;
+
+interface PendingProjectClarification {
+  question: string;
+  /** 单候选问句时的建议项目（回答「是/对」直接确认它）。 */
+  suggestionProjectId?: string;
+  /** 挂起时模型给出的任务指令（回答后直接派发，不再跑 hop1）。 */
+  message: string;
+  delivery: CompanionDelivery;
+  askedAt: number;
+  taskId?: string;
+  /** 挂起时的用户原话（message 为空时的兜底指令）。 */
+  originalText: string;
+}
+
+interface ProjectRoutingRuntime {
+  /** 会话内最近提及的项目（派发/命中携带 projectId 时更新；消歧② 输入）。 */
+  lastProjectId: string | null;
+  /** 本会话累计反问次数（⑪ 观测：反问多 = 记忆卡不准？）。 */
+  askCount: number;
+  /** 一次性消歧挂起态（在途任务等一句回答；最多反问一次）。 */
+  pending: PendingProjectClarification | null;
+}
+
+const projectRoutingRuntime: ProjectRoutingRuntime = { lastProjectId: null, askCount: 0, pending: null };
+
+/** 会话轮换/重置时清空项目路由内存态（不落盘，与 session 同生命周期）。 */
+export function resetProjectRoutingSession(): void {
+  projectRoutingRuntime.lastProjectId = null;
+  projectRoutingRuntime.askCount = 0;
+  projectRoutingRuntime.pending = null;
+}
+
+/** 项目路由世界（一次构建，快照与派发消歧共用同一形态）。 */
+export interface ProjectRoutingWorld {
+  cards: ProjectCard[];
+  aliasEntries: ProjectAliasEntry[];
+  /** 服务端激活工作区（null = All，即未切）。 */
+  activeWorkspaceId: string | null;
+  bosses: ProjectBossRef[];
+  delegationHistory: DelegationDecision[];
+  now: number;
+}
+
+export interface ProjectRoutingWorldDeps {
+  getWorkspaces?: () => readonly ProjectWorkspaceInput[];
+  getActiveWorkspace?: () => string | null;
+  loadAreasFn?: () => readonly ProjectAreaInput[];
+  getAllAgents?: () => readonly ProjectAgentInput[];
+  /** 已收集的委派史（传了就不再自读，防同回合重复读盘）。 */
+  delegationHistory?: readonly DelegationDecision[];
+  /** 别名表文件路径（测试注入临时路径；缺省 XDG 默认）。 */
+  aliasesFilePath?: string;
+  now?: () => number;
+}
+
+/** 别名表：读文件 → 补 workspace 名种子（有新增才落盘；读/写失败只告警不打断）。 */
+function loadSeededAliasTable(
+  workspaces: readonly ProjectWorkspaceInput[],
+  now: number,
+  filePath?: string,
+): ProjectAliasTable {
+  let table: ProjectAliasTable;
+  try {
+    table = loadAliasTable(filePath);
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 项目别名表读取失败(按空表): ${(err as Error).message}`);
+    table = emptyAliasTable(now);
+  }
+  const seeded = seedAliasesForWorkspaces(table, workspaces, now);
+  if (seeded !== table) {
+    try {
+      saveAliasTable(seeded, filePath);
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 项目别名表落盘失败(仅内存生效): ${(err as Error).message}`);
+    }
+  }
+  return seeded;
+}
+
+/**
+ * 构建项目路由世界（服务侧接线）：workspaces/areas/agents/委派史 → 项目卡 + 别名表。
+ * 任一步读取失败都降级为空集，绝不打断 hop1/派发；测试可注入全部依赖（零 IO）。
+ */
+export function buildProjectRoutingWorld(deps: ProjectRoutingWorldDeps = {}): ProjectRoutingWorld {
+  const now = (deps.now ?? (() => Date.now()))();
+  let workspaces: readonly ProjectWorkspaceInput[] = [];
+  try {
+    workspaces = (deps.getWorkspaces ?? workspaceService.getWorkspaces)();
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 项目路由:读工作区失败(按空处理): ${(err as Error).message}`);
+  }
+  let activeWorkspaceId: string | null = null;
+  try {
+    activeWorkspaceId = (deps.getActiveWorkspace ?? workspaceService.getActiveWorkspace)();
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 项目路由:读激活工作区失败(按 All 处理): ${(err as Error).message}`);
+  }
+  let areas: readonly ProjectAreaInput[] = [];
+  try {
+    areas = (deps.loadAreasFn ?? loadAreas)();
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 项目路由:读区域失败(按空处理): ${(err as Error).message}`);
+  }
+  let agents: readonly ProjectAgentInput[] = [];
+  try {
+    agents = (deps.getAllAgents ?? agentService.getAllAgents)();
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 项目路由:读 agent 失败(按空处理): ${(err as Error).message}`);
+  }
+  let delegationHistory: readonly DelegationDecision[] = deps.delegationHistory ?? [];
+  if (!deps.delegationHistory) {
+    try {
+      // collectDelegationHistory 只读 id/class/isBoss（内部逐 Boss 容错），结构型收窄安全。
+      delegationHistory = collectDelegationHistory(agents as readonly SnapshotAgent[]);
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 项目路由:读委派史失败(按空处理): ${(err as Error).message}`);
+      delegationHistory = [];
+    }
+  }
+  const aliasTable = loadSeededAliasTable(workspaces, now, deps.aliasesFilePath);
+  const cards = buildProjectCards({ workspaces, areas, agents, delegationHistory, aliases: aliasTable.entries, now });
+  const bosses: ProjectBossRef[] = agents
+    .filter((a) => isBossLikeAgent(a))
+    .map((a) => ({ id: a.id, name: a.name }));
+  return { cards, aliasEntries: aliasTable.entries, activeWorkspaceId, bosses, delegationHistory: [...delegationHistory], now };
+}
+
+/** 项目快照行（render.ts 压缩版）；无卡返回 []（不注快照块）。 */
+export function buildProjectRoutingSnapshotLines(world: ProjectRoutingWorld): string[] {
+  return renderProjectSnapshotLines({
+    cards: world.cards,
+    activeWorkspaceId: world.activeWorkspaceId,
+    now: world.now,
+  });
+}
+
+/**
+ * 一次调用完成三层消歧（接线薄胶水）：把服务侧状态（会话最近提及 / 模型显式 bossId /
+ * 激活工作区 / 最近委派）拼成模块输入，决策逻辑全在 resolve.ts。
+ */
+export function resolveProjectRoutingForTurn(input: {
+  text: string;
+  targetAgentId: string | null;
+  agents: readonly DispatchTargetAgent[];
+  world: ProjectRoutingWorld;
+  lastProjectId: string | null;
+  clarifySuggestion?: string;
+}): ProjectResolveResult {
+  const target = input.targetAgentId ? input.agents.find((a) => a.id === input.targetAgentId) : undefined;
+  const resolveInput: ProjectResolveInput = {
+    text: input.text,
+    cards: input.world.cards,
+    aliases: input.world.aliasEntries,
+    activeWorkspaceId: input.world.activeWorkspaceId,
+    lastProjectId: input.lastProjectId,
+    recentProjectIds: collectRecentProjectIds(input.world.delegationHistory, input.world.now),
+    bosses: input.world.bosses,
+    ...(target && isBossLikeAgent(target) ? { modelBossId: target.id } : {}),
+    ...(input.clarifySuggestion ? { clarifySuggestion: input.clarifySuggestion } : {}),
+  };
+  return resolveProjectTarget(resolveInput);
+}
+
+let projectRoutingObserver: ((event: ProjectRoutingEvent) => void) | undefined;
+
+/** ⑪ 观测出口（懒建；source='project-routing'，不改 activity-log 常量表；适配器自身不抛）。 */
+function logProjectRouting(event: ProjectRoutingEvent): void {
+  if (!projectRoutingObserver) {
+    projectRoutingObserver = createProjectRoutingLogObserver(logEvent, { channel: 'voice' });
+  }
+  projectRoutingObserver(event);
+}
+
+/**
+ * 一次性消歧：上一回合挂了反问 → 本回合先按「回答」消费（不跑 hop1，也不反问第二次）：
+ * - 取消话术 → 丢弃挂起任务（clarify-abandoned）；
+ * - 解析出项目 → 直接派给该项目主管（clarify-resolved）；
+ * - 仍消不掉 → 回落现状首位 Boss 并登记该选择（clarify-fallback，⑪ 落 warn）。
+ * 返回 null = 无挂起/已过期，按普通回合继续 hop1。
+ */
+async function consumeProjectClarification(
+  text: string,
+  state: VoiceCompanionState,
+  taskId: string,
+  started: number,
+): Promise<VoiceProcessResult | null> {
+  const pending = projectRoutingRuntime.pending;
+  if (!pending) return null;
+  const now = Date.now();
+  const sessionId = state.sessionId ?? undefined;
+  if (now - pending.askedAt > PROJECT_CLARIFY_TTL_MS) {
+    projectRoutingRuntime.pending = null;
+    logProjectRouting({
+      kind: 'clarify-expired',
+      at: now,
+      sessionId,
+      taskId,
+      askCount: projectRoutingRuntime.askCount,
+      text: truncate(text, 80),
+    });
+    return null;
+  }
+  projectRoutingRuntime.pending = null;
+
+  let plan: ClarificationAnswerPlan;
+  try {
+    const world = buildProjectRoutingWorld({ now: () => now });
+    plan = planClarificationAnswer({
+      text,
+      cards: world.cards,
+      aliases: world.aliasEntries,
+      activeWorkspaceId: world.activeWorkspaceId,
+      lastProjectId: projectRoutingRuntime.lastProjectId,
+      recentProjectIds: collectRecentProjectIds(world.delegationHistory, now),
+      bosses: world.bosses,
+      ...(pending.suggestionProjectId ? { clarifySuggestion: pending.suggestionProjectId } : {}),
+    });
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 消歧回答解析失败(回落首位 Boss): ${(err as Error).message}`);
+    plan = { kind: 'fallback', decision: { candidates: [], needAsk: false } };
+  }
+
+  if (plan.kind === 'abandon') {
+    logProjectRouting({
+      kind: 'clarify-abandoned',
+      at: now,
+      sessionId,
+      taskId,
+      askCount: projectRoutingRuntime.askCount,
+      text: truncate(text, 80),
+    });
+    return { action: 'general_response', response: '好，这活先不派了。', elapsedMs: Date.now() - started };
+  }
+
+  const agents = agentService.getAllAgents();
+  const fallbackBoss = agents.find((a) => isBossLikeAgent(a));
+  const bossId = plan.kind === 'resolve' ? plan.bossId : fallbackBoss?.id;
+  const target = bossId ? agents.find((a) => a.id === bossId && isBossLikeAgent(a)) : undefined;
+  const kind = plan.kind === 'resolve' ? 'clarify-resolved' : 'clarify-fallback';
+  if (!target) {
+    logProjectRouting({
+      kind,
+      at: now,
+      sessionId,
+      taskId,
+      askCount: projectRoutingRuntime.askCount,
+      text: truncate(text, 80),
+      decision: plan.decision,
+      fallbackToFirstBoss: true,
+    });
+    return { action: 'general_response', response: '团队里还没有主管(Boss)，这事我暂时派不出去。', elapsedMs: Date.now() - started };
+  }
+
+  const message = pending.message.trim() ? pending.message : pending.originalText;
+  let interrupted: boolean;
+  try {
+    interrupted = await deliverToAgent(target, message, pending.delivery);
+  } catch (err) {
+    logDelegation({
+      phase: 'failed',
+      channel: 'voice-companion',
+      toAgentId: target.id,
+      toAgentName: target.name,
+      message,
+      status: 'failed',
+      error: err instanceof Error ? err.message : String(err),
+      routedBy: 'project-clarify',
+      taskId,
+      sessionId,
+    });
+    throw err;
+  }
+  logProjectRouting({
+    kind,
+    at: now,
+    sessionId,
+    taskId,
+    askCount: projectRoutingRuntime.askCount,
+    text: truncate(text, 80),
+    decision: plan.decision,
+    finalBossId: target.id,
+    fallbackToFirstBoss: kind === 'clarify-fallback',
+    ...(kind === 'clarify-fallback' ? { level: 'warn' as const } : {}),
+  });
+  if (plan.kind === 'resolve' && plan.projectId) projectRoutingRuntime.lastProjectId = plan.projectId;
+  logDelegation({
+    phase: 'dispatched',
+    channel: 'voice-companion',
+    toAgentId: target.id,
+    toAgentName: target.name,
+    message,
+    delivery: pending.delivery,
+    interrupted,
+    status: kind,
+    routedBy: 'project-clarify',
+    taskId,
+    sessionId,
+  });
+  const projectLabel = plan.kind === 'resolve' && plan.projectName ? `「${plan.projectName}」的` : '';
+  const response = kind === 'clarify-resolved'
+    ? `好，这活交给${projectLabel}主管「${target.name}」安排。`
+    : `行，这活我先交给主管「${target.name}」安排。`;
+  log.log(`[VoiceCompanion] 消歧${kind === 'clarify-resolved' ? '命中' : '回落'} → ${target.name}: ${message}`);
+  return {
+    action: 'delegate_to_boss',
+    response,
+    targetAgent: { id: target.id, name: target.name },
+    messageSent: message,
+    delivery: pending.delivery,
+    interrupted,
+    elapsedMs: Date.now() - started,
+  };
 }
 
 function formatMemory(memory: CompanionMemory): string {
@@ -1075,7 +1448,20 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
     log.warn(`[VoiceCompanion] loadAreas 失败: ${(err as Error).message}`);
   }
   const delegationHistory = collectDelegationHistory(agents);
-  const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas, delegationHistory);
+  // 任务14·⑪ 快照注入：开关缺省开；开关关 / 无项目卡 → 不注块（与旧版逐字一致）。
+  let projectLines: string[] = [];
+  if (isProjectRoutingEnabled()) {
+    try {
+      projectLines = buildProjectRoutingSnapshotLines(buildProjectRoutingWorld({
+        loadAreasFn: () => areas,
+        getAllAgents: () => agents,
+        delegationHistory,
+      }));
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 项目快照构建失败(不注块): ${(err as Error).message}`);
+    }
+  }
+  const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas, delegationHistory, projectLines);
   const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
   // 体积告警(P9):记忆是仅次于 agent 快照的 prompt 变项,超阈值先提示清理。
   const memoryChars = formatMemory(memory).length;
@@ -1478,6 +1864,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         await getJarvisMemory().engine.summarizeSession({ sessionId: state.sessionId, summary: state.memory.summary });
       }
       await getJarvisMemory().engine.sweep();
+      resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
       log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
       state.sessionId = null;
       state.sessionStartedAt = null;
@@ -1526,6 +1913,18 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }
       return r;
     };
+
+    // 任务14·⑪ 一次性消歧：上一回合挂了反问 → 本回合先按「回答」消费一次
+    // （确定性解析，不跑 hop1、不反问第二次；取消/命中/回落三分支见 consumeProjectClarification）。
+    if (!opts.isEvent && isProjectRoutingEnabled() && projectRoutingRuntime.pending) {
+      const clarified = await consumeProjectClarification(text, state, taskId, started);
+      if (clarified) {
+        state.turns += 1;
+        state.lastUsedAt = Date.now();
+        saveCompanionState(state);
+        return finish(clarified);
+      }
+    }
 
     let outcome: Hop1Outcome;
     try {
@@ -1598,7 +1997,25 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       // 改① 任务只走 Boss:delegate_to_boss 目标固定为主管;send_to_agent 仅主管可达,
       // 模型若仍指向普通 agent(旧会话/回归)→ 违规告警(决策观测点①)+ 改道主管,
       // 保住「全走 Boss」不变式,而不是静默直派或丢任务。
-      const route = resolveDispatchRoute(contract.action, contract.targetAgentId, agentService.getAllAgents());
+      const agents = agentService.getAllAgents();
+      // 任务14·⑪：派活前做一次三层消歧（仅 delegate_to_boss；纯逻辑在 projects 模块，
+      // 这里只拼输入）。开关关 / 事件回合 = undefined，route 行为与旧版逐字一致。
+      let projectDecision: ProjectResolveResult | undefined;
+      if (!opts.isEvent && contract.action === 'delegate_to_boss' && isProjectRoutingEnabled()) {
+        try {
+          const world = buildProjectRoutingWorld({ getAllAgents: () => agents });
+          projectDecision = resolveProjectRoutingForTurn({
+            text,
+            targetAgentId: contract.targetAgentId,
+            agents,
+            world,
+            lastProjectId: projectRoutingRuntime.lastProjectId,
+          });
+        } catch (err) {
+          log.warn(`[VoiceCompanion] 项目路由解析失败(按现状默认处理): ${(err as Error).message}`);
+        }
+      }
+      const route = resolveDispatchRoute(contract.action, contract.targetAgentId, agents, projectDecision);
 
       if (route.route === 'missing') {
         // 没派出去就不能播「已让 X 去做」——丢弃缓冲,整段走 result.response 兜底。
@@ -1628,6 +2045,44 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       if (!contract.messageToAgent) {
         speech.discardHop1();
         result.response = contract.responseToUser || '我没听清要让它做什么,请再说一遍。';
+        return finish(result);
+      }
+      if (route.route === 'need_ask') {
+        // 任务14·⑪ 三态路由之歧义：All + 多主管 + 三层消不掉 → 不派发，只反问一次；
+        // 挂起原任务指令，等下一回合回答后确定性派发（不再跑 hop1，也不二次反问）。
+        speech.discardHop1();
+        const question = route.decision.askQuestion ?? '这活要交给哪个项目？回一句项目名就行。';
+        projectRoutingRuntime.askCount += 1;
+        projectRoutingRuntime.pending = {
+          question,
+          ...(route.decision.suggestedProjectId ? { suggestionProjectId: route.decision.suggestedProjectId } : {}),
+          message: contract.messageToAgent,
+          delivery: contract.delivery,
+          askedAt: Date.now(),
+          taskId,
+          originalText: truncate(text, 120),
+        };
+        result.response = question;
+        logProjectRouting({
+          kind: 'need-ask',
+          at: Date.now(),
+          sessionId: state.sessionId ?? undefined,
+          taskId,
+          text: truncate(text, 80),
+          decision: route.decision,
+          question,
+          askCount: projectRoutingRuntime.askCount,
+        });
+        logDelegation({
+          phase: 'failed',
+          channel: 'voice-companion',
+          message: contract.messageToAgent,
+          status: 'project-need-ask',
+          error: 'project-ambiguous',
+          routedBy: 'project-clarify',
+          taskId,
+          sessionId: state.sessionId ?? undefined,
+        });
         return finish(result);
       }
       if (route.route === 'no_boss') {
@@ -1688,6 +2143,24 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         taskId,
         sessionId: state.sessionId ?? undefined,
       });
+      // 任务14·⑪ ⑪ 观测（仅 delegate_to_boss）：登记三层结果/最终 Boss/是否回落首选；
+      // 命中携带 projectId → 记会话最近提及（消歧② 输入）。
+      if (contract.action === 'delegate_to_boss' && isProjectRoutingEnabled()) {
+        const pr = route.projectRouting;
+        const explicitRequested = contract.targetAgentId ? agents.find((a) => a.id === contract.targetAgentId) : undefined;
+        const explicitBoss = !!explicitRequested && isBossLikeAgent(explicitRequested);
+        logProjectRouting({
+          kind: 'route',
+          at: Date.now(),
+          sessionId: state.sessionId ?? undefined,
+          taskId,
+          text: truncate(text, 80),
+          ...(pr ? { decision: pr } : {}),
+          finalBossId: target.id,
+          fallbackToFirstBoss: !explicitBoss && !pr?.bossId,
+        });
+        if (pr?.projectId) projectRoutingRuntime.lastProjectId = pr.projectId;
+      }
       if (route.violation) {
         // 模型话术多半指名了被拒的普通 agent,不可信 → 丢弃缓冲,用确定性话术整段兜底。
         speech.discardHop1();
@@ -1946,6 +2419,7 @@ export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   state.turns = 0;
   if (!options.keepMemory) state.memory = { ...structuredClone(DEFAULT_MEMORY) };
   saveCompanionState(state);
+  resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）一并清空
   log.log(`[VoiceCompanion] 会话重置(keepMemory=${options.keepMemory !== false})`);
 }
 

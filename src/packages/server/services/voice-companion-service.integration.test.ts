@@ -32,6 +32,8 @@ import { querySystemLog } from '../data/system-log.js';
 // 任务07·④:委派史 fixture 走 bossService.init() 真实读取链路(沙箱内,不碰真实数据)
 import * as bossService from './boss-service.js';
 import type { DelegationCompletion, DelegationDecision, DelegationUserRating } from '../../shared/agent-types.js';
+// 任务14·⑪:项目路由集成用例需要可变区域夹具(DrawingArea)
+import type { DrawingArea } from '../../shared/common-types.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -110,6 +112,8 @@ interface MockAgent {
 }
 
 const mockAgents: MockAgent[] = [];
+/** 任务14·⑪:可变区域夹具(默认空,既有用例逐字不变;项目卡用例自行 push)。 */
+const mockAreas: DrawingArea[] = [];
 let mockHistory: Array<{ type: string; content: string }> = [];
 /** 任务07·④:按 agentId 区分历史(委派树要对每个下属各取其产出);未登记的回退全局 mockHistory。 */
 const mockHistoryByAgent = new Map<string, Array<{ type: string; content: string }>>();
@@ -127,9 +131,9 @@ vi.mock('./agent-service.js', () => ({
 
 vi.mock('../data/index.js', async () => {
   // 展开真实模块:同图内 backend/runner 还以命名导入引用了 isProcessRunning 等,
-  // 只把 loadAreas 换成确定性空数组(测试不从磁盘读区域数据)。
+  // 只把 loadAreas 换成可变夹具(缺省空数组,项目卡用例 push 区域;测试不从磁盘读区域数据)。
   const actual = await vi.importActual<typeof import('../data/index.js')>('../data/index.js');
-  return { ...actual, loadAreas: () => [] };
+  return { ...actual, loadAreas: () => mockAreas };
 });
 
 const stopAgentMock = vi.fn(async (_agentId: string) => {});
@@ -162,6 +166,9 @@ if (!dataHome) throw new Error('XDG_DATA_HOME 未设置:test-setup 沙箱失效,
 const stateFilePath = path.join(dataHome, 'tide-commander', 'voice-companion.json');
 /** 任务07·④:委派史 fixture 文件(仅沙箱;真实文件绝不被本测试触碰)。 */
 const delegationHistoryPath = path.join(dataHome, 'tide-commander', 'delegation-history.json');
+/** 任务14·⑪:工作区 fixture 文件与别名表目录(仅沙箱;真实文件绝不被本测试触碰)。 */
+const workspacesFilePath = path.join(dataHome, 'tide-commander', 'workspaces.json');
+const jarvisProjectsDir = path.join(dataHome, 'tide-commander', 'jarvis-projects');
 
 interface StateFile {
   sessionId: string | null;
@@ -253,6 +260,7 @@ beforeEach(() => {
   spawnCalls.length = 0;
   throwOnNextSpawn = null;
   mockAgents.length = 0;
+  mockAreas.length = 0;
   mockHistory = [];
   mockHistoryByAgent.clear();
   historyQueriedIds.length = 0;
@@ -262,6 +270,10 @@ beforeEach(() => {
   fs.rmSync(stateFilePath, { force: true });
   // 委派史每用例回到空(沙箱内);需要 fixture 的用例自行 seedDelegationHistory。
   fs.rmSync(delegationHistoryPath, { force: true });
+  // 任务14·⑪:工作区/别名表每用例回到空(沙箱内);项目路由内存态(最近提及/挂起反问)复位。
+  fs.rmSync(workspacesFilePath, { force: true });
+  fs.rmSync(jarvisProjectsDir, { recursive: true, force: true });
+  service.resetProjectRoutingSession();
   bossService.init();
   writeConfig();
 });
@@ -404,7 +416,7 @@ interface DecisionFixture {
   userCommand: string;
   bossId?: string;
   /** ⑦ 任务卡(可选;旧记录无卡) */
-  taskCard?: { objective: string };
+  taskCard?: { objective: string; projectId?: string; sourceProject?: string };
   /** ⑧ 病历完成事件(可选;旧记录无——任务11) */
   completion?: DelegationCompletion;
   /** ⑧ 病历用户评价(可选;任务11) */
@@ -424,7 +436,15 @@ function delegationDecision(f: DecisionFixture): DelegationDecision {
     confidence: 'medium',
     status: f.completion ? f.completion.result : 'sent',
     taskCard: f.taskCard
-      ? { objective: f.taskCard.objective, acceptanceCriteria: [], dependencies: [], status: 'running' }
+      ? {
+          objective: f.taskCard.objective,
+          acceptanceCriteria: [],
+          dependencies: [],
+          status: 'running',
+          // 任务14·⑪:项目卡派生的归属字段(缺省不加键,旧 fixture 逐字不变)
+          ...(f.taskCard.projectId ? { projectId: f.taskCard.projectId } : {}),
+          ...(f.taskCard.sourceProject ? { sourceProject: f.taskCard.sourceProject } : {}),
+        }
       : undefined,
     ...(f.completion ? { completion: f.completion } : {}),
     ...(f.userRating ? { userRating: f.userRating } : {}),
@@ -2007,5 +2027,275 @@ describe('G8 故障注入(任务36)', () => {
     const r2 = await p2;
     expect(r2.response).toBe('好的,我在。');
     expect(r2.degraded).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// 任务14·⑪ 秘书项目感知与路由(⑥ 验收)
+//
+// 证据等级如实:本 describe 是 L2(真实 processVoiceInput 编排 + 沙箱工作区/区域/
+// 委派史 fixture,假 claude 子进程);L1 纯函数面在 jarvis-core/projects/*.test.ts 与
+// voice-companion-service.project-routing.test.ts。L3(真人语音 E2E)未跑,不在本文件冒充。
+// 世界:workspaces(项目A=areaA→主管 pbA / 项目B=areaB→主管 pbB)+ 1 普通成员;
+// 区域夹具走 mockAreas(data/index loadAreas 替身),工作区/别名表走 XDG 沙箱真实读写。
+// ============================================================================
+
+describe('任务14·⑪ 秘书项目感知与路由', () => {
+  const PROJ_BOSS_A = { id: 'pbA', name: '大当家A', class: 'boss', isBoss: true, status: 'idle' };
+  const PROJ_BOSS_B = { id: 'pbB', name: '二当家B', class: 'boss', isBoss: true, status: 'idle' };
+  const PROJ_WORKER = { id: 'pw1', name: '小工', class: 'claude', status: 'idle' };
+
+  function areaDef(id: string, assignedAgentIds: string[], directories: string[]): DrawingArea {
+    return {
+      id,
+      name: id,
+      type: 'rectangle',
+      center: { x: 0, z: 0 },
+      width: 10,
+      height: 10,
+      color: '#336699',
+      zIndex: 0,
+      assignedAgentIds,
+      directories,
+    };
+  }
+
+  /** 沙箱内写工作区 fixture(项目A/项目B 各挂一个区域);activeWorkspaceId=null 即 All 状态。 */
+  function seedWorkspaces(activeWorkspaceId: string | null): void {
+    const now = Date.now();
+    const mk = (id: string, name: string, areaIds: string[]): Record<string, unknown> => ({
+      id, name, areaIds, createdAt: now - 3_600_000, updatedAt: now - 60_000,
+    });
+    fs.mkdirSync(path.dirname(workspacesFilePath), { recursive: true });
+    fs.writeFileSync(workspacesFilePath, JSON.stringify({
+      workspaces: [mk('pwsA', '项目A', ['parA']), mk('pwsB', '项目B', ['parB'])],
+      activeWorkspaceId,
+    }));
+  }
+
+  /** 两项目 + 两主管 + 一普通成员(pbA 是 agent 序首位,即现状兜底 Boss)。 */
+  function deployTwoProjects(activeWorkspaceId: string | null = null): void {
+    mockAgents.push({ ...PROJ_BOSS_A }, { ...PROJ_BOSS_B }, { ...PROJ_WORKER });
+    mockAreas.push(areaDef('parA', ['pbA', 'pw1'], ['E:/proj/a']), areaDef('parB', ['pbB'], ['E:/proj/b']));
+    seedWorkspaces(activeWorkspaceId);
+  }
+
+  /** ⑪ 观测行(系统日志 source='project-routing',按 body.text 唯一标记过滤;新→旧)。 */
+  function projectRows(marker: string): Array<Record<string, unknown>> {
+    return querySystemLog({ category: 'system', source: 'project-routing', limit: 50 })
+      .map((row) => logBody(row))
+      .filter((body) => typeof body.text === 'string' && body.text.includes(marker));
+  }
+
+  /** 跑一个完整派发回合(真 hop1 → 契约 → 派发/反问),返回进程结果。 */
+  async function runDispatchTurn(text: string, messageToAgent: string): Promise<VoiceProcessResult> {
+    const before = spawnCalls.length;
+    const p = startProcess(text);
+    await waitFor(() => spawnCalls.length >= before + 1, `spawn for ${text}`);
+    const call = spawnCalls[before]!;
+    await new Promise((r) => setTimeout(r, 0)); // 让 'spawn'(nextTick)写入 stdin
+    await completeWith(call.child, contractText({
+      action: 'delegate_to_boss',
+      messageToAgent,
+      delivery: 'queue',
+      responseToUser: '已交给主管安排。',
+    }));
+    return p;
+  }
+
+  it('⑥1 快照注入:prompt 含【项目感知】+ 当前项目标记 + 各项目卡摘要(在做/主管)', async () => {
+    deployTwoProjects('pwsB');
+    seedDelegationHistory({
+      pbA: [delegationDecision({
+        timestamp: Date.now() - 2 * 3_600_000,
+        selectedAgentId: 'pw1',
+        selectedAgentName: '小工',
+        userCommand: '整理报价单',
+        bossId: 'pbA',
+        taskCard: { objective: '整理报价单', projectId: 'pwsA' },
+      })],
+    });
+
+    const p = startProcess('大家忙什么呢');
+    const call = await waitSpawn(1);
+    const prompt = fs.readFileSync(promptFileOf(call), 'utf-8');
+
+    expect(prompt).toContain('【项目感知】');
+    expect(prompt).toContain('- [当前] 项目B');
+    expect(prompt).toContain('主管: 二当家B(pbB)');
+    expect(prompt).toContain('- 项目A'); // 非当前项目也在卡列表
+    expect(prompt).toContain('在做: 整理报价单'); // 卡摘要来自委派史(⑥6 派生链)
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '都在忙。' }));
+    await p;
+  });
+
+  it('⑥2 「让项目B的团队做 X」→ 路由到 Boss-B(别名层显式命中,⑪ route 观测)', async () => {
+    deployTwoProjects(null);
+    const r = await runDispatchTurn('让项目B的团队做登录页', '把登录页做出来');
+
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('pbB', 'BOSS:把登录页做出来', 'sys:pbB');
+    expect(sendCommandMock.mock.calls.some((c) => c[0] === 'pbA')).toBe(false); // 首位 Boss 没被误派
+    expect(r.targetAgent).toEqual({ id: 'pbB', name: '二当家B' });
+
+    const rows = projectRows('让项目B的团队做登录页');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: 'route', layer: 'explicit', source: 'alias:项目b', projectId: 'pwsB',
+      finalBossId: 'pbB', fallbackToFirstBoss: false, needAsk: false,
+    });
+  });
+
+  it('⑥3 切到项目B 工作区后「让团队做 X」→ 当前项目主管 pbB(激活工作区信号)', async () => {
+    deployTwoProjects('pwsB');
+    const r = await runDispatchTurn('让团队做对账单', '把对账单做了');
+
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('pbB', 'BOSS:把对账单做了', 'sys:pbB');
+    expect(r.targetAgent).toEqual({ id: 'pbB', name: '二当家B' });
+
+    const rows = projectRows('让团队做对账单');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: 'route', layer: 'explicit', source: 'active-workspace', projectId: 'pwsB',
+      finalBossId: 'pbB', fallbackToFirstBoss: false,
+    });
+  });
+
+  it('⑥4 「那个报价的事」→ 关键词唯一命中项目A 不反问;委派史落在卡上可再次命中(⑥6)', async () => {
+    deployTwoProjects(null);
+    // 48h 前的委派(在 24h「最近委派」窗外;projectId 归属项目A)→ 只可能走关键词层
+    seedDelegationHistory({
+      pbA: [delegationDecision({
+        timestamp: Date.now() - 48 * 3_600_000,
+        selectedAgentId: 'pw1',
+        selectedAgentName: '小工',
+        userCommand: '整理报价单',
+        bossId: 'pbA',
+        taskCard: { objective: '整理报价单', projectId: 'pwsA' },
+      })],
+    });
+
+    const before = spawnCalls.length;
+    const p = startProcess('那个报价的事交给团队办一下');
+    await waitFor(() => spawnCalls.length >= before + 1, 'spawn for 报价');
+    const call = spawnCalls[before]!;
+    await new Promise((r) => setTimeout(r, 0));
+    // ⑥6:委派史已派生到项目A 卡「在做」,随快照进 prompt
+    expect(fs.readFileSync(promptFileOf(call), 'utf-8')).toContain('在做: 整理报价单');
+    await completeWith(call.child, contractText({
+      action: 'delegate_to_boss',
+      messageToAgent: '把报价的事办了',
+      delivery: 'queue',
+      responseToUser: '已交给主管安排。',
+    }));
+    const r = await p;
+
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('pbA', 'BOSS:把报价的事办了', 'sys:pbA');
+    expect(r.targetAgent).toEqual({ id: 'pbA', name: '大当家A' });
+
+    const rows = projectRows('那个报价的事交给团队办一下');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'route', layer: 'keyword', projectId: 'pwsA', finalBossId: 'pbA', needAsk: false });
+    expect(String(rows[0].source)).toMatch(/^keyword:/);
+  });
+
+  it('⑥5 消不掉 → 反问一次(不派发);回答项目名 → 确定性直派,不再跑 hop1 也不再问', async () => {
+    deployTwoProjects(null);
+
+    // 回合1:All + 两主管 + 无别名/上下文/关键词信号 → need_ask,不派发
+    const r1 = await runDispatchTurn('把登录页那个活安排一下', '把登录页做出来');
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(r1.action).toBe('delegate_to_boss');
+    expect(r1.response).toContain('哪个项目');
+    expect(r1.response).toContain('项目A');
+    expect(r1.response).toContain('项目B');
+    expect(spawnCalls).toHaveLength(1);
+    const askRows = projectRows('把登录页那个活安排一下');
+    expect(askRows).toHaveLength(1);
+    expect(askRows[0]).toMatchObject({ kind: 'need-ask', needAsk: true, askCount: 1 });
+
+    // 回合2:回答项目名(带口语后缀仍按别名子串命中) → 确定性解析直派(零 spawn = 不跑 hop1)
+    const p2 = startProcess('项目B，就它了');
+    const r2 = await p2;
+    expect(spawnCalls).toHaveLength(1); // 没有第二次 claude 调用
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('pbB', 'BOSS:把登录页做出来', 'sys:pbB');
+    expect(r2.targetAgent).toEqual({ id: 'pbB', name: '二当家B' });
+    expect(r2.messageSent).toBe('把登录页做出来');
+    expect(r2.response).toContain('二当家B');
+    const resolvedRows = projectRows('就它了');
+    expect(resolvedRows).toHaveLength(1);
+    expect(resolvedRows[0]).toMatchObject({ kind: 'clarify-resolved', askCount: 1, finalBossId: 'pbB' });
+  });
+
+  it('⑥5 反问只一次:回答仍消不掉 → 回落首位 Boss 并登记(warn),绝不二次反问', async () => {
+    deployTwoProjects(null);
+
+    const r1 = await runDispatchTurn('把仓库那摊活安排一下', '把仓库整理一遍');
+    expect(r1.response).toContain('哪个项目');
+    expect(spawnCalls).toHaveLength(1);
+
+    const p2 = startProcess('你看着办吧');
+    const r2 = await p2;
+    expect(spawnCalls).toHaveLength(1); // 回答不跑 hop1(确定性消费)
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('pbA', 'BOSS:把仓库整理一遍', 'sys:pbA'); // 回落首位 Boss
+    expect(r2.targetAgent).toEqual({ id: 'pbA', name: '大当家A' });
+    expect(r2.response).toContain('我先交给');
+
+    const askRows = projectRows('把仓库那摊活安排一下');
+    expect(askRows).toHaveLength(1); // 只问了这一次
+    expect(askRows[0]).toMatchObject({ kind: 'need-ask', askCount: 1 });
+    const fallbackRows = projectRows('你看着办吧');
+    expect(fallbackRows).toHaveLength(1);
+    expect(fallbackRows[0]).toMatchObject({ kind: 'clarify-fallback', fallbackToFirstBoss: true, finalBossId: 'pbA' });
+  });
+
+  it('⑥5 回答取消话术 → 丢弃挂起任务(clarify-abandoned),不派发不反问', async () => {
+    deployTwoProjects(null);
+
+    const r1 = await runDispatchTurn('把周报整理一下', '整理周报');
+    expect(r1.response).toContain('哪个项目');
+
+    const p2 = startProcess('算了，这活先不做了');
+    const r2 = await p2;
+    expect(spawnCalls).toHaveLength(1);
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(r2.response).toBe('好，这活先不派了。');
+    const rows = projectRows('算了，这活先不做了');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'clarify-abandoned', askCount: 1 });
+  });
+
+  it('开关关(TC_JARVIS_PROJECT_ROUTING=0)= 现状零变化:不注快照、别名不生效、回落首位 Boss、零 ⑪ 观测', async () => {
+    process.env.TC_JARVIS_PROJECT_ROUTING = '0';
+    try {
+      deployTwoProjects(null);
+      const before = spawnCalls.length;
+      const p = startProcess('让项目B的团队做结算页');
+      await waitFor(() => spawnCalls.length >= before + 1, 'spawn for 结算页');
+      const call = spawnCalls[before]!;
+      await new Promise((r) => setTimeout(r, 0));
+      const prompt = fs.readFileSync(promptFileOf(call), 'utf-8');
+      expect(prompt).not.toContain('【项目感知】'); // 不注快照块
+      expect(prompt).toContain('【agent 列表】'); // 其余提示词原样
+      await completeWith(call.child, contractText({
+        action: 'delegate_to_boss',
+        messageToAgent: '把结算做出来',
+        delivery: 'queue',
+        responseToUser: '已交给主管安排。',
+      }));
+      const r = await p;
+
+      expect(sendCommandMock).toHaveBeenCalledTimes(1);
+      expect(sendCommandMock).toHaveBeenCalledWith('pbA', 'BOSS:把结算做出来', 'sys:pbA'); // 首个 agent 序 Boss
+      expect(r.targetAgent).toEqual({ id: 'pbA', name: '大当家A' });
+      expect(projectRows('让项目B的团队做结算页')).toEqual([]); // 零 ⑪ 观测
+      expect(fs.existsSync(path.join(jarvisProjectsDir, 'aliases.json'))).toBe(false); // 连别名种子都不写
+    } finally {
+      delete process.env.TC_JARVIS_PROJECT_ROUTING;
+    }
   });
 });
