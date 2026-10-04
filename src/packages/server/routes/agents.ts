@@ -19,6 +19,7 @@ import { truncateOrEmpty } from '../utils/string.js';
 import { getTaskId, newTaskId } from '../utils/trace-context.js';
 import { buildCustomAgentConfig, expandFileMentions } from '../websocket/handlers/command-handler.js';
 import { completeDelegation, getBossForSubordinate } from '../websocket/handlers/boss-response-handler.js';
+import { notifyTaskCompletion } from '../websocket/handlers/task-receipt-notifier.js';
 import { logDelegation } from '../services/activity-log.js';
 import { OpencodeBackend } from '../opencode/backend.js';
 import { getPiModelCatalog, getPiModelCatalogFetchedAt } from '../pi/model-catalog.js';
@@ -1963,6 +1964,19 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
     const resolvedBossId = delegation?.bossId || agent.bossId;
     const taskStatus = status || 'completed';
     const success = taskStatus === 'completed';
+
+    // 任务08② 回执订阅播报：report-task 入口统一通知（放在无 boss 早退之前——
+    // 无 boss 回执同样过判断层留证，不静默丢弃；runtime 入口通常先到，
+    // 第二入口命中稳定去重键后不再转发，消除同一完成双通道重复播）。
+    notifyTaskCompletion({
+      subordinateId: agent.id,
+      agentName: agent.name,
+      success,
+      summary,
+      source: 'report-task',
+      at: Date.now(),
+      broadcast: broadcastFn,
+    });
 
     if (!resolvedBossId) {
       log.log(`Agent ${agent.name} reported task ${taskStatus} but has no boss association. Accepting and logging: "${(summary || '').slice(0, 120)}"`);

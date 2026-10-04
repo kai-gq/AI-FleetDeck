@@ -28,6 +28,7 @@ import {
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
+import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
 import '../styles/components/voice-companion.scss';
 
 const LEADER_KEY = 'tide:voice-companion:leader';
@@ -348,7 +349,13 @@ export function VoiceCompanion({ className }: { className?: string }) {
     });
     reporter.start();
     reporterRef.current = reporter;
+    // 任务08②:派活闭环回执(task_receipt)→ 同一队列/同一闸门(权威判定),
+    // 并与 store 快照 diff 做同目标覆盖抑制——同一次完成不双播
+    const unsubscribeReceipt = subscribeTaskReceipt((receipt) => {
+      reporterRef.current?.ingestReceipt(receipt);
+    });
     return () => {
+      unsubscribeReceipt();
       reporter.stop();
       reporterRef.current = null;
     };

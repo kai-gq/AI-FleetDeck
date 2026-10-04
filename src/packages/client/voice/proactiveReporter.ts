@@ -16,6 +16,13 @@
  * **出队 flush** 只做时机放行(深夜/focus 挂起到白天,破例线以上除外),不再过预算闸、不再扣预算。
  * 决策明细留在内存统计(gatesStats),对应 ⑭ 观测点⑥(本地,不新建服务端通道)。
  *
+ * 任务08② 回执订阅(派活闭环):服务端 task_receipt 经 ingestReceipt 注入**同一队列、同一闸门**
+ * (预算/静默窗/幂等键统一) → 派活完成的播报档位以用户 09·B 本地设置权威判定;
+ * 并对 diff 通道做**同目标覆盖抑制**——同一次完成/失败不再由快照 diff 重复出声
+ * (回执文本更全:带任务摘要,故回执优先;两通道到达次序不定,先到先占、后到合并/被抑制)。
+ * 回执用稳定键 `agent-{completed|failed}:{agentId}:{taskId}`(06-11 §11.1);
+ * diff 通道维持逐次唯一占位键防误去重(合并回执时原位升级为稳定键)。
+ *
  * diffSnapshots / formatEvents / signalForEvent 为纯函数,单测覆盖;上报器本体只做计时与订阅。
  */
 
@@ -34,6 +41,7 @@ import {
   type EnvironmentContext,
   type GatesConfig,
   type GatesState,
+  type GatesStateDelta,
   type Signal,
 } from '../../shared/broadcast-gates';
 
@@ -53,6 +61,8 @@ export interface ProactiveEvent {
   kind: ProactiveEventKind;
   agentId: string;
   text: string;
+  /** 任务08②：回执通道的稳定幂等键(`agent-{kind}:{agentId}:{taskId}`)；diff 通道缺省 → 逐次唯一占位。 */
+  dedupeKey?: string;
 }
 
 /** 队列条目:准入时已过闸门并预扣预算,出队只做时机放行。 */
@@ -62,6 +72,14 @@ interface QueuedEvent {
   tier: 'SPEAK' | 'PREPARE';
   /** 准入评分(出队破例线判断用,不放回闸门重算)。 */
   score: number;
+  /** 来源：diff = 快照 diff 通道；receipt = 任务08② 回执通道（合并后 diff 条目转 receipt）。 */
+  source: 'diff' | 'receipt';
+}
+
+/** admitEvents 结果：进队条目 + 逐条决策（回执路径需要回读档位/理由）。 */
+interface AdmitOutcome {
+  queued: QueuedEvent[];
+  decisions: Array<{ event: ProactiveEvent; decision: BroadcastDecision }>;
 }
 
 /** 决策观测记录(⑭ 观测点⑥:各闸门打分 → 档位 → 理由;仅本地内存)。 */
@@ -103,6 +121,8 @@ const QUIET_HOLD_RETRY_MS = 5 * 60_000;
 const MAX_SEEN_KEYS = 200;
 /** 决策明细环形上限(初始值非实测:仅本地观测,够最近一次标定回看)。 */
 const MAX_DECISION_RECORDS = 100;
+/** 任务08②:同目标覆盖抑制窗口(初始值非实测:回执与状态 diff 同时到达,10 分钟远超正常到达间隔)。 */
+const RECEIPT_COVERAGE_MS = 10 * 60_000;
 
 /** 纯函数:两次快照对比,产出事件(不依赖 store / 计时器,便于单测)。 */
 export function diffSnapshots(
@@ -177,15 +197,15 @@ function truncate(text: string, max: number): string {
  *   waiting      85/80/90 + 强时效   → 85 分,可立即口播(等你授权才能继续);
  *   completed    60/70/95            → 70 分,攒批到自然开口点;
  *   task-changed 40/80/85            → 61 分,攒批(仅 scope=all 产生)。
- * dedupeKey 用现有可得值占位且逐次唯一(`agent-{kind}:{agentId}@{ts}`,防误去重丢事件);
- * 稳定 `{taskId}` 键形态依赖任务 10,延后替换(⑤5)。
+ * dedupeKey:回执通道(任务08②)已带稳定键 `agent-{kind}:{agentId}:{taskId}`(06-11 §11.1);
+ * diff 通道沿用逐次唯一占位 `agent-{kind}:{agentId}@{ts}` 防误去重丢事件,合并回执时原位升级。
  */
 export function signalForEvent(event: ProactiveEvent): Signal {
   const base = {
     source: 'agent' as const,
     kind: `agent_${event.kind}`,
     ts: event.at,
-    dedupeKey: `agent-${event.kind}:${event.agentId}@${event.at}`,
+    dedupeKey: event.dedupeKey ?? `agent-${event.kind}:${event.agentId}@${event.at}`,
     text: event.text,
   };
   switch (event.kind) {
@@ -249,8 +269,35 @@ export interface ProactiveReporterHandle {
   /** 尝试 flush;返回提交的文本(null = 无事可报 / 忙碌或深夜挂起)。force 跳过忙碌与静默时段判定。 */
   flushNow: (opts?: { force?: boolean }) => string | null;
   pendingCount: () => number;
+  /**
+   * 任务08②:服务端 task_receipt 接入(派活闭环)。同一队列/闸门,回执优先、diff 同目标被覆盖抑制。
+   * 返回本次判定结果(测试断言/组件观测用;SILENT 时 action='silent')。
+   */
+  ingestReceipt: (receipt: ProactiveReceipt) => ReceiptIngestResult;
   /** ⑭ 观测点⑥:本地决策统计(内存快照)。 */
   gatesStats: () => ProactiveGatesStats;
+}
+
+/**
+ * 任务08②:回执入参(结构对齐 TaskReceiptMessage.payload 的播报必需子集,
+ * 不 import 传输层类型——bus/组件负责搬运)。
+ */
+export interface ProactiveReceipt {
+  agentId: string;
+  success: boolean;
+  /** 是否命中派活登记(未匹配 = 防漏报路径,text 为通用完成句)。 */
+  matched: boolean;
+  text: string;
+  at: number;
+  dedupeKey: string;
+  taskId?: string;
+}
+
+/** ingestReceipt 判定结果:queued=进队列；merged=并入既有 diff 条目；stored=仅上屏；silent=丢弃。 */
+export interface ReceiptIngestResult {
+  action: 'queued' | 'merged' | 'stored' | 'silent';
+  tier: BroadcastTier;
+  reason?: BroadcastReason;
 }
 
 export function createProactiveReporter(options: ProactiveReporterOptions): ProactiveReporterHandle {
@@ -260,6 +307,8 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
   let snapshot: AgentSnapshot = new Map();
   // 播报队列只放 SPEAK/PREPARE(STORE/SILENT 在准入时已分流,见 admitEvents)
   let events: QueuedEvent[] = [];
+  // 任务08②:回执 → diff 同目标覆盖(agentId → 最近回执 kind/时刻;一次性消费,→working 或 stop 时清除)
+  const receiptCoverage = new Map<string, { kind: 'completed' | 'failed'; at: number }>();
   let unsubscribe: (() => void) | null = null;
   // 裸定时器(node 测试环境无 window);ReturnType 兼容 DOM(number)与 Node(Timeout)
   let quietTimer: ReturnType<typeof setTimeout> | null = null;
@@ -328,7 +377,12 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
 
   /** 把决策增量喂回状态(幂等键裁剪后,残余风险②)。 */
   function advanceGates(decision: BroadcastDecision): void {
-    const next = applyGatesDelta(gatesState, decision.delta);
+    applyDelta(decision.delta);
+  }
+
+  /** 原始增量入口(任务08②合并路径需要零增量登记稳定键,不复用整条决策)。 */
+  function applyDelta(delta: GatesStateDelta): void {
+    const next = applyGatesDelta(gatesState, delta);
     gatesState =
       next.seenKeys.length > MAX_SEEN_KEYS ? { ...next, seenKeys: next.seenKeys.slice(-MAX_SEEN_KEYS) } : next;
   }
@@ -378,25 +432,95 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
    * STORE 立刻走上屏, SILENT 只留幂等键。预算在此按决策增量预扣一次——
    * 出队 flush 不再过闸(残余风险①)。
    */
-  function admitEvents(fresh: ProactiveEvent[], now: number): QueuedEvent[] {
+  function admitEvents(fresh: ProactiveEvent[], now: number, source: 'diff' | 'receipt'): AdmitOutcome {
     refreshGatesDay(now);
     // 显式取时一次注入(残余风险③):深夜/focus 判定只看 state.now,勿多处隐式取时
     gatesState = { ...gatesState, now, env: currentEnv(), config: currentGatesConfig() };
     const queued: QueuedEvent[] = [];
     const stored: ProactiveEvent[] = [];
+    const decisions: AdmitOutcome['decisions'] = [];
     for (const event of fresh) {
       const decision = decideBroadcast(signalForEvent(event), gatesState);
       advanceGates(decision);
       recordDecision(event, decision, now);
+      decisions.push({ event, decision });
       if (decision.tier === 'SPEAK' || decision.tier === 'PREPARE') {
-        queued.push({ event, tier: decision.tier, score: decision.score });
+        queued.push({ event, tier: decision.tier, score: decision.score, source });
       } else if (decision.tier === 'STORE') {
         stored.push(event);
       }
       // SILENT:不进队列也不上屏(低相关/重复),幂等键已随 delta 记入
     }
     if (stored.length > 0) emitStore(stored, now);
-    return queued;
+    return { queued, decisions };
+  }
+
+  /**
+   * 任务08② diff 通道同目标覆盖判定:同 agent 同 kind 且窗口内 → 抑制并一次性消费;
+   * 过期即删(窗口外自然失效,防止陈旧覆盖误伤下一次完成)。
+   */
+  function consumeReceiptCoverage(event: ProactiveEvent, now: number): boolean {
+    const cov = receiptCoverage.get(event.agentId);
+    if (!cov || cov.kind !== event.kind) return false;
+    receiptCoverage.delete(event.agentId);
+    return now - cov.at <= RECEIPT_COVERAGE_MS;
+  }
+
+  /**
+   * 任务08② 回执接入(派活闭环):同一完成/失败经此进**同一队列、同一闸门**
+   * (预算/静默窗/幂等键与 diff 通道统一,档位由用户 09·B 设置权威判定)。
+   * - 队列中已有同 agent 同 kind 的 diff 条目 → **原位合并**:升级为带任务摘要的回执文本 +
+   *   稳定幂等键(闸门已过,零增量登记键,不重复扣预算、不改准入档位);
+   * - 否则过闸分流(与 diff 通道同口径);进队/上屏时登记**同目标覆盖**,
+   *   使稍后到达的 diff 同 kind 事件被抑制——同一次完成不再双播。
+   */
+  function ingestReceipt(receipt: ProactiveReceipt): ReceiptIngestResult {
+    const now = nowMs();
+    const kind: 'completed' | 'failed' = receipt.success ? 'completed' : 'failed';
+
+    const queuedIdx = events.findIndex(
+      (q) => q.source === 'diff' && q.event.agentId === receipt.agentId && q.event.kind === kind,
+    );
+    if (queuedIdx >= 0) {
+      // 先到的是 diff(文本较简),原位合并升级;同 kind 评分常量一致,档位/破例线沿用
+      const merged: ProactiveEvent = {
+        ...events[queuedIdx].event,
+        text: receipt.text,
+        dedupeKey: receipt.dedupeKey,
+      };
+      events[queuedIdx] = { ...events[queuedIdx], event: merged, source: 'receipt' };
+      applyDelta({ seenKeysToAdd: [receipt.dedupeKey], dailySpokenDelta: 0, instantSpeechDelta: 0 });
+      return { action: 'merged', tier: events[queuedIdx].tier };
+    }
+
+    const event: ProactiveEvent = {
+      at: receipt.at,
+      kind,
+      agentId: receipt.agentId,
+      text: receipt.text,
+      dedupeKey: receipt.dedupeKey,
+    };
+    const { queued, decisions } = admitEvents([event], now, 'receipt');
+    const decision = decisions[0]?.decision;
+    if (queued.length > 0) {
+      events.push(...queued);
+      if (events.length > MAX_EVENTS) {
+        // 与 tick 同口径:溢出丢最旧前先落 STORE 上屏(沉默≠丢弃,⑤4)
+        const dropped = events.slice(0, events.length - MAX_EVENTS);
+        events = events.slice(-MAX_EVENTS);
+        emitStore(dropped.map((q) => q.event), now);
+      }
+      receiptCoverage.set(receipt.agentId, { kind, at: now });
+      scheduleQuietFlush();
+      return { action: 'queued', tier: queued[0].tier, reason: decision?.reason };
+    }
+    if (decision?.tier === 'STORE') {
+      // 已上屏:稍后的 diff 同 kind 也抑制(否则同一完成会上屏两条)
+      receiptCoverage.set(receipt.agentId, { kind, at: now });
+      return { action: 'stored', tier: 'STORE', reason: decision.reason };
+    }
+    // SILENT(低相关/重复键):不进队列也不上屏;证据在服务端 delegation 埋点,已留
+    return { action: 'silent', tier: decision?.tier ?? 'SILENT', reason: decision?.reason };
   }
 
   /**
@@ -449,10 +573,16 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
     if (now - lastDiffAt < DIFF_THROTTLE_MS) return; // 高频 notify 节流
     lastDiffAt = now;
     const next = takeSnapshot();
-    const fresh = diffSnapshots(snapshot, next, options.scope, now, names());
+    // 任务08②:新任务开始(→working)即清覆盖——旧完成的抑制窗口不波及下一次完成
+    for (const [id, cur] of next) {
+      if (cur.status === 'working' && snapshot.get(id)?.status !== 'working') receiptCoverage.delete(id);
+    }
+    const fresh = diffSnapshots(snapshot, next, options.scope, now, names()).filter(
+      (e) => !consumeReceiptCoverage(e, now),
+    );
     snapshot = next;
     if (fresh.length === 0) return;
-    const queued = admitEvents(fresh, now);
+    const { queued } = admitEvents(fresh, now, 'diff');
     if (queued.length === 0) return; // 全部 STORE/SILENT:已上屏或幂等跳过,无播报队列
     events.push(...queued);
     if (events.length > MAX_EVENTS) {
@@ -490,6 +620,7 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
       intervalTimer = null;
     }
     events = [];
+    receiptCoverage.clear(); // 任务08②:会话结束清覆盖,避免跨会话残留抑制
   }
 
   return {
@@ -497,6 +628,7 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
     stop,
     flushNow,
     pendingCount: () => events.length,
+    ingestReceipt,
     gatesStats: () => ({
       total: decisionTotal,
       tierCounts: { ...tierCounts },

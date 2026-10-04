@@ -11,6 +11,7 @@ import { agentService, runtimeService } from '../../services/index.js';
 import { logDelegation, logResourceUsage, logSecurity, previewToolInput } from '../../services/activity-log.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
+import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 import { getBackgroundTasksForAgent, onBackgroundTasksChanged } from '../../services/background-tasks.js';
 import { registerBashToolCall, completeBashToolCall, clearBashToolCalls } from '../../services/bash-toolcall-registry.js';
@@ -650,6 +651,23 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
       // ⑦ 任务卡完成入口：running → done（成功/失败都终结；结果进 🔴⑦ 埋点供 ⑧ 病历）
       completeDelegation(agentId, { success, reason: 'turn-complete' });
+    }
+
+    // 任务08② 回执订阅播报：**仅下属**完成进入回执管线——
+    //   - 有活跃委派：派活闭环（runtime 通常先到，report-task 第二入口同键去重）；
+    //   - 无委派但挂靠 boss（登记已清理/过期）：防漏报，未匹配同样过判断层留证，不静默丢弃；
+    //   - boss 自身回合结束 / 未挂靠任何 boss 的独立 agent：不属于派活回执，不进入
+    //     （否则每回合都播「完成任务」，是 09 存在要消灭的噪音类别）。
+    const completingAgent = agentService.getAgent(agentId);
+    if (delegation || completingAgent?.bossId) {
+      notifyTaskCompletion({
+        subordinateId: agentId,
+        agentName: completingAgent?.name,
+        success,
+        source: 'runtime',
+        at: Date.now(),
+        broadcast: ctx.broadcast,
+      });
     }
   });
 

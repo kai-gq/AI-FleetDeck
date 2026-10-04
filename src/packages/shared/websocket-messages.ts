@@ -1008,6 +1008,38 @@ export interface AgentTaskCompletedMessage extends WSMessage {
   };
 }
 
+// Task receipt notification (Server -> Client)
+// 任务08② 回执订阅播报：服务端回执管线（登记→匹配→09 判断层）过筛后转发给客户端播报桥。
+// 只在该次判定非 SILENT 时发送（SILENT 在服务端已留 🔴② 埋点，不推送）。
+export interface TaskReceiptMessage extends WSMessage {
+  type: 'task_receipt';
+  payload: {
+    /** 完成任务的 agent（订阅匹配对象）。 */
+    agentId: string;
+    agentName?: string;
+    success: boolean;
+    /** 是否命中待回执登记（派活闭环）；false = 未匹配完成（防漏报路径）。 */
+    matched: boolean;
+    taskId?: string;
+    decisionId?: string;
+    /** 任务摘要（登记时的派活命令，截断 80）。 */
+    taskSummary?: string;
+    /** 播报文本（服务端判断层过筛后的原样透传；客户端权威复判后出口使用）。 */
+    text: string;
+    at: number;
+    /** 入口来源：runtime 回合结束 / report-task 显式回执。 */
+    source: 'runtime' | 'report-task';
+    /** 稳定幂等键：agent-completed:{agentId}:{taskId}（无 taskId 回退 @ts 唯一键）。 */
+    dedupeKey: string;
+    /** 服务端观测判定（DEFAULT_GATES_CONFIG 口径；客户端权威判定以其本地判断层为准）。 */
+    observed: {
+      tier: 'SPEAK' | 'PREPARE' | 'STORE' | 'SILENT';
+      reason: string;
+      score: number;
+    };
+  };
+}
+
 // ============================================================================
 // Work Plan Messages
 // ============================================================================
@@ -1853,6 +1885,7 @@ export type ServerMessage =
   | AgentTaskStartedMessage
   | AgentTaskOutputMessage
   | AgentTaskCompletedMessage
+  | TaskReceiptMessage
   | SkillsUpdateMessage
   | SkillCreatedMessage
   | SkillUpdatedMessage

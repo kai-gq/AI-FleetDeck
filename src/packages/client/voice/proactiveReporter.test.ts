@@ -8,6 +8,9 @@ vi.mock('../store', () => ({
   },
 }));
 
+// 任务08② ⑥3 客户端接缝:spy 保留真实实现,单测里 mockReturnValueOnce 让判断层返回「沉默」
+vi.mock('../../shared/broadcast-gates', { spy: true });
+
 import {
   diffSnapshots,
   formatEvents,
@@ -15,9 +18,10 @@ import {
   signalForEvent,
   type AgentSnapshot,
   type AgentSnapshotEntry,
+  type ProactiveReceipt,
   type ProactiveSource,
 } from './proactiveReporter';
-import { DEFAULT_GATES_CONFIG, computeRelevanceScore } from '../../shared/broadcast-gates';
+import { DEFAULT_GATES_CONFIG, computeRelevanceScore, decideBroadcast } from '../../shared/broadcast-gates';
 import type { AgentStatus } from '../../shared/types';
 
 const NAMES = new Map([
@@ -564,6 +568,184 @@ describe('createProactiveReporter', () => {
     const text = reporter.flushNow();
     expect(text).toContain('小美');
     expect(text).toContain('小林');
+    reporter.stop();
+  });
+
+  // ---- 任务08② 回执订阅(派活闭环):同一队列/闸门 + 同目标覆盖抑制 ----
+
+  function receiptOf(overrides: Partial<ProactiveReceipt> = {}): ProactiveReceipt {
+    return {
+      agentId: 'a',
+      success: true,
+      matched: true,
+      text: '小美 完成任务:登录页',
+      at: Date.now(),
+      dedupeKey: 'agent-completed:a:t-1',
+      taskId: 't-1',
+      ...overrides,
+    };
+  }
+
+  it('⑥3 客户端:mock 判断层返回「沉默」→ 回执不进队列,flush 无口播/无上屏', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({ onStore: (t) => stored.push(t) });
+    reporter.start();
+
+    vi.mocked(decideBroadcast).mockReturnValueOnce({
+      tier: 'SILENT',
+      reason: 'low_relevance',
+      score: 40,
+      disruption: 20,
+      budget: 10,
+      duplicate: false,
+      delta: { seenKeysToAdd: [], dailySpokenDelta: 0, instantSpeechDelta: 0 },
+    });
+
+    const result = reporter.ingestReceipt(receiptOf());
+    expect(result).toMatchObject({ action: 'silent', tier: 'SILENT' });
+    expect(reporter.pendingCount()).toBe(0);
+    expect(reporter.flushNow({ force: true })).toBeNull(); // 无音频路径
+    expect(submitted).toHaveLength(0);
+    expect(stored).toHaveLength(0);
+    reporter.stop();
+  });
+
+  it('回执入队(稳定键)并覆盖抑制同目标 diff:同一次完成只播一次,文本带任务摘要', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire(); // 基线登记 working
+
+    const result = reporter.ingestReceipt(receiptOf());
+    expect(result).toMatchObject({ action: 'queued', tier: 'PREPARE' });
+    expect(reporter.pendingCount()).toBe(1);
+    expect(reporter.gatesStats().spokenToday).toBe(1); // 与 diff 通道同一预算
+
+    // 完成状态 diff 到达:被回执覆盖抑制(不重复入队、不重复计数)
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1);
+    expect(reporter.gatesStats().total).toBe(1);
+
+    const text = reporter.flushNow();
+    expect(text).toContain('小美 完成任务:登录页');
+    expect(text?.split('完成任务').length).toBe(2); // 恰好一次(不双播)
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
+
+  it('覆盖抑制只消费一次:后续新任务的完成 diff 正常入队', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    reporter.ingestReceipt(receiptOf());
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire(); // 覆盖消费
+    expect(reporter.pendingCount()).toBe(1);
+
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '新任务' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(2); // 第二次完成未被抑制
+    reporter.stop();
+  });
+
+  it('新任务开始(→working)清覆盖:旧回执不抑制下一次完成', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'waiting' });
+    vi.advanceTimersByTime(600);
+    fire(); // 基线登记 waiting
+
+    reporter.ingestReceipt(receiptOf()); // 覆盖登记(kind completed)
+    ctl.agents.set('a', { name: '小美', status: 'working' }); // 新任务开始 →working 清覆盖
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(2); // 回执 1 条 + 本次完成 diff 1 条(未被旧覆盖吞掉)
+    reporter.stop();
+  });
+
+  it('diff 先到、回执后到:原位合并升级文本与稳定键,重复回执按键沉默', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1); // 先是 diff 简版文本
+
+    const merged = reporter.ingestReceipt(receiptOf());
+    expect(merged).toMatchObject({ action: 'merged', tier: 'PREPARE' });
+    expect(reporter.pendingCount()).toBe(1); // 原位合并,不新增条目
+    expect(reporter.gatesStats().spokenToday).toBe(1); // 合并不重复扣预算
+
+    const duplicate = reporter.ingestReceipt(receiptOf()); // 同稳定键再来一次
+    expect(duplicate.action).toBe('silent');
+    expect(reporter.pendingCount()).toBe(1);
+
+    const text = reporter.flushNow();
+    expect(text).toContain('小美 完成任务:登录页');
+    expect(text?.split('完成任务').length).toBe(2); // 只播一次
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
+
+  it('预算统一:回执与 diff 共用当日预算(回执占满后 diff 降级 STORE 上屏)', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 1 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    reporter.ingestReceipt(receiptOf()); // completed → PREPARE,占满预算
+    expect(reporter.gatesStats().spokenToday).toBe(1);
+
+    ctl.agents.set('b', { name: '阿强', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('b', { name: '阿强', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1); // 队列里只有回执
+    expect(stored).toHaveLength(1); // 预算用尽 → 仅上屏
+    expect(stored[0]).toContain('阿强');
+    reporter.stop();
+  });
+
+  it('STORE 档回执上屏后,同目标 diff 被覆盖抑制(同一完成不上屏两条)', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 0 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    const result = reporter.ingestReceipt(receiptOf());
+    expect(result).toMatchObject({ action: 'stored', tier: 'STORE' });
+    expect(stored).toHaveLength(1);
+
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(stored).toHaveLength(1); // diff 被抑制,不重复上屏
+    expect(reporter.pendingCount()).toBe(0);
     reporter.stop();
   });
 });

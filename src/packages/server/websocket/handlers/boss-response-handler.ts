@@ -12,6 +12,7 @@ import { getLastBossCommand, buildCustomAgentConfig } from './command-handler.js
 import { getTaskId, newTaskId } from '../../utils/trace-context.js';
 import { logDelegation, logTaskCardStatus } from '../../services/activity-log.js';
 import { formatTaskCard, normalizeTaskCard } from '../../services/task-card-service.js';
+import { registerPendingReceipt, resetPendingReceiptsForTests } from './pending-receipt-registry.js';
 
 const log = logger.ws;
 
@@ -77,6 +78,7 @@ export function completeDelegation(
 export function resetBossDelegationStateForTests(): void {
   processedDelegations.clear();
   activeDelegations.clear();
+  resetPendingReceiptsForTests(); // 任务08②：待回执登记随解析器状态一并复位
 }
 
 export type BroadcastFn = (message: ServerMessage) => void;
@@ -425,6 +427,16 @@ export function parseBossDelegation(
         taskId: delegationTaskId,
         decisionId: decision.id,
         taskCard,
+      });
+
+      // 任务08②：登记待回执订阅（独立于委派追踪——回执时 activeDelegations 被清理，
+      // 本登记保留到匹配/TTL 过期，供完成事件组稳定去重键 + 播报文本）
+      registerPendingReceipt({
+        targetAgentId: decision.selectedAgentId,
+        bossId: agentId,
+        taskId: delegationTaskId,
+        decisionId: decision.id,
+        taskSummary: decision.userCommand,
       });
 
       // 任务 02 埋点：基础四类 ③ —— Boss 拆解写入（派活出站）

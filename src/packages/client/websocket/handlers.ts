@@ -11,6 +11,7 @@ import { cb } from './callbacks';
 import { sendMessage } from './send';
 import { playCompletionSound, startQuestionAlert, stopQuestionAlert } from '../utils/notificationSounds';
 import { consumeLocalAgentCreationIntent } from './agentCreationIntent';
+import { emitTaskReceipt } from '../voice/taskReceiptBus';
 import type { PluginOutputEnvelope } from '../plugins/types';
 
 /** 0..10 volume level for notification sounds, or 0 when the feature is off. */
@@ -878,6 +879,12 @@ export function handleServerMessage(message: ServerMessage): void {
       };
       console.log(`[WebSocket] Agent task completed for boss ${bossId}, subordinate ${subordinateId}, success: ${success}`);
       store.handleAgentTaskCompleted(bossId, subordinateId, success);
+      break;
+    }
+
+    case 'task_receipt': {
+      // 任务08②:派活闭环回执 → 播报订阅总线(VoiceCompanion 转 proactiveReporter 权威判定+覆盖抑制)
+      emitTaskReceipt(message.payload);
       break;
     }
 
