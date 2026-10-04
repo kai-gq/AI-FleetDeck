@@ -35,8 +35,12 @@ const EXCLUDES = [
   'src/packages/client/hooks/__tests__/useKeyboardShortcuts.test.ts',
 ];
 
+/** 归一为仓库相对路径:vitest JSON 报告的 name 是绝对路径(含机器盘符),不能原样入白名单。 */
 function normFile(p) {
-  return p.replace(/\\/g, '/').replace(/^\.\//, '');
+  let f = p.replace(/\\/g, '/').replace(/^\.\//, '');
+  const root = REPO_ROOT.replace(/\\/g, '/');
+  if (f.startsWith(`${root}/`)) f = f.slice(root.length + 1);
+  return f;
 }
 
 function keyOf(file, test) {

@@ -1,7 +1,368 @@
 {
   "version": 1,
-  "capturedAt": null,
-  "capturedFrom": null,
-  "note": "骨架占位：白名单由 W5 波次门在干净树上 `node tools/test-baseline/check.mjs --record` 首次生成（判定权归本文件，详见 README.md）。白名单外新失败=阻塞；白名单内变绿=必须同步删除。",
-  "entries": []
+  "capturedAt": "2026-10-04T09:48:45.426Z",
+  "capturedFrom": "33dda02d",
+  "note": "Windows 环境型既有失败基线（判定权归本文件,详见 README.md）。白名单外新失败=阻塞;白名单内变绿=必须同步删除。",
+  "entries": [
+    {
+      "file": "src/packages/server/codex/json-event-parser.test.ts",
+      "test": "CodexJsonEventParser enriches inferred shell edits with git-backed old/new content",
+      "reason": "①PNG 落盘路径断言正斜杠(/uploads/)——Windows 反斜杠不符；②git 回填用例基于 POSIX shell 命令(/usr/bin/zsh)——Windows 不符",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/codex/json-event-parser.test.ts",
+      "test": "CodexJsonEventParser renders image_generation_end as an image reference instead of base64 JSON",
+      "reason": "①PNG 落盘路径断言正斜杠(/uploads/)——Windows 反斜杠不符；②git 回填用例基于 POSIX shell 命令(/usr/bin/zsh)——Windows 不符",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/grok/session-watcher.test.ts",
+      "test": "encodeGrokProjectKey url-encodes absolute paths like the CLI",
+      "reason": "盘符路径 URL 编码差异：E%3A%5Ctmp ≠ POSIX %2Ftmp",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/pi/rpc/pi-rpc-runner.test.ts",
+      "test": "Pi RPC process isolation does not kill an unowned host session absent from the sandbox recovery store",
+      "reason": "tmux 隔离在 Windows 走包装器/被禁用：enabled=true 后 listSessions 未被调用",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/exec.test.ts",
+      "test": "getRunningTasksSnapshot (WS initial state) lets only the owning agent cancel a running streamed task",
+      "reason": "用例命令用 POSIX 工具（sleep 10），Windows 上命令立即失败 → exitCode=1 ≠ 取消态 null",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "findFileWithFallbacks — workspace cwd (child-anchor) keeps the 404 small: child-anchor probes are summarized, not listed",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "findFileWithFallbacks — workspace cwd (child-anchor) resolves a cwd-relative reference into the shallowest repo that has it",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "findFileWithFallbacks falls back to suffix-match for a deep nested path with renamed top segment",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "findFileWithFallbacks invalidates the suffix-walk cache after the TTL expires",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "findFileWithFallbacks resolves via area-suffix-match when leading segments do not match",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "HTML preview dependency rewriting preserves external/data URLs and rewrites CSS url dependencies",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "HTML preview dependency rewriting rewrites linked CSS, scripts, images and root-relative assets with auth",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "HTML preview dependency rewriting rewrites local ES module imports without touching packages or remote modules",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath falls back to the server cwd when baseDir is relative (untrusted)",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath falls back to the server cwd when no baseDir is provided",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath resolves \"..\" traversal correctly",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath resolves \"./\" prefixed paths against baseDir",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath resolves a simple relative path against baseDir",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath resolves nested relative paths against baseDir",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/routes/files.test.ts",
+      "test": "resolveAndValidateFilePath resolves the user example: four levels of \"../\" out of a project cwd",
+      "reason": "断言依赖 POSIX 路径形态（path=%2Fworkspace%2F...）及对应相对路径解析（15 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/archive-listing.test.ts",
+      "test": "CLI listing parsers parses `bsdtar -tvf` ls-style lines (with and without year, symlinks)",
+      "reason": "时区差异：UTC 时间戳 vs 本地 +8 的日期前缀断言（2024-01-02T16Z vs /^2024-01-03/）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/cad-service.test.ts",
+      "test": "normalizeCadJobRequest rejects output directories that are symlinks to another tree",
+      "reason": "Windows 创建 symlink 需特权（EPERM: operation not permitted, symlink）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/image-service.test.ts",
+      "test": "filename derivation numbers a batch and never overwrites an existing file",
+      "reason": "路径分隔符：out\fox.png（反斜杠）≠ 断言 /out/fox.png",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/plugin-shell-command-service.test.ts",
+      "test": "PluginShellCommandService materializes sudo helpers without writing a password into files or environment",
+      "reason": "Unix 权限位断言（438/384 = 0o666/0o600）在 Windows 无意义",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/plugin-shell-command-service.test.ts",
+      "test": "PluginShellCommandService persists validated command definitions with private permissions",
+      "reason": "Unix 权限位断言（438/384 = 0o666/0o600）在 Windows 无意义",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/session-transfer-service.test.ts",
+      "test": "generic harness migration writers writes a Codex rollout (session_meta + response_item messages) under the local-date directory",
+      "reason": "盘符冒号不可作目录名（E:workspaceproject → mkdir ENOENT）+ 会话文件形态平台差异（4 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/session-transfer-service.test.ts",
+      "test": "generic harness migration writers writes a Grok session directory (chat_history + summary) with <user_query> wrapping and rolls it back cleanly",
+      "reason": "盘符冒号不可作目录名（E:workspaceproject → mkdir ENOENT）+ 会话文件形态平台差异（4 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/session-transfer-service.test.ts",
+      "test": "generic harness migration writers writes a resumable Claude Code transcript (uuid chain, text-only blocks) from a Pi source",
+      "reason": "盘符冒号不可作目录名（E:workspaceproject → mkdir ENOENT）+ 会话文件形态平台差异（4 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/session-transfer-service.test.ts",
+      "test": "native session to Pi transfer creates a new validated Pi v3 session without reusing the native id",
+      "reason": "盘符冒号不可作目录名（E:workspaceproject → mkdir ENOENT）+ 会话文件形态平台差异（4 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "detectRunner detects a Maven project (pom.xml + src/test) and picks the module root",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "detectRunner does not offer a run for a non-test file, nor a test file outside src/test",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "detectRunner returns not testable for a plain temp directory",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "detectRunner scopes to a single class when a test file under src/test is targeted",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "findCucumberRunner picks the runner that lists the feature (or its folder), preferring untagged fallbacks",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "phpunit detection detects a project with a phpunit dependency in composer.json",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "phpunit detection detects via phpunit.xml.dist even without the composer dep",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "phpunit detection does not detect a composer project without phpunit",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "phpunit detection scopes to a single test file",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "scanTests (phpunit) inventories *Test.php classes under tests/, skipping abstract bases",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "scanTests (vitest) inventories vitest test files with their test names",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "scanTests includes Cucumber/TestNG runner classes as class-level runnables",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "scanTests inventories test classes/methods under a Maven module",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "scanTests reports not testable (with an error) for a non-project folder",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "vitest detection detects a project with vitest in devDependencies",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "vitest detection does not detect a node project without vitest",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "src/packages/server/services/test-runner-service.test.ts",
+      "test": "vitest detection scopes to a single test file",
+      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent Agent Status should have agent in idle status initially",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent Agent Status should report agent as not running before any command",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent sendCommand with valid agent should not throw when sending command to valid agent",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent sendCommand with valid agent should update agent status when command starts",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent Status Sync should handle sync for non-existent agent",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent Status Sync should sync agent status without error",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Claude Service with Agent Status Sync should sync all agents without error",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle command with special characters",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle disableTools parameter",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle empty command",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle forceNewSession parameter",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle systemPrompt parameter",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle unicode command",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    },
+    {
+      "file": "tests/integration/claude-service.test.ts",
+      "test": "Stdin Messaging via Claude Service sendCommand when not running should attempt to start new session when agent is idle",
+      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
+      "since": "2026-10-04"
+    }
+  ]
 }
