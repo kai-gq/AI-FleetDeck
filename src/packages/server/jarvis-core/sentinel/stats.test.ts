@@ -21,7 +21,8 @@ import {
   normalizeDayStats,
   startOfLocalDay,
 } from './index.js';
-import type { JarvisLogger, SentinelDayStats } from './index.js';
+import type { SentinelDayStats } from './index.js';
+import type { JarvisLogger } from '../executors.js';
 import { DEFAULT_SENTINEL_THRESHOLDS } from './index.js';
 
 /** 本地时刻构造（月 1 起）。 */
@@ -224,17 +225,17 @@ describe('collectDayMetricsSafely（失败隔离，永不上抛）', () => {
 });
 
 describe('替身端口（生产采集延后，mock 先行）', () => {
-  it('静态端口：数组/对象两种入参、未知日 → null、返回副本不改源', () => {
+  it('静态端口：数组/对象两种入参、未知日 → null、返回副本不改源', async () => {
     const arrayPort = createStaticStatsProvider([stats('2026-10-4')]);
     const objectPort = createStaticStatsProvider({ '2026-10-5': { proactiveBroadcasts: 5, ignored: 1 } });
 
-    expect(arrayPort.readDay('2026-10-4')).toMatchObject({ proactiveBroadcasts: 100 });
-    expect(arrayPort.readDay('2026-10-9')).toBeNull();
-    expect(objectPort.readDay('2026-10-5')).toMatchObject({ day: '2026-10-5', proactiveBroadcasts: 5 });
+    expect(await arrayPort.readDay('2026-10-4')).toMatchObject({ proactiveBroadcasts: 100 });
+    expect(await arrayPort.readDay('2026-10-9')).toBeNull();
+    expect(await objectPort.readDay('2026-10-5')).toMatchObject({ day: '2026-10-5', proactiveBroadcasts: 5 });
 
-    const first = arrayPort.readDay('2026-10-4')!;
+    const first = (await arrayPort.readDay('2026-10-4'))!;
     first.proactiveBroadcasts = 999;
-    expect(arrayPort.readDay('2026-10-4')?.proactiveBroadcasts).toBe(100);
+    expect((await arrayPort.readDay('2026-10-4'))?.proactiveBroadcasts).toBe(100);
   });
 
   it('createUnavailableStatsProvider 恒 null（生产未接线形态）', async () => {

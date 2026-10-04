@@ -28,13 +28,13 @@ import {
   statsDegradedEvent,
 } from './index.js';
 import type {
-  JarvisLogger,
   SentinelConfig,
   SentinelDayStats,
   SentinelEvent,
   SentinelPhaseState,
   SentinelStatsPort,
 } from './index.js';
+import type { JarvisLogger } from '../executors.js';
 
 const silentLogger: JarvisLogger = { log: () => {}, debug: () => {}, warn: () => {}, error: () => {} };
 
