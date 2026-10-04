@@ -10,11 +10,32 @@
  *   [系统事件] 过去 3 分钟:① 小美 完成任务:登录页改版;② 阿强 出错:构建失败
  * 交给组件 → POST /api/voice-companion/process { text, event:true }。
  *
- * diffSnapshots / formatEvents 为纯函数,单测覆盖;上报器本体只做计时与订阅。
+ * 09·B 播报分级(四闸门 = shared/broadcast-gates 纯函数):快照 diff 事件在**进队时**
+ * 构造 Signal 判定档位——SPEAK / PREPARE 进播报队列(准入时按决策增量预扣预算,仅此一次),
+ * STORE 走上屏通道不口播(队列溢出丢最旧前同样先 STORE,沉默≠丢弃),SILENT 仅记幂等键;
+ * **出队 flush** 只做时机放行(深夜/focus 挂起到白天,破例线以上除外),不再过预算闸、不再扣预算。
+ * 决策明细留在内存统计(gatesStats),对应 ⑭ 观测点⑥(本地,不新建服务端通道)。
+ *
+ * diffSnapshots / formatEvents / signalForEvent 为纯函数,单测覆盖;上报器本体只做计时与订阅。
  */
 
 import { store } from '../store';
 import type { AgentStatus } from '../../shared/types';
+import {
+  DEFAULT_GATES_CONFIG,
+  applyGatesDelta,
+  createGatesState,
+  decideBroadcast,
+  isWithinWindow,
+  minutesOfDay,
+  type BroadcastDecision,
+  type BroadcastReason,
+  type BroadcastTier,
+  type EnvironmentContext,
+  type GatesConfig,
+  type GatesState,
+  type Signal,
+} from '../../shared/broadcast-gates';
 
 /** 单个 agent 的两个关键字段(status + taskLabel)与错误串。 */
 export interface AgentSnapshotEntry {
@@ -34,10 +55,54 @@ export interface ProactiveEvent {
   text: string;
 }
 
+/** 队列条目:准入时已过闸门并预扣预算,出队只做时机放行。 */
+interface QueuedEvent {
+  event: ProactiveEvent;
+  /** 准入档位:SPEAK(立即口播,已判定可开口)/ PREPARE(攒批待时机)。 */
+  tier: 'SPEAK' | 'PREPARE';
+  /** 准入评分(出队破例线判断用,不放回闸门重算)。 */
+  score: number;
+}
+
+/** 决策观测记录(⑭ 观测点⑥:各闸门打分 → 档位 → 理由;仅本地内存)。 */
+export interface BroadcastDecisionRecord {
+  at: number;
+  kind: ProactiveEventKind;
+  agentId: string;
+  tier: BroadcastTier;
+  reason: BroadcastReason;
+  score: number;
+  disruption: number;
+  budget: number;
+}
+
+/** 本会话决策统计(内存;真正分析上报通道待任务19,不新建服务端通道)。 */
+export interface ProactiveGatesStats {
+  /** 累计判定条数。 */
+  total: number;
+  /** 各档位计数。 */
+  tierCounts: Record<BroadcastTier, number>;
+  /** 各理由计数。 */
+  reasonCounts: Partial<Record<BroadcastReason, number>>;
+  /** 最近 MAX_DECISION_RECORDS 条明细(最新在后)。 */
+  recent: BroadcastDecisionRecord[];
+  /** 当前幂等键数量(裁剪后;残余风险②观测)。 */
+  seenKeysCount: number;
+  /** 今日已占主预算 / 口播子配额(预扣后)。 */
+  spokenToday: number;
+  instantSpeakToday: number;
+}
+
 const MAX_EVENTS = 12;
 const DIFF_THROTTLE_MS = 500;
 /** 忙碌时的推迟重试间隔。 */
 const BUSY_RETRY_MS = 5_000;
+/** 深夜/focus 挂起时的放行检查间隔(初始值非实测:5 分钟粒度,挂起期间不打扰)。 */
+const QUIET_HOLD_RETRY_MS = 5 * 60_000;
+/** 幂等键裁剪上限(残余风险②;初始值非实测:约最近 200 条事件,远超重复去重窗口)。 */
+const MAX_SEEN_KEYS = 200;
+/** 决策明细环形上限(初始值非实测:仅本地观测,够最近一次标定回看)。 */
+const MAX_DECISION_RECORDS = 100;
 
 /** 纯函数:两次快照对比,产出事件(不依赖 store / 计时器,便于单测)。 */
 export function diffSnapshots(
@@ -104,6 +169,37 @@ function truncate(text: string, max: number): string {
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
+/**
+ * 纯函数:快照事件 → 闸门信号。
+ *
+ * 评分分量(urgency / relevance / certainty)为初始值非实测,待 ⑭ 观测 / ⑮ 标定回写:
+ *   failed       90/80/90            → 87 分,urgent,立即口播;
+ *   waiting      85/80/90 + 强时效   → 85 分,可立即口播(等你授权才能继续);
+ *   completed    60/70/95            → 70 分,攒批到自然开口点;
+ *   task-changed 40/80/85            → 61 分,攒批(仅 scope=all 产生)。
+ * dedupeKey 用现有可得值占位且逐次唯一(`agent-{kind}:{agentId}@{ts}`,防误去重丢事件);
+ * 稳定 `{taskId}` 键形态依赖任务 10,延后替换(⑤5)。
+ */
+export function signalForEvent(event: ProactiveEvent): Signal {
+  const base = {
+    source: 'agent' as const,
+    kind: `agent_${event.kind}`,
+    ts: event.at,
+    dedupeKey: `agent-${event.kind}:${event.agentId}@${event.at}`,
+    text: event.text,
+  };
+  switch (event.kind) {
+    case 'failed':
+      return { ...base, urgency: 90, relevance: 80, certainty: 90 };
+    case 'waiting':
+      return { ...base, urgency: 85, relevance: 80, certainty: 90, timeSensitive: true };
+    case 'completed':
+      return { ...base, urgency: 60, relevance: 70, certainty: 95 };
+    case 'task-changed':
+      return { ...base, urgency: 40, relevance: 80, certainty: 85 };
+  }
+}
+
 // ============================================================================
 // 上报器
 // ============================================================================
@@ -132,6 +228,17 @@ export interface ProactiveReporterOptions {
   isBusy: () => boolean;
   /** 提交合并文本(组件负责调大脑与播报)。 */
   onSubmit: (text: string) => void;
+  /** STORE 档出口:仅上屏(不口播);缺省时只在 dev 控制台留痕。 */
+  onStore?: (text: string) => void;
+  /**
+   * 四闸门配置(每次判定现读,设置改动即时生效,无需重建上报器)。
+   * 默认 DEFAULT_GATES_CONFIG(06-11 §4 建议值非实测)。
+   */
+  gatesConfig?: () => GatesConfig;
+  /** 当前环境快照(闸门②);客户端目前只有 speaking 可用,其余字段缺数据源。 */
+  gatesEnv?: () => EnvironmentContext;
+  /** 判定时刻注入(单测用);默认 Date.now。 */
+  now?: () => number;
   /** 数据源(默认 store;测试注入)。 */
   source?: ProactiveSource;
 }
@@ -139,20 +246,34 @@ export interface ProactiveReporterOptions {
 export interface ProactiveReporterHandle {
   start: () => void;
   stop: () => void;
-  /** 尝试 flush;返回提交的文本(null = 无事可报 / 忙碌推迟)。force 跳过忙碌判定。 */
+  /** 尝试 flush;返回提交的文本(null = 无事可报 / 忙碌或深夜挂起)。force 跳过忙碌与静默时段判定。 */
   flushNow: (opts?: { force?: boolean }) => string | null;
   pendingCount: () => number;
+  /** ⑭ 观测点⑥:本地决策统计(内存快照)。 */
+  gatesStats: () => ProactiveGatesStats;
 }
 
 export function createProactiveReporter(options: ProactiveReporterOptions): ProactiveReporterHandle {
   const source = options.source ?? storeSource();
+  /** 显式取时入口(残余风险③):一次取时注入 GatesState.now,不在多处隐式取时。 */
+  const nowMs = () => (options.now ? options.now() : Date.now());
   let snapshot: AgentSnapshot = new Map();
-  let events: ProactiveEvent[] = [];
+  // 播报队列只放 SPEAK/PREPARE(STORE/SILENT 在准入时已分流,见 admitEvents)
+  let events: QueuedEvent[] = [];
   let unsubscribe: (() => void) | null = null;
   // 裸定时器(node 测试环境无 window);ReturnType 兼容 DOM(number)与 Node(Timeout)
   let quietTimer: ReturnType<typeof setTimeout> | null = null;
   let intervalTimer: ReturnType<typeof setInterval> | null = null;
   let lastDiffAt = 0;
+  // 四闸门显式状态(预算/幂等键/环境;纯函数契约见 shared/broadcast-gates)。
+  // stats(忽略率/采纳率)暂无数据源(⑭ 未接入),保持 0 = 自适应不加不减;待 ⑭/⑮ 喂真值。
+  let gatesState: GatesState = createGatesState({ now: nowMs(), config: currentGatesConfig() });
+  let gatesDayKey = dayKeyOf(nowMs());
+  // 决策观测(⑭ 观测点⑥;仅本地内存,不新建服务端通道)
+  let decisionTotal = 0;
+  const tierCounts: Record<BroadcastTier, number> = { SPEAK: 0, PREPARE: 0, STORE: 0, SILENT: 0 };
+  const reasonCounts: Partial<Record<BroadcastReason, number>> = {};
+  const decisionRecords: BroadcastDecisionRecord[] = [];
 
   function takeSnapshot(): AgentSnapshot {
     const map: AgentSnapshot = new Map();
@@ -172,6 +293,129 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
     return map;
   }
 
+  // ---- 四闸门接线(09·B)----
+
+  function currentGatesConfig(): GatesConfig {
+    return options.gatesConfig ? options.gatesConfig() : DEFAULT_GATES_CONFIG;
+  }
+
+  function currentEnv(): EnvironmentContext {
+    return options.gatesEnv ? options.gatesEnv() : {};
+  }
+
+  /** 本地日期键(YYYY-M-D):跨日重置预算计数用。 */
+  function dayKeyOf(now: number): string {
+    const d = new Date(now);
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  }
+
+  function trimSeenKeys(keys: readonly string[]): readonly string[] {
+    return keys.length <= MAX_SEEN_KEYS ? keys : keys.slice(-MAX_SEEN_KEYS);
+  }
+
+  /** 跨日重置主预算 / 口播子配额(每日配额按日自然滚动),并顺手裁剪幂等键。 */
+  function refreshGatesDay(now: number): void {
+    const key = dayKeyOf(now);
+    if (key === gatesDayKey) return;
+    gatesDayKey = key;
+    gatesState = {
+      ...gatesState,
+      spokenToday: 0,
+      instantSpeakToday: 0,
+      seenKeys: trimSeenKeys(gatesState.seenKeys),
+    };
+  }
+
+  /** 把决策增量喂回状态(幂等键裁剪后,残余风险②)。 */
+  function advanceGates(decision: BroadcastDecision): void {
+    const next = applyGatesDelta(gatesState, decision.delta);
+    gatesState =
+      next.seenKeys.length > MAX_SEEN_KEYS ? { ...next, seenKeys: next.seenKeys.slice(-MAX_SEEN_KEYS) } : next;
+  }
+
+  /** 决策打点:内存计数 + 环形明细 + dev 控制台(⑭ 观测点⑥)。 */
+  function recordDecision(event: ProactiveEvent, decision: BroadcastDecision, now: number): void {
+    decisionTotal += 1;
+    tierCounts[decision.tier] += 1;
+    reasonCounts[decision.reason] = (reasonCounts[decision.reason] ?? 0) + 1;
+    decisionRecords.push({
+      at: now,
+      kind: event.kind,
+      agentId: event.agentId,
+      tier: decision.tier,
+      reason: decision.reason,
+      score: decision.score,
+      disruption: decision.disruption,
+      budget: decision.budget,
+    });
+    if (decisionRecords.length > MAX_DECISION_RECORDS) {
+      decisionRecords.splice(0, decisionRecords.length - MAX_DECISION_RECORDS);
+    }
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
+      console.debug('[播报分级]', event.kind, `${decision.tier}/${decision.reason}`, {
+        score: decision.score,
+        disruption: decision.disruption,
+        budget: decision.budget,
+      });
+    }
+  }
+
+  /** STORE 档出口:上屏(不口播);未接出口时仅在浏览器 dev 留痕。 */
+  function emitStore(stored: ProactiveEvent[], now: number): void {
+    const text = formatEvents(stored, now);
+    if (!text) return;
+    if (options.onStore) {
+      options.onStore(text);
+      return;
+    }
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
+      console.debug('[主动汇报] 仅上屏(STORE):', text);
+    }
+  }
+
+  /**
+   * 事件过四闸门并分流(进队时判定):SPEAK/PREPARE 返回给调用方进队列,
+   * STORE 立刻走上屏, SILENT 只留幂等键。预算在此按决策增量预扣一次——
+   * 出队 flush 不再过闸(残余风险①)。
+   */
+  function admitEvents(fresh: ProactiveEvent[], now: number): QueuedEvent[] {
+    refreshGatesDay(now);
+    // 显式取时一次注入(残余风险③):深夜/focus 判定只看 state.now,勿多处隐式取时
+    gatesState = { ...gatesState, now, env: currentEnv(), config: currentGatesConfig() };
+    const queued: QueuedEvent[] = [];
+    const stored: ProactiveEvent[] = [];
+    for (const event of fresh) {
+      const decision = decideBroadcast(signalForEvent(event), gatesState);
+      advanceGates(decision);
+      recordDecision(event, decision, now);
+      if (decision.tier === 'SPEAK' || decision.tier === 'PREPARE') {
+        queued.push({ event, tier: decision.tier, score: decision.score });
+      } else if (decision.tier === 'STORE') {
+        stored.push(event);
+      }
+      // SILENT:不进队列也不上屏(低相关/重复),幂等键已随 delta 记入
+    }
+    if (stored.length > 0) emitStore(stored, now);
+    return queued;
+  }
+
+  /**
+   * 出队放行判定(残余风险①):只查时机(深夜/focus),**不再过预算闸、不再扣预算**——
+   * 准入时已按决策增量预扣一次,这里重复扣会让每日预算实际腰斩。
+   * 队列含 SPEAK(准入已判定可立即开口)时不拦;破例线(评分 >90)以上同样放行。
+   */
+  function shouldHoldForQuietHours(now: number): boolean {
+    if (events.some((q) => q.tier === 'SPEAK')) return false;
+    const config = currentGatesConfig();
+    const minute = minutesOfDay(now);
+    const quiet =
+      isWithinWindow(minute, config.deepNight) ||
+      config.focusWindows.some((w) => isWithinWindow(minute, w));
+    if (!quiet) return false;
+    const maxScore = events.reduce((max, q) => Math.max(max, q.score), 0);
+    return maxScore <= config.quietBypassScore;
+  }
+
   function scheduleQuietFlush(delay = options.quietWindowMs): void {
     if (quietTimer !== null) clearTimeout(quietTimer);
     quietTimer = setTimeout(() => {
@@ -181,35 +425,51 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
   }
 
   function flushNow(opts: { force?: boolean } = {}): string | null {
-    const text = formatEvents(events, Date.now());
-    if (!text) return null;
+    if (events.length === 0) return null;
+    const now = nowMs();
     if (!opts.force && options.isBusy()) {
       // 忙碌:等下一轮(静默窗口后重试)
       scheduleQuietFlush(BUSY_RETRY_MS);
       return null;
     }
+    if (!opts.force && shouldHoldForQuietHours(now)) {
+      // 深夜/focus:攒批条目挂起到静默时段结束(检查间隔 QUIET_HOLD_RETRY_MS)
+      scheduleQuietFlush(QUIET_HOLD_RETRY_MS);
+      return null;
+    }
+    const text = formatEvents(events.map((q) => q.event), now);
+    if (!text) return null;
     events = [];
     options.onSubmit(text);
     return text;
   }
 
   function tick(): void {
-    const now = Date.now();
+    const now = nowMs();
     if (now - lastDiffAt < DIFF_THROTTLE_MS) return; // 高频 notify 节流
     lastDiffAt = now;
     const next = takeSnapshot();
     const fresh = diffSnapshots(snapshot, next, options.scope, now, names());
     snapshot = next;
     if (fresh.length === 0) return;
-    events.push(...fresh);
-    if (events.length > MAX_EVENTS) events = events.slice(-MAX_EVENTS);
+    const queued = admitEvents(fresh, now);
+    if (queued.length === 0) return; // 全部 STORE/SILENT:已上屏或幂等跳过,无播报队列
+    events.push(...queued);
+    if (events.length > MAX_EVENTS) {
+      // 12 条上限丢最旧,但先落 STORE 上屏(沉默≠丢弃,⑤4)
+      const dropped = events.slice(0, events.length - MAX_EVENTS);
+      events = events.slice(-MAX_EVENTS);
+      emitStore(dropped.map((q) => q.event), now);
+    }
     scheduleQuietFlush();
   }
 
   function start(): void {
     if (unsubscribe) return;
+    const now = nowMs();
+    refreshGatesDay(now); // 跨日启动时先归零当日预算
     snapshot = takeSnapshot(); // 基线:启动前的状态不产生事件
-    lastDiffAt = Date.now();
+    lastDiffAt = now;
     unsubscribe = source.subscribe(() => tick());
     intervalTimer = setInterval(() => {
       flushNow();
@@ -232,5 +492,19 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
     events = [];
   }
 
-  return { start, stop, flushNow, pendingCount: () => events.length };
+  return {
+    start,
+    stop,
+    flushNow,
+    pendingCount: () => events.length,
+    gatesStats: () => ({
+      total: decisionTotal,
+      tierCounts: { ...tierCounts },
+      reasonCounts: { ...reasonCounts },
+      recent: decisionRecords.slice(),
+      seenKeysCount: gatesState.seenKeys.length,
+      spokenToday: gatesState.spokenToday,
+      instantSpeakToday: gatesState.instantSpeakToday,
+    }),
+  };
 }

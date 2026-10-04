@@ -27,6 +27,7 @@ import {
   type VoiceProcessStreamFinal,
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
+import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import '../styles/components/voice-companion.scss';
 
 const LEADER_KEY = 'tide:voice-companion:leader';
@@ -327,6 +328,10 @@ export function VoiceCompanion({ className }: { className?: string }) {
       intervalMs: Math.max(60_000, Math.round(config.proactive.intervalMinutes * 60_000)),
       scope: config.proactive.scope,
       isBusy: () => busyRef.current || thinkingRef.current || ttsSpeakingRef.current,
+      // 09·B 播报分级:STORE 档走上屏通道(不口播);分级参数现读 localStorage,改设置即时生效
+      onStore: (text) => pushEntry('system', text),
+      gatesConfig: () => toGatesConfig(loadBroadcastGatesSettings()),
+      gatesEnv: () => ({ speaking: ttsSpeakingRef.current }),
       onSubmit: (text) => {
         void (async () => {
           try {
@@ -421,6 +426,8 @@ export function VoiceCompanion({ className }: { className?: string }) {
     w.__voiceCompanionProactive = {
       flushNow: () => reporterRef.current?.flushNow({ force: true }) ?? null,
       pendingCount: () => reporterRef.current?.pendingCount() ?? 0,
+      // ⑭ 观测点⑥:本地决策统计(各闸门打分→档位→理由;内存快照)
+      stats: () => reporterRef.current?.gatesStats() ?? null,
     };
     return () => {
       delete w.__voiceCompanionState;

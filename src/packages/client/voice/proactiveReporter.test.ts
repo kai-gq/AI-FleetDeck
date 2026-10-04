@@ -12,10 +12,12 @@ import {
   diffSnapshots,
   formatEvents,
   createProactiveReporter,
+  signalForEvent,
   type AgentSnapshot,
   type AgentSnapshotEntry,
   type ProactiveSource,
 } from './proactiveReporter';
+import { DEFAULT_GATES_CONFIG, computeRelevanceScore } from '../../shared/broadcast-gates';
 import type { AgentStatus } from '../../shared/types';
 
 const NAMES = new Map([
@@ -169,6 +171,8 @@ describe('createProactiveReporter', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // 固定到本地 15:00(不在深夜/focus 窗口):分级判定与真实时钟无关,测试可复现
+    vi.setSystemTime(new Date(2026, 9, 4, 15, 0));
     ctl = { agents: new Map(), listeners: new Set() };
     submitted = [];
     busy = false;
@@ -315,5 +319,251 @@ describe('createProactiveReporter', () => {
     expect(reporter.flushNow()).toBeNull();
     expect(reporter.flushNow({ force: true })).toBeNull();
     expect(submitted).toHaveLength(0);
+  });
+
+  // ---- 09·B 四闸门接线 ----
+
+  it('signalForEvent 按事件类型给评分分量(初始值非实测,防回归)', () => {
+    expect(computeRelevanceScore(signalForEvent({ at: 1, kind: 'failed', agentId: 'a', text: 'x' }))).toBe(87);
+    const waiting = signalForEvent({ at: 2, kind: 'waiting', agentId: 'a', text: 'x' });
+    expect(computeRelevanceScore(waiting)).toBe(85);
+    expect(waiting.timeSensitive).toBe(true);
+    expect(computeRelevanceScore(signalForEvent({ at: 3, kind: 'completed', agentId: 'a', text: 'x' }))).toBe(70);
+    expect(computeRelevanceScore(signalForEvent({ at: 4, kind: 'task-changed', agentId: 'a', text: 'x' }))).toBe(61);
+  });
+
+  it('failed 过闸为 SPEAK(立即口播)并记录决策观测', () => {
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'error', lastError: '构建失败' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    expect(reporter.pendingCount()).toBe(1);
+    const stats = reporter.gatesStats();
+    expect(stats.total).toBe(1);
+    expect(stats.tierCounts.SPEAK).toBe(1);
+    expect(stats.reasonCounts.urgent).toBe(1);
+    expect(stats.recent[0]).toMatchObject({ kind: 'failed', tier: 'SPEAK', reason: 'urgent', score: 87 });
+    expect(stats.spokenToday).toBe(1);
+    expect(stats.instantSpeakToday).toBe(1);
+
+    const text = reporter.flushNow();
+    expect(text).toContain('小美 出错');
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
+
+  it('STORE 档(预算用尽)走上屏通道:不进播报队列、不口播', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 0 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    expect(reporter.pendingCount()).toBe(0);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toContain('小美 完成任务');
+    expect(reporter.gatesStats().reasonCounts.budget_exhausted).toBe(1);
+    vi.advanceTimersByTime(60_000);
+    expect(submitted).toHaveLength(0); // 只上屏,不口播
+    reporter.stop();
+  });
+
+  it('低相关(SILENT)不进队列也不上屏,仅记幂等键', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      scope: 'all',
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, relevanceThreshold: 70 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '任务一' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '任务二' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    expect(reporter.pendingCount()).toBe(0);
+    expect(stored).toHaveLength(0);
+    const stats = reporter.gatesStats();
+    expect(stats.tierCounts.SILENT).toBe(1);
+    expect(stats.reasonCounts.low_relevance).toBe(1);
+    expect(stats.seenKeysCount).toBe(1);
+    reporter.stop();
+  });
+
+  it('预算预扣只发生一次:出队 flush 不再扣预算、不再过预算闸(残余风险①)', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 2 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    ctl.agents.set('b', { name: '阿强', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+
+    // ① failed → SPEAK(主 +1 / 子 +1);flush 出队不应再扣
+    ctl.agents.set('a', { name: '小美', status: 'error', lastError: '构建失败' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.flushNow()).toContain('小美');
+    expect(reporter.gatesStats().spokenToday).toBe(1);
+    expect(reporter.gatesStats().instantSpeakToday).toBe(1);
+
+    // ② completed → PREPARE(主 +1 = 2,恰好用尽);若 flush 重复扣①,这里会被判 STORE
+    ctl.agents.set('b', { name: '阿强', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1);
+    expect(stored).toHaveLength(0);
+    expect(reporter.flushNow()).toContain('阿强');
+    expect(reporter.gatesStats().spokenToday).toBe(2);
+
+    // ③ 预算硬顶:再一条 completed → STORE 上屏,不口播
+    ctl.agents.set('c', { name: '小林', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('c', { name: '小林', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(0);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toContain('小林');
+    expect(submitted).toHaveLength(2);
+    const stats = reporter.gatesStats();
+    expect(stats.tierCounts).toMatchObject({ SPEAK: 1, PREPARE: 1, STORE: 1 });
+    reporter.stop();
+  });
+
+  it('深夜 PREPARE 出队挂起,白天再放行(不再过预算闸)', () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 2, 0)); // 02:00 深夜(start 前设定,避免触发 diff 节流)
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1);
+    expect(reporter.gatesStats().reasonCounts.deep_night).toBe(1);
+
+    expect(reporter.flushNow()).toBeNull(); // 挂起,不开口
+    expect(submitted).toHaveLength(0);
+    expect(reporter.pendingCount()).toBe(1); // 不丢弃
+
+    vi.setSystemTime(new Date(2026, 9, 4, 12, 0)); // 白天
+    expect(reporter.flushNow()).toContain('小美 完成任务');
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
+
+  it('focus 时段(默认 09:00–11:00)紧急事件降级 PREPARE 并挂起', () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 10, 0)); // focus 内(start 前设定,避免触发 diff 节流)
+    const reporter = makeReporter();
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'error', lastError: '构建失败' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.gatesStats().reasonCounts.focus_time).toBe(1);
+
+    expect(reporter.flushNow()).toBeNull(); // focus 内挂起
+    vi.setSystemTime(new Date(2026, 9, 4, 12, 0));
+    expect(reporter.flushNow()).toContain('小美 出错');
+    reporter.stop();
+  });
+
+  it('播报队列溢出(12 条上限)丢最旧前先落 STORE 上屏(沉默≠丢弃)', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 50 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    for (let i = 0; i < 13; i++) {
+      const id = `ag${i}`;
+      ctl.agents.set(id, { name: `机器人${i}`, status: 'working' });
+      vi.advanceTimersByTime(600);
+      fire();
+      ctl.agents.set(id, { name: `机器人${i}`, status: 'idle' });
+      vi.advanceTimersByTime(600);
+      fire();
+    }
+    expect(reporter.pendingCount()).toBe(12);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toContain('机器人0'); // 最旧一条转上屏,而不是消失
+    expect(submitted).toHaveLength(0); // 仍在静默窗口内,未口播
+    reporter.stop();
+  });
+
+  it('seenKeys 有界:超过 200 条裁剪最旧(残余风险②)', () => {
+    const reporter = makeReporter({
+      scope: 'all',
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, relevanceThreshold: 70 }),
+    });
+    reporter.start();
+    for (let i = 0; i < 210; i++) {
+      ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: `任务${i}` });
+      vi.advanceTimersByTime(600);
+      fire();
+    }
+    const stats = reporter.gatesStats();
+    expect(stats.reasonCounts.low_relevance).toBe(209); // 第一条 fire 只是登记基线
+    expect(stats.seenKeysCount).toBe(200); // 有界,无界增长已封住
+    expect(reporter.pendingCount()).toBe(0);
+    reporter.stop();
+  });
+
+  it('跨日重置每日预算与口播子配额', () => {
+    const stored: string[] = [];
+    const reporter = makeReporter({
+      gatesConfig: () => ({ ...DEFAULT_GATES_CONFIG, baseDailyBudget: 1 }),
+      onStore: (t) => stored.push(t),
+    });
+    reporter.start();
+    ctl.agents.set('a', { name: '小美', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire(); // completed → PREPARE,占满当日预算
+    ctl.agents.set('b', { name: '阿强', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('b', { name: '阿强', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire(); // 预算用尽 → STORE
+    expect(stored).toHaveLength(1);
+
+    vi.setSystemTime(new Date(2026, 9, 5, 15, 0)); // 次日
+    ctl.agents.set('c', { name: '小林', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('c', { name: '小林', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire(); // 跨日后计数归零 → 恢复为 PREPARE
+    expect(reporter.pendingCount()).toBe(2); // 昨日未发的仍在队列
+    expect(reporter.gatesStats().spokenToday).toBe(1);
+    const text = reporter.flushNow();
+    expect(text).toContain('小美');
+    expect(text).toContain('小林');
+    reporter.stop();
   });
 });
