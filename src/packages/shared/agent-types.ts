@@ -686,6 +686,46 @@ export interface SubordinateContext {
   lastAssignedTask?: string;
   contextPercent: number;            // Context usage percentage
   tokensUsed: number;
+  profile?: AgentProfileCard;        // B1 人事档案卡（任务18·B1；旧调用方无此字段 → 按无卡处理）
+}
+
+// ============================================================================
+// Agent Profile Card (B1 人事档案卡, 任务18 / Spec §10.3 B1)
+// ============================================================================
+
+/**
+ * agent 人事档案卡：技能摘要 + 历史表现，注入 Boss 快照（buildBossContext TEAM 段）
+ * 让主管选人时看到「谁会什么、干得怎样」。
+ *
+ * 数据诚实性（硬约束）：
+ * - 无样本 → completionRate / avgDurationMs 为 null（渲染 n/a），不硬造数字；
+ * - reworkRate 全仓无「返工」事件采集（任务17 验收自检 done:false 不属于返工）→ 恒为
+ *   null，缺源如实登记，禁编造。
+ * - 聚合逻辑（纯函数）在 server/services/agent-profile-service.ts；本类型只描述形态。
+ */
+export interface AgentProfileCard {
+  /** 该 agent 当前生效的技能总数（含 class/wildcard 命中，disabled 不计）。 */
+  skillCount: number;
+  /** 摘要展示的技能名（有界：≤ 渲染上限 K；按码点序稳定排序）。 */
+  skillNames: string[];
+  /** 未进入摘要的技能数（skillCount − skillNames.length）。 */
+  hiddenSkillCount: number;
+  /** 时间窗内与该 agent 相关的委派记录总数（含未终态）。 */
+  totalDelegations: number;
+  completedCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  /** 终态样本数 = completed + failed + cancelled。 */
+  terminalCount: number;
+  /**
+   * 完成率 = completed / terminalCount（0..1；终态 = 完成 + 失败 + 撤回）。
+   * 无终态样本 → null（n/a），不写 0 冒充。
+   */
+  completionRate: number | null;
+  /** 完成/失败记录的 durationMs 均值（毫秒，四舍五入）；无样本 → null。 */
+  avgDurationMs: number | null;
+  /** 返工率：无数据源，恒为 null（缺源登记，禁编造）。 */
+  reworkRate: null;
 }
 
 // Boss context delimiters - used to inject subordinate context at the beginning of user messages

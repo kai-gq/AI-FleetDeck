@@ -11,6 +11,7 @@ import type {
   Agent,
   DelegationDecision,
   DelegationUserRating,
+  Skill,
   SubordinateContext,
   TaskCard,
   TaskCardStatus,
@@ -27,6 +28,8 @@ import { logEvent } from '../data/system-log.js';
 import { logger, sanitizeUnicode, generateId, truncateOrEmpty } from '../utils/index.js';
 import { canTransitionTaskCard } from './task-card-service.js';
 import { logTaskCardStatus } from './activity-log.js';
+import { buildAgentProfileCard } from './agent-profile-service.js';
+import * as skillService from './skill-service.js';
 
 const log = logger.boss || console;
 
@@ -205,9 +208,24 @@ export function getBossForAgent(agentId: string): Agent | null {
 /**
  * Gather context for all subordinates of a boss
  * Used for LLM delegation decision
+ *
+ * B1（任务18）扩展：每名下属附带一张人事档案卡（技能摘要 + 历史表现），
+ * 由 subordinate-context-service.buildBossContext 渲染进 Boss 快照 TEAM 段。
+ * 纯聚合在 agent-profile-service（显式 now 注入）；这里只做数据接线与失败降级。
  */
 export async function gatherSubordinateContext(bossId: string): Promise<SubordinateContext[]> {
   const subordinates = getSubordinates(bossId);
+  const now = Date.now();
+
+  // 历史表现取全部 Boss 的委派史合并（与 vcs.collectDelegationHistory 同口径：
+  // 同一个 agent 换过团队，之前的战绩仍是它的战绩）。只在内存 map 里读，零磁盘 IO；
+  // 读取异常按空史降级——档案卡退化为「有技能、无样本」，快照照常注入。
+  let allDecisions: DelegationDecision[] = [];
+  try {
+    allDecisions = Array.from(delegationHistories.values()).flat();
+  } catch (err) {
+    log.warn?.(' Failed to collect delegation history for agent profiles, degrading to empty:', err);
+  }
 
   return Promise.all(subordinates.map(async (sub) => {
     // Mirror the guake-agent-context component in
@@ -221,6 +239,27 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
     const contextPercent = Math.round(usedPercent);
     const tokensUsed = totalTokens;
 
+    // B1 人事档案卡：技能库不可读/抛错 → 空技能表降级，绝不打断 Boss 快照
+    // （验收「失败降级：技能库不可读时不炸快照」）。整卡组装的意外异常同样兜底跳过卡片。
+    let profile: SubordinateContext['profile'];
+    try {
+      let skills: Skill[] = [];
+      try {
+        skills = skillService.getSkillsForAgent(sub.id, sub.class, sub.isBoss);
+      } catch (err) {
+        log.warn?.(` Skill lookup failed for ${sub.name}; profile degrades to no skills:`, err);
+      }
+      profile = buildAgentProfileCard({
+        agentId: sub.id,
+        agentName: sub.name,
+        skills,
+        decisions: allDecisions,
+        now,
+      });
+    } catch (err) {
+      log.warn?.(` Failed to build profile card for ${sub.name}, omitting it:`, err);
+    }
+
     return {
       id: sub.id,
       name: sub.name,
@@ -230,6 +269,7 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
       lastAssignedTask: sub.lastAssignedTask,
       contextPercent,
       tokensUsed,
+      ...(profile ? { profile } : {}),
     };
   }));
 }

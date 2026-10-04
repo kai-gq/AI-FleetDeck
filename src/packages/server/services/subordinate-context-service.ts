@@ -5,6 +5,7 @@
 
 import type { Agent } from '../../shared/types.js';
 import * as bossService from './boss-service.js';
+import { renderAgentProfileLine } from './agent-profile-service.js';
 import { loadSession, loadToolHistory } from '../claude/session-loader.js';
 import { truncate } from '../utils/index.js';
 
@@ -123,11 +124,15 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
     const conversationSection = sub ? await buildConversationSection(sub) : '';
     const fileChangesSection = sub ? await buildFileChangesSection(sub) : '';
 
+    // B1 人事档案卡：一行卡（技能摘要 + 完成率 + 耗时均值；体积有界见 agent-profile-service）。
+    // 无卡（旧调用方/降级）→ 不输出该行，其余段逐字不变。
+    const profileLine = ctx.profile ? `\n${renderAgentProfileLine(ctx.profile)}` : '';
+
     return `## ${ctx.name}
 - **Agent ID**: \`${ctx.id}\`
 - **Status**: ${ctx.status}
 - **Idle Time**: ${idleTime}
-- **Last Assigned Task**: ${lastTaskInfo}
+- **Last Assigned Task**: ${lastTaskInfo}${profileLine}
 - **Context**: ${ctx.contextPercent}%${fileChangesSection}${conversationSection}`;
   }));
 

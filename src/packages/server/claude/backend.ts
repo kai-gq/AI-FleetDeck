@@ -22,6 +22,7 @@ import { isEchoPromptEnabled, getSystemPrompt } from '../services/system-prompt-
 import { isBareSlashCommand } from '../services/instruction-refresh.js';
 import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
+import { getWorkspaces } from '../services/workspace-service.js';
 
 const log = createLogger('Backend');
 
@@ -107,6 +108,118 @@ function getPermissionPromptMcpConfigPath(): string {
   return configPath;
 }
 
+// ============================================================================
+// B3 Onboarding: project background (任务18 / Spec §10.3 B3)
+// ============================================================================
+
+/** B3 有界参数（编辑器定；防止系统提示随工作区数量/名称长度膨胀）。 */
+export const MAX_PROJECT_BACKGROUND_WORKSPACES = 5;
+export const MAX_PROJECT_BACKGROUND_AREAS = 3;
+export const MAX_PROJECT_BACKGROUND_NAME_CHARS = 48;
+export const MAX_PROJECT_BACKGROUND_LINE_CHARS = 200;
+export const MAX_PROJECT_BACKGROUND_SECTION_CHARS = 600;
+
+export interface ProjectBackgroundWorkspace {
+  id: string;
+  name: string;
+  areaIds?: readonly string[];
+}
+
+export interface ProjectBackgroundArea {
+  id: string;
+  name: string;
+  directories?: readonly string[];
+  archived?: boolean;
+}
+
+export interface ProjectBackgroundInput {
+  workingDir: string;
+  /** 工作区索引（workspace-service.getWorkspaces()；只用到 id/name/areaIds）。 */
+  workspaces: readonly ProjectBackgroundWorkspace[];
+  /** 区域（data/index.loadAreas()；directories 用于把工作目录映射回工作区）。 */
+  areas: readonly ProjectBackgroundArea[];
+}
+
+/** 路径比较归一化：反斜杠→正斜杠、去尾斜杠、小写（Windows 盘符/大小写不敏感）。 */
+function normalizeDirForMatch(dir: string): string {
+  return dir.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function truncateBackgroundName(name: string): string {
+  const trimmed = (name ?? '').trim();
+  return trimmed.length > MAX_PROJECT_BACKGROUND_NAME_CHARS
+    ? trimmed.slice(0, MAX_PROJECT_BACKGROUND_NAME_CHARS - 1) + '…'
+    : trimmed;
+}
+
+/** 单行硬上限兜底（名单很长时截断；整段另有 MAX_PROJECT_BACKGROUND_SECTION_CHARS 兜底）。 */
+function capBackgroundLine(line: string): string {
+  return line.length > MAX_PROJECT_BACKGROUND_LINE_CHARS
+    ? line.slice(0, MAX_PROJECT_BACKGROUND_LINE_CHARS - 1) + '…'
+    : line;
+}
+
+/**
+ * B3 项目背景段（纯函数；数据源全部显式传入，便于静态测试）：
+ * 从工作区索引 + 区域目录把「当前工作目录属于哪个项目/工作区」映射成几行字，
+ * 注入新 spawn agent 的系统提示（随 buildAppendedProjectInstructions 一并生效）。
+ *
+ * 数据诚实性：映射不上就如实写 not mapped，不猜项目名；工作目录为空则整段不输出。
+ * 体积有界：工作区名 ≤ MAX_PROJECT_BACKGROUND_WORKSPACES 个、区域名 ≤
+ * MAX_PROJECT_BACKGROUND_AREAS 个、逐名截断、整段硬上限兜底。
+ */
+export function renderProjectBackgroundSection(input: ProjectBackgroundInput): string {
+  const workingDir = (input.workingDir ?? '').trim();
+  if (!workingDir) return '';
+
+  const normWorkDir = normalizeDirForMatch(workingDir);
+  const areas = (input.areas ?? []).filter((a) => !a.archived);
+  const matchedAreaIds = new Set<string>();
+  for (const area of areas) {
+    for (const dir of area.directories ?? []) {
+      if (typeof dir !== 'string' || !dir.trim()) continue;
+      const normDir = normalizeDirForMatch(dir);
+      if (normDir && (normWorkDir === normDir || normWorkDir.startsWith(normDir + '/'))) {
+        matchedAreaIds.add(area.id);
+        break;
+      }
+    }
+  }
+
+  const matchedAreas = areas.filter((a) => matchedAreaIds.has(a.id));
+  const workspaces = input.workspaces ?? [];
+  const matchedWorkspaces = workspaces.filter((ws) => (ws.areaIds ?? []).some((id) => matchedAreaIds.has(id)));
+
+  const lines: string[] = [capBackgroundLine(`- Working directory: ${workingDir}`)];
+
+  if (matchedWorkspaces.length > 0) {
+    const wsNames = matchedWorkspaces.map((ws) => truncateBackgroundName(ws.name)).join(', ');
+    const areaNames = matchedAreas.slice(0, MAX_PROJECT_BACKGROUND_AREAS).map((a) => truncateBackgroundName(a.name));
+    const hiddenAreas = matchedAreas.length - areaNames.length;
+    const areaSuffix = areaNames.length > 0
+      ? ` (areas: ${areaNames.join(', ')}${hiddenAreas > 0 ? ` +${hiddenAreas}` : ''})`
+      : '';
+    lines.push(capBackgroundLine(`- Project/workspace: ${wsNames}${areaSuffix}`));
+  } else {
+    lines.push('- Project/workspace: not mapped to a named workspace');
+  }
+
+  const otherWorkspaces = workspaces
+    .filter((ws) => !matchedWorkspaces.includes(ws))
+    .map((ws) => truncateBackgroundName(ws.name))
+    .filter(Boolean);
+  if (otherWorkspaces.length > 0) {
+    const shown = otherWorkspaces.slice(0, MAX_PROJECT_BACKGROUND_WORKSPACES);
+    const hidden = otherWorkspaces.length - shown.length;
+    lines.push(capBackgroundLine(`- Other workspaces in this Commander: ${shown.join(', ')}${hidden > 0 ? ` (+${hidden} more)` : ''}`));
+  }
+
+  const section = ['## Project Background (Onboarding)', '', ...lines].join('\n');
+  return section.length > MAX_PROJECT_BACKGROUND_SECTION_CHARS
+    ? section.slice(0, MAX_PROJECT_BACKGROUND_SECTION_CHARS - 1) + '…'
+    : section;
+}
+
 export function buildAppendedProjectInstructions(config: BackendConfig): string {
   const sections: string[] = [
     '## CLAUDE.md / Project instructions — Tide Commander-specific rules',
@@ -148,6 +261,22 @@ export function buildAppendedProjectInstructions(config: BackendConfig): string 
         areaPrompt
       );
     }
+  }
+
+  // B3 Onboarding：项目背景（工作区索引 + 区域目录 → 当前工作目录归属），
+  // 对新 spawn 的 agent 一并随系统提示注入；对既有 agent 自下一回合起同样可见
+  // （落点①统一段，影响见任务18 回执）。工作区/区域读取失败 → 跳过整段（降级不炸）。
+  try {
+    const background = renderProjectBackgroundSection({
+      workingDir: config.workingDir,
+      workspaces: getWorkspaces(),
+      areas: loadAreas(),
+    });
+    if (background.trim()) {
+      sections.push(background);
+    }
+  } catch (err) {
+    log.warn(` Project background section skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Per-agent persistent memory — the agent's own notes/lessons accumulated
