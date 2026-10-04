@@ -7,8 +7,9 @@
  *   1. 调用 claude(headless,haiku/sonnet,--resume 持久会话)理解意图;
  *   2. 模型按要求只输出一份 JSON 契约(action / targetAgentId / delivery /
  *      responseToUser / memoryOps …);
- *   3. 按契约执行:派活给 agent(默认排队,急迫语义才打断)、查询 agent 最近
- *      输出(第二跳 claude 总结)、列 agent、纯聊天;
+ *   3. 按契约执行:任务一律 delegate_to_boss 交团队主管(改①;委托消息复用
+ *      buildBossMessage 注入团队上下文,默认排队、急迫语义才打断)、查询 agent
+ *      最近输出(第二跳 claude 总结)、列 agent、纯聊天;
  *   4. 维护跨会话的持久记忆(notes + summary),每轮注入系统提示词。
  *
  * 设计要点:
@@ -79,10 +80,20 @@ export interface VoiceCompanionState {
 
 export type CompanionAction =
   | 'general_response'
+  /** 任务语义的唯一出口(改①):目标由系统解析为团队主管(Boss),模型不选执行人。 */
+  | 'delegate_to_boss'
   | 'send_to_agent'
   | 'list_agents'
   | 'query_agent_output'
   | 'noop';
+
+/**
+ * 契约 action 全集——模板字符串 / 解析白名单 / 流式 GATE_ACTIONS 同源,防多处漂移
+ * (改① 新增 delegate_to_boss 时只需改这里与 CompanionAction)。
+ */
+export const COMPANION_ACTIONS: readonly CompanionAction[] = [
+  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
+];
 
 export type CompanionDelivery = 'queue' | 'interrupt';
 
@@ -377,10 +388,7 @@ export function parseContractJson(raw: string): VoiceContract {
   if (start === -1 || end <= start) throw new Error('No JSON object in response');
   const obj = JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
 
-  const validActions: CompanionAction[] = [
-    'general_response', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
-  ];
-  const action = validActions.includes(obj.action as CompanionAction)
+  const action = COMPANION_ACTIONS.includes(obj.action as CompanionAction)
     ? (obj.action as CompanionAction)
     : 'general_response';
 
@@ -555,6 +563,71 @@ export function buildAgentSnapshotLines(
   return { lines, total: sorted.length, truncated: sorted.length > selected.length };
 }
 
+// ============================================================================
+// 派发路由(改①:任务只走 Boss)——纯函数,单测覆盖
+// ============================================================================
+
+/** 派发目标结构子集(Agent 天然满足;测试可造轻量对象)。 */
+export interface DispatchTargetAgent {
+  id: string;
+  name: string;
+  class?: string;
+  isBoss?: boolean;
+}
+
+/** 主管判定:与 boss-service / deliverToAgent 一致(isBoss 或 class==='boss')。 */
+export function isBossLikeAgent(agent: { isBoss?: boolean; class?: string }): boolean {
+  return agent.isBoss === true || agent.class === 'boss';
+}
+
+/** 违规直派记录:模型仍想把任务直接派给普通 agent 时,告警要落这份信息。 */
+export interface DispatchViolation {
+  requestedAgentId: string;
+  requestedAgentName: string | null;
+}
+
+/**
+ * 派发路由结果:
+ * - boss    = 唯一合法目标(团队主管;Boss 仍可用 send_to_agent 直接对话);
+ * - missing = send_to_agent 指定的目标不存在;
+ * - no_boss = 团队里没有主管可转交(违规直派且无 Boss 时也会带 violation)。
+ */
+export type DispatchRoute<T extends DispatchTargetAgent = DispatchTargetAgent> =
+  | { route: 'boss'; agent: T; violation?: DispatchViolation }
+  | { route: 'missing' }
+  | { route: 'no_boss'; violation?: DispatchViolation };
+
+/**
+ * 把契约意图解析成唯一合法的派发目标(改①,决策观测点①):
+ * - delegate_to_boss:任务语义,目标固定为主管——模型给了主管 id 就尊重(多主管世界),
+ *   给普通 agent id 或留空都改走第一位主管;给普通 agent id 记违规(观测用)。
+ * - send_to_agent:仅主管可达;指向普通 agent = 违规直派 → 标记 violation 并改道主管,
+ *   保住「全走 Boss」不变式(供 ⑮ 分析告警频率,而不是让任务丢失)。
+ */
+export function resolveDispatchRoute<T extends DispatchTargetAgent>(
+  action: 'delegate_to_boss' | 'send_to_agent',
+  requestedAgentId: string | null,
+  agents: readonly T[],
+): DispatchRoute<T> {
+  const boss = agents.find((a) => isBossLikeAgent(a));
+  const requested = requestedAgentId ? agents.find((a) => a.id === requestedAgentId) : undefined;
+
+  if (action === 'send_to_agent') {
+    if (!requested) return { route: 'missing' };
+    if (isBossLikeAgent(requested)) return { route: 'boss', agent: requested };
+    const violation: DispatchViolation = { requestedAgentId: requested.id, requestedAgentName: requested.name ?? null };
+    return boss ? { route: 'boss', agent: boss, violation } : { route: 'no_boss', violation };
+  }
+
+  // delegate_to_boss:目标由系统解析,不选执行人。
+  if (requested && isBossLikeAgent(requested)) return { route: 'boss', agent: requested };
+  if (!boss) return { route: 'no_boss' };
+  const violation: DispatchViolation | undefined = requested
+    ? { requestedAgentId: requested.id, requestedAgentName: requested.name ?? null }
+    : undefined;
+  return violation ? { route: 'boss', agent: boss, violation } : { route: 'boss', agent: boss };
+}
+
 function formatMemory(memory: CompanionMemory): string {
   const parts: string[] = [];
   if (memory.summary.trim()) parts.push(`总结: ${memory.summary.trim()}`);
@@ -567,7 +640,7 @@ function formatMemory(memory: CompanionMemory): string {
 // 字段顺序有讲究:action 与 responseToUser 放最前 —— 分句流式播报靠它们尽早
 // 知道要不要出声、以及第一句是什么;长字段(messageToAgent / memoryOps)殿后,
 // 不阻塞播报。
-const CONTRACT_TEMPLATE = '{"action":"general_response|send_to_agent|list_agents|query_agent_output|noop",'
+const CONTRACT_TEMPLATE = `{"action":"${COMPANION_ACTIONS.join('|')}",`
   + '"responseToUser":"",'
   + '"targetAgentId":null,"targetAgentName":null,"messageToAgent":"","delivery":"queue|interrupt",'
   + '"query":"","memoryOps":[]}';
@@ -590,7 +663,7 @@ export function buildCompanionSystemPrompt(input: {
     input.persona?.custom,
   );
 
-  return `你是 Tide Commander(多 AI agent 指挥台)的语音伙伴,代号「小伴」。老板通过语音和你说话;你负责:聊天、把任务派给合适的 agent、查询 agent 的进展与产出、记住老板的长期偏好。
+  return `你是 Tide Commander(多 AI agent 指挥台)的语音伙伴,代号「小伴」。老板通过语音和你说话;你负责:聊天、把任务交给团队主管(Boss)安排、查询 agent 的进展与产出、记住老板的长期偏好。
 
 【人设】${personaStyle}
 
@@ -600,13 +673,20 @@ ${CONTRACT_TEMPLATE}
 上面的模板只是字段格式示意:其中 responseToUser 是给老板播报的实际句子,**除 noop 动作外绝不允许为空字符串**。
 
 【action 说明】
-- send_to_agent: 老板要求某个 agent 做事。targetAgentId 填下方列表里的 id;messageToAgent 写成给该 agent 的完整指令(写清要做什么、在哪个项目/目录);delivery 默认 "queue"。
-- query_agent_output: 老板问某个 agent「最近做了什么/进展如何/结果是什么/输出了什么」。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
+- delegate_to_boss: 老板要「派人干活」时唯一的派活动作(新建/修改/修复/安排/推进/催办/停掉某人的活等)。targetAgentId 一律留 null;messageToAgent 写成给主管的完整指令(写清要做什么、在哪个项目/目录、验收要求)。系统会把任务转给团队主管(列表里标 [BOSS] 的那位)由它拆解选人——你不要自己挑执行的人。
+- send_to_agent: 仅当老板明确要直接对主管([BOSS])本人说话时使用(补充说明、追问它的安排、对它提要求),targetAgentId 必须是 [BOSS] 的 id。**任何让普通 agent 干活的请求都不得用它**——一律走 delegate_to_boss。
+- query_agent_output: 老板问某个 agent(主管或普通 agent 都行)「最近做了什么/进展如何/结果是什么/输出了什么」。只读查询,不派活。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
 - list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
 - general_response: 正常对话——寒暄、问你自己、闲聊、咨询建议、对老板想法的讨论,都走这条;对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
 - noop: 输入以 [系统事件] 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。
 
-【打断规则(重要)】只有老板明确说出「马上/立刻/现在就/停下/别做了/改用/先别管这个」等急迫语义时,delivery 才填 "interrupt"——这会打断目标 agent 正在进行的工作,代价很大。其它一切情况(催促、补充、追问)都用 "queue"。目标不在 working/waiting 状态时也照填,系统会自行处理。若实际发生了打断,responseToUser 要说明「已打断 X」。
+【三态边界(重要,先判再答)】
+- 「问情况」走查询:做到哪了/进展/结果/谁在做/为什么还没好/查一下/看一下 → query_agent_output 或 list_agents。老板说「去查一下/问一下 XX」也是查询,不是让你派活。
+- 「要人干活」才走派活:让 X 做/需要改成/安排/推进/催办/停掉某人的活/改用方案 → delegate_to_boss。
+- 寒暄、闲聊、咨询建议、讨论想法 → general_response。
+拿不准是不是任务时,先按查询/对话处理并向老板确认一句,绝不擅自派活。
+
+【打断规则(重要)】只有老板明确说出「马上/立刻/现在就」等急迫语义、且希望打断主管当前协调的工作时,delivery 才填 "interrupt"——派活目标都是主管,打断它会停掉它正在进行的拆解/收口,代价很大。老板说「停下 X/别做了/改用」是对某个下属的工作说的,属于 delegate_to_boss:把要求写进 messageToAgent,delivery 仍填 "queue"。其它一切情况(催促、补充、追问)都用 "queue"。若实际发生了打断,responseToUser 要说明「已打断 X」。
 
 【记忆规则】memoryOps 数组,可多可空:
 - {"op":"add","text":"…"}: 老板表达了稳定的偏好/称呼/习惯/长期规则(例如「叫我老板」「汇报先说结论」「以后用中文」)。只记长期信息,不要记一次性任务内容。
@@ -614,14 +694,14 @@ ${CONTRACT_TEMPLATE}
 - {"op":"setSummary","summary":"…"}: 压缩重写记忆总结(很少用)。
 没有新记忆时 memoryOps 为 []。
 
-【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已让 X …」。这是语音播报,写出来就要能直接念。
+【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」。这是语音播报,写出来就要能直接念。
 
 【当前时间】${nowText}
 
 【长期记忆】
 ${formatMemory(memory)}
 
-【agent 列表】(共 ${totalAgents} 个)
+【agent 列表】(共 ${totalAgents} 个;其中标 [BOSS] 的才能用 send_to_agent 直接对话,其余 agent 仅供查询与状态了解,派活一律 delegate_to_boss)
 ${agentsBlock}`;
 }
 
@@ -990,7 +1070,8 @@ async function deliverToAgent(agent: Agent, message: string, delivery: Companion
     }
   }
 
-  if (agent.isBoss || agent.class === 'boss') {
+  if (isBossLikeAgent(agent)) {
+    // 委托消息带完整任务上下文:复用 buildBossMessage(团队快照 + Boss 指令注入)。
     const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agent.id, message);
     await runtimeService.sendCommand(agent.id, bossMessage, systemPrompt);
   } else {
@@ -1039,9 +1120,7 @@ interface SpeechPipeline {
   readonly spoke: boolean;
 }
 
-const GATE_ACTIONS = new Set<string>([
-  'general_response', 'send_to_agent', 'list_agents', 'query_agent_output', 'noop',
-]);
+const GATE_ACTIONS = new Set<string>(COMPANION_ACTIONS);
 
 /**
  * 悬尾标点宽限 flush(P5,180ms):模型把「第一句。」写完后若在句号处停顿
@@ -1268,22 +1347,66 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       elapsedMs: Date.now() - started,
     };
 
-    if (contract.action === 'send_to_agent' && contract.targetAgentId) {
-      const target = agentService.getAgent(contract.targetAgentId);
-      if (!target) {
+    if (contract.action === 'delegate_to_boss'
+      || (contract.action === 'send_to_agent' && contract.targetAgentId)) {
+      // 改① 任务只走 Boss:delegate_to_boss 目标固定为主管;send_to_agent 仅主管可达,
+      // 模型若仍指向普通 agent(旧会话/回归)→ 违规告警(决策观测点①)+ 改道主管,
+      // 保住「全走 Boss」不变式,而不是静默直派或丢任务。
+      const route = resolveDispatchRoute(contract.action, contract.targetAgentId, agentService.getAllAgents());
+
+      if (route.route === 'missing') {
         // 没派出去就不能播「已让 X 去做」——丢弃缓冲,整段走 result.response 兜底。
         speech.discardHop1();
         result.response = contract.responseToUser || `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
         return finish(result);
       }
+
+      if (route.violation) {
+        // 🔴 决策观测点①:违规直派告警(warn 全量落盘,供 ⑮ 分析不变式是否被破)
+        logDelegation({
+          phase: 'blocked',
+          level: 'warn',
+          channel: 'voice-companion',
+          toAgentId: route.violation.requestedAgentId,
+          toAgentName: route.violation.requestedAgentName ?? undefined,
+          message: contract.messageToAgent,
+          delivery: contract.delivery,
+          status: 'direct-dispatch-blocked',
+          error: `violation: ${contract.action} 请求直派普通 agent(${route.violation.requestedAgentId}),已改道主管`,
+          routedBy: contract.action,
+          taskId,
+          sessionId: state.sessionId ?? undefined,
+        });
+      }
+
       if (!contract.messageToAgent) {
         speech.discardHop1();
         result.response = contract.responseToUser || '我没听清要让它做什么,请再说一遍。';
         return finish(result);
       }
+      if (route.route === 'no_boss') {
+        // 任务语义但没有可转交的主管:如实告知,不派给任何普通 agent。
+        speech.discardHop1();
+        result.response = '团队里还没有主管(Boss),这事我暂时派不出去。先在团队里设一个主管,再让我派活吧。';
+        logDelegation({
+          phase: 'failed',
+          channel: 'voice-companion',
+          message: contract.messageToAgent,
+          status: 'no-boss',
+          error: 'no-boss-agent',
+          routedBy: contract.action,
+          taskId,
+          sessionId: state.sessionId ?? undefined,
+        });
+        return finish(result);
+      }
+
+      const target = route.agent;
+      // 违规改道不携带打断语义:打断决定是针对被请求的普通 agent 做的,转到主管一律 queue。
+      const delivery: CompanionDelivery = route.violation ? 'queue' : contract.delivery;
       let interrupted: boolean;
       try {
-        interrupted = await deliverToAgent(target, contract.messageToAgent, contract.delivery);
+        interrupted = await deliverToAgent(target, contract.messageToAgent, delivery);
       } catch (err) {
         // 任务 02 埋点：基础四类 ③ —— 派活失败行（channel 与成功行一致，原错误继续上抛）
         logDelegation({
@@ -1294,6 +1417,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           message: contract.messageToAgent,
           status: 'failed',
           error: err instanceof Error ? err.message : String(err),
+          routedBy: contract.action,
           taskId,
           sessionId: state.sessionId ?? undefined,
         });
@@ -1301,28 +1425,37 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }
       result.targetAgent = { id: target.id, name: target.name };
       result.messageSent = contract.messageToAgent;
-      result.delivery = contract.delivery;
+      result.delivery = delivery;
       result.interrupted = interrupted;
-      // 任务 02 埋点：基础四类 ③ —— 派活出站（voice-companion 渠道）
+      // 任务 02 埋点：基础四类 ③ —— 派活出站（voice-companion 渠道）;
+      // routedBy 记录路由判定(决策观测点①:请求 → 目标 Boss)。
       logDelegation({
         phase: 'dispatched',
         channel: 'voice-companion',
         toAgentId: target.id,
         toAgentName: target.name,
         message: contract.messageToAgent,
-        delivery: contract.delivery,
+        delivery,
         interrupted,
+        status: route.violation ? 'rerouted-to-boss' : undefined,
+        routedBy: route.violation ? `${contract.action}-rerouted` : contract.action,
         taskId,
         sessionId: state.sessionId ?? undefined,
       });
-      if (!result.response) {
+      if (route.violation) {
+        // 模型话术多半指名了被拒的普通 agent,不可信 → 丢弃缓冲,用确定性话术整段兜底。
+        speech.discardHop1();
+        result.response = `我只能把任务交给主管「${target.name}」安排,已经转过去了。`;
+      } else if (!result.response) {
         result.response = interrupted
           ? `已打断 ${target.name},改用新任务。`
-          : `已让 ${target.name} 去做。`;
+          : contract.action === 'delegate_to_boss'
+            ? `已交给主管「${target.name}」安排。`
+            : `已让 ${target.name} 去做。`;
       }
-      // 派发成功,放行缓冲的确认话术(「已让 X …」)。
+      // 派发成功,放行缓冲的确认话术(「已让 X …」/「已交给主管…」)。
       speech.releaseHop1();
-      log.log(`[VoiceCompanion] → ${target.name}(${contract.delivery}${interrupted ? ',已打断' : ''}): ${contract.messageToAgent}`);
+      log.log(`[VoiceCompanion] → ${target.name}(${delivery}${interrupted ? ',已打断' : ''}${route.violation ? ',违规改道' : ''}): ${contract.messageToAgent}`);
       return finish(result);
     }
 

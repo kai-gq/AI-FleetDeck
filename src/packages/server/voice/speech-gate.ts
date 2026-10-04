@@ -4,18 +4,25 @@
  * 为什么需要它(而不是抽到句子就播):
  * - action 未解析出来之前,句子一律缓冲 —— 不能让 noop(主动汇报的无事发生)
  *   先出半个字;
- * - send_to_agent 的确认话术(「已让 X 去做」)要等真正派发成功再放行,
- *   目标不存在/指令为空时静默丢弃,由最终回复整段兜底;
+ * - 派发类动作(send_to_agent / delegate_to_boss)的确认话术(「已让 X 去做」/
+ *   「已交给主管安排」)要等真正派发成功再放行,目标无效/指令为空时静默丢弃,
+ *   由最终回复整段兜底;
  * - query_agent_output 的答案来自第二跳(hop2),hop1 的 responseToUser 丢弃;
  * - general_response / list_agents 一旦 action 确定就即时放行(低延迟路径)。
  */
 
 export type GateAction =
   | 'general_response'
+  | 'delegate_to_boss'
   | 'send_to_agent'
   | 'list_agents'
   | 'query_agent_output'
   | 'noop';
+
+/** 派发类动作:确认话术要等派发成功才放行(失败即丢弃)。 */
+export function isDispatchGateAction(action: GateAction): boolean {
+  return action === 'send_to_agent' || action === 'delegate_to_boss';
+}
 
 export class SpeechGate {
   private readonly emit: (sentence: string) => void;
@@ -27,11 +34,11 @@ export class SpeechGate {
     this.emit = emit;
   }
 
-  /** 收到一个「完整句子」。action 未定 / send_to_agent 待派发时先缓冲。 */
+  /** 收到一个「完整句子」。action 未定 / 派发类动作待派发时先缓冲。 */
   push(sentence: string): void {
     const text = sentence.trim();
     if (!text) return;
-    if (this.mode === null || this.mode === 'send_to_agent') {
+    if (this.mode === null || isDispatchGateAction(this.mode)) {
       this.buffered.push(text);
       return;
     }
@@ -41,13 +48,13 @@ export class SpeechGate {
 
   /**
    * action 已解析(流式扫描通常远早于契约解析完成)。
-   * general/list → 立即放行缓冲;noop/query → 丢弃;send → 继续等 release/discard。
+   * general/list → 立即放行缓冲;noop/query → 丢弃;派发类 → 继续等 release/discard。
    */
   setAction(action: GateAction): void {
     this.mode = action;
     if (action === 'noop' || action === 'query_agent_output') {
       this.buffered = [];
-    } else if (action !== 'send_to_agent') {
+    } else if (!isDispatchGateAction(action)) {
       this.release();
     }
   }

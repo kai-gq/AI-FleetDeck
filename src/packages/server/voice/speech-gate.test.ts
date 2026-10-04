@@ -56,6 +56,28 @@ describe('SpeechGate', () => {
     expect(gate.spokenCount).toBe(0);
   });
 
+  // ---- 改①:delegate_to_boss 与 send_to_agent 同为「派发类」语义 ----
+
+  it('holds delegate_to_boss confirmations until dispatch succeeds', () => {
+    const { gate, spoken } = collect();
+    gate.setAction('delegate_to_boss');
+    gate.push('已交给主管安排。');
+    expect(spoken).toEqual([]); // 派发结果未定,不出声
+    gate.release();
+    expect(spoken).toEqual(['已交给主管安排。']);
+    expect(gate.spoke).toBe(true);
+  });
+
+  it('discards delegate_to_boss confirmations when dispatch fails', () => {
+    const { gate, spoken } = collect();
+    gate.setAction('delegate_to_boss');
+    gate.push('已交给主管安排。');
+    gate.discard();
+    gate.push('后面的也不播。');
+    expect(spoken).toEqual([]);
+    expect(gate.spokenCount).toBe(0);
+  });
+
   it('ignores empty or whitespace-only sentences and counts only emitted ones', () => {
     const { gate, spoken } = collect();
     gate.setAction('general_response');

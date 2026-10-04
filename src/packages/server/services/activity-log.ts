@@ -101,10 +101,17 @@ export function logBroadcast(f: BroadcastLogFields): number | undefined {
 }
 
 export interface DelegationLogFields {
-  /** dispatched=派活出站；delegated=Boss 拆解写入；reported=下属回执；closed=委派追踪关闭；failed=派活抛错 */
-  phase: 'dispatched' | 'delegated' | 'reported' | 'closed' | 'failed';
+  /**
+   * dispatched=派活出站；delegated=Boss 拆解写入；reported=下属回执；closed=委派追踪关闭；
+   * failed=派活抛错；blocked=违规直派被拦截（决策观测点① 告警，任务 05·改①）
+   */
+  phase: 'dispatched' | 'delegated' | 'reported' | 'closed' | 'failed' | 'blocked';
   /** 来源渠道：voice-companion / boss / api / subordinate */
   channel: string;
+  /** 路由判定（决策观测点①）：delegate_to_boss / send_to_agent / send_to_agent-rerouted 等 */
+  routedBy?: string;
+  /** 缺省 info；告警类（如 phase='blocked'）显式传 warn 保证全量落盘 */
+  level?: SystemLogLevel;
   fromAgentId?: string;
   fromName?: string;
   toAgentId?: string;
@@ -123,17 +130,19 @@ export interface DelegationLogFields {
   agentId?: string;
 }
 
-/** 委派链路（基础四类 ③）：秘书派活 → Boss 拆解 → 下属回执 → 关闭。 */
+/** 委派链路（基础四类 ③）：秘书派活 → Boss 拆解 → 下属回执 → 关闭（含违规直派拦截告警）。 */
 export function logDelegation(f: DelegationLogFields): number | undefined {
   return logEvent('delegation', {
     source: f.channel,
     taskId: f.taskId,
     sessionId: f.sessionId,
     agentId: f.agentId,
+    level: f.level,
     body: {
       cat: 'delegation',
       phase: f.phase,
       channel: f.channel,
+      routedBy: f.routedBy,
       fromAgentId: f.fromAgentId,
       fromName: f.fromName,
       toAgentId: f.toAgentId,

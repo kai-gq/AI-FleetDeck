@@ -26,6 +26,9 @@ import path from 'node:path';
 import type { VoiceProcessOptions, VoiceProcessResult } from './voice-companion-service.js';
 // 与服务的 log 同一实例(logger.server):spy 它就能断言体积告警这类日志副作用
 import { logger } from '../utils/index.js';
+// 违规直派告警断言(决策观测点①):走真实 EventDB(XDG 沙箱内)
+import { closeEventDb, initEventDb } from '../data/event-db.js';
+import { querySystemLog } from '../data/system-log.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -214,6 +217,7 @@ beforeAll(async () => {
   projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-integration-'));
   fs.mkdirSync(path.join(projectDir, 'tools', 'voice-companion'), { recursive: true });
   process.chdir(projectDir);
+  initEventDb(); // 违规直派告警落 system_log,断言走真实读路径(XDG 沙箱)
 
   service = await import('./voice-companion-service.js');
 
@@ -228,6 +232,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  closeEventDb();
   process.chdir(originalCwd);
   fs.rmSync(projectDir, { recursive: true, force: true });
 });
@@ -361,6 +366,11 @@ function stdinUserContent(call: SpawnCall): string {
   if (!raw) throw new Error('子进程没有收到 stdin 写入');
   const parsed = JSON.parse(raw.trim()) as { message?: { content?: string } };
   return parsed.message?.content ?? '';
+}
+
+/** system_log 行的 body 解析(违规直派告警断言用)。 */
+function logBody(row: { body?: string }): Record<string, unknown> {
+  return JSON.parse(row.body ?? '{}') as Record<string, unknown>;
 }
 
 // ============================================================================
@@ -767,27 +777,80 @@ describe('G5 降级与抛错', () => {
 // ============================================================================
 
 describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
-  it('G6-1 queues a task for a non-boss agent with the custom config', async () => {
+  it('G6-1 任务只走 Boss(改①):delegate_to_boss 只有主管收到 sendCommand,消息走 buildBossMessage', async () => {
     mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle' });
-    const p = startProcess('让小美做登录页');
+    mockAgents.push({ id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
+    const p = startProcess('让团队做登录页');
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({
-      action: 'send_to_agent',
-      targetAgentId: 'a1',
-      messageToAgent: '做登录页',
+      action: 'delegate_to_boss',
+      targetAgentId: null,
+      messageToAgent: '把登录页做出来',
       delivery: 'queue',
-      responseToUser: '已让小美去做。',
+      responseToUser: '已交给主管安排。',
     }));
 
     const r = await p;
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
-    expect(sendCommandMock).toHaveBeenCalledWith('a1', '做登录页', undefined, undefined, { __custom: 'a1', cls: 'claude' });
+    expect(sendCommandMock).toHaveBeenCalledWith('b1', 'BOSS:把登录页做出来', 'sys:b1'); // 唯一目标是 Boss
+    expect(sendCommandMock.mock.calls.some((c) => c[0] === 'a1')).toBe(false); // 普通 agent 一个指令都没收到
     expect(stopAgentMock).not.toHaveBeenCalled();
-    expect(r.response).toBe('已让小美去做。');
-    expect(r.messageSent).toBe('做登录页');
+    expect(r.action).toBe('delegate_to_boss');
+    expect(r.response).toBe('已交给主管安排。');
+    expect(r.messageSent).toBe('把登录页做出来');
     expect(r.delivery).toBe('queue');
     expect(r.interrupted).toBe(false);
-    expect(r.targetAgent).toEqual({ id: 'a1', name: '小美' });
+    expect(r.targetAgent).toEqual({ id: 'b1', name: '大当家' });
+  });
+
+  it('G6-1b 旧契约 send_to_agent 直派普通 agent → 违规告警(决策观测点①)并改道 Boss,仅 Boss 收到 sendCommand', async () => {
+    mockAgents.push({ id: 'v1', name: '小美', class: 'claude', status: 'idle' });
+    mockAgents.push({ id: 'vb', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
+    const sentences: string[] = [];
+    const p = startProcess('让小美做登录页', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'send_to_agent',
+      targetAgentId: 'v1',
+      messageToAgent: '做登录页',
+      responseToUser: '已让小美去做。', // 模型误话术:不得播出
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('vb', 'BOSS:做登录页', 'sys:vb');
+    expect(r.targetAgent).toEqual({ id: 'vb', name: '大当家' });
+    expect(r.response).toContain('只能把任务交给主管');
+    // 违规改道必须丢弃模型原话术(「已让小美去做」不得播出)——防未来误删 discardHop1 无回归护栏
+    expect(sentences.join('')).not.toContain('已让小美去做');
+
+    const rows = querySystemLog({ category: 'delegation', order: 'asc' });
+    const blocked = rows.find((row) => logBody(row).phase === 'blocked' && logBody(row).toAgentId === 'v1');
+    expect(blocked).toBeDefined();
+    expect(blocked?.level).toBe('warn');
+    expect(logBody(blocked!)).toMatchObject({
+      cat: 'delegation', phase: 'blocked', status: 'direct-dispatch-blocked', routedBy: 'send_to_agent',
+    });
+    const rerouted = rows.find((row) => logBody(row).phase === 'dispatched' && logBody(row).status === 'rerouted-to-boss');
+    expect(rerouted).toBeDefined();
+    expect(logBody(rerouted!).routedBy).toBe('send_to_agent-rerouted');
+  });
+
+  it('G6-1c delegate_to_boss 但团队没有主管 → 不派发,如实告知', async () => {
+    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle' });
+    const sentences: string[] = [];
+    const p = startProcess('让团队做登录页', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'delegate_to_boss',
+      messageToAgent: '做登录页',
+      responseToUser: '已交给主管安排。',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    expect(sentences).toEqual([]); // 派不出去就不播「已交给主管」
+    expect(r.response).toContain('还没有主管');
   });
 
   it('G6-2 routes boss agents through buildBossMessage', async () => {
@@ -808,7 +871,8 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
   });
 
   it('G6-3 interrupts before dispatching(stopAgent strictly before sendCommand)', async () => {
-    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'working' });
+    // 改① 后可打断的目标就是主管(Boss);普通 agent 的「停下 X」由主管去安排。
+    mockAgents.push({ id: 'b3', name: '大当家', class: 'boss', isBoss: true, status: 'working' });
     let stoppedAt = 0;
     let sentAt = 0;
     stopAgentMock.mockImplementation(async () => {
@@ -817,25 +881,26 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     sendCommandMock.mockImplementation(async () => {
       sentAt = Date.now();
     });
-    const p = startProcess('停下小美改做别的');
+    const p = startProcess('马上改做别的');
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({
       action: 'send_to_agent',
-      targetAgentId: 'a1',
+      targetAgentId: 'b3',
       messageToAgent: '改用方案B',
       delivery: 'interrupt',
       responseToUser: '',
     }));
     const r = await p;
 
-    expect(stopAgentMock).toHaveBeenCalledWith('a1');
+    expect(stopAgentMock).toHaveBeenCalledWith('b3');
     expect(sendCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledWith('b3', 'BOSS:改用方案B', 'sys:b3');
     expect(stopAgentMock.mock.invocationCallOrder[0]).toBeLessThan(sendCommandMock.mock.invocationCallOrder[0]!);
     // P9:stopAgent 返回即走,不再垫固定 250ms(旧实现这里必然 ≥250)
     expect(sentAt - stoppedAt).toBeLessThan(200);
     expect(r.interrupted).toBe(true);
     expect(r.response).toContain('已打断');
-    expect(r.response).toContain('小美');
+    expect(r.response).toContain('大当家');
   });
 
   it('G6-4 falls back when the target agent does not exist(discarding the streamed confirmation)', async () => {
@@ -872,13 +937,13 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
   });
 
   it('G6-5 falls back when messageToAgent is empty', async () => {
-    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle' });
+    mockAgents.push({ id: 'b4', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
     const sentences: string[] = [];
-    const p = startProcess('让小美做那个', { onSentence: (s) => sentences.push(s) });
+    const p = startProcess('让大当家做那个', { onSentence: (s) => sentences.push(s) });
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({
       action: 'send_to_agent',
-      targetAgentId: 'a1',
+      targetAgentId: 'b4',
       messageToAgent: '',
       responseToUser: '',
     }), { via: 'delta' });
@@ -1000,23 +1065,23 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.spoke).toBe(true);
   });
 
-  it('G6-11 gates the send_to_agent confirmation until dispatch succeeds', async () => {
-    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle' });
+  it('G6-11 gates the delegate_to_boss confirmation until dispatch to the Boss succeeds', async () => {
+    mockAgents.push({ id: 'b5', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
     const order: string[] = [];
     sendCommandMock.mockImplementation(async () => {
       order.push('send');
     });
-    const p = startProcess('让小美去做', { onSentence: (s) => order.push(`sentence:${s}`) });
+    const p = startProcess('让团队去做', { onSentence: (s) => order.push(`sentence:${s}`) });
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({
-      action: 'send_to_agent',
-      targetAgentId: 'a1',
+      action: 'delegate_to_boss',
+      targetAgentId: null,
       messageToAgent: '做登录页',
-      responseToUser: '已让小美去做。',
+      responseToUser: '已交给主管安排。',
     }), { via: 'delta' });
 
     const r = await p;
-    expect(order).toEqual(['send', 'sentence:已让小美去做。']); // 派发成功后才出声
+    expect(order).toEqual(['send', 'sentence:已交给主管安排。']); // 派发成功后才出声
     expect(r.spoke).toBe(true);
   });
 

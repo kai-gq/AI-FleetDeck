@@ -5,6 +5,8 @@ import {
   applyMemoryOps,
   buildAgentSnapshotLines,
   buildCompanionSystemPrompt,
+  resolveDispatchRoute,
+  isBossLikeAgent,
   shouldRotateSession,
   shouldRotateForPersona,
   DEFAULT_SERVER_CONFIG,
@@ -72,6 +74,86 @@ describe('parseContractJson', () => {
 
   it('throws when there is no JSON object', () => {
     expect(() => parseContractJson('抱歉,我听不懂')).toThrow();
+  });
+
+  // ---- 改① 任务只走 Boss:契约解析 ----
+
+  it('解析「任务」语义的 delegate_to_boss 契约(改①)', () => {
+    const c = parseContractJson(JSON.stringify({
+      action: 'delegate_to_boss',
+      targetAgentId: null,
+      messageToAgent: '把登录页重构成 React 18 并补测试',
+      responseToUser: '已交给主管安排。',
+    }));
+    expect(c.action).toBe('delegate_to_boss');
+    expect(c.messageToAgent).toBe('把登录页重构成 React 18 并补测试');
+    expect(c.targetAgentId).toBeNull();
+  });
+
+  it('「聊天/查询/列人」语义的契约不会解析成 delegate_to_boss(改①)', () => {
+    const chat = parseContractJson(JSON.stringify({ action: 'general_response', responseToUser: '在的。' }));
+    const query = parseContractJson(JSON.stringify({ action: 'query_agent_output', targetAgentId: 'a1', query: '进度' }));
+    const list = parseContractJson(JSON.stringify({ action: 'list_agents', responseToUser: '都在忙。' }));
+    expect([chat.action, query.action, list.action])
+      .toEqual(['general_response', 'query_agent_output', 'list_agents']);
+    expect([chat, query, list].some((c) => c.action === 'delegate_to_boss')).toBe(false);
+  });
+
+  it('delegate_to_boss 是白名单动作,未知 action 仍回退 general_response', () => {
+    expect(parseContractJson('{"action":"delegate_to_boss"}').action).toBe('delegate_to_boss');
+    expect(parseContractJson('{"action":"delegate_to_agent"}').action).toBe('general_response');
+  });
+});
+
+// ============================================================================
+// 改① 派发路由:任务只走 Boss(决策观测点①)
+// ============================================================================
+
+describe('resolveDispatchRoute — 全走 Boss 不变式(改①)', () => {
+  const world = [
+    { id: 'a1', name: '小美', class: 'builder' },
+    { id: 'b1', name: '大当家', class: 'boss', isBoss: true },
+  ];
+
+  it('isBossLikeAgent 与 boss-service 判定一致(isBoss 或 class==="boss")', () => {
+    expect(isBossLikeAgent({ isBoss: true })).toBe(true);
+    expect(isBossLikeAgent({ class: 'boss' })).toBe(true);
+    expect(isBossLikeAgent({ class: 'builder', isBoss: false })).toBe(false);
+  });
+
+  it('delegate_to_boss 留空目标 → 落到主管', () => {
+    const route = resolveDispatchRoute('delegate_to_boss', null, world);
+    expect(route).toEqual({ route: 'boss', agent: world[1] });
+  });
+
+  it('delegate_to_boss 模型误填普通 agent → 仍改道主管并记违规', () => {
+    const route = resolveDispatchRoute('delegate_to_boss', 'a1', world);
+    expect(route.route).toBe('boss');
+    if (route.route !== 'boss') throw new Error('unreachable');
+    expect(route.agent.id).toBe('b1');
+    expect(route.violation).toEqual({ requestedAgentId: 'a1', requestedAgentName: '小美' });
+  });
+
+  it('send_to_agent 指向主管 → 合法直达(Boss 仍可达)', () => {
+    expect(resolveDispatchRoute('send_to_agent', 'b1', world)).toEqual({ route: 'boss', agent: world[1] });
+  });
+
+  it('send_to_agent 指向普通 agent → 违规标记并改道主管', () => {
+    const route = resolveDispatchRoute('send_to_agent', 'a1', world);
+    expect(route.route).toBe('boss');
+    if (route.route !== 'boss') throw new Error('unreachable');
+    expect(route.agent.id).toBe('b1');
+    expect(route.violation).toEqual({ requestedAgentId: 'a1', requestedAgentName: '小美' });
+  });
+
+  it('目标不存在 → missing;团队没主管 → no_boss(违规也如实记录)', () => {
+    expect(resolveDispatchRoute('send_to_agent', 'nope', world)).toEqual({ route: 'missing' });
+    const noBossWorld = [{ id: 'a1', name: '小美', class: 'builder' }];
+    expect(resolveDispatchRoute('delegate_to_boss', null, noBossWorld)).toEqual({ route: 'no_boss' });
+    expect(resolveDispatchRoute('send_to_agent', 'a1', noBossWorld)).toEqual({
+      route: 'no_boss',
+      violation: { requestedAgentId: 'a1', requestedAgentName: '小美' },
+    });
   });
 });
 
@@ -263,5 +345,38 @@ describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
       .toContain(butler.stylePrompt);
     expect(buildCompanionSystemPrompt({ ...base(), persona: { preset: 'custom', custom: '你是个海盗船长。' } }))
       .toContain('你是个海盗船长。');
+  });
+});
+
+describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', () => {
+  const base = () => ({
+    agentLines: ['- 大当家 | id: b1 | boss | idle [BOSS]', '- 小美 | id: a1 | builder | working'],
+    totalAgents: 2,
+    truncated: false,
+    memory: emptyMemory(),
+    nowText: '2026-10-04 12:00',
+  });
+
+  it('契约模板与说明收录 delegate_to_boss', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('general_response|delegate_to_boss|send_to_agent');
+    expect(prompt).toContain('delegate_to_boss: 老板要「派人干活」时唯一的派活动作');
+  });
+
+  it('prompt 中不再存在向普通 agent 派活的路径(验收 3)', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    // 旧文案(把任意 agent id 填进 send_to_agent 派活)必须消失
+    expect(prompt).not.toContain('老板要求某个 agent 做事');
+    expect(prompt).not.toContain('targetAgentId 填下方列表里的 id');
+    // send_to_agent 被限定为主管专用;普通 agent 只能查
+    expect(prompt).toContain('任何让普通 agent 干活的请求都不得用它');
+    expect(prompt).toContain('其中标 [BOSS] 的才能用 send_to_agent 直接对话');
+  });
+
+  it('强化 query/send/delegate 三态边界,防「问进度」被误判成派活(Spec §2.4.1 环1)', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('【三态边界');
+    expect(prompt).toContain('老板说「去查一下/问一下 XX」也是查询,不是让你派活');
+    expect(prompt).toContain('绝不擅自派活');
   });
 });
