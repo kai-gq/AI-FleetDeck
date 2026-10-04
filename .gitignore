@@ -73,3 +73,4 @@ tools/bolba-board/config.local.json
 
 # i18n workdir (translation kits, memory) — regenerated, not source.
 tools/i18n/work/
+tools/wave-gate/trend.jsonl
