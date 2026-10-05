@@ -49,6 +49,7 @@
 ```bash
 node tools/voice-companion/selftest.mjs 你的样例.wav
 # 期望:ready → partial(实时增量)→ final
+# partial 攒够 6 个字还会出现一行 filler hint(垫话预生成就绪,W7 协议消息),属正常
 # 未配凭据时会明确报 no_credentials,客户端自动回退批量转写,功能不残
 ```
 
@@ -160,6 +161,8 @@ node tools/voice-companion/bench.mjs --once "现在几点了？"      # 单条�
 | `src/packages/server/routes/voice-companion.ts` | `/api/voice-companion/{process,status,reset,memory}` |
 | `src/packages/server/voice/volcengine-asr-client.ts` | 火山大模型流式 ASR 二进制协议客户端 |
 | `src/packages/server/voice/voice-companion-stream.ts` | `/ws/voice-companion` 代理通道 |
+| `src/packages/server/voice/filler-pregen.ts` | W7 垫话预生成(说话期间按 partial 提前生成,密封后供回合取用) |
+| `src/packages/client/voice/ttsPreload.ts` | W7 TTS 预合成缓存(命中免请求;在途去重,队列侧 abort 不影响共享请求) |
 | `src/packages/client/voice/vad.ts` | 判停状态机(候选→确认→段;能量迟滞 / 小模型概率,二者同一套阈值语义) |
 | `src/packages/client/voice/sileroVadCore.ts` | Silero 纯逻辑核心(64+512 窗口组装、单飞丢最旧队列;可单测) |
 | `src/packages/client/voice/sileroVad.ts` | onnxruntime-web 胶水(懒单例、超时/契约自检、失败可重试);模型在 `public/silero_vad.onnx`(来源/许可见 `public/silero_vad.README.md`) |

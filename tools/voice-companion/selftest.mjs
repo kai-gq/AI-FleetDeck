@@ -206,6 +206,10 @@ ws.on('message', (raw) => {
       console.log(`[selftest] ✓ final: ${JSON.stringify(msg.text)}${sawPartial ? '(有实时 partial)' : '(无 partial,可能音频过短)'}`);
       done(0);
       break;
+    case 'filler':
+      // W7:垫话预生成就绪提示(客户端据此预合成;自测只展示,不参与判定)
+      console.log(`[selftest] filler hint: ${JSON.stringify(msg.text)}`);
+      break;
     case 'error':
       fail(`服务端错误 [${msg.code}] ${msg.message}`);
       break;

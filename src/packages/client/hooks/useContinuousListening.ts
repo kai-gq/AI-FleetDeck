@@ -82,6 +82,8 @@ export interface ContinuousListeningOptions {
   turnInFlight?: boolean;
   /** 实时部分结果(流式);空串 = 清掉实时行。 */
   onPartial: (text: string) => void;
+  /** W7:垫话预生成就绪提示(服务端在说话期间推来)→ 组件提前合成音频,正式句到达零等待。 */
+  onFillerHint?: (text: string) => void;
   /** 一句的最终文本(已过唤醒词/结束词处理)。 */
   onFinal: (text: string, meta: FinalTranscriptMeta) => void;
   /** 播报中用户开口(组件据此立即停播报)。 */
@@ -438,6 +440,12 @@ function createController(deps: ControllerDeps): Controller {
     if (msg.type === 'partial') {
       if (e.awaitingFinal || e.discardFinal) return;
       o.onPartial(typeof msg.text === 'string' ? msg.text : '');
+      return;
+    }
+    if (msg.type === 'filler') {
+      // W7:垫话预生成就绪(可能先于 final 到达)→ 提前合成;段已作废则忽略,免白合成。
+      // 注意不查 awaitingFinal:等待 final 期间收到 hint 照样有用(回合马上要开始)。
+      if (!e.discardFinal) o.onFillerHint?.(typeof msg.text === 'string' ? msg.text : '');
       return;
     }
     if (msg.type === 'final') {

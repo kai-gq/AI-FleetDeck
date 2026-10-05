@@ -1,24 +1,13 @@
 /**
  * useSpeechQueue —— 分句流式播报的 React 包装(核心逻辑在 client/voice/speechQueue)。
- * 负责真实的 TTS 合成(/api/tts/speak)与浏览器播放(Audio),并暴露 speaking
- * 供 VAD 防自激 / barge-in 判定使用(语义:队列里还有内容在合成或播放)。
+ * 负责真实的 TTS 合成(经 client/voice/ttsPreload:W7 预载缓存优先)与浏览器播放
+ * (Audio),并暴露 speaking 供 VAD 防自激 / barge-in 判定使用(语义:队列里还有
+ * 内容在合成或播放)。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SpeechQueue } from '../voice/speechQueue';
-import { apiUrl, authFetch } from '../utils/storage';
-
-/** POST /api/tts/speak 取音频 Blob(mp3/wav 由响应头带入);lang 由调用方按用户话语判定(避免短句误判语种)。 */
-async function defaultSynthesize(text: string, lang: string | undefined, signal: AbortSignal): Promise<Blob> {
-  const res = await authFetch(apiUrl('/api/tts/speak'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(lang ? { text, lang } : { text }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
-  return res.blob();
-}
+import { synthesizeWithCache } from '../voice/ttsPreload';
 
 /** 播放 Blob;abort → 立即静音并 reject。 */
 function defaultPlay(blob: Blob, signal: AbortSignal): Promise<void> {
@@ -50,7 +39,7 @@ export function useSpeechQueue() {
   const queueRef = useRef<SpeechQueue | null>(null);
   if (!queueRef.current) {
     queueRef.current = new SpeechQueue({
-      synthesize: defaultSynthesize,
+      synthesize: synthesizeWithCache,
       play: defaultPlay,
       onSpeakingChange: setSpeaking,
     });

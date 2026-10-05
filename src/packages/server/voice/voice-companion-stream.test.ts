@@ -14,11 +14,19 @@ const h = vi.hoisted(() => ({
   loadVolcengineSttConfig: vi.fn(),
   prewarmCompanion: vi.fn(),
   logVoiceAsr: vi.fn(),
+  noteFillerPartialForPregen: vi.fn(),
+  sealFillerPartial: vi.fn(),
+  dropFillerPregen: vi.fn(),
+  dropFillerPregenWorking: vi.fn(),
 }));
 
 vi.mock('../services/voice-companion-service.js', () => ({
   loadVolcengineSttConfig: h.loadVolcengineSttConfig,
   prewarmCompanion: h.prewarmCompanion,
+  noteFillerPartialForPregen: h.noteFillerPartialForPregen,
+  sealFillerPartial: h.sealFillerPartial,
+  dropFillerPregen: h.dropFillerPregen,
+  dropFillerPregenWorking: h.dropFillerPregenWorking,
 }));
 
 vi.mock('../services/activity-log.js', () => ({
@@ -180,5 +188,58 @@ describe('W3-C8 流式通道首帧触发', () => {
     const opts = asrMock.instances[0]!.opts as { onFinal: (t: string) => void };
     opts.onFinal('你好');
     expect(ws.parsed().some((m) => m.type === 'final' && m.text === '你好')).toBe(true);
+  });
+});
+
+describe('W7 垫话预生成接线', () => {
+  it('W7-1 partial → 触发预生成;onHint 回推 filler 消息', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    const opts = asrMock.instances[0]!.opts as { onPartial: (t: string) => void };
+
+    opts.onPartial('查一下最近的天气');
+    expect(ws.parsed().some((m) => m.type === 'partial' && m.text === '查一下最近的天气')).toBe(true);
+    expect(h.noteFillerPartialForPregen).toHaveBeenCalledWith('查一下最近的天气', expect.any(Function));
+
+    // 驱动 onHint(预生成就绪)→ 客户端收到 filler 预合成提示
+    const onHint = h.noteFillerPartialForPregen.mock.calls[0]![1] as (t: string) => void;
+    onHint('嗯,我在');
+    expect(ws.parsed().some((m) => m.type === 'filler' && m.text === '嗯,我在')).toBe(true);
+  });
+
+  it('W7-2 final → 密封预生成槽', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    const opts = asrMock.instances[0]!.opts as { onFinal: (t: string) => void };
+    opts.onFinal('你好');
+    expect(h.sealFillerPartial).toHaveBeenCalledTimes(1);
+  });
+
+  it('W7-3 新 ASR 会话建立 → 清工作槽;同会话复用不重复清', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    expect(h.dropFillerPregenWorking).toHaveBeenCalledTimes(1);
+
+    ws.feedAudio(AUDIO_FRAME); // 同会话第二帧:复用,不再清
+    expect(h.dropFillerPregenWorking).toHaveBeenCalledTimes(1);
+
+    const opts = asrMock.instances[0]!.opts as { onFinal: (t: string) => void };
+    opts.onFinal('你好'); // final 拆除会话
+    ws.feedAudio(AUDIO_FRAME); // 新会话 → 再清
+    expect(h.dropFillerPregenWorking).toHaveBeenCalledTimes(2);
+  });
+
+  it('W7-4 连接关闭/错误/close 指令 → 连接级全清', () => {
+    const ws = openConnection();
+    ws.emit('close');
+    expect(h.dropFillerPregen).toHaveBeenCalledTimes(1);
+
+    const ws2 = openConnection();
+    ws2.emit('error');
+    expect(h.dropFillerPregen).toHaveBeenCalledTimes(2);
+
+    const ws3 = openConnection();
+    ws3.feedText({ type: 'close' });
+    expect(h.dropFillerPregen).toHaveBeenCalledTimes(3);
   });
 });

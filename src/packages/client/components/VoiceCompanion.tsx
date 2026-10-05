@@ -27,6 +27,7 @@ import {
   type VoiceProcessStreamFinal,
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
+import { preloadTtsAudio } from '../voice/ttsPreload';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
 import '../styles/components/voice-companion.scss';
@@ -184,7 +185,9 @@ export function VoiceCompanion({ className }: { className?: string }) {
               if (gen !== speakGenRef.current) return;
               if (!meta?.pre) spoken.push(sentence); // pre 句照播但不参与最终对账
               sentencesRef.current.push(sentence);
-              setThinking(false); // 首句已出:不用再显示「正在思考」
+              // pre 垫话不清「正在思考」:真答案还没出,清了会让 turnInFlight 提前解除、
+              // 用户中途插话不再触发 barge-in(不 abort 在途回合,下一句得等它跑完)。
+              if (!meta?.pre) setThinking(false);
               enqueueSpeech(sentence, lang);
             },
             onFinal: (result) => {
@@ -287,6 +290,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
     ttsSpeaking,
     turnInFlight: thinking,
     onPartial: (text) => setLiveText(text),
+    onFillerHint: (text) => preloadTtsAudio(text, speechLangFor(text)),
     onFinal: (text, meta) => {
       // 手动提交回放的同一文本已上屏过,不再重复 push(P11)
       if (!meta.fromPending) pushEntry('user', text);

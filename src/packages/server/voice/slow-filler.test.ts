@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSlowFiller } from './slow-filler.js';
 
-/** 默认口径与计划一致:2.5s 预生成、5.5s 最早吐出。 */
+/** 测试基准口径(取一个可辨识的组合;真实缺省见 voice-companion-service DEFAULT_SERVER_CONFIG):2.5s 预生成、5.5s 最早吐出。 */
 function setup(overrides: Partial<Parameters<typeof createSlowFiller>[0]> = {}) {
   const emitted: string[] = [];
   const generate = vi.fn(async (): Promise<string | null> => '稍等,我看看。');
@@ -36,6 +36,17 @@ describe('createSlowFiller(W5 慢档续垫)', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(emitted).toEqual(['稍等,我看看。']); // 5.5s 到点即吐
     expect(filler.emitted).toBe(true);
+  });
+
+  it('armMs=0(W7 预生成档):立即取用,emitMs 到点即吐', async () => {
+    vi.useFakeTimers();
+    const { filler, emitted, generate } = setup({ armMs: 0, emitMs: 1_200 });
+    filler.arm();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(generate).toHaveBeenCalledTimes(1); // 立即取用预生成
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(emitted).toEqual(['稍等,我看看。']);
   });
 
   it('真实首句先到(cancel)→ 不再吐,且此后不会补吐', async () => {

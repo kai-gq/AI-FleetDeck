@@ -42,6 +42,8 @@ import { findStringField, createJsonStringStream, type JsonStringStream, type Se
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction, SentenceMeta } from '../voice/speech-gate.js';
 import { createSlowFiller } from '../voice/slow-filler.js';
+// W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
+import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
 // 每回合 args 与既有 callClaudeOnce 逐字同构,权限姿态不变;hop2 保持一次性。
 import {
@@ -276,13 +278,15 @@ export interface VoiceCompanionServerConfig {
   slowFiller: SlowFillerTiming;
 }
 
-/** W5 慢档续垫参数(阈值先按 2.5s/5.5s 观察一周再调)。 */
+/** W5 慢档续垫参数(armMs/emitMs 为未命中兜底档;W7 预生成命中时用 armMs=0 + pregenEmitMs)。 */
 export interface SlowFillerTiming {
   enabled: boolean;
-  /** 开始预生成的时间点(ms,自回合开始)。 */
+  /** 开始预生成的时间点(ms,自回合开始;预生成命中时不用,取 0 立即取用)。 */
   armMs: number;
   /** 允许吐出的最早时间点(ms,自回合开始)。 */
   emitMs: number;
+  /** W7:预生成命中时的吐出底线(ms,自回合开始)——生成已在说话期间埋单,只需压过 TTS 合成。 */
+  pregenEmitMs: number;
 }
 
 export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
@@ -299,11 +303,12 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   contextWindowTokens: 200_000,
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
-  // W5 提速(C13):垫话生成跳过 MCP 加载(冷启动 4.9→2.2s),阈值随之下压 ——
-  // 真实吐出 = max(armMs+emitMs=3.0s, 生成就绪≈armMs+2.2~3.0s) ≈ 3.0–3.5s(再往前受
-  // 生成通道与 TTS 合成下限约束;想更早需「用户说话期间就预生成」,另立项)。
+  // W5/C13 兜底档:生成跳过 MCP 加载(冷启动 4.9→2.2s),吐出 ≈3.0–3.5s。
+  // W7/C15 预生成档(命中):说话期间已生成、密封后回合零等待取用,吐出 ≈ 回合开始 + 1.2s
+  // (pregenEmitMs 只等 TTS 合成;预合成的音频缓存已在客户端就位)。
+  // 未命中/失败/禁用 → 全链回退兜底档(逐字节等同旧行为)。
   // 首字节取消信号仍挂着,快回合(hop1 先出字)照样不垫。无出字的慢回合才轮得到垫话。
-  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500 },
+  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 1_200 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -380,6 +385,7 @@ function slowFillerConfigFrom(brain: Record<string, unknown> | undefined): SlowF
     enabled: !envOff && sf?.enabled !== false,
     armMs: clampNumber(sf?.armMs, 500, 10_000, DEFAULT_SERVER_CONFIG.slowFiller.armMs),
     emitMs: clampNumber(sf?.emitMs, 1_000, 30_000, DEFAULT_SERVER_CONFIG.slowFiller.emitMs),
+    pregenEmitMs: clampNumber(sf?.pregenEmitMs, 300, 10_000, DEFAULT_SERVER_CONFIG.slowFiller.pregenEmitMs),
   };
 }
 
@@ -2044,6 +2050,95 @@ async function generateSlowFillerPhrase(userText: string, model: string, signal?
   }
 }
 
+// ----------------------------------------------------------------------------
+// W7 垫话预生成接线(说话期间的 partial 触发;状态机见 voice/filler-pregen.ts)
+// ----------------------------------------------------------------------------
+
+/** 进程级单例:多连接/leader 交接靠「文本匹配 + 不命中不消费」兜底(最坏退化为常规垫话)。 */
+const fillerPregen = createFillerPregen({
+  log: (line) => log.log(`[VoiceCompanion] ${line}`),
+});
+
+/** 流式 partial 到达(WS 通道调用):达阈值触发一次性预生成;就绪即经 onHint 推给客户端预合成。 */
+export function noteFillerPartialForPregen(partial: string, onHint: (text: string) => void): void {
+  // 每次 partial 同步读一次配置:文件很小、partial 频率低(每秒几条),换来开关即时生效。
+  const cfg = loadServerConfig();
+  if (!cfg.slowFiller.enabled) return;
+  // 生成不带 signal:此刻还没有回合可中止;超时/失败由 generateSlowFillerPhrase 内部兜底。
+  fillerPregen.notePartial(partial, () => generateSlowFillerPhrase(partial, cfg.model), onHint);
+}
+
+/** ASR final:密封当前工作槽(供即将到来的回合 take)。 */
+export function sealFillerPartial(): void {
+  fillerPregen.seal();
+}
+
+/** ASR 会话中止(错误/重连):清未密封的工作槽;密封槽留给上一句可能仍在途的回合。 */
+export function dropFillerPregenWorking(): void {
+  fillerPregen.dropWorking();
+}
+
+/** 连接级清理(close/error/close 指令):全清。 */
+export function dropFillerPregen(): void {
+  fillerPregen.drop();
+}
+
+/** 回合开始:按 final 文本匹配密封槽,命中才消费;未命中返回 null → 回退常规垫话。 */
+export function takeFillerPregen(finalText: string): FillerPregenTake | null {
+  return fillerPregen.take(finalText);
+}
+
+/** W7:取用宽限(ms)——预生成还在途时最多等这么久;超时改为并行常规生成,先到先用。 */
+const PREGEN_TAKE_GRACE_MS = 1_500;
+
+/** 取用预生成结果:ready 直返;在途限时等待;失败/超时回退常规生成(绝不比旧路径更慢)。 */
+async function resolvePregenFiller(
+  pregen: FillerPregenTake,
+  userText: string,
+  model: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (pregen.ready) return pregen.ready;
+  const fresh = () => generateSlowFillerPhrase(userText, model, signal);
+  if (!pregen.pending) return fresh();
+
+  const pending = pregen.pending;
+  // 宽限内等到非空结果 → 直接用;明确失败 → 立即回退;超时 → 并行回退,先到先用。
+  const early = await new Promise<string | null | 'timeout'>((resolve) => {
+    const timer = setTimeout(() => resolve('timeout'), PREGEN_TAKE_GRACE_MS);
+    timer.unref?.();
+    void pending.then((value) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
+  if (early !== 'timeout') return early ?? fresh();
+
+  const freshPromise = fresh();
+  return new Promise<string | null>((resolve) => {
+    let done = false;
+    let pendingDone = false;
+    let freshDone = false;
+    let pendingValue: string | null = null;
+    let freshValue: string | null = null;
+    const maybe = (): void => {
+      if (done) return;
+      const value = pendingValue ?? freshValue;
+      if (value) {
+        done = true;
+        resolve(value);
+        return;
+      }
+      if (pendingDone && freshDone) {
+        done = true;
+        resolve(null);
+      }
+    };
+    void pending.then((value) => { pendingDone = true; pendingValue = value; maybe(); });
+    void freshPromise.then((value) => { freshDone = true; freshValue = value; maybe(); });
+  });
+}
+
 // ============================================================================
 // Agent history excerpt (two-hop source material)
 // ============================================================================
@@ -2337,11 +2432,19 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     // 吐出走 pre 通道(照播但不参与客户端最终对账)。任何真实句(含 query 过渡句)
     // 一出即取消;事件回合不武装(noop 场景不出声)。
     const rawOnSentence = opts.onSentence;
+    // W7 垫话预生成:命中则改用零等待档 —— armMs=0 立即取用、emitMs=pregenEmitMs(只等 TTS 合成);
+    // 未命中/失败/禁用全链回退兜底档(500/2500),逐字节等同旧行为。
+    // 注:极少数「澄清早退回合」会白耗一个已消费的预生成(消歧回复通常很短、本就到不了触发阈值),可忽略。
+    const pregen = !opts.isEvent && cfg.slowFiller.enabled && rawOnSentence
+      ? takeFillerPregen(text)
+      : null;
     const slowFiller = createSlowFiller({
       enabled: cfg.slowFiller.enabled && !!rawOnSentence,
-      armMs: cfg.slowFiller.armMs,
-      emitMs: cfg.slowFiller.emitMs,
-      generate: () => generateSlowFillerPhrase(text, cfg.model, opts.signal),
+      armMs: pregen ? 0 : cfg.slowFiller.armMs,
+      emitMs: pregen ? cfg.slowFiller.pregenEmitMs : cfg.slowFiller.emitMs,
+      generate: pregen
+        ? () => resolvePregenFiller(pregen, text, cfg.model, opts.signal)
+        : () => generateSlowFillerPhrase(text, cfg.model, opts.signal),
       emit: (sentence) => rawOnSentence?.(sentence, { pre: true }),
     });
     const speech = createSpeechPipeline(

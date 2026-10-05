@@ -14,6 +14,7 @@
  *   服务端 → 客户端:
  *     - {"type":"ready", endpoint}          凭据就绪,流式可用
  *     - {"type":"partial", text}            实时部分结果(整句增量,客户端替换显示)
+ *     - {"type":"filler", text}             W7:垫话预生成就绪提示(客户端提前合成音频,正式句零等待)
  *     - {"type":"final", text}              一句的最终结果
  *     - {"type":"error", code, message}     凭据缺失/识别出错(客户端据此回退批量通道)
  *     - {"type":"pong"}
@@ -28,6 +29,13 @@ import type { Duplex } from 'node:stream';
 import { WebSocketServer, WebSocket } from 'ws';
 import { validateWebSocketAuth } from '../auth/index.js';
 import { loadVolcengineSttConfig, prewarmCompanion, type VolcengineSttConfig } from '../services/voice-companion-service.js';
+// W7 垫话预生成:partial 触发 / final 密封 / 会话与连接级清理(状态机在 voice/filler-pregen.ts)。
+import {
+  noteFillerPartialForPregen,
+  sealFillerPartial,
+  dropFillerPregen,
+  dropFillerPregenWorking,
+} from '../services/voice-companion-service.js';
 import { VolcengineAsrSession, type VolcengineAsrError } from './volcengine-asr-client.js';
 import { logVoiceAsr } from '../services/activity-log.js';
 import { logger } from '../utils/index.js';
@@ -119,12 +127,20 @@ export function handleConnection(ws: WebSocket): void {
 
   const ensureSession = (): VolcengineAsrSession => {
     if (session) return session;
+    // W7:新一段会话开始 —— 上一段若中途夭折(错误/重连),未密封的工作槽必须作废,
+    // 否则它会静默压住本段的预生成(密封槽保留:上一句的回合可能还没开始)。
+    dropFillerPregenWorking();
     sessionAudioBytes = 0;
     sessionStartedAt = Date.now();
     const s = new VolcengineAsrSession({
       credentials: cfg,
-      onPartial: (text) => send({ type: 'partial', text }),
+      onPartial: (text) => {
+        send({ type: 'partial', text });
+        // W7:说话期间就预生成垫话;就绪即推 hint(客户端提前合成,正式句到达零等待)。
+        noteFillerPartialForPregen(text, (hint) => send({ type: 'filler', text: hint }));
+      },
       onFinal: (text) => {
+        sealFillerPartial(); // W7:final 即密封预生成槽(客户端随后 POST,回合侧 take)
         logVoiceAsr({
           channel: 'volcengine-stream',
           text,
@@ -136,6 +152,7 @@ export function handleConnection(ws: WebSocket): void {
       },
       onError: (err: VolcengineAsrError) => {
         log.warn(`[VoiceCompanion] 流式识别错误:${err.message}`);
+        dropFillerPregenWorking(); // W7:本段夭折 → 未密封槽作废(密封槽留给在途回合)
         logVoiceAsr({
           channel: 'volcengine-stream',
           text: '',
@@ -197,6 +214,7 @@ export function handleConnection(ws: WebSocket): void {
       closed = true;
       session?.close();
       dropSession();
+      dropFillerPregen(); // W7:连接级清理
       ws.close();
       return;
     }
@@ -209,10 +227,12 @@ export function handleConnection(ws: WebSocket): void {
     closed = true;
     session?.close();
     dropSession();
+    dropFillerPregen(); // W7:连接级清理
   });
   ws.on('error', () => {
     closed = true;
     session?.close();
     dropSession();
+    dropFillerPregen(); // W7:连接级清理
   });
 }

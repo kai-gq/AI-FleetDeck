@@ -201,9 +201,9 @@ const DEFAULT_TEST_CONFIG = {
 function writeConfig(overrides: {
   model?: string;
   persona?: { preset: string; custom?: string };
-  // W5:slowFiller 是可选子键(server 缺省 armMs/emitMs;用例可压到下限做实时观测)。
+  // W5:slowFiller 是可选子键(server 缺省 armMs/emitMs/pregenEmitMs;用例可压到下限做实时观测)。
   brain?: Partial<typeof DEFAULT_TEST_CONFIG.brain> & {
-    slowFiller?: { enabled: boolean; armMs: number; emitMs: number };
+    slowFiller?: { enabled: boolean; armMs: number; emitMs: number; pregenEmitMs?: number };
   };
 } = {}): void {
   const cfg = {

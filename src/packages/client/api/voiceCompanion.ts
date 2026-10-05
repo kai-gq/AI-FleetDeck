@@ -81,10 +81,12 @@ export interface BrainConfig {
   /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
   slowFiller: {
     enabled: boolean;
-    /** 开始预生成的时间点(ms,自回合开始)。 */
+    /** 开始预生成的时间点(ms,自回合开始;W7 预生成命中时不用,取 0 立即取用)。 */
     armMs: number;
     /** 允许吐出的最早时间点(ms,自回合开始)。 */
     emitMs: number;
+    /** W7:预生成命中时的吐出底线(ms,自回合开始)——只等 TTS 合成。 */
+    pregenEmitMs: number;
   };
 }
 
@@ -155,8 +157,8 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxNotes: 40,
     firstSentenceMaxChars: 0,
     // 与服务端 DEFAULT_SERVER_CONFIG.slowFiller 保持一致(面板保存全量覆写,两侧别漂移)。
-    // C13:垫话生成跳过 MCP(省 ~2.6s)+ 阈值下压 —— 吐出 ≈3.0–3.5s。
-    slowFiller: { enabled: true, armMs: 500, emitMs: 2_500 },
+    // C13 兜底档吐出 ≈3.0–3.5s;W7 预生成命中档(armMs=0)吐出 ≈ 回合开始 + pregenEmitMs。
+    slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 1_200 },
   },
 };
 
@@ -297,6 +299,8 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
       if (typeof sf.enabled === 'boolean') cfg.brain.slowFiller.enabled = sf.enabled;
       cfg.brain.slowFiller.armMs = clampInt(sf.armMs, 500, 10_000, cfg.brain.slowFiller.armMs);
       cfg.brain.slowFiller.emitMs = clampInt(sf.emitMs, 1_000, 30_000, cfg.brain.slowFiller.emitMs);
+      // W7 预生成命中档:同样不设面板、原样保留。
+      cfg.brain.slowFiller.pregenEmitMs = clampInt(sf.pregenEmitMs, 300, 10_000, cfg.brain.slowFiller.pregenEmitMs);
     }
   }
 
