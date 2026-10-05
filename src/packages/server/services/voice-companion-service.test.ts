@@ -530,6 +530,14 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     expect(prompt).toContain('绝不擅自派活');
   });
 
+  it('指人容噪(真麦「主管 a」教训):近似名直接办,拿不准立即反问并列候选,禁止反复权衡', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('【指人与转写噪声(重要)】');
+    expect(prompt).toContain('按最接近的候选理解');
+    expect(prompt).toContain('立即用一句话反问');
+    expect(prompt).toContain('候选列出来让老板点');
+  });
+
   it('系统事件定界标记为不可口述的 ⟦系统事件⟧,且明示语音转写不会产生它(任务35 协议安全化)', () => {
     const prompt = buildCompanionSystemPrompt(base());
     expect(prompt).toContain('noop: 输入以 ⟦系统事件⟧ 开头');
