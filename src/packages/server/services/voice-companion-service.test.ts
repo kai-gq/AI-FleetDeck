@@ -490,6 +490,12 @@ describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
     expect(buildCompanionSystemPrompt({ ...base(), persona: { preset: 'custom', custom: '你是个海盗船长。' } }))
       .toContain('你是个海盗船长。');
   });
+
+  it('注入首句短化条款(W2 感知提速:开口第一句 ≤12 字先应声)', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('开口第一句必须短(≤12 字,先应声');
+    expect(prompt).toContain('第二句起再展开');
+  });
 });
 
 describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', () => {

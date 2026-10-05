@@ -64,7 +64,8 @@ export const VOICE_PERSONAS: VoicePersona[] = [
 
 /** 长度自适应条款(两边共用措辞)。 */
 export const VOICE_LENGTH_RULES =
-  '像真人说话:简单的事一两句讲完,复杂的事可以多说几句,但别啰嗦、别重复;' +
+  '像真人说话:开口第一句必须短(≤12 字,先应声,如「在,我去看一眼」),第二句起再展开;' +
+  '简单的事一两句讲完,复杂的事可以多说几句,但别啰嗦、别重复;' +
   '先给结论;不要 emoji、不要 markdown、不要列表腔;有异议就直说,不清楚就问。';
 
 const PERSONA_BY_ID = new Map(VOICE_PERSONAS.map((p) => [p.id, p]));
