@@ -78,6 +78,8 @@ export interface CompanionTurnResult {
   stderr: string;
   /** 本回合 result 事件里的上下文占用(无 usage 事件时 null)。 */
   context: CompanionContextUsage | null;
+  /** W6 观测:本回合复用常驻进程(true)还是新建(false)。 */
+  reused: boolean;
 }
 
 /** 常驻进程台账(PID 落盘;进程卫生三件套的凭据)。 */
@@ -241,6 +243,8 @@ interface ActiveTurn {
   resultText: string;
   stderrBuf: string;
   context: CompanionContextUsage | null;
+  /** W6 观测:复用/新建(见 CompanionTurnResult.reused)。 */
+  reused: boolean;
 }
 
 interface ResidentProcess {
@@ -348,6 +352,7 @@ export function runCompanionTurn(req: CompanionTurnRequest): Promise<CompanionTu
   initCompanionProcessHygiene();
 
   let proc = getReusableProcess(req.model);
+  const reused = !!proc;
   if (proc) {
     stats.reuses += 1;
     stats.lastReusePid = proc.pid;
@@ -360,7 +365,7 @@ export function runCompanionTurn(req: CompanionTurnRequest): Promise<CompanionTu
     }
     stats.spawns += 1;
   }
-  return beginTurn(proc, req);
+  return beginTurn(proc, req, reused);
 }
 
 /** 可复用的常驻进程:存活 + stdin 可写 + 模型未变(配置换模型时重建,args 随之生效)。 */
@@ -457,7 +462,7 @@ function spawnResidentProcess(req: CompanionTurnRequest): ResidentProcess {
   return proc;
 }
 
-function beginTurn(proc: ResidentProcess, req: CompanionTurnRequest): Promise<CompanionTurnResult> {
+function beginTurn(proc: ResidentProcess, req: CompanionTurnRequest, reused: boolean): Promise<CompanionTurnResult> {
   return new Promise<CompanionTurnResult>((resolve, reject) => {
     const turn: ActiveTurn = {
       settled: false,
@@ -475,6 +480,7 @@ function beginTurn(proc: ResidentProcess, req: CompanionTurnRequest): Promise<Co
       resultText: '',
       stderrBuf: '',
       context: null,
+      reused,
     };
     proc.turn = turn;
 
@@ -645,6 +651,7 @@ function settleTurn(proc: ResidentProcess, turn: ActiveTurn, outcome: SettleOutc
     sessionId: proc.sessionId,
     stderr: turn.stderrBuf,
     context: turn.context,
+    reused: turn.reused,
   });
 
   switch (outcome.kind) {

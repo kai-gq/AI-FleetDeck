@@ -1728,6 +1728,8 @@ function callClaudeOnce(
 interface ClaudeHop1Result extends ClaudeCallResult {
   /** 任务18:result 事件里的上下文占用(回退路径为 null = 不做压缩判定)。 */
   context: CompanionContextUsage | null;
+  /** W6 观测:本回合复用常驻进程(true)/新建(false);回退路径恒 false。 */
+  reused: boolean;
 }
 
 function callClaudeHop1(
@@ -1743,7 +1745,7 @@ function callClaudeHop1(
   },
 ): Promise<ClaudeHop1Result> {
   if (!isCompanionResidentEnabled()) {
-    return callClaudeOnce(systemPrompt, userContent, opts).then((r) => ({ ...r, context: null }));
+    return callClaudeOnce(systemPrompt, userContent, opts).then((r) => ({ ...r, context: null, reused: false }));
   }
   return runCompanionTurn({
     systemPrompt,
@@ -1777,6 +1779,8 @@ interface Hop1Outcome {
   newSessionId: string | null;
   /** 任务18:本回合 result 的上下文占用(回退路径为 null)。 */
   context: CompanionContextUsage | null;
+  /** W6 观测:本回合常驻进程复用/新建。 */
+  reused: boolean;
   elapsedMs: number;
 }
 
@@ -1874,7 +1878,7 @@ async function runHop1(
     throw e;
   }
   log.log(`[VoiceCompanion] hop1 ${Date.now() - started}ms → ${JSON.stringify(contract).slice(0, 500)}`);
-  return { contract, degraded: false, newSessionId: result.sessionId, context: result.context, elapsedMs: Date.now() - started };
+  return { contract, degraded: false, newSessionId: result.sessionId, context: result.context, reused: result.reused, elapsedMs: Date.now() - started };
 }
 
 async function runHop2(
@@ -2357,6 +2361,13 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           },
         });
       }
+    }
+    // W6 感知提速观测:每回合 usage/缓存命中/常驻复用(hop1 耗时已有独立行;首句 tMs 打点在路由)。
+    {
+      const u = outcome.context;
+      log.log(
+        `[VoiceCompanion] usage in=${u?.inputTokens ?? '-'} out=${u?.outputTokens ?? '-'} cacheRead=${u?.cacheReadInputTokens ?? '-'} cacheWrite=${u?.cacheCreationInputTokens ?? '-'} window=${u?.contextWindow ?? '-'} | resident=${outcome.reused ? 'reuse' : 'spawn'} | action=${outcome.contract.action}`,
+      );
     }
 
     const { contract } = outcome;

@@ -62,6 +62,7 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
     if (!res.writableEnded) controller.abort();
   });
 
+  let firstSentenceLogged = false;
   try {
     const result = await processVoiceInput(text, {
       isEvent,
@@ -69,9 +70,18 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
       onSentence: (sentence) => {
         // tMs = 该句自请求受理起的服务端毫秒数(P5 延迟打点:配合客户端到达
         // 时间戳可拆分「服务端生成」与「网络+客户端」两段)。
-        writeNdjsonLine(res, { type: 'sentence', text: sentence, tMs: Date.now() - startedAt });
+        const tMs = Date.now() - startedAt;
+        if (!firstSentenceLogged) {
+          // W6 感知提速观测:首句到达打点(与同刻客户端锚点对表用)。
+          firstSentenceLogged = true;
+          logger.server.log(`[VoiceCompanion] 首句 tMs=${tMs} chars=${Array.from(sentence).length}`);
+        }
+        writeNdjsonLine(res, { type: 'sentence', text: sentence, tMs });
       },
     });
+    if (!firstSentenceLogged) {
+      logger.server.log(`[VoiceCompanion] 首句 无(未流式/整段补播) tMs=${Date.now() - startedAt} spoke=${!!result.spoke}`);
+    }
     writeNdjsonLine(res, { type: 'final', result: { success: true, ...result }, spoke: !!result.spoke });
     endNdjson(res);
   } catch (err) {
