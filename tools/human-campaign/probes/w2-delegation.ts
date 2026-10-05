@@ -123,16 +123,19 @@ const hc16: ProbeDef = {
         await sleep(ctx.options.pollMs);
       }
     })();
-    const closed = await waitDelegationPhase(ctx, 'reported', t.since, t.anchorId, ctx.options.reportWaitMs)
+    const closedRows = await waitDelegationPhase(ctx, 'reported', t.since, t.anchorId, ctx.options.reportWaitMs)
       ?? await waitDelegationPhase(ctx, 'closed', t.since, t.anchorId, 10_000);
+    // waitDelegationPhase 返回数组；取首行做证据（2026-10-05 修复：原把数组当单行喂
+    // entryEvidence → new Date(undefined) 抛 "Invalid time value"，断言全没构造）
+    const closedRow = closedRows?.[0];
     const delegatedRow = progressed.find((e) => phaseOf(e) === 'delegated');
     if (delegatedRow?.taskId) ctx.shared['w2.lastDelegatedTaskId'] = delegatedRow.taskId;
     const subId = delegatedRow ? bodyString(delegatedRow, 'toAgentId') ?? delegatedRow.agentId : undefined;
     if (subId) ctx.shared['w2.lastSubAgentId'] = subId;
-    const receiptOk = !!closed;
+    const receiptOk = !!closedRow;
     const notes = [
       ...(t.anchorNote ? [t.anchorNote] : []),
-      receiptOk ? `真回执链走通（${closed ? phaseOf(closed) : ''}）` : `${ctx.options.reportWaitMs}ms 内未见真回执 → 转为时序观察项，由 HC-19 半合成补链`,
+      receiptOk ? `真回执链走通（${closedRow ? phaseOf(closedRow) : ''}）` : `${ctx.options.reportWaitMs}ms 内未见真回执 → 转为时序观察项，由 HC-19 半合成补链`,
     ];
     return {
       assertions: [
@@ -141,7 +144,7 @@ const hc16: ProbeDef = {
           '≥1 行', `${progressed.length} 行`, progressed.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'toAgentId', 'status'], 80))),
         assertThat('hc16-receipt', '真回执到 reported/closed（超时转半合成观察项）', true,
           'reported/closed 或（超时→半合成）', receiptOk ? '真回执' : '超时→半合成',
-          closed ? [entryEvidence(closed, ['phase', 'status'], 80)] : []),
+          closedRow ? [entryEvidence(closedRow, ['phase', 'status'], 80)] : []),
       ],
       notes,
       observed: observedSummary(delegationRows(ctx, t.since, t.anchorId)),
