@@ -1419,6 +1419,11 @@ describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
       // armMs=500 后垫话开始预生成(第二个 spawn:一次性调用,不碰常驻)。
       await waitFor(() => spawnCalls.length >= 2, '垫话生成 spawn', 2_000);
       const filler = spawnCalls[1];
+      // C13:垫话生成跳过 MCP 加载(冷启动省 ~2.6s);主链路 spawn 不带该开关(不影响其他)。
+      expect(filler.args).toContain('--strict-mcp-config');
+      expect(hop1.args).not.toContain('--strict-mcp-config');
+      // C13:垫话提示词要求「中性应声、不预告动作」(主流程可能是反问澄清,预告动作会前后不搭)。
+      expect(fs.readFileSync(promptFileOf(filler), 'utf-8')).toContain('不要预告具体动作');
       emitLine(filler.child, { type: 'result', result: '稍等，我确认一下。' });
       await closeChild(filler.child, 0); // 生成就绪(服务端会打「慢档垫话:…」日志)
 

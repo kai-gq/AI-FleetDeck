@@ -299,10 +299,11 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   contextWindowTokens: 200_000,
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
-  // W5 提速(C12):armMs 2.5→1.0s、emitMs 6.5→4.5s。垫话真实吐出 = max(armMs+emitMs=5.5s,
-  // 生成就绪≈armMs+5.5~6.3s) ≈ 6.5–7.3s(原 9.0s 是 C11 给「首字节取消」留插队余量抬上去的,
-  // 现在取消信号已在 hop1 第一个 text_delta 上,底线无需再抬高)。无出字的慢回合才轮得到垫话。
-  slowFiller: { enabled: true, armMs: 1_000, emitMs: 4_500 },
+  // W5 提速(C13):垫话生成跳过 MCP 加载(冷启动 4.9→2.2s),阈值随之下压 ——
+  // 真实吐出 = max(armMs+emitMs=3.0s, 生成就绪≈armMs+2.2~3.0s) ≈ 3.0–3.5s(再往前受
+  // 生成通道与 TTS 合成下限约束;想更早需「用户说话期间就预生成」,另立项)。
+  // 首字节取消信号仍挂着,快回合(hop1 先出字)照样不垫。无出字的慢回合才轮得到垫话。
+  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -1606,6 +1607,12 @@ function callClaudeOnce(
     onTextDelta?: (fullText: string) => void;
     /** 中止信号:abort 时 kill 子进程并以 VoiceCompanionAbortedError 拒绝。 */
     signal?: AbortSignal;
+    /**
+     * 跳过 MCP/外部设置加载(--strict-mcp-config)。仅供「无工具需求」的一次性
+     * 生成使用(当前=垫话):实测冷启动 4.87s→2.23s(2026-10-05 本机同参数对拍)。
+     * 主链路(hop1 回退/hop2)不传,行为不变。
+     */
+    skipMcp?: boolean;
   },
 ): Promise<ClaudeCallResult> {
   if (opts.signal?.aborted) return Promise.reject(new VoiceCompanionAbortedError());
@@ -1625,6 +1632,8 @@ function callClaudeOnce(
     fs.writeFileSync(systemPromptFile, systemPrompt);
     args.push('--system-prompt-file', systemPromptFile);
     if (opts.resumeId) args.push('--resume', opts.resumeId);
+    // 实测冷启动的大头在 MCP/设置加载(~2.6s);垫话纯文本生成,不需要任何工具。
+    if (opts.skipMcp) args.push('--strict-mcp-config');
 
     let child: ChildProcess;
     try {
@@ -1997,10 +2006,11 @@ async function runHop2(
 // W5 慢档续垫:一次性生成一句安抚垫话(不碰常驻进程、不污染主会话)
 // ============================================================================
 
-/** 垫话系统提示词:≤10 字、只应声 —— 不承诺、不编造、不提问(与主提示词隔离)。 */
+/** 垫话系统提示词:≤10 字、中性应声 —— 不预告动作、不承诺、不编造、不提问(与主提示词隔离)。 */
 const SLOW_FILLER_SYSTEM_PROMPT = [
-  '你是语音伙伴的「垫话」模块。老板问了一句话,主流程还在查/想,你先出声安抚,一句就够。',
-  '要求:不超过 10 个字,像真人随口应一声(例:「稍等,我看看」「这就去办」「我翻一下记录」);',
+  '你是语音伙伴的「垫话」模块。老板说完一句,主流程还没出结果,你先出声应一声,一句就够。',
+  '要求:不超过 10 个字,像真人随口应一声(例:「嗯,我在」「稍等哈」「让我想想」;也可以轻点一下话题,如「天气的事啊」);',
+  '只做中性应声:不要预告具体动作(如「我去查」「这就去办」「我看看」)——主流程接下来可能是回答、也可能是反问澄清,预告动作会前后不搭;',
   '不要下结论、不要编造进展、不要承诺具体时间、不要反问;不要 emoji、不要引号、不要解释。',
   '直接输出这一句话本身,不要任何多余内容。',
 ].join('\n');
@@ -2018,6 +2028,8 @@ async function generateSlowFillerPhrase(userText: string, model: string, signal?
       resumeId: null,
       timeoutMs: SLOW_FILLER_TIMEOUT_MS,
       signal,
+      // 垫话不需要任何工具/项目上下文 → 跳过 MCP/设置加载,冷启动省 ~2.6s。
+      skipMcp: true,
     });
     const line = result.text.split('\n').map((s) => s.trim()).find(Boolean) ?? '';
     const cleaned = line.replace(/^["「『']+|["」』']+$/g, '').trim();

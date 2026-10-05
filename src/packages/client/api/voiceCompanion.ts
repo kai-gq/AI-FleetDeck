@@ -155,8 +155,8 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxNotes: 40,
     firstSentenceMaxChars: 0,
     // 与服务端 DEFAULT_SERVER_CONFIG.slowFiller 保持一致(面板保存全量覆写,两侧别漂移)。
-    // C12 提速:armMs 1000 / emitMs 4500 —— 吐出 ≈6.5–7.3s(生成就绪是下界),比 C11 的 9.0s 提前 ~2s。
-    slowFiller: { enabled: true, armMs: 1_000, emitMs: 4_500 },
+    // C13:垫话生成跳过 MCP(省 ~2.6s)+ 阈值下压 —— 吐出 ≈3.0–3.5s。
+    slowFiller: { enabled: true, armMs: 500, emitMs: 2_500 },
   },
 };
 
