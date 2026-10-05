@@ -44,6 +44,8 @@ import type { GateAction, SentenceMeta } from '../voice/speech-gate.js';
 import { createSlowFiller } from '../voice/slow-filler.js';
 // W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
 import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
+// 任务19:工具白名单/中立 cwd/effort —— spawn 档案唯一解析点(与常驻通道共用)。
+import { resolveCompanionCliProfile } from '../voice/companion-cli-profile.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
 // 每回合 args 与既有 callClaudeOnce 逐字同构,权限姿态不变;hop2 保持一次性。
 import {
@@ -1619,9 +1621,10 @@ function callClaudeOnce(
     /** 中止信号:abort 时 kill 子进程并以 VoiceCompanionAbortedError 拒绝。 */
     signal?: AbortSignal;
     /**
-     * 跳过 MCP/外部设置加载(--strict-mcp-config)。仅供「无工具需求」的一次性
-     * 生成使用(当前=垫话):实测冷启动 4.87s→2.23s(2026-10-05 本机同参数对拍)。
-     * 主链路(hop1 回退/hop2)不传,行为不变。
+     * 「零工具」一次性生成(当前=垫话):跳过 MCP/外部设置加载,实测冷启动
+     * 4.87s→2.23s(2026-10-05 本机同参数对拍)。具体参数由档案模块按档位决定 ——
+     * default 档 = 今日的 --strict-mcp-config;allowlist/nomcp/none 档额外
+     * `--tools ""` 禁用全部内置工具。主链路(hop1 回退/hop2)不传。
      */
     skipMcp?: boolean;
   },
@@ -1643,8 +1646,10 @@ function callClaudeOnce(
     fs.writeFileSync(systemPromptFile, systemPrompt);
     args.push('--system-prompt-file', systemPromptFile);
     if (opts.resumeId) args.push('--resume', opts.resumeId);
-    // 实测冷启动的大头在 MCP/设置加载(~2.6s);垫话纯文本生成,不需要任何工具。
-    if (opts.skipMcp) args.push('--strict-mcp-config');
+    // 任务19:工具白名单/中立 cwd/effort 统一经档案模块(垫话传 zeroTools=零工具)。
+    // 档案参数恒在尾部(--tools 是变参,必须在最后)。
+    const profile = resolveCompanionCliProfile({ zeroTools: !!opts.skipMcp });
+    args.push(...profile.args);
 
     let child: ChildProcess;
     try {
@@ -1654,6 +1659,8 @@ function callClaudeOnce(
         // 参数均无空格/特殊字符,无需转义。
         shell: process.platform === 'win32',
         windowsHide: true,
+        // 中立 cwd(隔断仓库 CLAUDE.md/项目记忆注入);null = 继承进程 cwd(回退档)。
+        ...(profile.cwd ? { cwd: profile.cwd } : {}),
       });
     } catch (err) {
       reject(err);

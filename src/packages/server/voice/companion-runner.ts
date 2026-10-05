@@ -8,8 +8,11 @@
  * (runtime/agent 记录耦合 + bypass 缺省 = 安全姿态漂移)。
  *
  * 设计约束(任务18 冻结边界):
- * - **每回合 args 与今日逐字同构**:spawn 参数、shell:true、--system-prompt-file
- *   (进程建立时写入一次)、--resume 语义全部照旧;仅「生命周期/收发环」变化。
+ * - **args 结构照旧**:spawn 参数、shell:true、--system-prompt-file(进程建立时写入
+ *   一次)、--resume 语义全部照旧;仅「生命周期/收发环」变化。任务19 起在尾部追加
+ *   「CLI spawn 档案」(工具白名单/中立 cwd/effort,见 companion-cli-profile.ts),
+ *   预热与真实回合同源解析、复用判定键含档案 → 档位永不漂移;回退逐字回今日用
+ *   TC_VOICE_HOP_TOOLS=default + TC_VOICE_CWD=inherit + 不设 TC_VOICE_EFFORT。
  * - **权限姿态不变**:不引入 --dangerously-skip-permissions 等任何新权限参数。
  * - **回合结束判定**:收到 `result` 事件即本回合完成(进程保持存活等下一轮);
  *   若进程先 close(旧一次性行为 / 假子进程 harness / 崩溃),按 close 语义结算
@@ -35,6 +38,7 @@ import os from 'os';
 import path from 'path';
 import { ClaudeBackend } from '../claude/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
+import { resolveCompanionCliProfile } from './companion-cli-profile.js';
 
 const log = logger.server;
 
@@ -267,6 +271,8 @@ interface ResidentProcess {
   child: ChildProcess;
   pid: number | null;
   model: string;
+  /** 任务19:spawn 时生效的档案键(model|工具档|effort|cwd|MCP 文件实况);变化即重建。 */
+  profileKey: string;
   startedAt: number;
   /** 由 close/error 维护(不读 child.exitCode:FakeChild/极端时序下不可靠)。 */
   exited: boolean;
@@ -406,8 +412,8 @@ export function prewarmCompanionProcess(req: CompanionPrewarmRequest): boolean {
   const live = resident;
   if (live && !live.exited) {
     if (live.turn) return false;
-    if (live.model === req.model) return false;
-    stopCompanionProcess(`prewarm-model-changed->${req.model}`);
+    if (live.profileKey === processProfileKey(req.model)) return false;
+    stopCompanionProcess(`prewarm-profile-changed->${req.model}`);
   }
   try {
     const proc = spawnResidentProcess(req);
@@ -420,7 +426,12 @@ export function prewarmCompanionProcess(req: CompanionPrewarmRequest): boolean {
   }
 }
 
-/** 可复用的常驻进程:存活 + stdin 可写 + 模型未变(配置换模型时重建,args 随之生效)。 */
+/** 当前环境下的档案键(model + 任务19 档案;解析入口同 spawn,保证判定与实况一致)。 */
+function processProfileKey(model: string): string {
+  return `${model}|${resolveCompanionCliProfile().key}`;
+}
+
+/** 可复用的常驻进程:存活 + stdin 可写 + model/档案键未变(变化即重建,args 随之生效)。 */
 function getReusableProcess(model: string): ResidentProcess | null {
   const proc = resident;
   if (!proc) return null;
@@ -439,8 +450,8 @@ function getReusableProcess(model: string): ResidentProcess | null {
     stopCompanionProcess('stdin-closed');
     return null;
   }
-  if (proc.model !== model) {
-    stopCompanionProcess(`model-changed->${model}`);
+  if (proc.profileKey !== processProfileKey(model)) {
+    stopCompanionProcess(`profile-changed->${model}`);
     return null;
   }
   return proc;
@@ -449,6 +460,8 @@ function getReusableProcess(model: string): ResidentProcess | null {
 function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
   const claudeBackend = new ClaudeBackend();
   const executable = claudeBackend.getExecutablePath();
+  // 任务19:工具白名单/中立 cwd/effort 统一经档案模块(预热与真实回合同源解析)。
+  const profile = resolveCompanionCliProfile();
   const args = [
     '--print',
     '--verbose',
@@ -463,6 +476,8 @@ function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
   fs.writeFileSync(systemPromptFile, req.systemPrompt);
   args.push('--system-prompt-file', systemPromptFile);
   if (req.resumeId) args.push('--resume', req.resumeId);
+  // 档案参数恒在尾部(--tools 是变参,必须在最后)。
+  args.push(...profile.args);
 
   let child: ChildProcess;
   try {
@@ -472,6 +487,8 @@ function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
       // 参数均无空格/特殊字符,无需转义。
       shell: process.platform === 'win32',
       windowsHide: true,
+      // 中立 cwd(隔断仓库 CLAUDE.md/项目记忆注入);null = 继承进程 cwd(回退档)。
+      ...(profile.cwd ? { cwd: profile.cwd } : {}),
     });
   } catch (err) {
     cleanupFile(systemPromptFile);
@@ -482,6 +499,7 @@ function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
     child,
     pid: typeof child.pid === 'number' ? child.pid : null,
     model: req.model,
+    profileKey: `${req.model}|${profile.key}`,
     startedAt: Date.now(),
     exited: false,
     sessionId: null,

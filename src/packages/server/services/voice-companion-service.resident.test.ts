@@ -37,6 +37,7 @@ import {
   stopCompanionProcess,
   sweepStaleCompanionProcess,
 } from '../voice/companion-runner.js';
+import { ALLOWLIST_MCP_FILENAME, VOICE_CWD_DIRNAME } from '../voice/companion-cli-profile.js';
 
 // ============================================================================
 // 假 claude 子进程(常驻化关键差异:进程跨回合存活,harness 保留 child 不 close)
@@ -46,6 +47,8 @@ interface SpawnOpts {
   shell?: boolean;
   windowsHide?: boolean;
   env?: NodeJS.ProcessEnv;
+  /** 任务19:中立 cwd(档案模块注入;缺省继承进程 cwd)。 */
+  cwd?: string;
 }
 
 interface SpawnCall {
@@ -189,6 +192,8 @@ const stateFilePath = path.join(dataHome, 'tide-commander', 'voice-companion.jso
 let service: typeof import('./voice-companion-service.js');
 let projectDir = '';
 let originalCwd = '';
+/** 任务19:档案模块的 MCP 源配置夹具路径(不读真实 ~/.claude.json,断言可确定)。 */
+let mcpFixturePath = '';
 let logSpy: ReturnType<typeof vi.spyOn>;
 
 function configPath(): string {
@@ -218,6 +223,16 @@ beforeAll(async () => {
   originalCwd = process.cwd();
   projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-resident-'));
   fs.mkdirSync(path.join(projectDir, 'tools', 'voice-companion'), { recursive: true });
+  // 任务19:档案模块从「源配置」过滤出保留的 MCP 服务 —— 测试用夹具,杜绝环境依赖。
+  mcpFixturePath = path.join(projectDir, 'mcp-fixture.json');
+  fs.writeFileSync(mcpFixturePath, JSON.stringify({
+    mcpServers: {
+      'mcp-server-mysql': { command: 'npx', args: ['-y', '@benborla29/mcp-server-mysql'], env: { MYSQL_HOST: 'localhost' } },
+      obsidian: { command: 'npx', args: ['-y', '@istrejo/obsidian-mcp'] },
+      'obsidian-boshi': { command: 'npx', args: ['-y', '@istrejo/obsidian-mcp'] },
+      'mcp-server-clickhouse': { command: 'should-not-appear' },
+    },
+  }));
   process.chdir(projectDir);
   initEventDb();
 
@@ -258,6 +273,8 @@ beforeEach(() => {
   // 的用例会在测试间隙被异步预热补建,污染 spawn 计数;预热语义由本文件 W3 节专测
   // (专测内自行 stubEnv 打开)。
   vi.stubEnv('TC_VOICE_PREWARM', '0');
+  // 任务19:档案模块的 MCP 源固定到夹具(缺省档 allowlist;断言不依赖真实用户配置)。
+  vi.stubEnv('TC_VOICE_MCP_SOURCE', mcpFixturePath);
 });
 
 afterEach(() => {
@@ -887,11 +904,18 @@ describe('任务18 补钉 F6:常驻 args 全量断言', () => {
       '--output-format', 'stream-json', '--include-partial-messages', '--input-format', 'stream-json',
       '--system-prompt-file',
     ];
+    // 任务19:档案尾部逐字钉住(白名单 5 内置 + 过滤后 MCP 文件;--tools 变参收尾)。
+    const profileTail = [
+      '--strict-mcp-config',
+      '--mcp-config', path.join(dataHome, 'tide-commander', ALLOWLIST_MCP_FILENAME),
+      '--tools', 'WebSearch,WebFetch,Read,Glob,Grep',
+    ];
 
     const p1 = startProcess('第一句');
     const call1 = await waitSpawn(1);
-    expect(argsOf(call1)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-')]);
-    expect(argsOf(call1)).toHaveLength(baseArgs.length + 1); // 无多余参数
+    expect(argsOf(call1)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), ...profileTail]);
+    expect(argsOf(call1)).toHaveLength(baseArgs.length + 1 + profileTail.length); // 无多余参数
+    expect(call1.opts.cwd).toBe(path.join(dataHome, 'tide-commander', VOICE_CWD_DIRNAME));
     expect(argsOf(call1)).not.toContain('--resume');
     for (const arg of argsOf(call1)) {
       expect(arg).not.toMatch(/dangerously|bypass|permission/i); // 权限姿态冻结:显式反断言
@@ -899,13 +923,13 @@ describe('任务18 补钉 F6:常驻 args 全量断言', () => {
     completeTurn(call1.child, 'sess-1');
     await p1;
 
-    // 崩溃后带 --resume 重生的 args 同样全量逐字钉住(长度 13,--resume 在尾部)。
+    // 崩溃后带 --resume 重生的 args 同样全量逐字钉住(--resume 在档案尾之前)。
     call1.child.emit('close', 1);
     await drainMicrotasks();
     const p2 = startProcess('第二句');
     const call2 = await waitSpawn(2);
-    expect(argsOf(call2)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), '--resume', 'sess-1']);
-    expect(argsOf(call2)).toHaveLength(baseArgs.length + 3);
+    expect(argsOf(call2)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), '--resume', 'sess-1', ...profileTail]);
+    expect(argsOf(call2)).toHaveLength(baseArgs.length + 3 + profileTail.length);
     completeTurn(call2.child, 'sess-1');
     await p2;
   });

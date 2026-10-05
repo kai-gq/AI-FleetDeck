@@ -43,6 +43,8 @@ interface SpawnOpts {
   shell?: boolean;
   windowsHide?: boolean;
   env?: NodeJS.ProcessEnv;
+  /** 任务19:中立 cwd(档案模块注入;缺省继承进程 cwd)。 */
+  cwd?: string;
 }
 
 interface SpawnCall {
@@ -187,6 +189,8 @@ interface StateFile {
 let service: typeof import('./voice-companion-service.js');
 let projectDir = '';
 let originalCwd = '';
+/** 任务19:档案模块的 MCP 源配置夹具路径(不读真实 ~/.claude.json,断言可确定)。 */
+let mcpFixturePath = '';
 
 function configPath(): string {
   return path.join(projectDir, 'tools', 'voice-companion', 'config.json');
@@ -238,6 +242,16 @@ beforeAll(async () => {
   originalCwd = process.cwd();
   projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-integration-'));
   fs.mkdirSync(path.join(projectDir, 'tools', 'voice-companion'), { recursive: true });
+  // 任务19:档案模块从「源配置」过滤出保留的 MCP 服务 —— 测试用夹具,杜绝环境依赖。
+  mcpFixturePath = path.join(projectDir, 'mcp-fixture.json');
+  fs.writeFileSync(mcpFixturePath, JSON.stringify({
+    mcpServers: {
+      'mcp-server-mysql': { command: 'npx', args: ['-y', '@benborla29/mcp-server-mysql'], env: { MYSQL_HOST: 'localhost' } },
+      obsidian: { command: 'npx', args: ['-y', '@istrejo/obsidian-mcp'] },
+      'obsidian-boshi': { command: 'npx', args: ['-y', '@istrejo/obsidian-mcp'] },
+      'mcp-server-clickhouse': { command: 'should-not-appear' },
+    },
+  }));
   process.chdir(projectDir);
   initEventDb(); // 违规直派告警落 system_log,断言走真实读路径(XDG 沙箱)
 
@@ -282,6 +296,8 @@ beforeEach(() => {
   // W3 预热点火:本文件回合均以 close 收尾(常驻进程死亡),预热会在测试间隙
   // 触发额外 spawn 污染计数 —— 统一关掉;预热语义由 resident.test.ts 的 P1-P6 专测。
   vi.stubEnv('TC_VOICE_PREWARM', '0');
+  // 任务19:档案模块的 MCP 源固定到夹具(缺省档 allowlist;断言不依赖真实用户配置)。
+  vi.stubEnv('TC_VOICE_MCP_SOURCE', mcpFixturePath);
 });
 
 afterEach(() => {
@@ -1419,9 +1435,15 @@ describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
       // armMs=500 后垫话开始预生成(第二个 spawn:一次性调用,不碰常驻)。
       await waitFor(() => spawnCalls.length >= 2, '垫话生成 spawn', 2_000);
       const filler = spawnCalls[1];
-      // C13:垫话生成跳过 MCP 加载(冷启动省 ~2.6s);主链路 spawn 不带该开关(不影响其他)。
+      // C13/C19:垫话生成零工具(跳过 MCP + 禁全部内置工具,--tools 为变参须收尾);
+      // 主链路走白名单档(5 内置 + 过滤后 MCP),并带中立 cwd(隔断仓库 CLAUDE.md 注入)。
       expect(filler.args).toContain('--strict-mcp-config');
-      expect(hop1.args).not.toContain('--strict-mcp-config');
+      expect(filler.args[filler.args.length - 2]).toBe('--tools');
+      expect(filler.args[filler.args.length - 1]).toBe(process.platform === 'win32' ? '""' : '');
+      expect(hop1.args).toContain('--strict-mcp-config');
+      expect(hop1.args).toContain('--mcp-config');
+      expect(hop1.args[hop1.args.length - 1]).toBe('WebSearch,WebFetch,Read,Glob,Grep');
+      expect(hop1.opts.cwd).toBe(path.join(dataHome!, 'tide-commander', 'voice-cwd'));
       // C18:垫话提示词要求「顺着内容接、别答非所问」(多样性改由服务端记忆注入,不再靠提示词给整句示例)。
       expect(fs.readFileSync(promptFileOf(filler), 'utf-8')).toContain('别答非所问');
       emitLine(filler.child, { type: 'result', result: '稍等，我确认一下。' });
