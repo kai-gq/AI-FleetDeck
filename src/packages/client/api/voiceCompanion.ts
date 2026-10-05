@@ -395,8 +395,12 @@ export interface VoiceProcessStreamFinal extends VoiceProcessRequestResult {
 }
 
 export interface VoiceProcessStreamHandlers {
-  /** 每收到一句可播文本调用一次(按到达顺序,已过服务端语义门控)。 */
-  onSentence: (sentence: string) => void;
+  /**
+   * 每收到一句可播文本调用一次(按到达顺序,已过服务端语义门控)。
+   * meta.pre=true:过渡/垫话句(W4 起服务端可下发)——照常播报,
+   * 但消费方不应把它计入「与最终 response 的对账集」(防整段重播)。
+   */
+  onSentence: (sentence: string, meta?: { pre?: boolean }) => void;
   /** 终局:成功结果或失败(success:false)。abort 不触发。 */
   onFinal: (result: VoiceProcessStreamFinal) => void;
 }
@@ -435,7 +439,7 @@ export async function processVoiceCompanionTextStream(
   let finalSeen = false;
   await readNdjsonLines(res.body, (line) => {
     if (line.type === 'sentence' && typeof line.text === 'string') {
-      handlers.onSentence(line.text);
+      handlers.onSentence(line.text, line.pre === true ? { pre: true } : undefined);
     } else if (line.type === 'final') {
       finalSeen = true;
       const result = (line.result ?? {}) as VoiceProcessRequestResult;

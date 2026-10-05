@@ -159,6 +159,8 @@ export function VoiceCompanion({ className }: { className?: string }) {
   /**
    * 流式播报一轮大脑请求(代际守卫 + 可 abort):
    * - 模型边生成边按句下推,首句一到就入播报队列(合成+播放接续进行);
+   * - pre 句(过渡/垫话,meta.pre)照播但不进对账集——final 的 response
+   *   不含它们,若计入比较必然不等,真实回复会被整段重播念两遍;
    * - final 的 response 与已播明显不一致、或服务端整轮没出过声(spoke=false)
    *   → 整段补播,避免系统兜底话术被吞;
    * - 返回 final 结果;null = 期间被新的播报/打断取代(调用方不再上屏)。
@@ -178,9 +180,9 @@ export function VoiceCompanion({ className }: { className?: string }) {
           text,
           { event, signal: controller.signal },
           {
-            onSentence: (sentence) => {
+            onSentence: (sentence, meta) => {
               if (gen !== speakGenRef.current) return;
-              spoken.push(sentence);
+              if (!meta?.pre) spoken.push(sentence); // pre 句照播但不参与最终对账
               sentencesRef.current.push(sentence);
               setThinking(false); // 首句已出:不用再显示「正在思考」
               enqueueSpeech(sentence, lang);
