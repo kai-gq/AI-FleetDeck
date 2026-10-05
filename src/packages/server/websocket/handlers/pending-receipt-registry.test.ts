@@ -95,6 +95,17 @@ describe('createPendingReceiptRegistry', () => {
     expect(summary.endsWith('…')).toBe(true);
   });
 
+  it('任务14·B：登记带 projectId → 匹配/枚举可取回；缺省登记不带（旧路径行为不变）', () => {
+    const registry = createPendingReceiptRegistry();
+    registry.register(makeReceipt({ projectId: 'ws-b', registeredAt: 1000 }));
+    expect(registry.match('agent-1', 2000)?.receipt.projectId).toBe('ws-b');
+    expect(registry.list(2000)[0]?.projectId).toBe('ws-b');
+
+    const legacy = createPendingReceiptRegistry();
+    legacy.register(makeReceipt({ registeredAt: 1000 }));
+    expect(legacy.match('agent-1', 2000)?.receipt.projectId).toBeUndefined();
+  });
+
   it('clear 清空全部（测试复位路径）', () => {
     const registry = createPendingReceiptRegistry();
     registry.register(makeReceipt({ registeredAt: 1000 }));

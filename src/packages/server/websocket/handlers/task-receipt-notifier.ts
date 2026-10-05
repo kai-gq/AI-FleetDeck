@@ -28,6 +28,7 @@ import {
   type Signal,
 } from '../../../shared/broadcast-gates.js';
 import { logEvent } from '../../data/system-log.js';
+import { aliasesForProject, loadAliasTable } from '../../jarvis-core/projects/aliases.js';
 import { createLogger } from '../../utils/logger.js';
 import { matchPendingReceipt } from './pending-receipt-registry.js';
 
@@ -43,6 +44,8 @@ export interface TaskReceiptInput {
   success: boolean;
   /** report-task 独有：结果摘要（当前仅透传，不进播报文本，控制语音长度）。 */
   summary?: string;
+  /** 任务14·B：调用方可得的结果项目归属（兜底；匹配命中登记时优先用 receipt.projectId）。 */
+  projectId?: string;
   source: 'runtime' | 'report-task';
   at?: number;
   /** 转发出口（服务端→客户端）；缺省不转发（仍过判断层 + 落埋点）。 */
@@ -96,6 +99,21 @@ function advanceGates(decision: BroadcastDecision): void {
     next.seenKeys.length > MAX_SEEN_KEYS ? { ...next, seenKeys: next.seenKeys.slice(-MAX_SEEN_KEYS) } : next;
 }
 
+/**
+ * 任务14·B：projectId → 口称别名（取 14·A 别名表 aliasesForProject 首条；表内为归一化口称名）。
+ * 无 projectId / 未知项目 / 表缺失或损坏（14·A 已按空表容错）→ undefined：**未知则不加前缀，如实**。
+ * 不缓存、每次现读（别名改动即时生效；回执频率低，同步读小文件可忽略）。
+ */
+function resolveProjectAlias(projectId: string | undefined): string | undefined {
+  if (!projectId) return undefined;
+  try {
+    return aliasesForProject(loadAliasTable(), projectId)[0];
+  } catch (err) {
+    log.warn('[任务14·B] 项目别名查询失败（回执不加前缀）:', err);
+    return undefined;
+  }
+}
+
 // ============================================================================
 // 主流程
 // ============================================================================
@@ -113,7 +131,13 @@ export function notifyTaskCompletion(input: TaskReceiptInput): TaskReceiptOutcom
 
     const name = input.agentName || input.subordinateId.slice(0, 8);
     const verb = input.success ? '完成任务' : '任务失败';
-    const text = receipt?.taskSummary ? `${name} ${verb}:${receipt.taskSummary}` : `${name} ${verb}`;
+    // 任务14·B：回执文本前缀【项目别名】（登记快照 receipt.projectId 优先，调用方透传兜底）；
+    // 别名不可得 → 不加前缀、不占位、不写「未知」。
+    const projectAlias = resolveProjectAlias(receipt?.projectId ?? input.projectId);
+    const projectPrefix = projectAlias ? `【${projectAlias}】` : '';
+    const text = receipt?.taskSummary
+      ? `${projectPrefix}${name} ${verb}:${receipt.taskSummary}`
+      : `${projectPrefix}${name} ${verb}`;
     const dedupeKey = receipt?.taskId
       ? `agent-${input.success ? 'completed' : 'failed'}:${input.subordinateId}:${receipt.taskId}`
       : `agent-${input.success ? 'completed' : 'failed'}:${input.subordinateId}@${at}`;

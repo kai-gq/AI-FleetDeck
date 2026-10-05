@@ -2022,6 +2022,8 @@ router.post('/:id/report-task', async (req: Request<{ id: string }>, res: Respon
       summary,
       source: 'report-task',
       at: Date.now(),
+      // 任务14·B：项目归属透传（回执【项目别名】前缀的兜底来源；登记命中时用其 projectId）
+      projectId: delegation?.taskCard?.projectId,
       broadcast: broadcastFn,
     });
 

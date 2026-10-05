@@ -21,6 +21,9 @@ export interface PendingReceipt {
   taskId?: string;
   /** 委派史记录 id（delegation-history.json 中 decision.id）。 */
   decisionId?: string;
+  /** 任务14·B：任务归属项目（派活时任务卡 taskCard.projectId；workspace 语义的 project id）。
+   *  回执播报据此加【项目别名】前缀（别名查 14·A 映射表）；缺省（旧路径/无卡）不加前缀。 */
+  projectId?: string;
   /** 任务摘要（派活命令，登记时截断，控制内存与播报长度）。 */
   taskSummary: string;
   registeredAt: number;
@@ -81,6 +84,7 @@ export function createPendingReceiptRegistry(opts: {
       bossId: receipt.bossId,
       taskId: receipt.taskId,
       decisionId: receipt.decisionId,
+      projectId: receipt.projectId,
       taskSummary: truncateSummary(receipt.taskSummary),
       registeredAt,
     });

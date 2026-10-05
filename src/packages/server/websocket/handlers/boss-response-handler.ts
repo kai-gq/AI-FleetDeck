@@ -223,7 +223,7 @@ function logTaskCardPending(refs: {
  *
  * 已知缺口（登记）：出口在完成漏斗内，拿不到 WS broadcast 上下文 →
  * 不发 delegation_decision / agent_task_started 广播；播报走 logProactiveBroadcast
- * （projectId 用 taskCard 原值，任务 14 项目别名映射未落地）。
+ * （projectId 用 taskCard 原值展示；任务14·B 别名替换只落回执前缀，未动配额播报）。
  * 绝不上抛：任何异常只记日志，不拦断完成入口。
  */
 function dispatchQueuedDelegation(payload: QueuedDelegation): void {
@@ -248,6 +248,8 @@ function dispatchQueuedDelegation(payload: QueuedDelegation): void {
       bossId: payload.bossId,
       taskId,
       decisionId: payload.decisionId,
+      // 任务14·B：项目归属随登记带入（回执文本【项目别名】前缀的来源）
+      projectId: payload.taskCard?.projectId,
       taskSummary: payload.taskCommand,
     });
 
@@ -987,7 +989,7 @@ export function parseBossDelegation(
           },
         });
         // ⑩ 播报（vcs 既有通道，只 import 不改）：有 N 个排队。
-        // projectId 用 taskCard 原值——任务 14 项目别名映射未落地，不做别名替换。
+        // projectId 用 taskCard 原值展示——任务14·B 别名替换只落回执前缀，未动配额播报。
         const queueProjectLabel = taskCard?.projectId ? `（项目 ${taskCard.projectId}）` : '';
         logProactiveBroadcast({
           text: `[并发配额] 任务已排队${queueProjectLabel}：${summarizeQuotaText(decision.userCommand)}（当前 ${queuedCount} 个排队）`,
@@ -1035,11 +1037,13 @@ export function parseBossDelegation(
 
       // 任务08②：登记待回执订阅（独立于委派追踪——回执时 activeDelegations 被清理，
       // 本登记保留到匹配/TTL 过期，供完成事件组稳定去重键 + 播报文本）
+      // 任务14·B：项目归属随登记带入（回执文本【项目别名】前缀的来源）
       registerPendingReceipt({
         targetAgentId: decision.selectedAgentId,
         bossId: agentId,
         taskId: delegationTaskId,
         decisionId: decision.id,
+        projectId: taskCard?.projectId,
         taskSummary: decision.userCommand,
       });
 

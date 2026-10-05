@@ -48,6 +48,7 @@ vi.mock('../../services/voice-companion-service.js', async (importOriginal) => {
 });
 
 import { completeDelegation, getBossForSubordinate, parseBossDelegation, resetBossDelegationStateForTests } from './boss-response-handler.js';
+import { listPendingReceipts } from './pending-receipt-registry.js';
 import * as bossService from '../../services/boss-service.js';
 import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
 import { closeEventDb, initEventDb } from '../../data/event-db.js';
@@ -188,6 +189,8 @@ describe('任务15·B ⑥1：全局并发配额 handler 级整合（L2）', () =
     expect(h.sendCommand.mock.calls[3][0]).toBe('agent-q4');
     expect(getBossForSubordinate('agent-q4')?.decisionId).toBe(queued4.id); // 出队补登记
     expect(getBossForSubordinate('agent-q5')).toBeUndefined(); // 仍排队
+    // 任务14·B：出队登记同样带 projectId（回执【项目别名】前缀的第二登记路径）
+    expect(listPendingReceipts().find((r) => r.targetAgentId === 'agent-q4')?.projectId).toBe('proj-quota');
 
     // 出队完成卡迁移：queued → running（sendCommand resolve 后）
     h.resolveSend();
@@ -197,7 +200,7 @@ describe('任务15·B ⑥1：全局并发配额 handler 级整合（L2）', () =
     expect(readDecision('并发任务 1').taskCard?.status).toBe('done'); // 完成漏斗照常
     expect(getBossForSubordinate('agent-q1')).toBeUndefined();
 
-    // ⑩ 播报：排队任务开始了（projectId 原值，任务 14 别名未落地）
+    // ⑩ 播报：排队任务开始了（projectId 原值——任务14·B 别名替换只落回执前缀，未动配额播报）
     const startedBroadcast = broadcastMockRef.mock.calls.filter((c) => c[0].action === 'delegation_quota')[2];
     expect(startedBroadcast[0].text).toContain('排队任务开始了');
     expect(startedBroadcast[0].text).toContain('（项目 proj-quota）');

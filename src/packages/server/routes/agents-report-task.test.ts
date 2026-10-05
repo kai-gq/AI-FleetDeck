@@ -211,6 +211,27 @@ describe('POST /api/agents/:id/report-task — 任务08② 回执通知接线', 
     });
   });
 
+  it('任务14·B：委派任务卡的 projectId 透传回执通知（回执【项目别名】前缀的兜底来源）', async () => {
+    const subordinate = { id: 'agent-1', name: 'Builder One', class: 'builder', bossId: 'boss-1' };
+    const boss = { id: 'boss-1', name: 'Boss' };
+    vi.mocked(agentService.getAgent).mockImplementation((id: string) =>
+      (id === 'agent-1' ? subordinate : id === 'boss-1' ? boss : undefined) as any,
+    );
+    vi.mocked(getBossForSubordinate).mockReturnValue({
+      bossId: 'boss-1',
+      taskDescription: '实现登录页',
+      taskId: 't-1',
+      taskCard: { objective: '实现登录页', acceptanceCriteria: ['完成'], projectId: 'proj-b' },
+    } as any);
+
+    const res = await reportTask();
+
+    expect(res.status).toBe(200);
+    expect(notifyTaskCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ subordinateId: 'agent-1', projectId: 'proj-b' }),
+    );
+  });
+
   it('无 boss 早退：通知回执仍触发（不静默），completeDelegation 不被调用', async () => {
     vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Builder One', class: 'builder' } as any);
     vi.mocked(getBossForSubordinate).mockReturnValue(undefined as any);

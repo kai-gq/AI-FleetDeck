@@ -8,7 +8,7 @@
  *
  * 真 LLM E2E 由 W6 金丝雀/L2 沙箱承接（另一 agent 建），本测试为进程内链路代理。
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/index.js', () => ({
   agentService: {
@@ -67,6 +67,8 @@ import { decideBroadcast } from '../../../shared/broadcast-gates.js';
 import { closeEventDb, initEventDb } from '../../data/event-db.js';
 import { querySystemLog } from '../../data/system-log.js';
 import { bossService } from '../../services/index.js';
+import * as fs from 'node:fs';
+import { defaultAliasTablePath, saveAliasTable } from '../../jarvis-core/projects/aliases.js';
 
 /** 固定判定时刻：本地 15:00（不在深夜/focus 窗口），测试可复现。 */
 const AT = new Date(2026, 9, 4, 15, 0).getTime();
@@ -99,11 +101,23 @@ function newReceiptRows(): Array<Record<string, unknown>> {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/** 真 parseBossDelegation 派活（mock 服务），登记待回执。返回 decisionId。 */
-async function delegateViaBoss(taskCommand: string, agentId = 'agent-1', agentName = 'Builder One'): Promise<string> {
-  const resultText = `\`\`\`delegation
-[{"selectedAgentId":"${agentId}","selectedAgentName":"${agentName}","taskCommand":"${taskCommand}","reasoning":"builder 空闲","confidence":"high"}]
-\`\`\``;
+/** 真 parseBossDelegation 派活（mock 服务），登记待回执。返回 decisionId。传 projectId 时附任务卡。 */
+async function delegateViaBoss(
+  taskCommand: string,
+  agentId = 'agent-1',
+  agentName = 'Builder One',
+  projectId?: string,
+): Promise<string> {
+  const item: Record<string, unknown> = {
+    selectedAgentId: agentId,
+    selectedAgentName: agentName,
+    taskCommand,
+    reasoning: 'builder 空闲',
+    confidence: 'high',
+  };
+  // 任务14·B：项目归属来源 = TaskCard.projectId（随派活登记带入待回执）
+  if (projectId) item.taskCard = { objective: taskCommand, acceptanceCriteria: ['完成'], projectId };
+  const resultText = `\`\`\`delegation\n[${JSON.stringify(item)}]\n\`\`\``;
   parseBossDelegation('boss-1', 'Boss', resultText, vi.fn());
   await tick();
   const decision = vi.mocked(bossService.addDelegationToHistory).mock.calls.at(-1)![1];
@@ -257,5 +271,102 @@ describe('任务08② 回执订阅播报：登记 → 匹配 → 判断层 → t
     expect(outcome.forwarded).toBe(true);
     expect(lastReceiptBroadcast(broadcast).payload.text).toBe('Slow Seven 完成任务');
     expect(pendingReceiptCount()).toBe(0); // 惰性清扫
+  });
+});
+
+// ============================================================================
+// 任务14·B：回执文本【项目别名】前缀（派活登记 projectId → 14·A 别名表映射）
+// ============================================================================
+
+describe('任务14·B 回执项目前缀：登记 projectId → 14·A 别名表 → 文本前缀', () => {
+  const aliasFile = defaultAliasTablePath();
+
+  /** 写入别名表（XDG 沙箱默认路径；表内 alias 为归一化口称名，同 14·A 存储口径）。 */
+  function writeAliasTable(entries: Array<{ alias: string; projectId: string }>): void {
+    saveAliasTable(
+      {
+        version: 1,
+        updatedAt: AT,
+        entries: entries.map((e) => ({ ...e, createdAt: AT, source: 'file' as const })),
+      },
+      aliasFile,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetBossDelegationStateForTests(); // 登记/追踪/配额跨测隔离
+    resetTaskReceiptNotifierForTests(AT); // 判断层闸门（预算/幂等键）跨测隔离
+    fs.rmSync(aliasFile, { force: true });
+  });
+  afterEach(() => fs.rmSync(aliasFile, { force: true }));
+
+  it('已知项目：派活带 taskCard.projectId → 回执文本前缀【别名】（登记带入，非调用方兜底）', async () => {
+    writeAliasTable([{ alias: '项目b组', projectId: 'proj-b' }]);
+    const decisionId = await delegateViaBoss('实现登录页', 'agent-1', 'Builder One', 'proj-b');
+
+    const broadcast = vi.fn();
+    const outcome = notifyTaskCompletion({
+      subordinateId: 'agent-1',
+      agentName: 'Builder One',
+      success: true,
+      source: 'report-task',
+      at: AT,
+      broadcast,
+    });
+
+    expect(outcome).toMatchObject({ matched: true, duplicate: false, forwarded: true });
+    const message = lastReceiptBroadcast(broadcast);
+    expect(message.payload.decisionId).toBe(decisionId);
+    expect(message.payload.text).toBe('【项目b组】Builder One 完成任务:实现登录页');
+  });
+
+  it('未知项目：别名表查不到 → 原样不加前缀（如实，不写「未知」）', async () => {
+    writeAliasTable([{ alias: '项目b组', projectId: 'proj-b' }]);
+    await delegateViaBoss('实现登录页', 'agent-1', 'Builder One', 'proj-unknown');
+
+    const broadcast = vi.fn();
+    notifyTaskCompletion({
+      subordinateId: 'agent-1',
+      agentName: 'Builder One',
+      success: true,
+      source: 'report-task',
+      at: AT,
+      broadcast,
+    });
+    expect(lastReceiptBroadcast(broadcast).payload.text).toBe('Builder One 完成任务:实现登录页');
+  });
+
+  it('无 projectId（旧路径）：别名表有条目也不加前缀、不占位', async () => {
+    writeAliasTable([{ alias: '项目b组', projectId: 'proj-b' }]);
+    await delegateViaBoss('实现登录页');
+
+    const broadcast = vi.fn();
+    notifyTaskCompletion({
+      subordinateId: 'agent-1',
+      agentName: 'Builder One',
+      success: true,
+      source: 'report-task',
+      at: AT,
+      broadcast,
+    });
+    expect(lastReceiptBroadcast(broadcast).payload.text).toBe('Builder One 完成任务:实现登录页');
+  });
+
+  it('未匹配登记（防漏报）：调用方透传 projectId 兜底 → 前缀仍生效', () => {
+    writeAliasTable([{ alias: '项目b组', projectId: 'proj-b' }]);
+    const broadcast = vi.fn();
+    const outcome = notifyTaskCompletion({
+      subordinateId: 'agent-9',
+      agentName: 'Flyer Nine',
+      success: true,
+      source: 'report-task',
+      projectId: 'proj-b',
+      at: AT,
+      broadcast,
+    });
+
+    expect(outcome).toMatchObject({ matched: false, forwarded: true });
+    expect(lastReceiptBroadcast(broadcast).payload.text).toBe('【项目b组】Flyer Nine 完成任务');
   });
 });
