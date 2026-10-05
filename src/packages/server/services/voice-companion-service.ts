@@ -1503,14 +1503,13 @@ export function buildCompanionSystemPrompt(input: {
   totalAgents: number;
   truncated: boolean;
   memory: CompanionMemory;
-  nowText: string;
   persona?: VoicePersonaConfig;
   /** 团队委派史(只读注入;内部按时间倒序取最近 {@link MAX_DELEGATION_INJECT} 条,空/缺省输出「暂无委派记录」)。 */
   delegationHistory?: readonly DelegationDecision[];
   /** bossId → Boss 名,把委派史里的 bossId 显示成人名(缺省回退 bossId)。 */
   bossNames?: ReadonlyMap<string, string>;
 }): string {
-  const { agentLines, totalAgents, truncated, memory, nowText } = input;
+  const { agentLines, totalAgents, truncated, memory } = input;
   const agentsBlock = agentLines.length > 0
     ? agentLines.join('\n') + (truncated ? `\n(仅显示最近活动的 ${agentLines.length} 个,共 ${totalAgents} 个)` : '')
     : '(暂无 agent)';
@@ -1564,7 +1563,7 @@ ${CONTRACT_TEMPLATE}
 
 【说话风格】除 noop 外,responseToUser 一律不能为空(query_agent_output 写 ≤12 字过渡话术即可);用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」;不要追加「我盯着」「办好了马上回你」这类事后回报承诺——完成与进展由系统的主动汇报通道负责,不由你许诺。这是语音播报,写出来就要能直接念。
 
-【当前时间】${nowText}
+【时间注记】老板消息末尾会附一行【当前时间】(系统每回合注入,不是老板说的话);问到时间/日期/早晚以它为准,不要凭记忆或猜测。
 
 【长期记忆】
 ${formatMemory(memory)}
@@ -1852,14 +1851,13 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
     }
   }
   const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas, delegationHistory, projectLines);
-  const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
   // 体积告警(P9):记忆是仅次于 agent 快照的 prompt 变项,超阈值先提示清理。
   const memoryChars = formatMemory(memory).length;
   if (memoryChars > MEMORY_WARN_CHARS) {
     log.warn(`[VoiceCompanion] 记忆注入体积偏大:${memoryChars} 字符 / ${memory.notes.length} 条笔记(阈值 ${MEMORY_WARN_CHARS}),建议清理`);
   }
   const bossNames = new Map<string, string>(agents.filter(isBossLikeAgent).map((a): [string, string] => [a.id, a.name]));
-  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona, delegationHistory, bossNames });
+  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, persona, delegationHistory, bossNames });
 }
 
 /**
@@ -1895,7 +1893,14 @@ async function runHop1(
   // 体积打点(P5):agent 快照是 prompt 的最大变项,超预期先看这里。
   log.log(`[VoiceCompanion] system prompt ${systemPrompt.length} 字符`);
 
-  const attempt = (resumeId: string | null) => callClaudeHop1(systemPrompt, userText, {
+  // 当前时间随回合注入用户消息:resume 会话的系统提示词是「首建会话时记录、之后原样重发」
+  // 的冻结语义(常驻进程也在 spawn 时固定),写进系统提示词的时间会在会话生命周期里停走
+  // (真麦实测:20:33 问「现在几点了」答「晚上 8 点 12 分」)。放进每回合 userContent,
+  // 一次性/常驻两条路径同源生效。
+  const nowText = new Date().toLocaleString('zh-CN', { hour12: false });
+  const userContent = `${userText}\n\n【当前时间】${nowText}`;
+
+  const attempt = (resumeId: string | null) => callClaudeHop1(systemPrompt, userContent, {
     model: cfg.model,
     resumeId,
     timeoutMs: cfg.hop1TimeoutMs,

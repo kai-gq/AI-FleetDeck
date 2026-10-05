@@ -85,7 +85,6 @@ function buildPrompt(opts: {
     totalAgents: 5,
     truncated: false,
     memory: emptyMemory(),
-    nowText: '2026-10-04 12:00',
     ...opts,
   });
 }

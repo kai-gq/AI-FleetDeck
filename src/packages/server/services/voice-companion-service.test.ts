@@ -461,7 +461,6 @@ describe('buildAgentSnapshotLines', () => {
     const prompt = buildCompanionSystemPrompt({
       agentLines: lines, totalAgents: 60, truncated: false,
       memory: { ...emptyMemory(), notes: Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, text: '偏好笔记'.repeat(10), createdAt: 0, source: 'auto' as const })) },
-      nowText: '2026-10-03 12:00',
     });
     expect(prompt.length).toBeLessThan(20_000); // 整体 prompt 体积护栏(实测远低于此)
   });
@@ -473,7 +472,6 @@ describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
     totalAgents: 1,
     truncated: false,
     memory: emptyMemory(),
-    nowText: '2026-10-03 12:00',
   });
 
   it('injects the default persona (豆包风) and dropped the 60-char caps', () => {
@@ -496,6 +494,13 @@ describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
     expect(prompt).toContain('开口第一句必须短(≤12 字,先应声');
     expect(prompt).toContain('第二句起再展开');
   });
+
+  it('时间不再写进系统提示词(resume 冻结会停走,真麦答错 20 分钟),改为回合注入用户消息', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    // 具体时间戳(/【当前时间】2026-…/)不得出现在系统提示词;注记里对该标记的引用不算
+    expect(prompt).not.toMatch(/【当前时间】\s*\d/);
+    expect(prompt).toContain('【时间注记】');
+  });
 });
 
 describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', () => {
@@ -504,7 +509,6 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     totalAgents: 2,
     truncated: false,
     memory: emptyMemory(),
-    nowText: '2026-10-04 12:00',
   });
 
   it('契约模板与说明收录 delegate_to_boss', () => {
@@ -576,7 +580,7 @@ describe('任务13·⑩ Bolba 契约动作', () => {
 
   it('契约模板含 bolbaTask 字段,说明区含四动作与两本账边界', () => {
     const prompt = buildCompanionSystemPrompt({
-      agentLines: [], totalAgents: 0, truncated: false, memory: emptyMemory(), nowText: '2026-10-04 12:00',
+      agentLines: [], totalAgents: 0, truncated: false, memory: emptyMemory(),
     });
     expect(prompt).toContain('"query":"","bolbaTask":""');
     for (const action of BOLBA_ACTIONS) expect(prompt).toContain(`${action}: `);

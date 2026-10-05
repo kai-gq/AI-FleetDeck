@@ -491,6 +491,8 @@ describe('任务18 常驻通道:复用与协议同构', () => {
     expect(stdinMsg.type).toBe('user');
     expect(stdinMsg.message.role).toBe('user');
     expect(stdinMsg.message.content).toContain('第一句');
+    // 时间随回合注入用户消息(修复:resume 提示词冻结导致「现在几点」答的是建会话时刻)
+    expect(stdinMsg.message.content).toContain('【当前时间】');
     expect(stdinMsg.message.content).toContain('[REMINDER: Output ONLY the JSON object. No explanations.]');
 
     // PID 台账:serverPid=本进程,childPid=子进程。
