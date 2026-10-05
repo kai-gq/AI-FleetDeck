@@ -904,6 +904,8 @@ describe('任务18 补钉 F6:常驻 args 全量断言', () => {
       '--output-format', 'stream-json', '--include-partial-messages', '--input-format', 'stream-json',
       '--system-prompt-file',
     ];
+    // 提示词快照关(2026-10-06):resume 不再沿用会话首请求「录死」的提示词。
+    const snapshotArgs = ['--system-prompt-snapshot', 'off'];
     // 任务19:档案尾部逐字钉住(白名单 5 内置 + 过滤后 MCP 文件;--tools 变参收尾)。
     const profileTail = [
       '--strict-mcp-config',
@@ -913,8 +915,8 @@ describe('任务18 补钉 F6:常驻 args 全量断言', () => {
 
     const p1 = startProcess('第一句');
     const call1 = await waitSpawn(1);
-    expect(argsOf(call1)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), ...profileTail]);
-    expect(argsOf(call1)).toHaveLength(baseArgs.length + 1 + profileTail.length); // 无多余参数
+    expect(argsOf(call1)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), ...snapshotArgs, ...profileTail]);
+    expect(argsOf(call1)).toHaveLength(baseArgs.length + 1 + snapshotArgs.length + profileTail.length); // 无多余参数
     expect(call1.opts.cwd).toBe(path.join(dataHome, 'tide-commander', VOICE_CWD_DIRNAME));
     expect(argsOf(call1)).not.toContain('--resume');
     for (const arg of argsOf(call1)) {
@@ -928,8 +930,8 @@ describe('任务18 补钉 F6:常驻 args 全量断言', () => {
     await drainMicrotasks();
     const p2 = startProcess('第二句');
     const call2 = await waitSpawn(2);
-    expect(argsOf(call2)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), '--resume', 'sess-1', ...profileTail]);
-    expect(argsOf(call2)).toHaveLength(baseArgs.length + 3 + profileTail.length);
+    expect(argsOf(call2)).toEqual([...baseArgs, expect.stringContaining('voice-companion-prompt-'), ...snapshotArgs, '--resume', 'sess-1', ...profileTail]);
+    expect(argsOf(call2)).toHaveLength(baseArgs.length + 3 + snapshotArgs.length + profileTail.length);
     completeTurn(call2.child, 'sess-1');
     await p2;
   });

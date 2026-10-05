@@ -475,6 +475,10 @@ function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
   const systemPromptFile = path.join(os.tmpdir(), `voice-companion-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
   fs.writeFileSync(systemPromptFile, req.systemPrompt);
   args.push('--system-prompt-file', systemPromptFile);
+  // 关提示词快照:CLI 默认把会话首请求的系统提示词「录死」,之后每个回合/resume 都按
+  // 记录原样重发 —— 文件新≠模型收到(2026-10-06 同中转 A/B 实测)。off = 每回合按当前
+  // 提示词即时渲染(记忆/能力边界等改动不必等清会话,常驻进程也不用重建)。
+  args.push('--system-prompt-snapshot', 'off');
   if (req.resumeId) args.push('--resume', req.resumeId);
   // 档案参数恒在尾部(--tools 是变参,必须在最后)。
   args.push(...profile.args);

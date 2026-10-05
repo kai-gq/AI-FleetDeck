@@ -1654,6 +1654,8 @@ function callClaudeOnce(
     const systemPromptFile = path.join(os.tmpdir(), `voice-companion-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
     fs.writeFileSync(systemPromptFile, systemPrompt);
     args.push('--system-prompt-file', systemPromptFile);
+    // 关提示词快照(与常驻链路同口径):resume 回退路径也按当回合提示词即时生效。
+    args.push('--system-prompt-snapshot', 'off');
     if (opts.resumeId) args.push('--resume', opts.resumeId);
     // 任务19:工具白名单/中立 cwd/effort 统一经档案模块(垫话传 zeroTools=零工具)。
     // 档案参数恒在尾部(--tools 是变参,必须在最后)。
