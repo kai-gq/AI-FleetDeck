@@ -76,6 +76,14 @@ export interface BrainConfig {
   sessionMaxAgeDays: number;
   /** 记忆条数上限(溢出裁最旧)。 */
   maxNotes: number;
+  /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
+  slowFiller: {
+    enabled: boolean;
+    /** 开始预生成的时间点(ms,自回合开始)。 */
+    armMs: number;
+    /** 允许吐出的最早时间点(ms,自回合开始)。 */
+    emitMs: number;
+  };
 }
 
 /** 人设:预设 id(见 shared/voice-personas)或 'custom'+自定义文本。 */
@@ -143,6 +151,7 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxTurns: 120,
     sessionMaxAgeDays: 7,
     maxNotes: 40,
+    slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
   },
 };
 
@@ -188,7 +197,10 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
     listening: { ...DEFAULT_VOICE_COMPANION_CONFIG.listening, endWords: [...DEFAULT_VOICE_COMPANION_CONFIG.listening.endWords] },
     proactive: { ...DEFAULT_VOICE_COMPANION_CONFIG.proactive },
     ui: { ...DEFAULT_VOICE_COMPANION_CONFIG.ui },
-    brain: { ...DEFAULT_VOICE_COMPANION_CONFIG.brain },
+    brain: {
+      ...DEFAULT_VOICE_COMPANION_CONFIG.brain,
+      slowFiller: { ...DEFAULT_VOICE_COMPANION_CONFIG.brain.slowFiller },
+    },
   };
   if (!raw || typeof raw !== 'object') return cfg;
   const obj = raw as Record<string, unknown>;
@@ -272,6 +284,13 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
     cfg.brain.maxTurns = clampInt(brain.maxTurns, 10, 2_000, cfg.brain.maxTurns);
     cfg.brain.sessionMaxAgeDays = clampInt(brain.sessionMaxAgeDays, 1, 365, cfg.brain.sessionMaxAgeDays);
     cfg.brain.maxNotes = clampInt(brain.maxNotes, 5, 200, cfg.brain.maxNotes);
+    // W5 慢档续垫:不设面板,但必须原样保留(否则面板保存一次就把值改丢)。
+    const sf = brain.slowFiller as Record<string, unknown> | undefined;
+    if (sf && typeof sf === 'object') {
+      if (typeof sf.enabled === 'boolean') cfg.brain.slowFiller.enabled = sf.enabled;
+      cfg.brain.slowFiller.armMs = clampInt(sf.armMs, 500, 10_000, cfg.brain.slowFiller.armMs);
+      cfg.brain.slowFiller.emitMs = clampInt(sf.emitMs, 1_000, 30_000, cfg.brain.slowFiller.emitMs);
+    }
   }
 
   return cfg;

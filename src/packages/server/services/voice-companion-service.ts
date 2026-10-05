@@ -41,6 +41,7 @@ import { logger, sanitizeUnicode } from '../utils/index.js';
 import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction, SentenceMeta } from '../voice/speech-gate.js';
+import { createSlowFiller } from '../voice/slow-filler.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
 // 每回合 args 与既有 callClaudeOnce 逐字同构,权限姿态不变;hop2 保持一次性。
 import {
@@ -267,6 +268,17 @@ export interface VoiceCompanionServerConfig {
   contextCompactPercent: number;
   /** 任务18:压缩判定窗口兜底(CLI modelUsage.contextWindow 缺失时用;缺省 200K)。 */
   contextWindowTokens: number;
+  /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
+  slowFiller: SlowFillerTiming;
+}
+
+/** W5 慢档续垫参数(阈值先按 2.5s/5.5s 观察一周再调)。 */
+export interface SlowFillerTiming {
+  enabled: boolean;
+  /** 开始预生成的时间点(ms,自回合开始)。 */
+  armMs: number;
+  /** 允许吐出的最早时间点(ms,自回合开始)。 */
+  emitMs: number;
 }
 
 export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
@@ -281,6 +293,7 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   // 非实测;窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
   contextCompactPercent: 0.8,
   contextWindowTokens: 200_000,
+  slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -349,10 +362,27 @@ function clampFloat(value: unknown, min: number, max: number, fallback: number):
   return Math.min(max, Math.max(min, value));
 }
 
+/** W5:垫话参数解析(brain.slowFiller;env TC_VOICE_SLOW_FILLER=0 为硬回退开关)。 */
+function slowFillerConfigFrom(brain: Record<string, unknown> | undefined): SlowFillerTiming {
+  const sf = brain?.slowFiller as Record<string, unknown> | undefined;
+  const envOff = process.env.TC_VOICE_SLOW_FILLER === '0';
+  return {
+    enabled: !envOff && sf?.enabled !== false,
+    armMs: clampNumber(sf?.armMs, 500, 10_000, DEFAULT_SERVER_CONFIG.slowFiller.armMs),
+    emitMs: clampNumber(sf?.emitMs, 1_000, 30_000, DEFAULT_SERVER_CONFIG.slowFiller.emitMs),
+  };
+}
+
 /** 读取 tools/voice-companion/config.json(服务端只关心 model / persona / brain.*);缺失回默认。 */
 export function loadServerConfig(): VoiceCompanionServerConfig {
   try {
-    if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULT_SERVER_CONFIG, persona: { ...DEFAULT_SERVER_CONFIG.persona } };
+    if (!fs.existsSync(CONFIG_FILE)) {
+      return {
+        ...DEFAULT_SERVER_CONFIG,
+        persona: { ...DEFAULT_SERVER_CONFIG.persona },
+        slowFiller: slowFillerConfigFrom(undefined),
+      };
+    }
     const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
     const brain = raw?.brain ?? {};
     return {
@@ -369,10 +399,15 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
       // 任务18:可配置压缩阈值/窗口(缺省 0.8 / 200K;见 DEFAULT_SERVER_CONFIG 登记)。
       contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.5, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
       contextWindowTokens: clampNumber(brain.contextWindowTokens, 50_000, 1_000_000, DEFAULT_SERVER_CONFIG.contextWindowTokens),
+      slowFiller: slowFillerConfigFrom(brain),
     };
   } catch (err) {
     log.warn(`[VoiceCompanion] config.json 读取失败,用默认配置: ${(err as Error).message}`);
-    return { ...DEFAULT_SERVER_CONFIG, persona: { ...DEFAULT_SERVER_CONFIG.persona } };
+    return {
+      ...DEFAULT_SERVER_CONFIG,
+      persona: { ...DEFAULT_SERVER_CONFIG.persona },
+      slowFiller: slowFillerConfigFrom(undefined),
+    };
   }
 }
 
@@ -1921,6 +1956,43 @@ async function runHop2(
 }
 
 // ============================================================================
+// W5 慢档续垫:一次性生成一句安抚垫话(不碰常驻进程、不污染主会话)
+// ============================================================================
+
+/** 垫话系统提示词:≤10 字、只应声 —— 不承诺、不编造、不提问(与主提示词隔离)。 */
+const SLOW_FILLER_SYSTEM_PROMPT = [
+  '你是语音伙伴的「垫话」模块。老板问了一句话,主流程还在查/想,你先出声安抚,一句就够。',
+  '要求:不超过 10 个字,像真人随口应一声(例:「稍等,我看看」「这就去办」「我翻一下记录」);',
+  '不要下结论、不要编造进展、不要承诺具体时间、不要反问;不要 emoji、不要引号、不要解释。',
+  '直接输出这一句话本身,不要任何多余内容。',
+].join('\n');
+
+/** 生成超时(垫话是可选加成,慢过阈值就放弃,绝不拖回合)。 */
+const SLOW_FILLER_TIMEOUT_MS = 8_000;
+/** 内容护栏:远超 10 字上限(模型跑偏)宁可静默也不念长句。 */
+const SLOW_FILLER_MAX_CHARS = 16;
+
+/** 生成一句垫话;任何失败(超时/中止/跑偏/空)一律 null(调用方静默)。 */
+async function generateSlowFillerPhrase(userText: string, model: string, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const result = await callClaudeOnce(SLOW_FILLER_SYSTEM_PROMPT, `老板刚才说:「${truncate(userText, 80)}」`, {
+      model,
+      resumeId: null,
+      timeoutMs: SLOW_FILLER_TIMEOUT_MS,
+      signal,
+    });
+    const line = result.text.split('\n').map((s) => s.trim()).find(Boolean) ?? '';
+    const cleaned = line.replace(/^["「『']+|["」』']+$/g, '').trim();
+    if (!cleaned || Array.from(cleaned).length > SLOW_FILLER_MAX_CHARS) return null;
+    log.log(`[VoiceCompanion] 慢档垫话:${cleaned}`);
+    return cleaned;
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 慢档垫话生成失败(静默): ${(err as Error).message}`);
+    return null;
+  }
+}
+
+// ============================================================================
 // Agent history excerpt (two-hop source material)
 // ============================================================================
 
@@ -2206,10 +2278,34 @@ function pickLogWindowPreset(text: string): 'today' | 'yesterday' | 'last24h' | 
 export async function processVoiceInput(text: string, opts: VoiceProcessOptions = {}): Promise<VoiceProcessResult> {
   // 任务 02：语音回合是链路起点，runWithTrace 让本回合所有埋点共享 taskId/sessionId。
   return withMutex(async () => runWithTrace({ source: 'voice-companion' }, async () => {
-    const speech = createSpeechPipeline(opts.onSentence);
-
     const started = Date.now();
     const cfg = loadServerConfig();
+
+    // W5 慢档续垫:与主链路解耦 —— 生成走一次性调用(resumeId:null,不碰常驻),
+    // 吐出走 pre 通道(照播但不参与客户端最终对账)。任何真实句(含 query 过渡句)
+    // 一出即取消;事件回合不武装(noop 场景不出声)。
+    const rawOnSentence = opts.onSentence;
+    const slowFiller = createSlowFiller({
+      enabled: cfg.slowFiller.enabled && !!rawOnSentence,
+      armMs: cfg.slowFiller.armMs,
+      emitMs: cfg.slowFiller.emitMs,
+      generate: () => generateSlowFillerPhrase(text, cfg.model, opts.signal),
+      emit: (sentence) => rawOnSentence?.(sentence, { pre: true }),
+    });
+    const speech = createSpeechPipeline(
+      rawOnSentence
+        ? (sentence, meta) => {
+            slowFiller.cancel(); // 有真实句出声,垫话已无必要
+            rawOnSentence(sentence, meta);
+          }
+        : undefined,
+    );
+    /** 回合收尾(正常 finish / 中止重抛)统一出口:停宽限计时器 + 停垫话。 */
+    const disposeTurn = () => {
+      slowFiller.cancel();
+      speech.dispose();
+    };
+
     const state = loadCompanionState();
     const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);
 
@@ -2265,7 +2361,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     });
 
     const finish = (r: VoiceProcessResult): VoiceProcessResult => {
-      speech.dispose(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)
+      disposeTurn(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)+ 停垫话计时
       if (speech.spoke) r.spoke = true;
       // 任务 02 埋点：回合最终回应 = 对话(out) + 播报(phase=server-sent，实际播放链路在客户端)
       if (r.response) {
@@ -2314,6 +2410,9 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }
     }
 
+    // W5:用户回合才武装垫话(事件回合可能 noop,不浪费一次生成)。
+    if (!opts.isEvent) slowFiller.arm();
+
     let outcome: Hop1Outcome;
     try {
       outcome = await runHop1(text, state, cfg, !!opts.isEvent, {
@@ -2323,11 +2422,11 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     } catch (err) {
       const e = err as NodeJS.ErrnoException & { name?: string };
       if (e.code === 'ENOENT') {
-        speech.dispose();
+        disposeTurn();
         throw err; // 服务器没装 claude —— 配置问题,交给路由 500
       }
       if (e.name === 'VoiceCompanionAborted') {
-        speech.dispose();
+        disposeTurn();
         throw err; // 客户端已断开:交给路由静默收尾
       }
       const shouldDegrade = e.name === 'VoiceCompanionTimeout'
@@ -2686,7 +2785,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         }, logCtx);
       } catch (err) {
         if (err instanceof VoiceCompanionAbortedError) {
-          speech.dispose();
+          disposeTurn();
           throw err;
         }
         log.warn(`[VoiceCompanion] hop2 失败,用确定性摘要: ${(err as Error).message}`);
@@ -2797,7 +2896,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         result.response = renderLogAnalysisReport(report);
       } catch (err) {
         if (err instanceof VoiceCompanionAbortedError) {
-          speech.dispose();
+          disposeTurn();
           throw err;
         }
         log.warn(`[VoiceCompanion] 日志分析失败: ${(err as Error).message}`);
