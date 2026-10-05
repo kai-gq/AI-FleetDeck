@@ -69,3 +69,33 @@ describe('cronService.schedule initialLastFired', () => {
     expect(cb).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('任务33 活动监视器注册点', () => {
+  it('表达式固定、start 幂等、stop 后可重启', () => {
+    expect(cronService.SENTINEL_SCAN_CRON).toBe('10 0 * * *');
+    const first = cronService.startSentinelScanJob();
+    expect(cronService.startSentinelScanJob()).toBe(first); // 幂等:重复 start 返回同句柄
+    cronService.stopSentinelScanJob();
+    const restarted = cronService.startSentinelScanJob();
+    expect(restarted).not.toBe(first); // stop 后可再注册
+    cronService.stopSentinelScanJob();
+  });
+
+  it('到点触发:惰性加载 sentinel-service 并调 runSentinelDailyScan(重复 start 不重复触发)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 5, 0, 9, 50)); // 本地 00:09:50,30s 后跨入 00:10
+
+    const runScan = vi.fn().mockResolvedValue(undefined);
+    vi.doMock('./sentinel-service.js', () => ({ runSentinelDailyScan: runScan }));
+
+    const job = cronService.startSentinelScanJob();
+    cronService.startSentinelScanJob(); // 幂等:不应产生第二个 interval
+
+    vi.advanceTimersByTime(30_000);
+    await vi.waitFor(() => expect(runScan).toHaveBeenCalledTimes(1));
+    expect(job.lastFired).not.toBeNull();
+
+    cronService.stopSentinelScanJob();
+    vi.doUnmock('./sentinel-service.js');
+  });
+});

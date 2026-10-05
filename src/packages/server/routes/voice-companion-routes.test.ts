@@ -28,8 +28,31 @@ vi.mock('../services/voice-companion-service.js', () => {
   };
 });
 
+// 任务33:路由层事件闸口依赖 sentinel-service;默认放行,闸口测试里改返回值。
+vi.mock('../services/sentinel-service.js', () => ({
+  evaluateVoiceEventGate: vi.fn(() => ({ decision: 'pass', directive: null })),
+  logSuppressedVoiceEvent: vi.fn(),
+}));
+
 import * as service from '../services/voice-companion-service.js';
+import * as sentinel from '../services/sentinel-service.js';
 import voiceCompanionRoutes from './voice-companion.js';
+import type { SentinelEventGateResult } from '../services/sentinel-service.js';
+
+/** store-only 指令替身(字段齐即可,路由只看 decision)。 */
+function degradedDirective(): NonNullable<SentinelEventGateResult['directive']> {
+  return {
+    action: 'store-only',
+    maxTier: 'STORE',
+    speakAllowed: false,
+    speechFactor: 0,
+    phase: 'degraded',
+    day: '2026-10-5',
+    at: 0,
+    verdict: 'critical',
+    evidence: { day: '2026-10-4', proactiveBroadcasts: 10, ignoreRate: 0.7, adoptRate: null, complaints: 0 },
+  };
+}
 
 let server: http.Server;
 let baseUrl: string;
@@ -49,6 +72,9 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // resetAllMocks 会清掉工厂默认实现,这里重置:默认闸口放行(旧测试语义不变,
+  // 闸口抑制用例在自己的 it 内显式改返回值)。
+  vi.mocked(sentinel.evaluateVoiceEventGate).mockReturnValue({ decision: 'pass', directive: null });
 });
 
 async function post(body: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
@@ -130,6 +156,74 @@ describe('POST /process 非流式', () => {
     const { status, json } = await post({ text: '你好' });
     expect(status).toBe(500);
     expect(json).toEqual({ error: 'Failed to process', code: 'PROCESS_FAILED', details: 'boom' });
+  });
+});
+
+describe('POST /process 事件闸口(任务33 活动监视器)', () => {
+  it('store-only:抑制事件——不调 LLM、返回 noop 形应答、落 suppressed 日志', async () => {
+    vi.mocked(sentinel.evaluateVoiceEventGate).mockReturnValue({
+      decision: 'store-only',
+      directive: degradedDirective(),
+    });
+
+    const { status, json } = await post({ text: '⟦系统事件⟧ 过去 3 分钟:① x 完成', event: true });
+    expect(status).toBe(200);
+    expect(json).toEqual({ success: true, action: 'noop', response: '', elapsedMs: 0 });
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+    expect(sentinel.logSuppressedVoiceEvent).toHaveBeenCalledWith(
+      '⟦系统事件⟧ 过去 3 分钟:① x 完成',
+      expect.objectContaining({ decision: 'store-only' }),
+    );
+  });
+
+  it('store-only + stream:NDJSON 单行 final(spoke:false,noop 形)', async () => {
+    vi.mocked(sentinel.evaluateVoiceEventGate).mockReturnValue({
+      decision: 'store-only',
+      directive: degradedDirective(),
+    });
+
+    const res = await fetch(`${baseUrl}/api/voice-companion/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '⟦系统事件⟧ 有事件', event: true, stream: true }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/x-ndjson; charset=utf-8');
+    expect(parseNdjson(await res.text())).toEqual([
+      { type: 'final', result: { success: true, action: 'noop', response: '', elapsedMs: 0 }, spoke: false },
+    ]);
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+  });
+
+  it('throttle:确定性降频被丢的事件同样抑制(不调 LLM)', async () => {
+    vi.mocked(sentinel.evaluateVoiceEventGate).mockReturnValue({
+      decision: 'throttle',
+      directive: { ...degradedDirective(), action: 'reduce-frequency', maxTier: 'SPEAK', speakAllowed: true, speechFactor: 0.5, phase: 'recovering', verdict: 'healthy' },
+    });
+
+    const { json } = await post({ text: '⟦系统事件⟧ 又一个事件', event: true });
+    expect(json.action).toBe('noop');
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+    expect(sentinel.logSuppressedVoiceEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('放行:闸口 pass 时事件照常进 LLM(isEvent=true)', async () => {
+    // 默认 mock 即 pass
+    vi.mocked(service.processVoiceInput).mockResolvedValue({ action: 'noop', response: '', elapsedMs: 1 });
+
+    const { status, json } = await post({ text: '⟦系统事件⟧ 一切正常', event: true });
+    expect(status).toBe(200);
+    expect(json).toMatchObject({ success: true, action: 'noop' });
+    expect(service.processVoiceInput).toHaveBeenCalledWith('⟦系统事件⟧ 一切正常', { isEvent: true });
+    expect(sentinel.logSuppressedVoiceEvent).not.toHaveBeenCalled();
+  });
+
+  it('非事件不过闸:老板说话永不受活动监视器影响', async () => {
+    vi.mocked(service.processVoiceInput).mockResolvedValue({ action: 'general_response', response: '嗯', elapsedMs: 1 });
+
+    await post({ text: '你好' });
+    expect(sentinel.evaluateVoiceEventGate).not.toHaveBeenCalled();
+    expect(service.processVoiceInput).toHaveBeenCalledWith('你好', { isEvent: false });
   });
 });
 

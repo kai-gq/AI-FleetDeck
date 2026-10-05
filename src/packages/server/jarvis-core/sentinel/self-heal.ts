@@ -41,7 +41,7 @@ function bigramCounts(text: string): Map<string, number> {
 /**
  * 文本相似度（0–1，多重集 Dice 系数）：`2·|A∩B| / (|A|+|B|)`，A/B = 归一化后的
  * 字符 bigram 集合。完全相同 = 1；单字（无法成 bigram）只认完全相同。
- * 初始实现非实测口径（相似阈值 0.8 见 SelfHealTuning），登记待标定。
+ * 初始实现非实测口径（相似阈值 0.7 见 SelfHealTuning），登记待标定。
  */
 export function textSimilarity(a: string, b: string): number {
   const x = normalizeRequestText(a);

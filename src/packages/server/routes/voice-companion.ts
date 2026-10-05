@@ -3,7 +3,8 @@
  *
  * 「语音伙伴」服务端接口(统一语音入口;旧 /api/voice-assistant 路由已移除):
  *
- *   POST /api/voice-companion/process  { text, event? }  处理一段文本(语音转写或系统事件)
+ *   POST /api/voice-companion/process  { text, event? }  处理一段文本(语音转写或系统事件;
+ *                                          系统事件经活动监视器闸口——任务33)
  *   GET  /api/voice-companion/status                     会话/记忆状态
  *   POST /api/voice-companion/reset    { keepMemory? }   重置会话(默认保留记忆)
  *   GET  /api/voice-companion/memory                     读取记忆
@@ -22,6 +23,7 @@ import {
   VoiceCompanionAbortedError,
   type VoiceMemoryOp,
 } from '../services/voice-companion-service.js';
+import { evaluateVoiceEventGate, logSuppressedVoiceEvent } from '../services/sentinel-service.js';
 import { initNdjson, writeNdjsonLine, endNdjson } from '../voice/ndjson.js';
 import { logger } from '../utils/index.js';
 
@@ -103,6 +105,28 @@ router.post('/process', async (req: Request, res: Response) => {
   }
 
   logger.server.log(`[VoiceCompanion] Processing${event ? ' (event)' : ''}${stream ? ' (stream)' : ''}: "${text.slice(0, 120)}"`);
+
+  // 任务33 事件闸口 v1(活动监视器降级指令落地;只拦 event=true,老板说话永不过闸):
+  //   store-only(degraded 相位)→ 抑制不出声;throttle(warning/recovering)→ 确定性降频。
+  // 抑制=落 dialog 日志(degraded 标记)+ 返回与 noop 同形应答(客户端本就按 noop 静默,
+  // 零 client 改动);闸口自身异常 fail-open(见 sentinel-service)。
+  if (event === true) {
+    const gate = evaluateVoiceEventGate(text.trim());
+    if (gate.decision !== 'pass') {
+      logSuppressedVoiceEvent(text.trim(), gate);
+      logger.server.log(
+        `[VoiceCompanion] 事件闸口抑制(${gate.decision}${gate.directive ? `,phase=${gate.directive.phase}` : ''}): "${text.slice(0, 120)}"`,
+      );
+      const noopResult = { success: true, action: 'noop' as const, response: '', elapsedMs: 0 };
+      if (stream === true) {
+        initNdjson(res);
+        writeNdjsonLine(res, { type: 'final', result: noopResult, spoke: false });
+        endNdjson(res);
+        return;
+      }
+      return res.json(noopResult);
+    }
+  }
 
   if (stream === true) {
     return handleStreamProcess(res, text.trim(), !!event);

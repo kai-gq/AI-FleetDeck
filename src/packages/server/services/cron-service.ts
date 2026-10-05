@@ -584,3 +584,50 @@ export function stopWeeklyCostReportJob(): void {
 
 // 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
 startWeeklyCostReportJob();
+
+// ─── 任务33：活动监视器每日评估（00:10）注册点 ───
+
+/**
+ * 评估时段（每日 00:10 本地时区；初始值非实测）。放在 0 点后 10 分钟：
+ * 昨日自然日完整闭账后再评，避免边界行归属漂移；同日重复触发由相位机
+ * 「already-evaluated-today」幂等保护。
+ */
+export const SENTINEL_SCAN_CRON = '10 0 * * *';
+
+let sentinelScanJob: CronJob | null = null;
+
+/**
+ * 任务33 活动监视器注册点（注册仅此一处）。评「昨日」：生产 StatsPort
+ * （broadcast 计数 + 负评价/撤回投诉）→ 相位机 → 持久化 + ⑭ 事件；
+ * 降级指令经 sentinel-service 的 /process 事件闸口落地 v1。
+ *
+ * 业务实现懒加载：调度层不静态依赖业务层，也不成环
+ * （sentinel-service → jarvis-core/sentinel，均不 import 本文件）。
+ * 开关 TC_JARVIS_SENTINEL 在 sentinel-service 内读（缺省开）。幂等：重复调用
+ * 返回同一任务句柄。
+ */
+export function startSentinelScanJob(opts: { expression?: string; timezone?: string } = {}): CronJob {
+  if (sentinelScanJob) return sentinelScanJob;
+  sentinelScanJob = schedule(
+    opts.expression ?? SENTINEL_SCAN_CRON,
+    opts.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'),
+    () => {
+      void import('./sentinel-service.js')
+        .then((m) => m.runSentinelDailyScan())
+        .catch((err) => log.warn('活动监视器每日评估失败:', err));
+    },
+  );
+  // 不保活进程：测试/CLI 进程不被这条 interval 挂住（stop() 亦照常可停）。
+  sentinelScanJob.timer?.unref();
+  return sentinelScanJob;
+}
+
+/** 停止并清空注册点（幂等；主脑若改统一启动接线可删文件尾自启，本函数保留）。 */
+export function stopSentinelScanJob(): void {
+  if (!sentinelScanJob) return;
+  stop(sentinelScanJob);
+  sentinelScanJob = null;
+}
+
+// 模块加载即注册（幂等、unref）。主脑可改为启动接线显式调用。
+startSentinelScanJob();
