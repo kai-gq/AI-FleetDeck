@@ -172,4 +172,42 @@ describe('RunnerProcessLifecycle — adopted orphans have no stdio channel', () 
     expect(harness.lifecycle.interrupt('a1')).toBe(false);
     expect(mockKillProcessTree).not.toHaveBeenCalled();
   });
+
+  it('stops side channels before dropping records on graceful restart (stopAll(false))', async () => {
+    const harness = await buildHarness();
+    const sideStop = vi.fn();
+    harness.activeProcesses.set('a1', adoptedProc({ sideChannelStop: sideStop }));
+
+    await harness.lifecycle.stopAll(false);
+
+    expect(sideStop).toHaveBeenCalledTimes(1);
+    expect(harness.activeProcesses.size).toBe(0);
+    // The processes stay alive across a graceful restart — the ledger must
+    // survive so the next boot can re-adopt them.
+    expect(harness.persistSpy).toHaveBeenCalled();
+  });
+
+  it('takeover (run) stops the adopted orphan and its side channel before spawning', async () => {
+    const harness = await buildHarness();
+    const sideStop = vi.fn();
+    harness.activeProcesses.set('a1', adoptedProc({ sideChannelStop: sideStop }));
+    const child = Object.assign(new EventEmitter(), {
+      pid: 999,
+      stdin: null,
+      stdout: null,
+      stderr: null,
+    });
+    mockSpawn.mockReturnValue(child);
+
+    await harness.lifecycle.run({ agentId: 'a1', prompt: 'continue', workingDir: '/tmp/w' });
+
+    expect(mockKillProcessTree).toHaveBeenCalledWith(4242);
+    expect(sideStop).toHaveBeenCalledTimes(1);
+    // Ordering is what prevents double emission: the old watcher must be gone
+    // before the resumed process starts appending to the same transcript.
+    expect(sideStop.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSpawn.mock.invocationCallOrder[0],
+    );
+    expect(harness.activeProcesses.get('a1')?.process.pid).toBe(999);
+  });
 });

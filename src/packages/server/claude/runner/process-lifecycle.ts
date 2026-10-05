@@ -456,6 +456,17 @@ export class RunnerProcessLifecycle {
       this.recoveryStore.clearPersistedProcesses();
     } else {
       this.recoveryStore.persistRunningProcesses();
+      // Graceful restart keeps the processes alive, so nothing else will ever
+      // stop their side channels (grok session watchers / adopted-orphan
+      // transcript watchers) — stop them here, like the interactive runner
+      // does on restart.
+      for (const [, activeProcess] of this.activeProcesses) {
+        try {
+          activeProcess.sideChannelStop?.();
+        } catch {
+          // ignore
+        }
+      }
       this.activeProcesses.clear();
       this.activityCallbacks.clear();
     }

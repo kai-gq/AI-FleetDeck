@@ -18,6 +18,7 @@ import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid } from './r
 import { getEffectivePid, isSameProcess } from './runner/process-identity.js';
 import type { RunningProcessInfo } from '../data/index.js';
 import { spawn } from 'child_process';
+import * as path from 'path';
 import * as agentService from '../services/agent-service.js';
 import { RunnerInternalEventBus } from './runner/internal-events.js';
 import { RunnerStdoutPipeline } from './runner/stdout-pipeline.js';
@@ -26,6 +27,8 @@ import { RunnerRestartPolicy } from './runner/restart-policy.js';
 import { RunnerWatchdog } from './runner/watchdog.js';
 import { RunnerRecoveryStore } from './runner/recovery-store.js';
 import { RunnerResourceMonitor } from './runner/resource-monitor.js';
+import { InteractiveJsonlWatcher } from './interactive/interactive-jsonl-watcher.js';
+import { getProjectDir } from './session-loader.js';
 import { appendQueuedMessage, prependQueuedMessage } from '../../shared/message-queue.js';
 // 任务19·A（⑭ P2·系统活动6）：进程健康埋点（helper 内部失败隔离，永不上抛）
 import { logProcess } from '../services/activity-log.js';
@@ -840,6 +843,29 @@ export class ClaudeRunner {
     }
 
     log.log(`🔄 [ADOPT] Adopted live orphan for agent ${agentId} (PID ${pid}, session=${savedProcess.sessionId ?? 'none'}, was=${wasWorking ? 'working' : 'idle'})`);
+
+    // The orphan's stdout pipe is gone, but claude appends its session
+    // transcript JSONL incrementally (verified on a live headless run: a
+    // tool_use line lands on disk ~30s before its tool_result), so tailing the
+    // transcript restores the live event stream — output, activity clock and
+    // turn-state transitions then flow through the same stdout pipeline as a
+    // managed process. startAtEnd: only lines appended from now on are emitted
+    // (the adoption gap stays silent instead of replaying the whole history
+    // into the UI, which loads history separately); a persisted jsonlOffset
+    // for gap-free replay is deferred work.
+    if (this.backend.name === 'claude' && savedProcess.sessionId && lastRequest?.workingDir) {
+      const jsonlPath = path.join(getProjectDir(lastRequest.workingDir), `${savedProcess.sessionId}.jsonl`);
+      const watcher = new InteractiveJsonlWatcher({
+        agentId,
+        jsonlPath,
+        startAtEnd: true,
+        onEvent: (event) => this.stdoutPipeline.emitStandardEvent(agentId, event),
+        onActivity: () => this.bus.emit({ type: 'runner.activity', agentId, timestamp: Date.now() }),
+      });
+      activeProcess.sideChannelStop = () => watcher.stop();
+      watcher.start();
+      log.log(`👁️ [ADOPT] Agent ${agentId}: re-sourcing output from session transcript ${jsonlPath}`);
+    }
     return true;
   }
 
@@ -917,6 +943,17 @@ export class ClaudeRunner {
 
     const actuallyRunning = isProcessRunning(pid);
     if (!actuallyRunning) {
+      // The watchdog would normally reap this on its next tick, but a status
+      // poll or command routing can reach this reaper first — stop the side
+      // channel here too, or an adopted orphan's transcript watcher (or a
+      // grok session watcher) leaks its 100ms tailer and would double-emit
+      // after a resume rebuilds the same session.
+      try {
+        activeProcess.sideChannelStop?.();
+      } catch {
+        // ignore
+      }
+      activeProcess.sideChannelStop = undefined;
       this.activeProcesses.delete(agentId);
       this.lastStderr.delete(agentId);
       return false;
