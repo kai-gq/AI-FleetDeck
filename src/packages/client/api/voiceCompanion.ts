@@ -157,8 +157,9 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxNotes: 40,
     firstSentenceMaxChars: 0,
     // 与服务端 DEFAULT_SERVER_CONFIG.slowFiller 保持一致(面板保存全量覆写,两侧别漂移)。
-    // C13 兜底档吐出 ≈3.0–3.5s;W7 预生成命中档(armMs=0)吐出 ≈ 回合开始 + pregenEmitMs。
-    slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 1_200 },
+    // C13 兜底档吐出 ≈3.0–3.5s;W7 预生成命中档(armMs=0)吐出 = 回合开始 + pregenEmitMs
+    // (C16 缺省 3000 = 兜底档吐出底线:预生成只消掉「到点后等生成/合成」,不提前触发线)。
+    slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 3_000 },
   },
 };
 

@@ -304,11 +304,14 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
   // W5/C13 兜底档:生成跳过 MCP 加载(冷启动 4.9→2.2s),吐出 ≈3.0–3.5s。
-  // W7/C15 预生成档(命中):说话期间已生成、密封后回合零等待取用,吐出 ≈ 回合开始 + 1.2s
-  // (pregenEmitMs 只等 TTS 合成;预合成的音频缓存已在客户端就位)。
+  // W7/C15 预生成档(命中):说话期间已生成 + 客户端预合成,吐出 = 回合开始 + pregenEmitMs
+  // (只等 TTS 合成这一个尾巴)。
+  // C16:pregenEmitMs 缺省 3000 = 兜底档的吐出底线 —— 预生成只消掉「到点后还要等生成/合成」
+  // 那一段(真麦实测兜底档 3.5–6s),不改变触发阈值(1.2s 版实测「简单问题也垫话」);
+  // 调小 = 更早出声但会垫给快回合,调大 = 更稀疏。
   // 未命中/失败/禁用 → 全链回退兜底档(逐字节等同旧行为)。
   // 首字节取消信号仍挂着,快回合(hop1 先出字)照样不垫。无出字的慢回合才轮得到垫话。
-  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 1_200 },
+  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 3_000 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -2432,7 +2435,8 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     // 吐出走 pre 通道(照播但不参与客户端最终对账)。任何真实句(含 query 过渡句)
     // 一出即取消;事件回合不武装(noop 场景不出声)。
     const rawOnSentence = opts.onSentence;
-    // W7 垫话预生成:命中则改用零等待档 —— armMs=0 立即取用、emitMs=pregenEmitMs(只等 TTS 合成);
+    // W7 垫话预生成:命中则改用零等待档 —— armMs=0 立即取用、emitMs=pregenEmitMs
+    // (缺省 3000,与兜底档吐出底线一致:预生成只保证「到点即出、音频已备」,不提前触发线);
     // 未命中/失败/禁用全链回退兜底档(500/2500),逐字节等同旧行为。
     // 注:极少数「澄清早退回合」会白耗一个已消费的预生成(消歧回复通常很短、本就到不了触发阈值),可忽略。
     const pregen = !opts.isEvent && cfg.slowFiller.enabled && rawOnSentence
@@ -2445,7 +2449,11 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       generate: pregen
         ? () => resolvePregenFiller(pregen, text, cfg.model, opts.signal)
         : () => generateSlowFillerPhrase(text, cfg.model, opts.signal),
-      emit: (sentence) => rawOnSentence?.(sentence, { pre: true }),
+      emit: (sentence) => {
+        // 与「慢档垫话:…」(生成完成,可能随后被取消)区分:这一行才是真正推给客户端播出的垫话。
+        log.log(`[VoiceCompanion] 垫话吐出:${sentence}`);
+        rawOnSentence?.(sentence, { pre: true });
+      },
     });
     const speech = createSpeechPipeline(
       rawOnSentence

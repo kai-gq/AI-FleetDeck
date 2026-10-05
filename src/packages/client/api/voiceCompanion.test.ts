@@ -58,11 +58,11 @@ describe('sanitizeVoiceCompanionConfig · brain 直通键', () => {
   });
 
   // W7 预生成命中档:同样不设面板、原样保留 + 钳制(否则面板保存一次就丢)。
-  it('slowFiller.pregenEmitMs 原样保留,钳 [300,10000],垃圾输入回缺省 1200', () => {
+  it('slowFiller.pregenEmitMs 原样保留,钳 [300,10000],垃圾输入回缺省 3000', () => {
     expect(sanitizeBrain({ slowFiller: { pregenEmitMs: 2_000 } }).slowFiller.pregenEmitMs).toBe(2_000);
     expect(sanitizeBrain({ slowFiller: { pregenEmitMs: 100 } }).slowFiller.pregenEmitMs).toBe(300);
     expect(sanitizeBrain({ slowFiller: { pregenEmitMs: 99_999 } }).slowFiller.pregenEmitMs).toBe(10_000);
-    expect(sanitizeBrain({ slowFiller: { pregenEmitMs: 'abc' } }).slowFiller.pregenEmitMs).toBe(1_200);
+    expect(sanitizeBrain({ slowFiller: { pregenEmitMs: 'abc' } }).slowFiller.pregenEmitMs).toBe(3_000);
     expect(sanitizeBrain({}).slowFiller.pregenEmitMs).toBe(DEFAULT_VOICE_COMPANION_CONFIG.brain.slowFiller.pregenEmitMs);
     // 与既有键互不干扰
     const sf = sanitizeBrain({ slowFiller: { enabled: false, armMs: 800, emitMs: 3_000, pregenEmitMs: 900 } }).slowFiller;
