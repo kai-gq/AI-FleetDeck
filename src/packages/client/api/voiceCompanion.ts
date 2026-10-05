@@ -76,6 +76,8 @@ export interface BrainConfig {
   sessionMaxAgeDays: number;
   /** 记忆条数上限(溢出裁最旧)。 */
   maxNotes: number;
+  /** W2 阶段2:首句机械上限(>0 生效;0 = 关,缺省)。建议开启值 24。 */
+  firstSentenceMaxChars: number;
   /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
   slowFiller: {
     enabled: boolean;
@@ -151,6 +153,7 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxTurns: 120,
     sessionMaxAgeDays: 7,
     maxNotes: 40,
+    firstSentenceMaxChars: 0,
     slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
   },
 };
@@ -284,6 +287,8 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
     cfg.brain.maxTurns = clampInt(brain.maxTurns, 10, 2_000, cfg.brain.maxTurns);
     cfg.brain.sessionMaxAgeDays = clampInt(brain.sessionMaxAgeDays, 1, 365, cfg.brain.sessionMaxAgeDays);
     cfg.brain.maxNotes = clampInt(brain.maxNotes, 5, 200, cfg.brain.maxNotes);
+    // W2 阶段2 首句上限:不设面板,但必须原样保留(否则面板保存一次就把值改丢)。
+    cfg.brain.firstSentenceMaxChars = clampInt(brain.firstSentenceMaxChars, 0, 60, cfg.brain.firstSentenceMaxChars);
     // W5 慢档续垫:不设面板,但必须原样保留(否则面板保存一次就把值改丢)。
     const sf = brain.slowFiller as Record<string, unknown> | undefined;
     if (sf && typeof sf === 'object') {

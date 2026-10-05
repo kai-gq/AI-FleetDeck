@@ -38,7 +38,7 @@ import * as workspaceService from './workspace-service.js';
 import { formatTimeSince } from './subordinate-context-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
-import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
+import { findStringField, createJsonStringStream, type JsonStringStream, type SentenceChunkerOptions } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
 import type { GateAction, SentenceMeta } from '../voice/speech-gate.js';
 import { createSlowFiller } from '../voice/slow-filler.js';
@@ -270,6 +270,8 @@ export interface VoiceCompanionServerConfig {
   contextCompactPercent: number;
   /** 任务18:压缩判定窗口兜底(CLI modelUsage.contextWindow 缺失时用;缺省 200K)。 */
   contextWindowTokens: number;
+  /** W2 阶段2:首句机械上限(>0 生效;0 = 关,缺省)。建议开启值 24。 */
+  firstSentenceMaxChars: number;
   /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
   slowFiller: SlowFillerTiming;
 }
@@ -295,6 +297,8 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   // 非实测;窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
   contextCompactPercent: 0.8,
   contextWindowTokens: 200_000,
+  // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
+  firstSentenceMaxChars: 0,
   slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
 };
 
@@ -401,6 +405,7 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
       // 任务18:可配置压缩阈值/窗口(缺省 0.8 / 200K;见 DEFAULT_SERVER_CONFIG 登记)。
       contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.5, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
       contextWindowTokens: clampNumber(brain.contextWindowTokens, 50_000, 1_000_000, DEFAULT_SERVER_CONFIG.contextWindowTokens),
+      firstSentenceMaxChars: clampNumber(brain.firstSentenceMaxChars, 0, 60, DEFAULT_SERVER_CONFIG.firstSentenceMaxChars),
       slowFiller: slowFillerConfigFrom(brain),
     };
   } catch (err) {
@@ -2184,7 +2189,7 @@ const GRACE_FLUSH_MS = 180;
  * 经 action 语义门控(SpeechGate)后逐句回调。无 onSentence 时返回全套
  * no-op —— 旧的整段返回路径零开销、行为不变。
  */
-function createSpeechPipeline(onSentence?: (sentence: string, meta?: SentenceMeta) => void): SpeechPipeline {
+function createSpeechPipeline(onSentence?: (sentence: string, meta?: SentenceMeta) => void, chunker: SentenceChunkerOptions = {}): SpeechPipeline {
   if (!onSentence) {
     return {
       onHop1Delta: () => {},
@@ -2198,13 +2203,13 @@ function createSpeechPipeline(onSentence?: (sentence: string, meta?: SentenceMet
   }
 
   const gate = new SpeechGate(onSentence);
-  const hop1Stream = createJsonStringStream('responseToUser');
+  const hop1Stream = createJsonStringStream('responseToUser', chunker);
   let actionSeen = false;
 
   // hop2 的回复没有 action 字段(答案即可播内容):独立闸门,直接放行。
   const hop2Gate = new SpeechGate(onSentence);
   hop2Gate.setAction('general_response');
-  const hop2Stream = createJsonStringStream('responseToUser');
+  const hop2Stream = createJsonStringStream('responseToUser', chunker);
 
   /** 给一条流挂宽限 flush 计时器(见 GRACE_FLUSH_MS 注释)。 */
   const makeGraceFlusher = (stream: JsonStringStream, emit: (s: string) => void) => {
@@ -2322,6 +2327,8 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
             rawOnSentence(sentence, meta);
           }
         : undefined,
+      // W2 阶段2:首句机械上限(0=关,默认;见 loadServerConfig 登记)。
+      { firstMaxChars: cfg.firstSentenceMaxChars },
     );
     const state = loadCompanionState();
     const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);

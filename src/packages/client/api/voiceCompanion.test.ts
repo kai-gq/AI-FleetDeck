@@ -42,3 +42,18 @@ describe('sanitizeVoiceCompanionConfig · listening', () => {
     expect(l.wakeWord).toBe('');
   });
 });
+
+describe('sanitizeVoiceCompanionConfig · brain 直通键', () => {
+  const sanitizeBrain = (overrides: Record<string, unknown>) =>
+    sanitizeVoiceCompanionConfig({ brain: overrides }).brain;
+
+  // W2 阶段2:不设面板,但面板保存一次必须不能把值改丢(sanitize 原样保留 + 钳制)。
+  it('firstSentenceMaxChars 原样保留,钳 [0,60],垃圾输入回缺省 0(关)', () => {
+    expect(sanitizeBrain({ firstSentenceMaxChars: 24 }).firstSentenceMaxChars).toBe(24);
+    expect(sanitizeBrain({ firstSentenceMaxChars: 0 }).firstSentenceMaxChars).toBe(0);
+    expect(sanitizeBrain({ firstSentenceMaxChars: 999 }).firstSentenceMaxChars).toBe(60);
+    expect(sanitizeBrain({ firstSentenceMaxChars: -3 }).firstSentenceMaxChars).toBe(0);
+    expect(sanitizeBrain({ firstSentenceMaxChars: 'abc' }).firstSentenceMaxChars).toBe(0);
+    expect(sanitizeBrain({}).firstSentenceMaxChars).toBe(DEFAULT_VOICE_COMPANION_CONFIG.brain.firstSentenceMaxChars);
+  });
+});

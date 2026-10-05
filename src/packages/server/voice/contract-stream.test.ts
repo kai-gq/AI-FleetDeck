@@ -147,6 +147,76 @@ describe('SentenceChunker', () => {
   });
 });
 
+// W2 阶段2·首句上限(firstMaxChars;0/缺省 = 关)
+describe('SentenceChunker · firstMaxChars', () => {
+  it('关时对拍:默认构造 与 显式 firstMaxChars:0 逐字符流式输出逐字节一致', () => {
+    const cases = [
+      `${'句'.repeat(40)}，${'句'.repeat(40)}。`,
+      `${'字'.repeat(60)}。`,
+      '先去看了下。然后回来汇报。',
+      '嗯。好。',
+      '没有标点的结尾',
+    ];
+    for (const text of cases) {
+      const off = new SentenceChunker({ firstMaxChars: 0 });
+      const shipped = new SentenceChunker();
+      const a: string[] = [];
+      const b: string[] = [];
+      for (let i = 0; i < text.length; i++) {
+        a.push(...off.push(text.charAt(i)));
+        b.push(...shipped.push(text.charAt(i)));
+      }
+      a.push(...off.flush());
+      b.push(...shipped.flush());
+      expect(a).toEqual(b); // 逐字节对拍
+      expect(a.join('')).toBe(text); // 且不丢不重
+    }
+  });
+
+  it('首句长句:优先在窗口内的软切点断开', () => {
+    const chunker = new SentenceChunker({ firstMaxChars: 24 });
+    expect(chunker.push(`${'字'.repeat(10)}，${'字'.repeat(30)}`)).toEqual([`${'字'.repeat(10)}，`]);
+    expect(chunker.push('。')).toEqual([]); // 终结符悬尾:等下一字符(切句语义不变)
+    expect(chunker.flush()).toEqual([`${'字'.repeat(30)}。`]);
+  });
+
+  it('首句窗口内无软切点:积到两倍上限再硬断(与 maxChars 同规)', () => {
+    const chunker = new SentenceChunker({ firstMaxChars: 24 });
+    const first = chunker.push('字'.repeat(60));
+    expect(first).toEqual(['字'.repeat(24)]);
+    expect(chunker.flush()).toEqual(['字'.repeat(36)]); // 残留 36 字整段吐出
+  });
+
+  it('只约束第一句:后续句子回到 maxChars(80)口径', () => {
+    const chunker = new SentenceChunker({ firstMaxChars: 24 });
+    expect(chunker.push('字'.repeat(60))).toEqual(['字'.repeat(24)]);
+    expect(chunker.push('。')).toEqual([]);
+    const tail = chunker.flush();
+    expect(tail).toHaveLength(1);
+    expect(tail[0]).toHaveLength(37); // 36 字 + 句号:不再被 24 约束
+    expect(tail[0].endsWith('。')).toBe(true);
+  });
+
+  it('首句天然短句(≤上限)不受影响', () => {
+    const chunker = new SentenceChunker({ firstMaxChars: 24 });
+    expect(chunker.push('先去看了下。')).toEqual([]);
+    expect(chunker.push('然后回来。')).toEqual(['先去看了下。']);
+    expect(chunker.flush()).toEqual(['然后回来。']);
+  });
+
+  it('极小值被钳到 minChars+2(不产出过碎片段)', () => {
+    const chunker = new SentenceChunker({ firstMaxChars: 1, minChars: 2 });
+    expect(chunker.push('字'.repeat(20))).toEqual(['字'.repeat(4)]);
+  });
+
+  it('createJsonStringStream 透传首句上限(字段写一半即可先出第一声)', () => {
+    const raw = `{"responseToUser":"${'字'.repeat(60)}`;
+    const on = createJsonStringStream('responseToUser', { firstMaxChars: 24 }).pushRaw(raw);
+    expect(on).toEqual(['字'.repeat(24)]);
+    expect(createJsonStringStream('responseToUser').pushRaw(raw)).toEqual([]); // 关:仍挂起(≤maxChars)
+  });
+});
+
 function feedAll(stream: JsonStringStream, raw: string, step: number): string[] {
   const out: string[] = [];
   for (let i = step; i <= raw.length; i += step) {

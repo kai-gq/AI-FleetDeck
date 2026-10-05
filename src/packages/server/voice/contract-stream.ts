@@ -139,6 +139,13 @@ export interface SentenceChunkerOptions {
   minChars?: number;
   /** 单句硬上限(超出先在软切点、再在硬位置断开);默认 80。 */
   maxChars?: number;
+  /**
+   * W2 阶段2·首句上限(≤0 / 缺省 = 关):只约束第一条吐出的句子 —— 模型写了
+   * 无标点长句时,优先在它之内的软切点断开、仍超则硬断,让「第一声」尽快出去;
+   * 之后各句回到 maxChars。与 W2 提示词口径(首句 ≤12 字)配套的机械兜底,
+   * 默认关(提示词已改;上限开得太小会切碎语义,观察后再定)。
+   */
+  firstMaxChars?: number;
 }
 
 const DEFAULT_TERMINATORS = '。！？!?…\n；';
@@ -155,6 +162,10 @@ export class SentenceChunker {
   private readonly softCuts: string;
   private readonly minChars: number;
   private readonly maxChars: number;
+  /** 首句上限(0 = 关);生效窗口还会与 maxChars 取小、并不低于 minChars+2。 */
+  private readonly firstMaxChars: number;
+  /** 已吐出的整句数:firstMaxChars 只作用于第一条(见 push 语义)。 */
+  private emitted = 0;
   private pending = '';
 
   constructor(opts: SentenceChunkerOptions = {}) {
@@ -162,6 +173,10 @@ export class SentenceChunker {
     this.softCuts = opts.softCuts ?? DEFAULT_SOFT_CUTS;
     this.minChars = Math.max(1, opts.minChars ?? 2);
     this.maxChars = Math.max(this.minChars + 2, opts.maxChars ?? 80);
+    this.firstMaxChars =
+      typeof opts.firstMaxChars === 'number' && opts.firstMaxChars > 0
+        ? Math.max(this.minChars + 2, opts.firstMaxChars)
+        : 0;
   }
 
   /** atEnd = 输入不会再增长了(字段闭合/流结束),尾部残留也可作为整句吐出。 */
@@ -191,15 +206,22 @@ export class SentenceChunker {
 
   private drain(atEnd: boolean, forceTerminatedTail = false): string[] {
     const out: string[] = [];
+    const emit = (sentence: string): void => {
+      out.push(sentence);
+      this.emitted += 1;
+    };
     let searchFrom = 0;
     for (;;) {
-      // 超长且迟迟没有终结符:先在软切点断开(整段翻倍仍无软切点则硬断)
-      if (this.pending.length > this.maxChars) {
-        const soft = this.softCutIndex();
-        const cutAt = soft > 0 ? soft : (this.pending.length >= this.maxChars * 2 ? this.maxChars : -1);
+      // 超长且迟迟没有终结符:先在软切点断开(整段翻倍仍无软切点则硬断)。
+      // 首句(还没吐出过任何句子)时窗口用 firstMaxChars(与 maxChars 取小)。
+      const limit =
+        this.emitted === 0 && this.firstMaxChars > 0 ? Math.min(this.firstMaxChars, this.maxChars) : this.maxChars;
+      if (this.pending.length > limit) {
+        const soft = this.softCutIndex(limit);
+        const cutAt = soft > 0 ? soft : (this.pending.length >= limit * 2 ? limit : -1);
         if (cutAt > 0) {
           const sentence = this.pending.slice(0, cutAt).trim();
-          if (sentence) out.push(sentence);
+          if (sentence) emit(sentence);
           this.pending = this.pending.slice(cutAt);
           searchFrom = 0;
           continue;
@@ -220,7 +242,7 @@ export class SentenceChunker {
       const core = candidate.slice(0, coreEnd).replace(/\s+/g, '');
       if (core.length >= this.minChars) {
         const sentence = this.pending.slice(0, cut).trim();
-        if (sentence) out.push(sentence);
+        if (sentence) emit(sentence);
         this.pending = this.pending.slice(cut);
         searchFrom = 0;
       } else {
@@ -232,7 +254,7 @@ export class SentenceChunker {
     if (atEnd) {
       const rest = this.pending.trim();
       this.pending = '';
-      if (rest) out.push(rest);
+      if (rest) emit(rest);
     }
     return out;
   }
@@ -254,9 +276,9 @@ export class SentenceChunker {
     return -1;
   }
 
-  /** 在 maxChars 窗口内倒着找最后一个软切点;找到返回切点后一位,否则 -1。 */
-  private softCutIndex(): number {
-    for (let i = Math.min(this.pending.length - 1, this.maxChars); i >= this.minChars; i--) {
+  /** 在 window 字符窗口内倒着找最后一个软切点;找到返回切点后一位,否则 -1。 */
+  private softCutIndex(window: number): number {
+    for (let i = Math.min(this.pending.length - 1, window); i >= this.minChars; i--) {
       if (this.softCuts.includes(this.pending.charAt(i))) return i + 1;
     }
     return -1;
