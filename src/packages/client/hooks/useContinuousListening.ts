@@ -78,6 +78,8 @@ export interface ContinuousListeningOptions {
   config: ListeningConfig;
   /** 播报中(组件注入;用于 barge-in 判定与 VAD 防自激)。 */
   ttsSpeaking: boolean;
+  /** 上一回合仍在途(思考中;组件注入)。与 ttsSpeaking 并列触发 latest-wins 打断(HC-B8)。 */
+  turnInFlight?: boolean;
   /** 实时部分结果(流式);空串 = 清掉实时行。 */
   onPartial: (text: string) => void;
   /** 一句的最终文本(已过唤醒词/结束词处理)。 */
@@ -702,7 +704,8 @@ function createController(deps: ControllerDeps): Controller {
         e.vad = createVadState();
         return;
       }
-      if (o.ttsSpeaking) o.onBargeIn();
+      // latest-wins(HC-B8):播报中,或上一回合仍在途(思考中),新语音开口即打断上一轮
+      if ((o.ttsSpeaking || o.turnInFlight) && o.config.bargeIn) o.onBargeIn();
       if (e.awaitingFinal || e.hearing || e.batchBusy) {
         e.dropSegment = true; // 转写中(流式终稿/批量请求在途)打进的新语音:整段丢弃
         return;

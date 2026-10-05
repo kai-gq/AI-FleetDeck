@@ -329,7 +329,9 @@ const STATE_FILE = path.join(
 );
 const CONFIG_FILE = path.join(process.cwd(), 'tools/voice-companion/config.json');
 
-const DEGRADED_RESPONSE = '抱歉,我这会儿没听清,请再说一遍。';
+// 故障分型(HC-B9):上游故障(超时/解析失败/进程退出/报错)不播「没听清」——
+// 「没听清」族保留给输入语义问题(见 contract 缺 messageToAgent 分支),避免用户误以为是自己没说清。
+const DEGRADED_RESPONSE = '抱歉,我这会儿有点问题,稍等再说。';
 
 // ============================================================================
 // Config / state IO

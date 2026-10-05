@@ -283,6 +283,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
     mode: cfg.stt.mode,
     config: cfg.listening,
     ttsSpeaking,
+    turnInFlight: thinking,
     onPartial: (text) => setLiveText(text),
     onFinal: (text, meta) => {
       // 手动提交回放的同一文本已上屏过,不再重复 push(P11)
@@ -296,8 +297,16 @@ export function VoiceCompanion({ className }: { className?: string }) {
       speakGenRef.current++;
       streamAbortRef.current?.abort();
       stopSpeech();
-      // 打断是"无声"的:给一条可见提示,避免用户以为播报丢了(P7)
-      pushEntry('system', t('terminal:voiceCompanion.notices.bargeIn', { defaultValue: '已打断播报,继续聆听…' }));
+      // latest-wins(HC-B8):排队中未处理的旧终稿一并作废,只答最后一句
+      queueRef.current.length = 0;
+      // 打断是"无声"的:给一条可见提示,避免用户以为播报丢了(P7);
+      // 思考中被打断时没有可听的「播报」,换一条更准确的提示(HC-B8)
+      pushEntry(
+        'system',
+        ttsSpeaking
+          ? t('terminal:voiceCompanion.notices.bargeIn', { defaultValue: '已打断播报,继续聆听…' })
+          : t('terminal:voiceCompanion.notices.turnCancelled', { defaultValue: '已取消上一回合,按新的一句来…' }),
+      );
     },
     onError: (message) => {
       setLiveText('');

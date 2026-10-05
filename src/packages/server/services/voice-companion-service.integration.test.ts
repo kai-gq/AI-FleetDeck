@@ -748,7 +748,7 @@ describe('G4 --resume 被拒重试', () => {
 
     const r = await p;
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
     expect(spawnCalls).toHaveLength(1); // 非特征错误不重试
     const stored = readStateFile();
     expect(stored.sessionId).toBe('sess-ok'); // 超时/失败不重置会话
@@ -894,7 +894,7 @@ describe('G5 降级与抛错', () => {
     const r = await p;
 
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
     expect(call.child.kills).toContain('SIGTERM');
     expect(spawnCalls).toHaveLength(1);
     expect(fs.existsSync(promptPath)).toBe(false);
@@ -909,7 +909,7 @@ describe('G5 降级与抛错', () => {
     await closeChild(call.child, 1);
     const r = await p;
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
   });
 
   it('G5-3 degrades when the process closes cleanly with no text', async () => {
@@ -918,7 +918,7 @@ describe('G5 降级与抛错', () => {
     await closeChild(call.child, 0);
     const r = await p;
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
   });
 
   it('G5-4 rejects with ENOENT (claude 未安装) and leaves the state untouched', async () => {
@@ -940,7 +940,7 @@ describe('G5 降级与抛错', () => {
 
     const r = await p; // 旧行为:穿透成 500;新行为:降级
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
     const stored = readStateFile();
     expect(stored.turns).toBe(0); // 解析失败早于轮数记账
     expect(stored.sessionId).toBeNull();
@@ -2076,7 +2076,7 @@ describe('G8 故障注入(任务36)', () => {
 
     const r = await p; // 永不抛出:超时按降级处理
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
     expect(call.child.kills).toContain('SIGTERM');
     expect(fs.existsSync(promptPath)).toBe(false); // 临时提示词已清理
 
@@ -2101,7 +2101,7 @@ describe('G8 故障注入(任务36)', () => {
 
     const r = await p; // 永不抛出:错误文案当不可信输出,解析失败走降级
     expect(r.degraded).toBe(true);
-    expect(r.response).toContain('没听清');
+    expect(r.response).toContain('有点问题');
     expect(r.response).not.toContain('500');
     expect(r.response).not.toContain('API Error');
 
@@ -2126,7 +2126,7 @@ describe('G8 故障注入(任务36)', () => {
 
     const r1 = await p1; // 永不抛出
     expect(r1.degraded).toBe(true);
-    expect(r1.response).toContain('没听清');
+    expect(r1.response).toContain('有点问题');
     expect(sentences).toEqual([]); // 畸形输出一字不得播(经 delta 通道真实喂入,非恒真空断言)
     expect(r1.spoke).toBeFalsy();
 
