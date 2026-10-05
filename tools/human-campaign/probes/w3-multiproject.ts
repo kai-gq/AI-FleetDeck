@@ -16,7 +16,7 @@
 
 import type { CanaryEntry, ProbeContext, ProbeDef, ProbeOutcome } from '../types.js';
 import {
-  assertThat, bodyString, bossIdSet, dispatchedRows, entryEvidence, observedSummary,
+  assertCancelEvidence, assertThat, bodyString, bossIdSet, dispatchedRows, entryEvidence, observedSummary,
   queryRows, reportTask, routingRows, sendTurn, SIMULATED_COMPLETION, sleep, truncate,
   waitDelegationPhase, waitDispatched, waitRouting, fetchActiveWorkspace, setActiveWorkspace,
 } from '../runner.js';
@@ -278,55 +278,96 @@ const hc27: ProbeDef = {
 const hc29: ProbeDef = {
   id: 'HC-29', wave: 3, title: '场景④「项目A那个别做了」→ 恰 1 条 cancelled 属 A，B/C 不受影响', dim: '路由·项目内撤回', effect: 'delegation',
   utterance: '（现场拼 A 名）别做了，取消刚才那个',
-  steps: ['确保 A 有在办任务（不足则补发 routeText(A)）', '发送含 A 名的撤回话术', '核验 cancelled 属 A 且 B/C 任务未被取消'],
-  assertionDocs: ['HTTP 200', 'cancelled 行出现', 'cancelled taskId 属 A（或与 A 任务相关）', 'B/C taskId 未被 cancel'],
+  steps: ['总是布置 A 保活任务（sleep 120）并等 delegated 确认真在办（原「不足才补发」在短任务已闭环时会拿死任务当撤回目标——C3 首跑根因）', 'delegated 等待只用「窗口内任意 boss-channel delegated 行」——delegated 行 task_id 是下属侧新铸 id，与路由侧 id 不同（C3 复跑教训：按路由 id 过滤永假）', '发送含 A 名的撤回话术', '核验恰 1 条实撤（cancelled-*）且目标=A 本次承接人；B/C 任务未被误cancel；clarify-ask 仅澄清无实撤 → SKIP 登记'],
+  assertionDocs: ['HTTP 200', '实撤 cancelled-* 行出现', '恰 1 条实撤（不误伤）', '实撤目标 = delegated 承接人（属 A）', '结论/通知核验（cancelled-* 且 notified=true）', 'B/C taskId 未被 cancel'],
   prereqIds: ['serverReachable', 'companionAvailable', 'campaignEnv', 'multiProjectReady'],
   optional: true,
   order: 8,
   run: async (ctx) => {
     const P = campaignProjects(ctx);
     if (!P) return { assertions: [], notes: [], skipReason: 'env-prep 项目记录缺失' };
-    let recA = loadTask(ctx, 'A');
-    if (!recA?.taskId) {
-      const text = routeText(P.A.name);
-      const t = await sendTurn(ctx, text);
-      const d = await waitDispatched(ctx, t.since, t.anchorId, ctx.options.bossWaitMs) ?? dispatchedRows(ctx, t.since, t.anchorId);
-      const rec = d.find((e) => e.taskId);
-      if (rec?.taskId) { recA = { workspaceId: P.A.workspaceId, bossId: P.A.bossId, taskId: rec.taskId, text }; saveTask(ctx, 'A', recA); }
-    }
+    const notes: string[] = [];
+    // C3 首跑修正（2026-10-05）：原「A 无任务记录才补发 routeText」在 HC-25 的短任务早已闭环时，
+    // 会把已完成任务当撤回目标（撤回到达时 A 实无在办 → clarify-ask 假红）。现改为总是布置
+    // 保活任务（sleep 120）并等 delegated 确认真在办后才撤回，消除对前序波次时序的假设。
+    const armText = `让「${P.A.name}」项目的团队做一件在办保活任务：执行下属运行命令「sleep 120」，等待结束后只回复"收到"，不要做其他任何操作。`;
+    const t0 = await sendTurn(ctx, armText);
+    if (!t0.res.ok) return { assertions: [], notes, skipReason: `保活任务回合 HTTP ${t0.res.status}` };
+    const d0 = await waitDispatched(ctx, t0.since, t0.anchorId, ctx.options.bossWaitMs) ?? dispatchedRows(ctx, t0.since, t0.anchorId);
+    const rec = d0.find((e) => e.taskId);
+    const recA: ProjectTaskRecord | undefined = rec?.taskId
+      ? { workspaceId: P.A.workspaceId, bossId: P.A.bossId, taskId: rec.taskId, text: armText }
+      : undefined;
+    if (recA) saveTask(ctx, 'A', recA);
+    const aTaskId = recA?.taskId;
+    notes.push(`A 保活任务 taskId=${aTaskId ?? '—'}`);
+    // delegated 等待：只看「窗口内任意 delegated 行（channel=boss）」，绝不按任务 id 过滤。
+    // C3 复跑教训（2026-10-05，两跑各空耗 bossWaitMs 60–180s）：delegated 行的 task_id 列是
+    // **下属侧新铸 id**（实证 #1703 task-muv0y1q0），与 dispatched/routing 行的路由侧 id
+    // （#1699 task-muv0xxxg）不同——按 aTaskId 过滤 delegated 永假。金丝雀撤回链同口径
+    // （scenarios.ts:909-914「任意 delegated」）。环境受控（善后已核空）下窗口内首条即本任务。
+    const dlAll = d0.length > 0
+      ? await waitDelegationPhase(ctx, 'delegated', t0.since, t0.anchorId, ctx.options.bossWaitMs) ?? []
+      : [];
+    const dl = dlAll.filter((e) => bodyString(e, 'channel') === 'boss');
+    const dlTarget = dl.find((e) => bodyString(e, 'toAgentId'));
+    const dlToId = dlTarget ? bodyString(dlTarget, 'toAgentId') : undefined;
+    notes.push(dl.length > 0
+      ? `delegated 已确认（#${dl[0]!.id} → ${bodyString(dl[0]!, 'toAgentName') ?? dlToId ?? '?'}，真在办）`
+      : 'delegated 未在超时内出现——撤回将落在预派窗口（HC-B4 竞态样本，如实记录）');
+    if (!aTaskId) notes.push('保活任务未取得路由侧 taskId（delegated 等待不受影响，仍按窗口口径）');
     await sleep(3000);
     const cancelText = `让「${P.A.name}」项目的团队停一下：别做了，取消刚才那个`;
     const t = await sendTurn(ctx, cancelText);
-    const cancelRows = await waitDelegationPhase(ctx, 'cancelled', t.since, t.anchorId, ctx.options.bossWaitMs)
+    const allCancelled = await waitDelegationPhase(ctx, 'cancelled', t.since, t.anchorId, ctx.options.bossWaitMs)
       ?? queryRows(ctx, { category: 'delegation', since: t.since }, t.anchorId).filter((e) => bodyString(e, 'phase') === 'cancelled');
-    const clarifyAsk = queryRows(ctx, { category: 'delegation', since: t.since }, t.anchorId)
-      .some((e) => bodyString(e, 'phase') === 'cancelled' && bodyString(e, 'status') === 'clarify-ask');
-    if (cancelRows.length === 0 && clarifyAsk) {
+    // clarify-ask 行本身即 phase=cancelled/status=clarify-ask（C3 首跑：曾被计成"实撤行"，
+    // 使 cancelRows.length===0 的 SKIP 守卫永不触发）。实撤 = status 以 cancelled- 开头
+    // （cancelled-running/queued/tracking）；not-found/rejected-done/already-cancelled 是
+    // 「未撤销任何任务」的结论行，不计实撤（口径 scenarios.ts:841-849 a4）。
+    const statusOf = (e: CanaryEntry): string => bodyString(e, 'status') ?? '';
+    const realCancels = allCancelled.filter((e) => statusOf(e).startsWith('cancelled-'));
+    const noopRows = allCancelled.filter((e) => !statusOf(e).startsWith('cancelled-') && statusOf(e) !== 'clarify-ask');
+    const clarifyAsk = allCancelled.some((e) => statusOf(e) === 'clarify-ask');
+    if (realCancels.length === 0 && clarifyAsk) {
       return {
         assertions: [],
-        notes: ['撤回触发多候选反问（clarify-ask，多个在办任务待消歧）——非失败，按如实口径 SKIP 登记（环境非空闲）。'],
+        notes: [...notes, '撤回触发多候选反问（clarify-ask，多个在办任务待消歧）——非失败，按如实口径 SKIP 登记（环境非空闲）。'],
         skipReason: 'clarify-ask 多候选反问（环境存在多个在办任务）',
+        observed: observedSummary(allCancelled),
       };
     }
+    if (noopRows.length > 0) {
+      notes.push(`撤回未命中结论行：${noopRows.map((e) => `${statusOf(e)}(#${e.id})`).join('、')}——目标不在办或已完成（非实撤，见 observed）`);
+    }
     const bcTasks = ['B', 'C'].map((k) => loadTask(ctx, k as 'B' | 'C')).filter((r): r is NonNullable<typeof r> => !!r?.taskId);
-    const bcCancelled = bcTasks.filter((r) => cancelRows.some((e) => e.taskId === r.taskId));
-    const aCancelled = recA?.taskId ? cancelRows.some((e) => e.taskId === recA!.taskId) : cancelRows.length > 0;
+    const bcCancelled = bcTasks.filter((r) => realCancels.some((e) => e.taskId === r.taskId));
+    const single = realCancels.length === 1 ? realCancels[0] : undefined;
+    const singleTo = single ? bodyString(single, 'toAgentId') : undefined;
+    const verdict = assertCancelEvidence(realCancels);
+    // 实撤归属判定：单条实撤行的 toAgentId == delegated 承接人（撤回审计行带 toAgentId/toAgentName，
+    // scenarios.ts:846）。取不到 delegated 承接人时降级为「toAgentId 非空」（仅属 A 项目内某下属）。
+    const aCancelled = !!single && (dlToId ? singleTo === dlToId : !!singleTo);
     return {
       assertions: [
         assertThat('hc29-http', 'HTTP 200（撤回回合）', t.res.ok, '200', `${t.res.status}`),
-        assertThat('hc29-cancelled', 'cancelled 行出现', cancelRows.length >= 1, '≥1', String(cancelRows.length),
-          cancelRows.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'status', 'message', 'notified'], 100))),
-        assertThat('hc29-a-cancelled', 'cancelled 命中 A 任务（或 A 无 taskId 时至少命中本项目请求）', aCancelled,
-          `A taskId=${recA?.taskId ?? '?'}`, cancelRows.map((e) => e.taskId ?? '(无)').join(','),
-          recA?.taskId ? [] : [entryEvidence(cancelRows[0]!, ['phase', 'status'], 80)]),
-        assertThat('hc29-bc-safe', 'B/C 在办任务未被误取消', bcCancelled.length === 0, '0', String(bcCancelled.length),
+        assertThat('hc29-cancelled', '实撤 cancelled-* 行出现', realCancels.length >= 1, '≥1', String(realCancels.length),
+          realCancels.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'status', 'toAgentId', 'toAgentName', 'notified'], 100))),
+        assertThat('hc29-single', '恰 1 条实撤（不误伤；金丝雀 a6 口径）', realCancels.length === 1, '1', String(realCancels.length)),
+        assertThat('hc29-a-cancelled', '实撤目标 = A 保活承接人（delegated toAgentId）', aCancelled,
+          `toAgentId=${dlToId ?? '（delegated 未取到；按 toAgentId 非空判定）'}`,
+          realCancels.map((e) => `${bodyString(e, 'toAgentName') ?? '?'}(${bodyString(e, 'toAgentId') ?? '-'})`).join(',') || '（无实撤行）'),
+        assertThat('hc29-verdict', '结论/通知核验（assertCancelEvidence）', verdict.ok,
+          'status=cancelled-* 且 notified=true（queued 除外）', verdict.actual, verdict.evidence),
+        assertThat('hc29-bc-safe', 'B/C 在办任务未被误取消（taskId 核）', bcCancelled.length === 0, '0', String(bcCancelled.length),
           bcCancelled.map((r) => r.taskId ?? '?').join(',')),
       ],
       notes: [
+        ...notes,
         `撤回话术（现场拼名）：${cancelText}`,
-        `A=${recA?.taskId ?? '—'}；B/C=${bcTasks.map((r) => r.taskId ?? '—').join('/')}`,
+        `A 路由侧 taskId=${aTaskId ?? '—'}；delegated 承接=${dlToId ?? '—'}；B/C=${bcTasks.map((r) => r.taskId ?? '—').join('/') || '（本跑无在办）'}`,
       ],
-      observed: observedSummary(cancelRows),
+      observed: observedSummary(allCancelled.length > 0 ? allCancelled : dl),
     };
   },
 };

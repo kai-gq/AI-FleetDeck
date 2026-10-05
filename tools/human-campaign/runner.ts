@@ -43,6 +43,16 @@ export {
 export { fetchActiveWorkspace, fetchAgents, fetchAreas, fetchWorkspaces, findBoss, reportTask, sendCompanionMessage, setActiveWorkspace, probeHealth };
 export type { CanaryEntry, Evidence, AssertionResult, HttpResult } from '../jarvis-canary/types.js';
 
+// ─── Agent busy 词表（善后停止 / teamIdle 判定共用） ───
+
+/**
+ * 视为「忙」的 agent 状态集合。服务端实际写入词表为 working/waiting/waiting_permission
+ * （agent-handler.ts:1643、runtime-listeners.ts:315、delegation-query.ts:90 ACTIVE_STATUSES）；
+ * running/processing 为兼容旧词。C3 首跑后发现 stopAllRunning/teamIdle 曾用错词表
+ * （只认 running/processing → working 中的 agent 漏停/漏判）。
+ */
+export const BUSY_AGENT_STATUSES: ReadonlySet<string> = new Set(['working', 'waiting', 'waiting_permission', 'running', 'processing']);
+
 // ─── 镜像助手（来源见文件头注释） ───
 
 export function bodyString(e: CanaryEntry, key: string): string | undefined {
@@ -459,7 +469,7 @@ export const PREREQS: ReadonlyMap<string, PrereqDef> = new Map<string, PrereqDef
     id: 'teamIdle', desc: '全部 agent 空闲（无在办任务）', hint: '等任务收尾或先跑 --cleanup', kind: 'runtime',
     check: async (ctx) => {
       const ag = await fetchAgents(ctx.transport);
-      const busy = ag.agents.filter((a) => a.status === 'running' || a.status === 'processing');
+      const busy = ag.agents.filter((a) => BUSY_AGENT_STATUSES.has(a.status));
       return prereq('teamIdle', '全部 agent 空闲', busy.length === 0, busy.length === 0 ? `${ag.agents.length} 个 agent 均空闲` : `忙：${busy.map((a) => `${a.name}(${a.status})`).join(', ')}`);
     },
   }],

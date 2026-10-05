@@ -23,7 +23,7 @@ import crypto from 'node:crypto';
 import type { ProbeContext } from './types.js';
 import {
   deleteStateFile, discoverProjects, fetchActiveWorkspace, fetchAgents, findBoss,
-  nowIso, rawFetch, readStateFile, scratchDir, sleep, writeStateFile, bodyString,
+  nowIso, rawFetch, readStateFile, scratchDir, sleep, writeStateFile, bodyString, BUSY_AGENT_STATUSES,
 } from './runner.js';
 import { spawnBossAgent, stopAgent, syncAreas } from './ws-client.js';
 
@@ -365,13 +365,13 @@ export async function stopAllRunning(ctx: ProbeContext): Promise<{ stopped: stri
   const ag = await fetchAgents(ctx.transport);
   const stopped: string[] = [];
   for (const a of ag.agents) {
-    if (a.status !== 'running' && a.status !== 'processing') continue;
+    if (!BUSY_AGENT_STATUSES.has(a.status)) continue;
     await stopAgent(ctx.ws, a.id);
     stopped.push(`${a.name}(${a.id},${a.status})`);
     await sleep(250);
   }
   const after = await fetchAgents(ctx.transport);
-  const remaining = after.agents.filter((a) => a.status === 'running' || a.status === 'processing').map((a) => `${a.name}(${a.status})`);
+  const remaining = after.agents.filter((a) => BUSY_AGENT_STATUSES.has(a.status)).map((a) => `${a.name}(${a.status})`);
   ctx.log(`停止 ${stopped.length} 个 running agent；仍 busy：${remaining.join(', ') || '无'}`);
   return { stopped, remaining };
 }

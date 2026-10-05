@@ -28,7 +28,7 @@ import {
   assertThat, bodyNumber, bodyString, delegationRows, dialogRows, dialogOutRows,
   dispatchedRows, entryEvidence, fetchActiveWorkspace, fetchAgents, fetchWorkspaces,
   observedSummary, queryRows, rawFetch, scratchDir, sendTurn, setActiveWorkspace, sleep,
-  systemRowsBySource, truncate, waitRows,
+  systemRowsBySource, truncate, waitRows, BUSY_AGENT_STATUSES,
 } from '../runner.js';
 import { stopAgent } from '../ws-client.js';
 
@@ -488,13 +488,13 @@ const hc40: ProbeDef = {
         const agents = await rawAgents(ctx);
         const a = agents.find((x) => x.id === st.subAgentId);
         status = String(a?.status ?? '（不存在）');
-        if (status !== 'running' && status !== 'processing') break;
+        if (!BUSY_AGENT_STATUSES.has(status)) break;
         await sleep(2000);
       }
       fs.unlinkSync(stFile);
       return {
         assertions: [
-          assertThat('hc40-stop', 'stop_agent 已发且下属不再 running/processing', status !== 'running' && status !== 'processing', 'idle/stopped', status),
+          assertThat('hc40-stop', 'stop_agent 已发且下属不再 busy（working/waiting 等词表）', !BUSY_AGENT_STATUSES.has(status), 'idle/stopped', status),
           assertThat('hc40-state-removed', '状态文件已删除', !fs.existsSync(stFile), '不存在', '已删'),
         ],
         notes: [],
