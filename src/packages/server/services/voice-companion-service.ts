@@ -299,11 +299,10 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   contextWindowTokens: 200_000,
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
-  // W5 加固(真麦双垫教训):emitMs 5500→6500 —— 吐出底线抬到 9.0s。垫话吐出的真实
-  // 时刻是 max(armMs+emitMs, 生成就绪≈8.0–8.8s);抬到 9.0 后,hop1 开始出字
-  // (text_delta → 首字节即取消,见 processVoiceInput 接线)总能赶在垫话之前插队,
-  // 不会出现「垫话 8.8s + 过渡句 9.1s」前后脚双出声。无出字的慢回合才轮得到垫话。
-  slowFiller: { enabled: true, armMs: 2_500, emitMs: 6_500 },
+  // W5 提速(C12):armMs 2.5→1.0s、emitMs 6.5→4.5s。垫话真实吐出 = max(armMs+emitMs=5.5s,
+  // 生成就绪≈armMs+5.5~6.3s) ≈ 6.5–7.3s(原 9.0s 是 C11 给「首字节取消」留插队余量抬上去的,
+  // 现在取消信号已在 hop1 第一个 text_delta 上,底线无需再抬高)。无出字的慢回合才轮得到垫话。
+  slowFiller: { enabled: true, armMs: 1_000, emitMs: 4_500 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {

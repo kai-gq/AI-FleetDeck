@@ -155,8 +155,8 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     maxNotes: 40,
     firstSentenceMaxChars: 0,
     // 与服务端 DEFAULT_SERVER_CONFIG.slowFiller 保持一致(面板保存全量覆写,两侧别漂移)。
-    // emitMs 6500(总 9.0s):hop1 首字节到达即取消垫话,吐出底线抬后避免「垫话+过渡句」双出声。
-    slowFiller: { enabled: true, armMs: 2_500, emitMs: 6_500 },
+    // C12 提速:armMs 1000 / emitMs 4500 —— 吐出 ≈6.5–7.3s(生成就绪是下界),比 C11 的 9.0s 提前 ~2s。
+    slowFiller: { enabled: true, armMs: 1_000, emitMs: 4_500 },
   },
 };
 
