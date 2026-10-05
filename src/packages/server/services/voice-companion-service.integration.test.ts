@@ -2592,3 +2592,118 @@ describe('任务14·⑪ 秘书项目感知与路由', () => {
     }
   });
 });
+
+// ============================================================================
+// C21 垫话承诺护栏:出口硬闸(2026-10-05 23:56 事故)
+//
+// 事故:垫话吐出「好嘞,两分钟后喊你」,而系统当时并无分钟级提醒机制 —— C18 提示词
+// 已写「不承诺时间、不保证结果、不编进展」仍食言,纯提示词方案被证伪。
+// 修法:清洗后过 filler-guard 纯函数(四类承诺);违规 → 回灌负例 + 带原因重生成
+// 一次(独立 4s 上限),仍违规 → 静默(少句垫话,绝不食言)。
+// ============================================================================
+
+describe('C21 垫话承诺护栏', () => {
+  it('违规句被拦 → 回灌负例 + 带原因重生成一次;重生成合格才播出', async () => {
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+    const sentences: Array<{ text: string; pre: boolean }> = [];
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p = startProcess('两分钟后叫我一下', {
+        onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+      });
+      const hop1 = await waitSpawn(1);
+      await waitFor(() => spawnCalls.length >= 2, '垫话首生成 spawn', 2_000);
+      const f1 = spawnCalls[1];
+      // L1:垫话提示词已收紧为硬规则(违反会被系统拦下重写)。
+      expect(fs.readFileSync(promptFileOf(f1), 'utf-8')).toContain('硬规则');
+
+      emitLine(f1.child, { type: 'result', result: '好嘞，两分钟后喊你。' }); // 事故原句
+      await closeChild(f1.child, 0);
+
+      // 违规 → 第二次生成(spawn #3):用户内容带违规句 + 类别说明 + 负例回灌。
+      const f2 = await waitSpawn(3);
+      const user2 = stdinUserContent(f2);
+      expect(user2).toContain('刚才你应的是「好嘞，两分钟后喊你。');
+      expect(user2).toContain('你承诺了时间');
+      expect(user2).toContain('已被系统拦下');
+      expect(user2).toContain('严禁使用或变相改写'); // banned ring 回灌
+      expect(user2).toContain('两分钟后喊你'); // 负例内容本身
+
+      // 重生成合格:「好嘞」放行、无承诺类表述 → 到点播出。
+      emitLine(f2.child, { type: 'result', result: '好嘞，我看看。' });
+      await closeChild(f2.child, 0);
+      await waitFor(() => sentences.some((s) => s.pre), '垫话吐出', 3_000);
+      expect(sentences.filter((s) => s.pre)).toEqual([{ text: '好嘞，我看看。', pre: true }]);
+
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((m) => m.includes('垫话拦截 rule=time-promise') && m.includes('重生成一次'))).toBe(true);
+      expect(logs.some((m) => m.includes('慢档垫话:好嘞，我看看。'))).toBe(true); // 重生成走了验收路径
+
+      await completeWith(hop1.child, contractText({ action: 'general_response', responseToUser: '好，这就办。' }));
+      const r = await p;
+      expect(r.response).toBe('好，这就办。');
+      expect(spawnCalls).toHaveLength(3); // hop1 + 首生成 + 一次重生成,无第三次生成
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('重生成仍违规 → 放弃(静默):不播出、不再重试、日志留痕', async () => {
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+    const sentences: Array<{ text: string; pre: boolean }> = [];
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p = startProcess('查一下主管在干什么', {
+        onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+      });
+      const hop1 = await waitSpawn(1);
+      await waitFor(() => spawnCalls.length >= 2, '垫话首生成 spawn', 2_000);
+      const f1 = spawnCalls[1];
+      emitLine(f1.child, { type: 'result', result: '搞定了，马上回来。' }); // 完成宣告 + 加急回话语义
+      await closeChild(f1.child, 0);
+
+      const f2 = await waitSpawn(3);
+      emitLine(f2.child, { type: 'result', result: '好，三分钟内搞定。' }); // 重生成仍违规
+      await closeChild(f2.child, 0);
+      await new Promise((r) => setTimeout(r, 400)); // 睡过吐出口
+
+      expect(sentences.filter((s) => s.pre)).toEqual([]); // 静默,绝不食言
+      expect(spawnCalls).toHaveLength(3); // 只有一次重试机会
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((m) => m.includes('垫话拦截') && m.includes('放弃(静默)'))).toBe(true);
+
+      await completeWith(hop1.child, contractText({ action: 'general_response', responseToUser: '主管在整理日志。' }));
+      const r = await p;
+      expect(r.response).toBe('主管在整理日志。'); // 回合照常,只是少句垫话
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('开关 TC_VOICE_FILLER_GUARD=0:违规句直接放行(零重生成)', async () => {
+    vi.stubEnv('TC_VOICE_FILLER_GUARD', '0');
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+    const sentences: Array<{ text: string; pre: boolean }> = [];
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p = startProcess('两分钟后叫我一下', {
+        onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+      });
+      const hop1 = await waitSpawn(1);
+      await waitFor(() => spawnCalls.length >= 2, '垫话生成 spawn', 2_000);
+      const f1 = spawnCalls[1];
+      emitLine(f1.child, { type: 'result', result: '好嘞，两分钟后喊你。' });
+      await closeChild(f1.child, 0);
+      await waitFor(() => sentences.some((s) => s.pre), '垫话吐出', 3_000);
+
+      expect(sentences.filter((s) => s.pre)).toEqual([{ text: '好嘞，两分钟后喊你。', pre: true }]);
+      expect(spawnCalls).toHaveLength(2); // 无重生成
+      expect(logSpy.mock.calls.map((c) => String(c[0])).some((m) => m.includes('垫话拦截'))).toBe(false);
+
+      await completeWith(hop1.child, contractText({ action: 'general_response', responseToUser: '好。' }));
+      await p;
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+});
