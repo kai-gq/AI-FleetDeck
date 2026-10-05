@@ -1,0 +1,4 @@
+reports/
+scratch/
+.env-prep-state.json
+manual-fills.local.json

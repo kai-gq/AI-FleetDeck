@@ -1,0 +1,17 @@
+{
+  "_说明": "HC-42 真麦抽验回填模板：复制为 manual-fills.local.json（gitignored）后按 MANUAL.md 逐项填写。verdict 取 pass|fail|partial；note 建议引用 manual-ingest.ts --lookup 打出的证据 #id。填完后运行：npx tsx tools/human-campaign/manual-ingest.ts（默认合并进最新报告）。",
+  "filledBy": "（你的名字/称呼）",
+  "filledAt": "（ISO 时间，如 2026-10-05T21:30:00+08:00）",
+  "probes": {
+    "HC-42": {
+      "items": [
+        { "id": "hc42-1", "verdict": "", "note": "①「那个弄好了没？」→ 不凭空派活；指认最近任务或反问" },
+        { "id": "hc42-2", "verdict": "", "note": "②「怎么这么久还没好啊？！我都等半天了」→ 安抚+查进度；无派发" },
+        { "id": "hc42-3", "verdict": "", "note": "③「让团队回我一句收到」→ 派发恰 1 条且只到主管" },
+        { "id": "hc42-4", "verdict": "", "note": "④「别做了，取消刚才那个」→ cancelled 审计行（T2 在办）" },
+        { "id": "hc42-5", "verdict": "", "note": "⑤多项目「让项目B的团队回我一句收到」→ route=B（需 C3 环境在场）" },
+        { "id": "hc42-interrupt", "verdict": "", "note": "★ 打断：播报进行中再次说话 → 当前播报停止、新回合正常" }
+      ]
+    }
+  }
+}
