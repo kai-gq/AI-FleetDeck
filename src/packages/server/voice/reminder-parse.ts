@@ -169,9 +169,10 @@ export function buildReminderFirePhrase(itemText: string): string {
   return item ? `老大,到点了:${item}。` : '老大,到点了。';
 }
 
-/** 取消回执(hadPending=false → 没有挂着可取消的)。 */
-export function buildReminderCancelSay(hadPending: boolean): string {
-  return hadPending ? '行,那条不提醒了。' : '现在没有挂着的提醒。';
+/** 取消回执(0 条 → 没有挂着可取消的;多条如实报数)。 */
+export function buildReminderCancelSay(count: number): string {
+  if (count <= 0) return '现在没有挂着的提醒。';
+  return count === 1 ? '行,那条不提醒了。' : `行,那 ${count} 条都不提醒了。`;
 }
 
 // ============================================================================

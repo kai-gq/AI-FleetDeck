@@ -34,10 +34,23 @@ vi.mock('../services/sentinel-service.js', () => ({
   logSuppressedVoiceEvent: vi.fn(),
 }));
 
+// 分钟级提醒:纯粹函数/话术走真实现(importOriginal),只替换单例与开关
+// (绝不能碰真实 XDG 存储文件;service 实例一律用测试替身)。
+vi.mock('../services/voice-reminder-service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/voice-reminder-service.js')>();
+  return {
+    ...actual,
+    getVoiceReminderService: vi.fn(),
+    isVoiceReminderEnabled: vi.fn(() => true),
+  };
+});
+
 import * as service from '../services/voice-companion-service.js';
 import * as sentinel from '../services/sentinel-service.js';
+import * as reminderSvc from '../services/voice-reminder-service.js';
 import voiceCompanionRoutes from './voice-companion.js';
 import type { SentinelEventGateResult } from '../services/sentinel-service.js';
+import type { VoiceReminder, VoiceReminderService } from '../services/voice-reminder-service.js';
 
 /** store-only 指令替身(字段齐即可,路由只看 decision)。 */
 function degradedDirective(): NonNullable<SentinelEventGateResult['directive']> {
@@ -99,6 +112,37 @@ async function waitFor(cond: () => boolean, label: string, tries = 300): Promise
     await new Promise((r) => setTimeout(r, 1));
   }
   throw new Error(`waitFor 超时:${label}`);
+}
+
+// ─── 分钟级提醒测试工具 ───
+
+function fakeReminder(over: Partial<VoiceReminder> = {}): VoiceReminder {
+  return {
+    id: 'vr-1',
+    itemText: '',
+    sourceText: '两分钟后叫我一下',
+    createdAt: 0,
+    fireAt: 1_800_000_000_000,
+    status: 'pending',
+    ...over,
+  };
+}
+
+/** 把提醒服务单例替换为测试替身,并打开开关。 */
+function useReminderService(over: Partial<VoiceReminderService> = {}): VoiceReminderService {
+  const stub = {
+    register: vi.fn(() => ({ ok: false, reason: 'cap' as const })),
+    cancelActive: vi.fn(() => 0),
+    listActive: vi.fn(() => [] as VoiceReminder[]),
+    listDue: vi.fn(() => [] as VoiceReminder[]),
+    ack: vi.fn(() => true),
+    rearm: vi.fn(),
+    dispose: vi.fn(),
+    ...over,
+  } as unknown as VoiceReminderService;
+  vi.mocked(reminderSvc.isVoiceReminderEnabled).mockReturnValue(true);
+  vi.mocked(reminderSvc.getVoiceReminderService).mockReturnValue(stub);
+  return stub;
 }
 
 describe('POST /process 参数校验', () => {
@@ -310,6 +354,150 @@ describe('POST /process 流式(NDJSON)', () => {
     // 静默收尾(不写 error 行、不抛):服务端仍健康,后续请求照常
     const status = await fetch(`${baseUrl}/api/voice-companion/status`);
     expect(status.status).toBe(200);
+  });
+});
+
+describe('POST /process 分钟级提醒快通道', () => {
+  it('非流式 create:毫秒回执、注册入服务、不进 LLM 也不过事件闸口', async () => {
+    const stub = useReminderService({
+      register: vi.fn(() => ({ ok: true as const, reminder: fakeReminder({ itemText: '喝水' }) })),
+    });
+
+    const { status, json } = await post({ text: '三分钟后提醒我喝水' });
+    expect(status).toBe(200);
+    expect(json).toEqual({
+      success: true,
+      action: 'noop',
+      response: '好嘞,三分钟后提醒你喝水。',
+      elapsedMs: 0,
+      spoke: true,
+    });
+    expect(stub.register).toHaveBeenCalledWith(
+      expect.objectContaining({ op: 'create', itemText: '喝水', delayMs: 180_000 }),
+      '三分钟后提醒我喝水',
+    );
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+    expect(sentinel.evaluateVoiceEventGate).not.toHaveBeenCalled();
+  });
+
+  it('流式 create:NDJSON sentence + final(spoke:true),客户端不再整段补播', async () => {
+    useReminderService({
+      register: vi.fn(() => ({ ok: true as const, reminder: fakeReminder() })),
+    });
+
+    const res = await fetch(`${baseUrl}/api/voice-companion/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '两分钟后叫我一下', stream: true }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/x-ndjson; charset=utf-8');
+    expect(parseNdjson(await res.text())).toEqual([
+      { type: 'sentence', text: '好嘞,两分钟后喊你。', tMs: 0 },
+      {
+        type: 'final',
+        result: { success: true, action: 'noop', response: '好嘞,两分钟后喊你。', elapsedMs: 0 },
+        spoke: true,
+      },
+    ]);
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+  });
+
+  it('上限:register 拒绝 cap → 换话术,仍秒回', async () => {
+    useReminderService({ register: vi.fn(() => ({ ok: false as const, reason: 'cap' as const })) });
+    const { json } = await post({ text: '两分钟后提醒我喝水' });
+    expect(json.response).toBe(reminderSvc.buildReminderCapSay());
+    expect(json.spoke).toBe(true);
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+  });
+
+  it('取消:按在挂条数回执(1 条/多条/0 条)', async () => {
+    const stub = useReminderService({ cancelActive: vi.fn(() => 1) });
+    const first = await post({ text: '取消提醒' });
+    expect(first.json.response).toBe('行,那条不提醒了。');
+
+    vi.mocked(stub.cancelActive).mockReturnValue(2);
+    const multi = await post({ text: '别提醒我了' });
+    expect(multi.json.response).toBe('行,那 2 条都不提醒了。');
+
+    vi.mocked(stub.cancelActive).mockReturnValue(0);
+    const none = await post({ text: '别再叫我了' });
+    expect(none.json.response).toBe('现在没有挂着的提醒。');
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+  });
+
+  it('列表:走 listActive + 确定性话术(空/单条)', async () => {
+    const stub = useReminderService();
+    const empty = await post({ text: '有哪些提醒' });
+    expect(empty.json.response).toBe('现在没有挂着的提醒。');
+
+    vi.mocked(stub.listActive).mockReturnValue([fakeReminder({ itemText: '喝水', fireAt: Date.now() + 120_000 })]);
+    const one = await post({ text: '提醒列表' });
+    expect(one.json.response).toMatch(/^有 1 条:1\)2 分钟后提醒你喝水。?$/);
+    expect(service.processVoiceInput).not.toHaveBeenCalled();
+  });
+
+  it('负例/事件/开关关:一律不抢原链路', async () => {
+    vi.mocked(reminderSvc.isVoiceReminderEnabled).mockReturnValue(true);
+    vi.mocked(service.processVoiceInput).mockResolvedValue({ action: 'general_response', response: '嗯', elapsedMs: 1 });
+
+    // 疑问负例(事故后追问原句)→ 原链路
+    await post({ text: '两分钟后喊我了吗' });
+    expect(service.processVoiceInput).toHaveBeenCalledTimes(1);
+
+    // 事件回合(带提醒式文本)不注册
+    await post({ text: '⟦系统事件⟧ 两分钟后提醒我喝水', event: true });
+    expect(service.processVoiceInput).toHaveBeenCalledTimes(2);
+
+    // 开关关 → 快通道不生效
+    vi.mocked(reminderSvc.isVoiceReminderEnabled).mockReturnValue(false);
+    await post({ text: '三分钟后提醒我喝水' });
+    expect(service.processVoiceInput).toHaveBeenCalledTimes(3);
+
+    expect(reminderSvc.getVoiceReminderService).not.toHaveBeenCalled();
+  });
+});
+
+describe('提醒轮询与回执接口', () => {
+  it('GET /reminders/due:空数组与 due 载荷(话术服务端拼好)', async () => {
+    const stub = useReminderService();
+    const empty = await fetch(`${baseUrl}/api/voice-companion/reminders/due`);
+    expect(await empty.json()).toEqual({ success: true, reminders: [] });
+
+    const record = fakeReminder({ itemText: '喝水', status: 'due' });
+    vi.mocked(stub.listDue).mockReturnValue([record]);
+    const res = await fetch(`${baseUrl}/api/voice-companion/reminders/due`);
+    expect(await res.json()).toEqual({
+      success: true,
+      reminders: [{ id: 'vr-1', itemText: '喝水', fireAt: record.fireAt, say: '老大,到点了:喝水。' }],
+    });
+  });
+
+  it('GET /reminders/due:开关关 → 空且不触服务', async () => {
+    vi.mocked(reminderSvc.isVoiceReminderEnabled).mockReturnValue(false);
+    const res = await fetch(`${baseUrl}/api/voice-companion/reminders/due`);
+    expect(await res.json()).toEqual({ success: true, reminders: [] });
+    expect(reminderSvc.getVoiceReminderService).not.toHaveBeenCalled();
+  });
+
+  it('POST /reminders/ack:幂等结果透传;缺 id → 400 ID_REQUIRED', async () => {
+    const stub = useReminderService({ ack: vi.fn(() => true) });
+    const res = await fetch(`${baseUrl}/api/voice-companion/reminders/ack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'vr-1' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, acked: true });
+    expect(stub.ack).toHaveBeenCalledWith('vr-1');
+
+    const missing = await fetch(`${baseUrl}/api/voice-companion/reminders/ack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(missing.status).toBe(400);
+    expect((await missing.json() as Record<string, unknown>).code).toBe('ID_REQUIRED');
   });
 });
 

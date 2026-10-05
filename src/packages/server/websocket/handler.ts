@@ -25,6 +25,7 @@ import { logger } from '../utils/index.js';
 import { setNotificationBroadcast, setExecBroadcast, setTestsBroadcast, setHttpRequestsBroadcast, setFocusAgentBroadcast, setAgentsBroadcast, setTriggerBroadcast, setBuildingsBroadcast, setSkillsBroadcast } from '../routes/index.js';
 import { getRunningTasksSnapshot } from '../routes/exec.js';
 import { pluginShellCommandService } from '../services/plugin-shell-command-service.js';
+import { buildReminderNotificationMessage, setVoiceReminderPush } from '../services/voice-reminder-service.js';
 import { validateWebSocketAuth, isAuthEnabled } from '../auth/index.js';
 import { incrementWsSent, incrementWsReceived, setWsClientsCount } from '../routes/perf.js';
 import type { HandlerContext, MessageHandler } from './handlers/types.js';
@@ -601,6 +602,8 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
   setTriggerBroadcast(broadcast);
   setBuildingsBroadcast(broadcast);
   setSkillsBroadcast(broadcast);
+  // 分钟级提醒:到点推送复用 agent_notification 广播(不新增协议类型;见 voice-reminder-service)
+  setVoiceReminderPush((payload) => broadcast(buildReminderNotificationMessage(payload)));
 
   log.log('Handler initialized');
   return wss;

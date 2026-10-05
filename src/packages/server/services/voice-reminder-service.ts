@@ -25,6 +25,7 @@ import * as path from 'node:path';
 
 import { logger } from '../utils/index.js';
 import { buildReminderFirePhrase, type ReminderCreateCommand } from '../voice/reminder-parse.js';
+import type { ServerMessage } from '../../shared/types.js';
 
 // ============================================================================
 // 类型与常量
@@ -86,6 +87,28 @@ export function toDuePayload(reminder: VoiceReminder): DueReminderPayload {
     fireAt: reminder.fireAt,
     say: buildReminderFirePhrase(reminder.itemText),
   };
+}
+
+/** 提醒推送的合成发送者标识(agent_notification 复用;客户端按此识别提醒)。 */
+export const VOICE_REMINDER_AGENT_ID = 'voice-reminder';
+
+/**
+ * due 载荷 → agent_notification 广播(复用既有消息类型与客户端回调,
+ * 不新增 WS 协议;到点顺带弹 toast/提示音,语音页 leader 另走播报+ack)。
+ */
+export function buildReminderNotificationMessage(payload: DueReminderPayload): ServerMessage {
+  return {
+    type: 'agent_notification',
+    payload: {
+      id: `voice-reminder-${payload.id}`,
+      agentId: VOICE_REMINDER_AGENT_ID,
+      agentName: '语音提醒',
+      agentClass: 'support',
+      title: '到点了',
+      message: payload.say,
+      timestamp: Date.now(),
+    },
+  } as ServerMessage;
 }
 
 // ============================================================================

@@ -212,9 +212,10 @@ describe('话术构建(确定性)', () => {
     expect(buildReminderFirePhrase('')).toBe('老大,到点了。');
   });
 
-  it('取消话术区分有无挂着', () => {
-    expect(buildReminderCancelSay(true)).toBe('行,那条不提醒了。');
-    expect(buildReminderCancelSay(false)).toBe('现在没有挂着的提醒。');
+  it('取消话术按条数区分(0/1/多条)', () => {
+    expect(buildReminderCancelSay(0)).toBe('现在没有挂着的提醒。');
+    expect(buildReminderCancelSay(1)).toBe('行,那条不提醒了。');
+    expect(buildReminderCancelSay(3)).toBe('行,那 3 条都不提醒了。');
   });
 });
 
