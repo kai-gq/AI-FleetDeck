@@ -8,23 +8,28 @@
  *   ① connectivity     —— 服务端 HTTP/WS + EventDB 连通性
  *   ② dialog-roundtrip —— 发一条查询类消息，断言 dialog in/out（不触发派活）
  * full（opt-in，真派活，会产生真实 LLM 消耗）：
- *   ③ delegation-chain —— '让团队做 X' → 断言 dispatched 目标只有 Boss（任务05 L3）
- *   ④ receipt-chain    —— 等待下属 report-task 回执 / closed（依赖③的 delegated 证据）
- *   ⑤ cancel-chain     —— '别做了' → cancelled（任务16 未交付，恒 SKIP，断言函数已备好）
- *   ⑥ adversarial      —— 对抗提示词包（任务36；默认不参赛，--scenario=adversarial 显式点名，季度抽跑）
+ *   ③ delegation-chain    —— '让团队做 X' → 断言 dispatched 目标只有 Boss（任务05 L3）
+ *   ④ receipt-chain       —— 等待下属 report-task 回执 / closed（依赖③的 delegated 证据）
+ *   ⑤ cancel-chain        —— '别做了' → cancelled（任务16 59138c3c 已交付；opt-in：真撤回会打断真实任务）
+ *   ⑥ adversarial         —— 对抗提示词包（任务36；默认不参赛，--scenario=adversarial 显式点名，季度抽跑）
+ *   ⑦ project-routing     —— 多项目：歧义反问 + 显式点名路由到各自主管（任务14·P1，opt-in）
+ *   ⑧ cross-project-handover —— 跨项目转交（任务14·P2 未交付，恒 SKIP；断言助手为预留形态）
+ *   ⑨ quota-concurrency   —— 并发配额：超预算排队 → 完成出队（任务15·B，opt-in）
  *
  * 事件/字段口径（来自任务01/02 交付 activity-log.ts + voice-companion-service 埋点）：
  *   dialog      {direction:'in'|'out', text, action, degraded, targetAgentId, isEvent}
  *   broadcast   {phase:'server-sent', text, action, degraded}
- *   delegation  {phase:'dispatched'|'delegated'|'reported'|'closed'|'failed'|'blocked',
+ *   delegation  {phase:'dispatched'|'delegated'|'reported'|'closed'|'failed'|'blocked'|'cancelled',
  *                channel, routedBy, toAgentId, toAgentName, message, delivery, status, forwarded}
+ *   system      {source:'project-routing', body:{cat:'project-routing', kind, projectId, finalBossId, …}}
  */
 
 import type {
   AssertionResult, CanaryEntry, Evidence, PrereqResult, ScenarioContext, ScenarioDef, ScenarioOutcome,
 } from './types.js';
 import {
-  fetchAgents, findBoss, probeCompanionStatus, probeHealth, reportTask, sendCompanionMessage,
+  fetchActiveWorkspace, fetchAgents, fetchAreas, fetchWorkspaces, findBoss,
+  probeCompanionStatus, probeHealth, reportTask, sendCompanionMessage, setActiveWorkspace,
 } from './client.js';
 
 /** 服务端与客户端同机，但仍留 5s 余量抵消时钟漂移/写入延迟 */
@@ -35,6 +40,36 @@ export const TASK_ACTIONS = ['delegate_to_boss', 'send_to_agent'] as const;
 
 /** ④ 单独运行时回溯 delegated 事件的默认窗口（30 分钟） */
 export const RECENT_DELEGATED_LOOKBACK_MS = 30 * 60_000;
+
+// ─── 多项目/配额场景的公开文本（selftest 复用同一常量，保证 fake 落行与真跑一致） ───
+
+/** ⑦ 歧义腿：不含任何项目名的任务文本（用于触发 need-ask 反问；措辞与缺省 taskText 同构——任务类必派活） */
+export const PROJECT_AMBIGUOUS_TEXT =
+  '让团队做一件金丝雀路由验证任务：只回复"收到"两个字，不要执行任何实际操作。';
+
+/** ⑦ 显式腿：点名项目的任务文本（含项目名 → 文本唯一，可作 dialog in 锚点） */
+export function projectRouteText(projectName: string): string {
+  return `让「${projectName}」项目的团队做一件金丝雀路由验证任务：只回复"收到"两个字，不要执行任何实际操作。`;
+}
+
+/** ⑨ 并发配额：默认发起条数（需 > 服务端预算 TC_JARVIS_QUOTA_BUDGET 才能观测排队；预算缺省 3） */
+export const QUOTA_DEFAULT_REQUESTS = 5;
+
+/** ⑨ 并发配额：下属完成任务所需的占用时长（秒）——长于场景操作窗口，保证槽位不提前释放 */
+export const QUOTA_SLEEP_SECONDS = 240;
+
+/** ⑨ 并发配额：第 index 条任务文本（序号保证各条文本唯一，可作各自锚点） */
+export function quotaTaskText(index: number): string {
+  return `让团队做一件金丝雀并发配额验证任务（第 ${index} 条）：执行下属运行命令「sleep ${QUOTA_SLEEP_SECONDS}」等待结束后回复"收到"，不要做其他任何操作。`;
+}
+
+/** ④⑨ 半合成完成回执的 task17·A3 必需载荷：completed 必须带非空 acceptance[{item,done}] 与非空白
+ *  outputLocation，否则服务端 400 且在一切副作用（完成漏斗/配额释放/出队）之前返回。值为金丝雀占位，
+ *  不声称真实执行/验收结果——选词明确标注「半合成（工具验证用）」。 */
+export const SIMULATED_COMPLETION: { acceptance: Array<{ item: string; done: boolean }>; outputLocation: string } = {
+  acceptance: [{ item: '金丝雀半合成回执（工具验证用，非真实验收）', done: true }],
+  outputLocation: 'canary://simulated-completion',
+};
 
 // ─── 通用工具 ───
 
@@ -155,6 +190,84 @@ export interface PrereqDef {
   check(ctx: ScenarioContext): Promise<PrereqResult>;
 }
 
+// ─── 项目发现（轻量复刻 jarvis-core/projects/cards.ts 的 workspace→区域→Boss 链） ───
+
+export interface DiscoveredProject {
+  id: string;
+  name: string;
+  bossId: string;
+  bossName: string;
+}
+
+function bossLike(a: { isBoss?: boolean; class?: string }): boolean {
+  return a.isBoss === true || a.class === 'boss';
+}
+
+/**
+ * 复刻 cards.ts 链：workspace.areaIds → 非 archived 区域的 assignedAgentIds → boss-like agent
+ * （无直接候选时按成员 bossId 反查；pickBoss 的"活动度降序"运行时不可得）。
+ * 仅收「恰好 1 个唯一候选主管」的项目——多于 1 个候选时金丝雀无法预测服务端 pickBoss 结果，
+ * 断言会假红，故排除并登记原因（excluded）。
+ */
+async function discoverProjects(ctx: ScenarioContext): Promise<{
+  ok: boolean;
+  projects: DiscoveredProject[];
+  excluded: string[];
+  error?: string;
+}> {
+  const ws = await fetchWorkspaces(ctx.transport);
+  if (!ws.ok) return { ok: false, projects: [], excluded: [], error: `读取 /api/workspaces 失败：${ws.error}` };
+  const areasRes = await fetchAreas(ctx.transport);
+  if (!areasRes.ok) return { ok: false, projects: [], excluded: [], error: `读取 /api/areas 失败：${areasRes.error}` };
+  const agRes = await fetchAgents(ctx.transport);
+  if (!agRes.ok) return { ok: false, projects: [], excluded: [], error: `读取 /api/agents 失败：${agRes.error}` };
+
+  const byId = new Map(agRes.agents.map((a) => [a.id, a]));
+  const projects: DiscoveredProject[] = [];
+  const excluded: string[] = [];
+  for (const w of ws.workspaces) {
+    const areaIds = new Set(w.areaIds ?? []);
+    const memberIds = new Set<string>();
+    const candidates: string[] = [];
+    for (const area of areasRes.areas) {
+      if (area.archived || !areaIds.has(area.id)) continue;
+      for (const id of area.assignedAgentIds ?? []) {
+        memberIds.add(id);
+        const agent = byId.get(id);
+        if (agent && bossLike(agent)) candidates.push(id);
+      }
+    }
+    if (candidates.length === 0) {
+      // 直接候选为空 → 与 cards.ts 一致：按下属 bossId 反查
+      for (const id of memberIds) {
+        const bossId = byId.get(id)?.bossId;
+        const boss = bossId ? byId.get(bossId) : undefined;
+        if (boss && bossLike(boss)) candidates.push(boss.id);
+      }
+    }
+    const unique = [...new Set(candidates)];
+    if (unique.length === 0) {
+      excluded.push(`${w.name}（区域无成员或无 boss-like 主管，areaIds=${areaIds.size}）`);
+      continue;
+    }
+    if (unique.length > 1) {
+      excluded.push(`${w.name}（候选主管 ${unique.length} 个，pickBoss 活动度排序运行时不可预测）`);
+      continue;
+    }
+    const boss = byId.get(unique[0]);
+    if (!boss) {
+      excluded.push(`${w.name}（主管 ${unique[0]} 不在 agent 列表）`);
+      continue;
+    }
+    projects.push({ id: w.id, name: w.name, bossId: boss.id, bossName: boss.name });
+  }
+  return { ok: true, projects, excluded };
+}
+
+const PROJECT_SETUP_HINT =
+  '请在 UI 准备 ≥2 个项目（workspace 各自关联 ≥1 个含主管的区域或成员），且两个项目的主管不同：' +
+  '新建 workspace → 建区域并把该项目的主管（Boss）移入区域 → 再建第二个项目。';
+
 const PREREQ_DEFS: PrereqDef[] = [
   {
     id: 'serverReachable',
@@ -249,12 +362,46 @@ const PREREQ_DEFS: PrereqDef[] = [
   },
   {
     id: 'cancelChainSupported',
-    desc: '撤回链能力已交付（任务16）',
+    desc: '撤回链能力已交付（任务16 59138c3c）',
     kind: 'env',
     async check() {
       return {
-        id: 'cancelChainSupported', desc: this.desc, ok: false, kind: 'env',
-        detail: '任务16（任务撤回/取消）尚未交付：当前服务端无撤回入口，system_log 也无 cancelled 事件源（可查 src/packages/server 无 cancelled 埋点）。',
+        id: 'cancelChainSupported', desc: this.desc, ok: true, kind: 'env',
+        detail: '任务16（撤回/取消）已于 2026-10-05 交付（59138c3c）：入口=hop1 契约 cancel_delegation（voice-companion-service.ts:2695-2740），审计=auditCancellation（boss-response-handler.ts:587-608）落 phase=cancelled。能力存在性由 ⑤ 场景断言链自证（a1-a4 直接查真实审计行）。',
+      };
+    },
+  },
+  {
+    id: 'multiProjectRouting',
+    desc: '≥2 个各自含唯一主管的项目（workspace→区域→boss-like 链可判定）',
+    kind: 'runtime',
+    async check(ctx) {
+      const { ok, projects, excluded, error } = await discoverProjects(ctx);
+      if (!ok) {
+        return { id: 'multiProjectRouting', desc: this.desc, ok: false, kind: 'runtime', detail: error ?? '读取失败' };
+      }
+      let pair: [DiscoveredProject, DiscoveredProject] | undefined;
+      for (let i = 0; i < projects.length && !pair; i++) {
+        for (let j = i + 1; j < projects.length; j++) {
+          if (projects[i].bossId !== projects[j].bossId) {
+            pair = [projects[i], projects[j]];
+            break;
+          }
+        }
+      }
+      if (!pair) {
+        const seen = projects.map((p) => `${p.name}→${p.bossName}(${p.bossId})`).join('；');
+        const excl = excluded.length ? `已排除：${excluded.join('；')}` : '';
+        return {
+          id: 'multiProjectRouting', desc: this.desc, ok: false, kind: 'runtime',
+          detail: `可判定项目 ${projects.length} 个${seen ? `（${seen}）` : ''}${excl ? `。${excl}` : ''}——需要 ≥2 个主管不同的项目。${PROJECT_SETUP_HINT}`,
+        };
+      }
+      ctx.shared.projects = pair;
+      return {
+        id: 'multiProjectRouting', desc: this.desc, ok: true, kind: 'runtime',
+        detail: `${pair[0].name}→${pair[0].bossName}；${pair[1].name}→${pair[1].bossName}` +
+          (excluded.length ? `（已排除：${excluded.join('；')}）` : ''),
       };
     },
   },
@@ -638,6 +785,7 @@ const receiptChain: ScenarioDef = {
         subordinateId,
         '[金丝雀] 回执链半合成验证：模拟下属完成回执（未执行实际任务）',
         'completed',
+        SIMULATED_COMPLETION,
       );
       notes.push(sim.ok
         ? `已通过 report-task 模拟下属 ${subordinateId} 回执（半合成；HTTP ${sim.status}）`
@@ -679,41 +827,590 @@ const receiptChain: ScenarioDef = {
   },
 };
 
-// ─── 场景 ⑤ 撤回链（full，待任务16） ───
+// ─── 场景 ⑤ 撤回链（full，opt-in；任务16 已交付） ───
+
+/** ⑤ 撤回链专用任务文本：让下属跑 sleep 保持"在办"，保证撤回命中 running（否则小任务可能先完成） */
+export const CANCEL_TASK_TEXT =
+  `让团队做一件金丝雀撤回链验证任务：执行下属运行命令「sleep ${QUOTA_SLEEP_SECONDS}」等待结束后回复"收到"，不要做其他任何操作。`;
 
 /**
- * 撤回链断言函数——任务16 交付后启用。
- * TODO（任务16 落地时）：把 cancelChainSupported 前置改为"探测撤回能力"（如 API 存在性），
- * 并确认 cancelled 的事件形态（phase='cancelled' 或 status='cancelled'）后收紧此处。
+ * 撤回审计行断言——任务16 审计形态（boss-response-handler.ts:587-608）：
+ * phase='cancelled'；status = cancelled-{running|queued|tracking}（命中）
+ * 或 not-found / rejected-done / already-cancelled（未撤销任何在办任务）。
  */
 export function assertCancelEvidence(rows: CanaryEntry[]): { ok: boolean; evidence: Evidence[]; actual: string } {
-  const hit = rows.find((e) => {
-    const phase = phaseOf(e) ?? '';
-    const status = bodyString(e, 'status') ?? '';
-    return phase === 'cancelled' || phase === 'cancel' || status === 'cancelled' || status === 'canceled';
-  });
-  if (!hit) return { ok: false, evidence: [], actual: '未找到 cancelled/cancel 形态的 delegation 事件' };
-  return { ok: true, evidence: [entryEvidence(hit, ['phase', 'channel', 'status', 'toAgentId', 'message'])], actual: `命中 #${hit.id}` };
+  const hit = rows.find((e) => phaseOf(e) === 'cancelled' && bodyString(e, 'status') !== 'clarify-ask');
+  if (!hit) return { ok: false, evidence: [], actual: '未找到 phase=cancelled 的审计行（不含 clarify-ask）' };
+  return {
+    ok: true,
+    evidence: [entryEvidence(hit, ['phase', 'channel', 'status', 'toAgentId', 'toAgentName', 'initiator', 'notified', 'reason', 'taskId'])],
+    actual: `命中 #${hit.id} status=${String(hit.body?.status ?? '?')} notified=${String(hit.body?.notified ?? '?')}`,
+  };
 }
+
+const CANCEL_NOT_FOUND_EXPLAIN: Record<string, string> = {
+  'not-found': '无在办任务可撤（撤回时委派已结束/不存在）',
+  'rejected-done': '目标任务已完成（卡 done，拒撤；撤回晚于任务完成）',
+  'already-cancelled': '目标任务已被撤销过（重复撤回幂等）',
+};
 
 const cancelChain: ScenarioDef = {
   name: 'cancel-chain',
   aliases: ['cancel'],
-  title: '撤回链（"别做了" → cancelled）',
+  title: '撤回链（"别做了" → cancelled 审计 + 下属通知）',
   level: 'full',
   consumesLlm: true,
-  description: '派错任务后撤回，断言任务 status=cancelled 且 Boss 通知下属停止。任务16（任务撤回/取消）尚未交付，当前恒 SKIP；断言函数与执行步骤已按预留形态实现。',
-  unsupported: '任务16（任务撤回/取消）尚未交付：服务端无撤回入口、system_log 无 cancelled 事件源。断言函数 assertCancelEvidence 已按 phase/status=cancelled 形态实现，待任务16 落地后把 cancelChainSupported 前置改成能力探测即可启用。',
+  description: '真 LLM：派一条保持"在办"的验证任务（下属 sleep 等待），等 Boss 拆解派活（delegated）后发撤回话术（--cancel-text），断言撤回审计行（phase=cancelled/channel=boss/status=cancelled-*）、下属被通知（notified=true）且只撤销目标任务。任务16（59138c3c）已交付。🔴 真撤回会强制打断真实下属任务；建议在环境空闲时复跑。',
   steps: [
-    '（待任务16）发送派活消息，等待 dispatched',
-    '（待任务16）发送 --cancel-text（默认"别做了，取消刚才的任务"）',
-    '（待任务16）断言 delegation 事件出现 status=cancelled（或 phase=cancelled）',
-    '（待任务16）断言目标下属被通知停止（closed/status 证据）',
+    `发送固定派活文本（${truncate(CANCEL_TASK_TEXT, 60)}），等 dispatched → Boss`,
+    '以 --wait-boss-ms 等待 Boss 拆解派活（delegated）——撤回目标凭证（0=不等待）',
+    '发送 --cancel-text（默认"别做了，取消刚才的任务"），等待撤回审计行',
+    '断言审计 status=cancelled-*、notified=true（cancelled-queued 除外：未派发不通知）',
+    '断言只撤销目标任务：本次撤回锚点后 audit 行数 == 1（多候选反问 clarify-ask 单独登记）',
   ],
-  assertionDocs: ['a1 cancelled 形态事件存在', 'a2 只取消目标任务，不误伤其他在途任务'],
-  prereqIds: ['cancelChainSupported'],
+  assertionDocs: [
+    'a1 派活已到 Boss（dispatched → toAgentId=Boss）',
+    'a2 Boss 已拆解派活（delegated 存在，撤回目标非空）',
+    'a3 撤回审计行落盘（phase=cancelled/channel=boss）',
+    'a4 撤回命中在办任务（status=cancelled-{running|queued|tracking}）',
+    'a5 下属已获停止通知（notified=true；cancelled-queued 豁免）',
+    'a6 不误伤：撤回锚点后审计行数 == 1',
+  ],
+  prereqIds: ['serverReachable', 'companionAvailable', 'dbReadable', 'bossExists', 'cancelChainSupported'],
+  async run(ctx): Promise<ScenarioOutcome> {
+    const assertions: AssertionResult[] = [];
+    const notes: string[] = [];
+    const boss = ctx.shared.boss as { id: string; name: string } | undefined;
+
+    // ── 腿1：派一条保持在办的任务，等 dispatched → Boss ──
+    const t0 = Date.now() - CLOCK_MARGIN_MS;
+    const sendRes = await sendCompanionMessage(ctx.transport, CANCEL_TASK_TEXT);
+    const ownIn = findOwnDialogIn(
+      ctx.query({ category: 'dialog', since: t0, order: 'asc', limit: 200 }), CANCEL_TASK_TEXT);
+    if (!ownIn) notes.push(ANCHOR_FALLBACK_NOTE);
+    const anchorId = ownIn?.id ?? 0;
+
+    const dispatched = await waitFor(() => {
+      const rows = ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 200 });
+      return rows.find((e) => e.id > anchorId && phaseOf(e) === 'dispatched');
+    }, { timeoutMs: ctx.options.logWaitMs, pollMs: ctx.options.pollMs });
+
+    assertions.push(assertThat(
+      'a1', '派活已到 Boss（dispatched → toAgentId=Boss）',
+      !!dispatched && !!boss && bodyString(dispatched, 'toAgentId') === boss.id,
+      `delegation phase='dispatched' channel='voice-companion' 且 toAgentId=${boss?.id ?? '（前置 bossExists 未命中）'}`,
+      !dispatched
+        ? `未观测到 dispatched（HTTP ${sendRes.status}${sendRes.error ? `，${sendRes.error}` : ''}）`
+        : `#${dispatched.id} toAgentId=${bodyString(dispatched, 'toAgentId')}`,
+      dispatched ? [entryEvidence(dispatched, ['phase', 'channel', 'toAgentId', 'toAgentName', 'taskId'])] : [],
+    ));
+
+    // ── 腿2：等 Boss 拆解派活（delegated）——撤回目标凭证 ──
+    const delegated = ctx.options.bossWaitMs > 0
+      ? await waitFor(() => {
+        const rows = ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 300 });
+        return rows.find((e) => e.id > anchorId && phaseOf(e) === 'delegated' && bodyString(e, 'channel') === 'boss');
+      }, { timeoutMs: ctx.options.bossWaitMs, pollMs: Math.max(ctx.options.pollMs, 1_000) })
+      : undefined;
+
+    assertions.push(assertThat(
+      'a2', 'Boss 已拆解派活（delegated 存在）',
+      !!delegated,
+      `等待 delegated 至多 ${ctx.options.bossWaitMs}ms（--wait-boss-ms；0=不等待）`,
+      delegated
+        ? `#${delegated.id} → ${bodyString(delegated, 'toAgentName') ?? bodyString(delegated, 'toAgentId')} status=${String(delegated.body?.status ?? '（direct）')}`
+        : '未观测到 delegated（Boss 未拆解或等待超时）——无目标时撤回必落 not-found，a3 将如实判红',
+      delegated ? [entryEvidence(delegated, ['phase', 'toAgentId', 'toAgentName', 'status', 'taskId'])] : [],
+    ));
+
+    // ── 腿3：发撤回话术，等审计行 ──
+    const t1 = Date.now() - CLOCK_MARGIN_MS;
+    const cancelRes = await sendCompanionMessage(ctx.transport, ctx.options.cancelText);
+    const ownIn2 = findOwnDialogIn(
+      ctx.query({ category: 'dialog', since: t1, order: 'asc', limit: 200 }), ctx.options.cancelText);
+    if (!ownIn2) notes.push(ANCHOR_FALLBACK_NOTE);
+    const cancelAnchorId = ownIn2?.id ?? 0;
+
+    const waitState = await waitFor(() => {
+      const rows = ctx.query({ category: 'delegation', since: t1, order: 'asc', limit: 300 })
+        .filter((e) => e.id > cancelAnchorId && phaseOf(e) === 'cancelled');
+      const clarifyAsk = rows.find((e) => bodyString(e, 'status') === 'clarify-ask');
+      const audits = rows.filter((e) => bodyString(e, 'status') !== 'clarify-ask');
+      return clarifyAsk || audits.length > 0 ? { clarifyAsk, audits } : undefined;
+    }, { timeoutMs: ctx.options.logWaitMs, pollMs: ctx.options.pollMs });
+
+    const primary = waitState?.audits[0];
+    if (waitState?.clarifyAsk) {
+      notes.push('秘书反问取消哪一个（clarify-ask，pendingCancel 10min TTL）：环境存在多个候选在办任务。请让环境空闲（仅本次派活）后复跑；直接回答候选编号亦可人工验证闭环。');
+    }
+
+    const audit = assertCancelEvidence(waitState?.audits ?? []);
+    const status = primary ? bodyString(primary, 'status') ?? '' : '';
+    assertions.push(assertThat(
+      'a3', '撤回审计行落盘（phase=cancelled/channel=boss）',
+      !!primary && bodyString(primary, 'channel') === 'boss',
+      "delegation phase='cancelled' channel='boss'（auditCancellation，任务16）",
+      primary
+        ? `#${primary.id} status=${status} channel=${String(primary.body?.channel ?? '?')}`
+        : waitState?.clarifyAsk
+          ? '仅观测到 clarify-ask（反问取消哪一个）——见 notes；本断言要求直接取消'
+          : `未观测到 cancelled 审计行（撤回 HTTP ${cancelRes.status}${cancelRes.error ? `，${cancelRes.error}` : ''}）${audit.actual ? `；${audit.actual}` : ''}`,
+      primary ? [entryEvidence(primary, ['phase', 'channel', 'status', 'toAgentId', 'toAgentName', 'initiator', 'reason', 'taskId'])] : [],
+    ));
+
+    assertions.push(assertThat(
+      'a4', '撤回真正命中在办任务（status=cancelled-{running|queued|tracking}）',
+      status.startsWith('cancelled-'),
+      "status ∈ {cancelled-running, cancelled-queued, cancelled-tracking}",
+      primary
+        ? `status=${status}${status.startsWith('cancelled-') ? '' : ` —— ${CANCEL_NOT_FOUND_EXPLAIN[status] ?? '未撤销任何在办任务'}`}`
+        : '无审计行（撤回未命中任何在办任务）',
+      primary ? [entryEvidence(primary, ['status', 'toAgentId', 'toAgentName', 'reason'])] : [],
+    ));
+
+    assertions.push(assertThat(
+      'a5', '下属已获停止通知（notified=true）',
+      !!primary && (status === 'cancelled-queued' || primary.body?.notified === true),
+      'notified=true（mode=running/tracking 时 sendCommand(forceInterrupt) 成功）；cancelled-queued 豁免（未派发不通知）',
+      primary
+        ? `status=${status} notified=${String(primary.body?.notified ?? '（缺省）')} stopFallbackUsed=${String(primary.body?.stopFallbackUsed ?? 'false')}`
+        : '无审计行',
+      primary ? [entryEvidence(primary, ['notified', 'notifyMs', 'error', 'status'])] : [],
+    ));
+
+    const auditCount = (waitState?.audits ?? []).length;
+    assertions.push(assertThat(
+      'a6', '不误伤：只撤销目标任务（本次撤回锚点后审计行数 == 1）',
+      auditCount === 1,
+      '本次撤回锚点后 phase=cancelled（不含 clarify-ask）行数 == 1',
+      auditCount === 1
+        ? `audits=${auditCount}（#${(waitState?.audits ?? []).map((e) => e.id).join(', #')}）`
+        : `audits=${auditCount}${(waitState?.audits ?? []).length ? `（#${(waitState?.audits ?? []).map((e) => e.id).join(', #')}）` : ''}`,
+      (waitState?.audits ?? []).map((e) => entryEvidence(e, ['phase', 'channel', 'status', 'toAgentId', 'taskId'])),
+    ));
+
+    const observed = observedSummary(ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 50 }));
+    return { assertions, notes, observed };
+  },
+};
+
+// ─── 场景 ⑦ 项目路由与并行隔离（full，opt-in；任务14·P1） ───
+
+const projectRouting: ScenarioDef = {
+  name: 'project-routing',
+  aliases: ['routing', 'project'],
+  title: '项目路由与并行隔离（歧义反问 + 显式点名各自主管）',
+  level: 'full',
+  consumesLlm: true,
+  description: '真 LLM：先把激活工作区切到 All（finally 复原），发不含项目名的任务文本——冷环境应触发一次性反问（need-ask），用项目名回答后断言 clarify-resolved 且派发到该项目主管；若会话已有最近提及/最近委派（非冷环境），则走后②上下文层直路由（notes 登记，不判红）。随后分别显式点名两个项目，断言 route 事件的 projectId/finalBossId 与 dispatched 各自命中、互不串台（并行隔离）。前置 multiProjectRouting 要求环境有 ≥2 个各自含唯一主管的项目。🔴 真派活（每项目一次），真实 LLM 消耗。',
+  steps: [
+    `保存激活工作区 → 临时 PUT active=null（All 状态；失败登记 notes 继续）`,
+    `腿1（歧义）：发送不含项目名的任务文本（${truncate(PROJECT_AMBIGUOUS_TEXT, 50)}）→ 等 need-ask 或 route（二择一）`,
+    '腿1a（need-ask 分支）：用项目 B 名回答 → 等 clarify-resolved + 派发 → 断言 toAgentId=项目 B 主管',
+    '腿1b（直路由分支）：登记 layer/source（非冷环境限制），不判红',
+    '腿2/3（显式）：分别发送「让「<项目名>」项目的团队做…」→ 断言 route.projectId/finalBossId 与 dispatched.toAgentId 各自命中',
+    'a7 并行隔离：两条显式腿目标主管不同且各自正确；finally 恢复原激活工作区',
+  ],
+  assertionDocs: [
+    'a1 歧义腿已裁决（need-ask 反问 或 ②上下文层直路由，二择一）',
+    'a2 [need-ask 分支] 用项目 B 名回答后 clarify-resolved 且派发到该项目主管',
+    'a3 显式点名项目 A → route.projectId=A、finalBossId=A 的主管',
+    'a4 项目 A 的 dispatched.toAgentId = A 主管',
+    'a5 显式点名项目 B → route.projectId=B、finalBossId=B 的主管',
+    'a6 项目 B 的 dispatched.toAgentId = B 主管',
+    'a7 并行隔离：两腿各自命中且互不串台（A≠B，无交叉）',
+  ],
+  prereqIds: ['serverReachable', 'companionAvailable', 'dbReadable', 'bossExists', 'multiProjectRouting'],
+  async run(ctx): Promise<ScenarioOutcome> {
+    const assertions: AssertionResult[] = [];
+    const notes: string[] = [];
+    const [projA, projB] = ctx.shared.projects as [DiscoveredProject, DiscoveredProject];
+
+    const routingRows = (since: number) =>
+      ctx.query({ category: 'system', source: 'project-routing', since, order: 'asc', limit: 100 });
+    const dispatchedRows = (since: number) =>
+      ctx.query({ category: 'delegation', since, order: 'asc', limit: 200 })
+        .filter((e) => phaseOf(e) === 'dispatched' && bodyString(e, 'channel') === 'voice-companion');
+
+    // ── 0) 激活工作区 → All（保存原值，finally 恢复；失败登记不判红） ──
+    const prev = await fetchActiveWorkspace(ctx.transport);
+    const prevId = prev.ok ? prev.workspaceId : null;
+    let setAllOk = false;
+    if (!prev.ok) {
+      notes.push(`读取激活工作区失败（${prev.error}）：按现状继续（可能非 All 状态）。`);
+    } else if (prevId !== null) {
+      const put = await setActiveWorkspace(ctx.transport, null);
+      if (put.ok && put.json?.workspaceId === null) {
+        setAllOk = true;
+      } else {
+        notes.push(`激活工作区切换 All 失败（HTTP ${put.status}${put.error ? `，${put.error}` : ''}）：歧义腿可能被①层 active-workspace 直路由（a1 二择一形态可容纳，但 need-ask 分支不可达）。`);
+      }
+    }
+
+    let leg1: { ask?: CanaryEntry; route?: CanaryEntry } | undefined;
+    const legResults: Array<{ proj: DiscoveredProject; route?: CanaryEntry; disp?: CanaryEntry }> = [];
+    try {
+      // ── 腿1：歧义（不含项目名）──
+      const t0 = Date.now() - CLOCK_MARGIN_MS;
+      const res1 = await sendCompanionMessage(ctx.transport, PROJECT_AMBIGUOUS_TEXT);
+      const ownIn1 = findOwnDialogIn(
+        ctx.query({ category: 'dialog', since: t0, order: 'asc', limit: 200 }), PROJECT_AMBIGUOUS_TEXT);
+      if (!ownIn1) notes.push(ANCHOR_FALLBACK_NOTE);
+      const anchor1 = ownIn1?.id ?? 0;
+
+      leg1 = await waitFor(() => {
+        const rows = routingRows(t0).filter((e) => e.id > anchor1);
+        const ask = rows.find((e) => bodyString(e, 'kind') === 'need-ask');
+        const route = rows.find((e) => bodyString(e, 'kind') === 'route');
+        return ask || route ? { ask, route } : undefined;
+      }, { timeoutMs: ctx.options.logWaitMs, pollMs: ctx.options.pollMs });
+
+      assertions.push(assertThat(
+        'a1', '歧义腿已裁决（need-ask 反问 或 ②上下文层直路由）',
+        !!leg1,
+        "source='project-routing' 且 kind ∈ {need-ask, route}",
+        leg1?.ask
+          ? `need-ask #${leg1.ask.id} question=${truncate(leg1.ask.body?.question, 60)} askCount=${String(leg1.ask.body?.askCount ?? '?')}`
+          : leg1?.route
+            ? `route #${leg1.route.id} layer=${String(leg1.route.body?.layer ?? '?')} source=${String(leg1.route.body?.source ?? '?')}（非冷环境：会话已有最近提及/最近委派）`
+            : `未观测到 need-ask/route（HTTP ${res1.status}${res1.error ? `，${res1.error}` : ''}）`,
+        leg1?.ask
+          ? [entryEvidence(leg1.ask, ['kind', 'question', 'askCount', 'candidates', 'text'])]
+          : leg1?.route
+            ? [entryEvidence(leg1.route, ['kind', 'layer', 'source', 'projectId', 'finalBossId'])]
+            : [],
+      ));
+
+      // ── 腿1a：need-ask → 用项目 B 名回答 ──
+      if (leg1?.ask) {
+        const answer = projB.name;
+        const t1 = Date.now() - CLOCK_MARGIN_MS;
+        const res2 = await sendCompanionMessage(ctx.transport, answer);
+        const ownIn2 = findOwnDialogIn(
+          ctx.query({ category: 'dialog', since: t1, order: 'asc', limit: 200 }), answer);
+        if (!ownIn2) notes.push(ANCHOR_FALLBACK_NOTE);
+        const anchor2 = ownIn2?.id ?? 0;
+
+        const resolved = await waitFor(() => {
+          const clar = routingRows(t1).filter((e) => e.id > anchor2)
+            .find((e) => bodyString(e, 'kind') === 'clarify-resolved');
+          const disp = dispatchedRows(t1).filter((e) => e.id > anchor2)[0];
+          return clar && disp ? { clar, disp } : undefined;
+        }, { timeoutMs: ctx.options.logWaitMs, pollMs: ctx.options.pollMs });
+
+        const hitB = !!resolved
+          && bodyString(resolved.clar, 'finalBossId') === projB.bossId
+          && bodyString(resolved.disp, 'toAgentId') === projB.bossId;
+        assertions.push(assertThat(
+          'a2', `反问后用「${projB.name}」回答 → clarify-resolved 并派发到该项目主管`,
+          hitB,
+          `clarify-resolved.finalBossId=${projB.bossId}（${projB.bossName}）且 dispatched.toAgentId 一致`,
+          resolved
+            ? `clarify finalBossId=${String(resolved.clar.body?.finalBossId ?? '?')}；dispatched #${resolved.disp.id} toAgentId=${String(resolved.disp.body?.toAgentId ?? '?')}`
+            : `未观测到 clarify-resolved + 派发行（回答消息 HTTP ${res2.status}${res2.error ? `，${res2.error}` : ''}）`,
+          resolved
+            ? [entryEvidence(resolved.clar, ['kind', 'finalBossId', 'projectId', 'taskId']), entryEvidence(resolved.disp, ['phase', 'routedBy', 'status', 'toAgentId', 'toAgentName'])]
+            : [],
+        ));
+      } else if (leg1?.route) {
+        notes.push(`歧义腿走直路由（layer=${String(leg1.route.body?.layer ?? '?')} source=${String(leg1.route.body?.source ?? '?')}）：会话非冷环境（已有最近提及/最近委派）时不反问，属设计内 ② 上下文层行为；need-ask 反问验证需冷环境复跑（重启 dev server 后立即执行本场景，且先不跑其他派活场景）。`);
+      }
+
+      // ── 腿2/3：显式点名两个项目 ──
+      for (const [idx, proj] of [projA, projB].entries()) {
+        const text = projectRouteText(proj.name);
+        const since = Date.now() - CLOCK_MARGIN_MS;
+        const res = await sendCompanionMessage(ctx.transport, text);
+        const own = findOwnDialogIn(ctx.query({ category: 'dialog', since, order: 'asc', limit: 200 }), text);
+        if (!own) notes.push(ANCHOR_FALLBACK_NOTE);
+        const anchor = own?.id ?? 0;
+
+        const got = await waitFor(() => {
+          const route = routingRows(since).filter((e) => e.id > anchor).find((e) => bodyString(e, 'kind') === 'route');
+          const disp = dispatchedRows(since).filter((e) => e.id > anchor)[0];
+          return route && disp ? { route, disp } : undefined;
+        }, { timeoutMs: ctx.options.logWaitMs, pollMs: ctx.options.pollMs });
+
+        const routeOk = !!got
+          && bodyString(got.route, 'projectId') === proj.id
+          && bodyString(got.route, 'finalBossId') === proj.bossId;
+        assertions.push(assertThat(
+          `a${3 + idx * 2}`, `显式点名「${proj.name}」→ route.projectId/finalBossId 命中`,
+          routeOk,
+          `route.projectId=${proj.id}、finalBossId=${proj.bossId}（${proj.bossName}）`,
+          got
+            ? `#${got.route.id} projectId=${String(got.route.body?.projectId ?? '?')} finalBossId=${String(got.route.body?.finalBossId ?? '?')} layer=${String(got.route.body?.layer ?? '?')} source=${String(got.route.body?.source ?? '?')}`
+            : `未观测到 route 行（HTTP ${res.status}${res.error ? `，${res.error}` : ''}）`,
+          got ? [entryEvidence(got.route, ['kind', 'layer', 'source', 'projectId', 'projectName', 'finalBossId', 'fallbackToFirstBoss'])] : [],
+        ));
+
+        const dispOk = !!got && bodyString(got.disp, 'toAgentId') === proj.bossId;
+        assertions.push(assertThat(
+          `a${4 + idx * 2}`, `显式点名「${proj.name}」的派发命中该项目主管`,
+          dispOk,
+          `dispatched.toAgentId=${proj.bossId}（${proj.bossName}）`,
+          got
+            ? `#${got.disp.id} toAgentId=${String(got.disp.body?.toAgentId ?? '?')} toAgentName=${String(got.disp.body?.toAgentName ?? '?')}`
+            : `无 dispatched 行（等待 ${ctx.options.logWaitMs}ms）`,
+          got ? [entryEvidence(got.disp, ['phase', 'routedBy', 'toAgentId', 'toAgentName'])] : [],
+        ));
+        legResults.push({ proj, route: got?.route, disp: got?.disp });
+      }
+
+      // ── a7 并行隔离 ──
+      const [rA, rB] = legResults;
+      const isolateOk = projA.bossId !== projB.bossId
+        && !!rA?.disp && !!rB?.disp
+        && bodyString(rA.disp, 'toAgentId') === projA.bossId
+        && bodyString(rB.disp, 'toAgentId') === projB.bossId
+        && bodyString(rA.disp, 'toAgentId') !== bodyString(rB.disp, 'toAgentId');
+      assertions.push(assertThat(
+        'a7', '并行隔离：两项目各自命中、互不串台',
+        isolateOk,
+        `A(${projA.name})→${projA.bossId} 且 B(${projB.name})→${projB.bossId}，两者不同`,
+        `A→${rA?.disp ? String(rA.disp.body?.toAgentId ?? '?') : '（无派发）'}；B→${rB?.disp ? String(rB.disp.body?.toAgentId ?? '?') : '（无派发）'}`,
+        [rA?.disp, rB?.disp]
+          .filter((e): e is CanaryEntry => !!e)
+          .map((e) => entryEvidence(e, ['phase', 'toAgentId', 'toAgentName'])),
+      ));
+    } finally {
+      if (setAllOk && prevId !== null) {
+        const back = await setActiveWorkspace(ctx.transport, prevId);
+        if (back.ok) notes.push(`激活工作区已恢复：${prevId}。`);
+        else notes.push(`恢复激活工作区失败（HTTP ${back.status}${back.error ? `，${back.error}` : ''}）：请手工在 UI 切回 ${prevId}。`);
+      }
+    }
+
+    const observed = observedSummary(
+      ctx.query({ category: 'system', since: Date.now() - CLOCK_MARGIN_MS - 60_000, order: 'asc', limit: 50 }), 50);
+    return { assertions, notes, observed };
+  },
+};
+
+// ─── 场景 ⑧ 跨项目转交（full，恒 SKIP；任务14·P2 未交付） ───
+
+/**
+ * 跨项目转交证据断言（预留形态）：任务卡带 sourceProject，转交只能经秘书。
+ * 当前全仓无 sourceProject 生产者（TaskCard.sourceProject 唯一写入方是 Boss 委派块解析，
+ * 无语音/派发路径写入）→ 场景恒 SKIP；断言助手待任务14·P2 落地后启用。
+ */
+export function assertCrossProjectHandoverEvidence(rows: CanaryEntry[]): { ok: boolean; evidence: Evidence[]; actual: string } {
+  const hit = rows.find((e) => {
+    const sp = e.body?.sourceProject;
+    return typeof sp === 'string' && sp.length > 0;
+  });
+  if (!hit) return { ok: false, evidence: [], actual: '未找到含 sourceProject 的 delegation 行（当前服务端无 sourceProject 生产者）' };
+  return {
+    ok: true,
+    evidence: [entryEvidence(hit, ['phase', 'sourceProject', 'toAgentId', 'message'])],
+    actual: `命中 #${hit.id} sourceProject=${String(hit.body?.sourceProject)}`,
+  };
+}
+
+const crossProjectHandover: ScenarioDef = {
+  name: 'cross-project-handover',
+  aliases: ['handover'],
+  title: '跨项目转交（"这是 A 的活，做完报 A"，恒 SKIP：任务14·P2 未交付）',
+  level: 'full',
+  consumesLlm: false,
+  description: '跨项目转交（Spec §5.3-4）：Boss 间无通信，转交只能经秘书——任务对象带 sourceProject，显式声明"A 的活，做完报 A"。任务14·P2（跨项目转交）未交付：全仓无 sourceProject 生产者（TaskCard.sourceProject 唯一写入方是 Boss 委派块解析，无语音/派发路径写入）→ 恒 SKIP；断言助手 assertCrossProjectHandoverEvidence 为预留形态。',
+  unsupported: '任务14·P2（跨项目转交）未交付：无 sourceProject 生产者（无语音/派发路径写入任务卡），回执行无法带转交来源。断言助手 assertCrossProjectHandoverEvidence 已按「delegation 行含 sourceProject」形态备好，待 P2 落地后实现执行步骤并启用。',
+  steps: [
+    '（待任务14·P2）项目 A 的团队收到"这是 B 项目的活"任务 → 任务卡带 sourceProject=B',
+    '（待 P2）断言 delegation/回执行含 sourceProject=B，回执按 sourceProject 路由到目标项目而非执行项目',
+  ],
+  assertionDocs: [
+    'a1 sourceProject 落盘（delegation 行含 sourceProject）',
+    'a2 回执按 sourceProject 路由到目标项目主管',
+  ],
+  prereqIds: [],
   async run(): Promise<ScenarioOutcome> {
-    return { assertions: [], notes: ['不该到达这里——cancelChainSupported 恒 false，场景应被跳过。'], observed: [] };
+    return { assertions: [], notes: ['不该到达这里——cross-project-handover 为未交付能力（unsupported），场景应被跳过。'], observed: [] };
+  },
+};
+
+// ─── 场景 ⑨ 并发配额（full，opt-in；任务15·B） ───
+
+const quotaConcurrency: ScenarioDef = {
+  name: 'quota-concurrency',
+  aliases: ['quota'],
+  title: '并发配额（超预算排队 → 完成出队，任务不丢）',
+  level: 'full',
+  consumesLlm: true,
+  description: `真 LLM：串行连发 N 条占用槽位的任务（默认 N=${QUOTA_DEFAULT_REQUESTS}；任务让下属运行 sleep ${QUOTA_SLEEP_SECONDS}s 保持占用），超预算的委派应进入排队（delegated status=queued + quota-queued 审计 + 「任务已排队」播报），随后对任一在办下属 report-task 模拟完成 → 队首自动出队（quota-dequeued + delegated status=dequeued + 「排队任务开始了」播报），且 N 条任务账目齐全（distinct taskId == N，排队不丢）。需服务端配额开（TC_JARVIS_DELEGATION_QUOTA 缺省开）且预算 TC_JARVIS_QUOTA_BUDGET（缺省 3）< N；建议环境相对空闲（跨运行的在办/排队任务会干扰 FIFO 判定）。🔴 真派活 ×N + 真排队出队，真实 LLM 消耗。`,
+  steps: [
+    `串行发送 ${QUOTA_DEFAULT_REQUESTS} 条（--quota-requests 可调）占用槽位的任务文本（各自唯一序号，dialog in 作锚点）`,
+    '等 Boss 侧 delegated 行同时出现 status=queued 与非排队行（预算被占满）',
+    '断言 quota-queued 审计行 + 「任务已排队」播报行',
+    '对首个非排队 delegated 目标的下属 POST report-task（半合成完成）→ 等 quota-dequeued 审计 + delegated status=dequeued',
+    '断言出队行为队首任务（FIFO：最早未出队排队行的 taskId/toAgentId）',
+    '断言 N 条任务账目齐：boss 侧 delegated 行 distinct taskId == N（排队不丢）',
+  ],
+  assertionDocs: [
+    'a1 N 条消息全部受理（HTTP 200）',
+    'a2 出现排队（delegated status=queued 与非排队行并存）',
+    'a3 quota-queued 审计行（queuedCount>=1）',
+    'a4 排队播报（broadcast action=delegation_quota，含「任务已排队」）',
+    'a5 report-task 模拟完成后队首出队（quota-dequeued 审计）',
+    'a6 出队行 status=dequeued 且为队首任务（FIFO：taskId/toAgentId 一致）',
+    'a7 任务账目齐：distinct taskId == N（排队不丢）',
+  ],
+  prereqIds: ['serverReachable', 'companionAvailable', 'dbReadable', 'bossExists'],
+  async run(ctx): Promise<ScenarioOutcome> {
+    const assertions: AssertionResult[] = [];
+    const notes: string[] = [];
+    const n = Math.max(2, Math.floor(ctx.options.quotaRequests));
+
+    const t0 = Date.now() - CLOCK_MARGIN_MS;
+    const anchors: number[] = [];
+    let httpOk = 0;
+    for (let i = 1; i <= n; i++) {
+      const text = quotaTaskText(i);
+      const res = await sendCompanionMessage(ctx.transport, text);
+      if (res.ok && res.status === 200) httpOk += 1;
+      const own = findOwnDialogIn(ctx.query({ category: 'dialog', since: t0, order: 'asc', limit: 500 }), text);
+      if (own) anchors.push(own.id);
+    }
+    const anchorFloor = anchors[0] ?? 0;
+    if (anchors.length < n) notes.push(ANCHOR_FALLBACK_NOTE);
+
+    assertions.push(assertThat(
+      'a1', `N 条任务消息全部受理（N=${n}）`,
+      httpOk === n,
+      '全部 HTTP 200',
+      `${httpOk}/${n} 条受理成功`,
+      [],
+    ));
+
+    const bossDelRows = () =>
+      ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 800 })
+        .filter((e) => e.id > anchorFloor && phaseOf(e) === 'delegated' && bodyString(e, 'channel') === 'boss');
+    const quotaAudit = (phase: string) =>
+      ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 800 })
+        .filter((e) => bodyString(e, 'phase') === phase);
+
+    // ── 等排队出现（预算占满）；bossWaitMs=0 时用 60s 兜底（本场景必须等待）──
+    const waitMs = ctx.options.bossWaitMs || 60_000;
+    const queueState = await waitFor(() => {
+      const rows = bossDelRows();
+      const queued = rows.filter((e) => bodyString(e, 'status') === 'queued');
+      const admitted = rows.filter((e) => {
+        const s = bodyString(e, 'status');
+        return s !== 'queued' && s !== 'dequeued';
+      });
+      return queued.length >= 1 && admitted.length >= 1 ? { queued, admitted } : undefined;
+    }, { timeoutMs: waitMs, pollMs: Math.max(ctx.options.pollMs, 1_000) });
+
+    assertions.push(assertThat(
+      'a2', '出现排队（delegated status=queued 与非排队行并存）',
+      !!queueState,
+      `等待 ${waitMs}ms 内：至少 1 条 status=queued 且至少 1 条非排队 delegated（预算被占满）`,
+      queueState
+        ? `queued=${queueState.queued.length}（如 #${queueState.queued[0].id}→${String(queueState.queued[0].body?.toAgentName ?? '?')}）；admitted=${queueState.admitted.length}`
+        : `未观测到排队（可能：预算 TC_JARVIS_QUOTA_BUDGET >= ${n}、配额被关（TC_JARVIS_DELEGATION_QUOTA=0/false/off）、或 Boss 未在 ${waitMs}ms 内拆解——检查服务端 env 与 delegated 行）`,
+      queueState ? [
+        entryEvidence(queueState.queued[0], ['phase', 'channel', 'delivery', 'status', 'toAgentId', 'toAgentName', 'taskId']),
+        entryEvidence(queueState.admitted[0], ['phase', 'channel', 'delivery', 'status', 'toAgentId', 'toAgentName', 'taskId']),
+      ] : [],
+    ));
+
+    const queuedAudit = quotaAudit('quota-queued');
+    assertions.push(assertThat(
+      'a3', 'quota-queued 审计行落盘（queuedCount>=1）',
+      queuedAudit.length >= 1 && Number(queuedAudit[0].body?.queuedCount ?? 0) >= 1,
+      'delegation phase=quota-queued（source=quota，body.queuedCount>=1）',
+      queuedAudit.length
+        ? `#${queuedAudit[0].id} queuedCount=${String(queuedAudit[0].body?.queuedCount ?? '?')} activeCount=${String(queuedAudit[0].body?.activeCount ?? '?')} reason=${String(queuedAudit[0].body?.reason ?? '?')}`
+        : '未找到 quota-queued 审计行',
+      queuedAudit.length ? [entryEvidence(queuedAudit[0], ['phase', 'queuedCount', 'activeCount', 'reason', 'taskId', 'bossId'])] : [],
+    ));
+
+    const queueBroadcast = ctx.query({ category: 'broadcast', since: t0, order: 'asc', limit: 500 })
+      .find((e) => bodyString(e, 'action') === 'delegation_quota' && (bodyString(e, 'text') ?? '').includes('任务已排队'));
+    assertions.push(assertThat(
+      'a4', '排队播报已落盘（「任务已排队」）',
+      !!queueBroadcast,
+      "broadcast action='delegation_quota' 且 text 含「任务已排队」（当前 speak 口=日志口）",
+      queueBroadcast
+        ? `#${queueBroadcast.id} text=${truncate(queueBroadcast.body?.text, 80)}`
+        : '未找到排队播报行',
+      queueBroadcast ? [entryEvidence(queueBroadcast, ['action', 'phase', 'text', 'degraded'])] : [],
+    ));
+
+    // ── report-task → 队首出队 ──
+    const admittedRow = queueState?.admitted[0];
+    const admittedTarget = admittedRow ? bodyString(admittedRow, 'toAgentId') : undefined;
+    // 队首快照（report-task 之前）：最早未出队的排队行 = 此刻 FIFO 队首
+    const preDequeuedTaskIds = new Set(
+      bossDelRows().filter((e) => bodyString(e, 'status') === 'dequeued').map((e) => e.taskId).filter((x): x is string => !!x));
+    const head = queueState?.queued.find((e) => !preDequeuedTaskIds.has(e.taskId ?? ''));
+    let reportStatus = 0;
+    let reportError: string | undefined;
+    let dequeueState: { audit: CanaryEntry; disp: CanaryEntry } | undefined;
+    if (admittedTarget) {
+      const preAuditIds = new Set(quotaAudit('quota-dequeued').map((e) => e.id));
+      const preDispIds = new Set(bossDelRows().filter((e) => bodyString(e, 'status') === 'dequeued').map((e) => e.id));
+      const reportRes = await reportTask(
+        ctx.transport,
+        admittedTarget,
+        '[金丝雀] 并发配额出队验证：模拟在办任务完成（验证用，sleep 任务未真跑完）',
+        'completed',
+        SIMULATED_COMPLETION,
+      );
+      reportStatus = reportRes.status;
+      reportError = reportRes.error;
+      dequeueState = await waitFor(() => {
+        const audit = quotaAudit('quota-dequeued').find((e) => !preAuditIds.has(e.id));
+        const disp = bossDelRows().find((e) => bodyString(e, 'status') === 'dequeued' && !preDispIds.has(e.id));
+        return audit && disp ? { audit, disp } : undefined;
+      }, { timeoutMs: ctx.options.reportWaitMs, pollMs: Math.max(ctx.options.pollMs, 1_000) });
+    }
+
+    assertions.push(assertThat(
+      'a5', 'report-task 模拟完成后队首出队（quota-dequeued 审计）',
+      !!dequeueState,
+      `对在办下属 ${admittedTarget ?? '（无）'} report-task 后出现新的 phase=quota-dequeued 行（等待 ${ctx.options.reportWaitMs}ms）`,
+      !admittedRow
+        ? '无在办 delegated 行（a2 已红），无法触发完成事件'
+        : dequeueState
+          ? `quota-dequeued #${dequeueState.audit.id} queueMs=${String(dequeueState.audit.body?.queueMs ?? '?')}（report-task HTTP ${reportStatus}）`
+          : `未观测到 quota-dequeued（report-task HTTP ${reportStatus}${reportError ? `，${reportError}` : ''}）——完成事件未触发出队？`,
+      dequeueState ? [entryEvidence(dequeueState.audit, ['phase', 'queueMs', 'queuedCount', 'activeCount', 'reason', 'taskId'])] : [],
+    ));
+
+    // ── a6 FIFO：新出队行 == report-task 前的队首 ──
+    const disp = dequeueState?.disp;
+    const fifoOk = !!disp && !!head
+      && disp.taskId === head.taskId
+      && bodyString(disp, 'toAgentId') === bodyString(head, 'toAgentId');
+    assertions.push(assertThat(
+      'a6', '出队为队首任务（FIFO：taskId/toAgentId 一致）',
+      fifoOk,
+      `出队行 taskId/toAgentId == 最早未出队排队行（head=${head?.taskId ?? '（无）'}→${head ? bodyString(head, 'toAgentId') ?? '?' : '?'}）`,
+      disp
+        ? `dequeued #${disp.id} taskId=${disp.taskId ?? '?'} toAgentId=${bodyString(disp, 'toAgentId') ?? '?'}`
+        : '无新出队行（a5）',
+      disp ? [entryEvidence(disp, ['phase', 'status', 'toAgentId', 'toAgentName', 'taskId'])] : [],
+    ));
+
+    // ── a7 账目：N 条任务 distinct taskId == N ──
+    const settled = await waitFor(() => {
+      const rows = bossDelRows();
+      const ids = new Set(rows.map((e) => e.taskId).filter((x): x is string => !!x));
+      return ids.size >= n ? rows : undefined;
+    }, { timeoutMs: waitMs, pollMs: Math.max(ctx.options.pollMs, 1_000) });
+    const finalRows = settled ?? bossDelRows();
+    const taskIds = new Set(finalRows.map((e) => e.taskId).filter((x): x is string => !!x));
+    assertions.push(assertThat(
+      'a7', `任务账目齐：boss 侧 delegated distinct taskId == N（N=${n}）`,
+      taskIds.size === n,
+      `distinct taskId == ${n}（排队不丢、也不重复拆解）`,
+      `distinct=${taskIds.size}（delegated 行 ${finalRows.length} 条：queued=${finalRows.filter((e) => bodyString(e, 'status') === 'queued').length}、dequeued=${finalRows.filter((e) => bodyString(e, 'status') === 'dequeued').length}）`,
+      finalRows.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'status', 'toAgentId', 'taskId'])),
+    ));
+
+    const observed = observedSummary(ctx.query({ category: 'delegation', since: t0, order: 'asc', limit: 50 }), 50);
+    return { assertions, notes, observed };
   },
 };
 
@@ -935,14 +1632,26 @@ export const SCENARIOS: readonly ScenarioDef[] = [
   delegationChain,
   receiptChain,
   cancelChain,
+  projectRouting,
+  crossProjectHandover,
+  quotaConcurrency,
   adversarial,
 ];
 
 /**
- * opt-in 场景（任务36）：仅当 --scenario 显式点名才参赛；默认级别选择（含 full）一律不含——
- * 对抗包真跑要发多条真 LLM 请求，按季度抽跑，不占每波 L3 两链预算。
+ * opt-in 场景：仅当 --scenario 显式点名才参赛；默认级别选择（含 full）一律不含。
+ *   - adversarial（任务36）：多条真 LLM 请求，季度抽跑，不占每波 L3 预算；
+ *   - cancel-chain（任务16）：真撤回会强制打断真实下属任务；
+ *   - project-routing / quota-concurrency：高成本真派活（多项目/多条并发），需专门环境准备；
+ *   - cross-project-handover：恒 SKIP（任务14·P2 未交付），保留在 opt-in 名录以便交付后即点即跑。
  */
-export const OPT_IN_SCENARIOS: ReadonlySet<string> = new Set(['adversarial']);
+export const OPT_IN_SCENARIOS: ReadonlySet<string> = new Set([
+  'adversarial',
+  'cancel-chain',
+  'project-routing',
+  'cross-project-handover',
+  'quota-concurrency',
+]);
 
 export function selectScenarios(level: 'smoke' | 'full', filter: string[]): { selected: ScenarioDef[]; unknown: string[] } {
   if (filter.length > 0) {

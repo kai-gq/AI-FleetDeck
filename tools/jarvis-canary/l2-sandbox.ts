@@ -73,7 +73,7 @@ export const SEED_TEAM = {
 /** 透传给 run.ts 的参数键（其余未知参数一律报错，避免拼错时静默漏传）。 */
 const PASSTHROUGH_KEYS = new Set([
   'token', 'allow-skip', 'simulate-receipt', 'verbose', 'dry-run', 'report',
-  'dialog-text', 'task-text', 'cancel-text',
+  'dialog-text', 'task-text', 'cancel-text', 'quota-requests',
   'log-wait-ms', 'poll-ms', 'wait-boss-ms', 'wait-report-ms',
   'timeout-ms', 'ws-timeout-ms', 'scenario-timeout-ms',
 ]);
@@ -177,7 +177,8 @@ export function printHelp(): void {
   npx tsx tools/jarvis-canary/l2-sandbox.ts [选项]
 
 选项:
-  --scenario=<name,...>    金丝雀场景（默认 dialog；透传 run.ts，可用 conn/dialog/delegation/receipt/cancel）
+  --scenario=<name,...>    金丝雀场景（默认 dialog；透传 run.ts）。L2 可跑 conn/dialog/delegation/receipt；
+                           cancel/routing/handover/quota 未在沙箱准备（缺 stub 规则/多项目/配额环境）
   --level=smoke|full       冒烟级别（默认 smoke；透传 run.ts）
   --port=<n>               沙箱服务端端口（默认 ${DEFAULT_PORT}）
   --rules=<path>           stub 规则文件（默认 tools/jarvis-canary/stub-llm/rules-l2.json）
@@ -201,7 +202,7 @@ seed agent 团队（任务38）:
 
 透传给 run.ts（原样）:
   --token= --allow-skip --simulate-receipt --verbose --dry-run --report=
-  --dialog-text= --task-text= --cancel-text=
+  --dialog-text= --task-text= --cancel-text= --quota-requests=
   --log-wait-ms= --poll-ms= --wait-boss-ms= --wait-report-ms=
   --timeout-ms= --ws-timeout-ms= --scenario-timeout-ms=
 

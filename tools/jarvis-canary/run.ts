@@ -17,7 +17,7 @@
 import { createTransport } from './client.js';
 import { openReadOnlyLogQuery, resolveDbPath, type ReadOnlyLogQuery } from './log-query.js';
 import { printSummary, buildReport, computeExitCode, defaultReportPath, writeReport } from './report.js';
-import { SCENARIOS, runPrereqs, selectScenarios } from './scenarios.js';
+import { QUOTA_DEFAULT_REQUESTS, SCENARIOS, runPrereqs, selectScenarios } from './scenarios.js';
 import type {
   CanaryOptions, CanaryReport, PrereqResult, ScenarioContext, ScenarioDef, ScenarioResult,
 } from './types.js';
@@ -41,6 +41,7 @@ export function defaultOptions(): CanaryOptions {
     taskText: '让团队做一件金丝雀冒烟验证任务：只回复"收到"即可，不要执行任何实际操作。',
     cancelText: '别做了，取消刚才的任务',
     simulateReceipt: false,
+    quotaRequests: QUOTA_DEFAULT_REQUESTS,
     allowSkip: false,
     verbose: false,
   };
@@ -61,6 +62,7 @@ const NUMERIC_FLAGS: Array<[string, keyof CanaryOptions]> = [
   ['poll-ms', 'pollMs'],
   ['wait-boss-ms', 'bossWaitMs'],
   ['wait-report-ms', 'reportWaitMs'],
+  ['quota-requests', 'quotaRequests'],
 ];
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -125,10 +127,12 @@ export function printHelp(): void {
   npx tsx tools/jarvis-canary/run.ts [选项]
 
 选项:
-  --level=smoke|full       冒烟级别（默认 smoke；full=smoke+真派活/回执/撤回链）
+  --level=smoke|full       冒烟级别（默认 smoke；full=smoke+缺省四链；opt-in 场景须显式点名）
   --scenario=<name,...>    只跑指定场景（可重复/逗号分隔）:
                            connectivity(conn) / dialog-roundtrip(dialog) / delegation-chain(delegation) /
-                           receipt-chain(receipt) / cancel-chain(cancel)
+                           receipt-chain(receipt) / cancel-chain(cancel，opt-in) /
+                           project-routing(routing/project，opt-in) / cross-project-handover(handover，恒 SKIP) /
+                           quota-concurrency(quota，opt-in) / adversarial(adv，opt-in)
   --dry-run                只做连通+查询前置检查，不发任何消息
   --base-url=<url>         服务端地址（默认 http://127.0.0.1:6200）
   --report=<path>          报告输出路径（默认 tools/jarvis-canary/reports/<时间戳>.json）
@@ -139,11 +143,12 @@ export function printHelp(): void {
   --scenario-timeout-ms=<n>单个场景总超时（默认 600000）
   --log-wait-ms=<n>        发消息后轮询日志窗口（默认 30000）
   --poll-ms=<n>            轮询间隔（默认 1000）
-  --wait-boss-ms=<n>       full③ 等待 Boss 拆解 delegated 的窗口（默认 180000；0=不等）
-  --wait-report-ms=<n>     full④ 等待下属回执 reported 的窗口（默认 300000）
+  --wait-boss-ms=<n>       full③⑤⑦⑨ 等待 Boss 拆解 delegated 的窗口（默认 180000；0=不等）
+  --wait-report-ms=<n>     full④⑨ 等待下属回执/出队事件的窗口（默认 300000）
+  --quota-requests=<n>     quota-concurrency 发起条数（默认 5，最小 2；需 > TC_JARVIS_QUOTA_BUDGET，缺省 3）
   --dialog-text=<text>     smoke② 发送的查询类消息（默认"列出团队成员"）
   --task-text=<text>       full③ 发送的任务消息（默认金丝雀最小验证任务）
-  --cancel-text=<text>     full⑤ 撤回话术（任务16 交付后启用）
+  --cancel-text=<text>     cancel-chain 撤回话术（默认"别做了，取消刚才的任务"）
   --simulate-receipt       full④ 用 report-task 接口模拟下属回执（半合成，默认关）
   --allow-skip             允许跳过（有 SKIP 场景时仍以 0 退出）
   --verbose                打印更多过程日志

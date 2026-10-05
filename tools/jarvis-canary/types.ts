@@ -73,6 +73,7 @@ export interface CanaryTransport {
   baseUrl: string;
   httpGet(path: string): Promise<HttpResult>;
   httpPost(path: string, body: unknown): Promise<HttpResult>;
+  httpPut(path: string, body: unknown): Promise<HttpResult>;
   wsHandshake(): Promise<WsProbeResult>;
   close(): void;
 }
@@ -84,6 +85,20 @@ export interface AgentInfo {
   class?: string;
   bossId?: string;
   status?: string;
+}
+
+/** GET /api/workspaces 条目（只取金丝雀复刻项目↔Boss 链所需字段） */
+export interface WorkspaceInfo {
+  id: string;
+  name: string;
+  areaIds?: string[];
+}
+
+/** GET /api/areas 条目（只取复刻链所需字段） */
+export interface AreaInfo {
+  id: string;
+  archived?: boolean;
+  assignedAgentIds?: string[];
 }
 
 // ─── 断言 / 证据 / 结果 ───
@@ -161,6 +176,8 @@ export interface CanaryOptions {
   cancelText: string;
   /** full ④：用 report-task 接口模拟下属回执（半合成，默认关） */
   simulateReceipt: boolean;
+  /** full：配额并发场景发起的任务条数（默认 5；需 > 服务端预算 TC_JARVIS_QUOTA_BUDGET） */
+  quotaRequests: number;
   allowSkip: boolean;
   verbose: boolean;
 }

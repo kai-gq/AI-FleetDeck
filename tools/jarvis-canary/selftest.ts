@@ -17,7 +17,11 @@ import * as path from 'path';
 import { buildFilter, openReadOnlyLogQuery, resolveDbPath } from './log-query.js';
 import { buildReport, computeExitCode } from './report.js';
 import { defaultOptions, parseArgs, runScenario } from './run.js';
-import { ADVERSARIAL_ITEMS, SCENARIOS, entryEvidence, selectScenarios, truncate, waitFor } from './scenarios.js';
+import {
+  ADVERSARIAL_ITEMS, CANCEL_TASK_TEXT, PROJECT_AMBIGUOUS_TEXT, QUOTA_DEFAULT_REQUESTS, SCENARIOS,
+  assertCancelEvidence, assertCrossProjectHandoverEvidence, entryEvidence,
+  projectRouteText, quotaTaskText, selectScenarios, truncate, waitFor,
+} from './scenarios.js';
 import type { AdversarialItem } from './scenarios.js';
 import type {
   AgentInfo, CanaryEntry, CanaryOptions, CanaryTransport, HttpResult, LogQueryFilter, LogQueryFn,
@@ -45,10 +49,15 @@ interface FakeTransportScript {
   health?: HttpResult;
   status?: HttpResult;
   agents?: HttpResult;
+  workspaces?: HttpResult;
+  areas?: HttpResult;
+  /** GET /api/workspaces/active 返回值（缺省 { workspaceId: null }）；httpPut 成功后同步覆盖 */
+  activeWorkspace?: HttpResult;
   process?: HttpResult;
   report?: HttpResult;
   ws?: WsProbeResult;
   onPost?: (path: string, body: unknown) => void;
+  onPut?: (path: string, body: unknown) => void;
 }
 
 export function ok(json: Record<string, unknown> = {}, status = 200): HttpResult {
@@ -59,8 +68,22 @@ export function fail(status: number, error?: string): HttpResult {
   return { ok: false, status, error, elapsedMs: 1 };
 }
 
+/** 镜像服务端 completed 回执校验（routes/agents.ts isAcceptanceItem + :1984-2013，task17·A3）：
+ *  completed（含缺省）必须带非空 acceptance[{item,done}] 与非空白 outputLocation，缺任一 → 400。 */
+export function isValidCompletedReport(b: { acceptance?: unknown; outputLocation?: unknown }): boolean {
+  const acc = b.acceptance;
+  const validAcc = Array.isArray(acc) && acc.length > 0 && acc.every((it) => {
+    if (!it || typeof it !== 'object') return false;
+    const v = it as { item?: unknown; done?: unknown };
+    return typeof v.item === 'string' && v.item.trim().length > 0 && typeof v.done === 'boolean';
+  });
+  const outOk = typeof b.outputLocation === 'string' && b.outputLocation.trim().length > 0;
+  return validAcc && outOk;
+}
+
 export function makeFakeTransport(script: FakeTransportScript): CanaryTransport & { calls: string[] } {
   const calls: string[] = [];
+  let active: HttpResult = script.activeWorkspace ?? ok({ workspaceId: null });
   return {
     baseUrl: 'http://fake:6200',
     calls,
@@ -69,13 +92,36 @@ export function makeFakeTransport(script: FakeTransportScript): CanaryTransport 
       if (p === '/api/health') return script.health ?? ok({ status: 'ok' });
       if (p === '/api/voice-companion/status') return script.status ?? ok({ available: true, turns: 1 });
       if (p === '/api/agents') return script.agents ?? ok({ value: [] });
+      if (p === '/api/workspaces') return script.workspaces ?? ok({ value: [] });
+      if (p === '/api/areas') return script.areas ?? ok({ value: [] });
+      if (p === '/api/workspaces/active') return active;
       return fail(404, 'not found');
     },
     async httpPost(p: string, body: unknown): Promise<HttpResult> {
       calls.push(`POST ${p}`);
+      if (p.includes('/report-task')) {
+        // 镜像真实服务端顺序：校验先于一切副作用（onPost 的效果模拟不执行），invalid → 400。
+        const b = (body ?? {}) as { status?: unknown; acceptance?: unknown; outputLocation?: unknown };
+        const status = typeof b.status === 'string' && b.status ? b.status : 'completed';
+        if (status === 'completed' && !isValidCompletedReport(b)) {
+          return fail(400, 'Completed report rejected: missing or invalid acceptance, outputLocation');
+        }
+        script.onPost?.(p, body);
+        return script.report ?? ok({ success: true, forwarded: true });
+      }
       script.onPost?.(p, body);
       if (p === '/api/voice-companion/process') return script.process ?? ok({ success: true, action: 'list_agents', response: 'ok' });
-      if (p.includes('/report-task')) return script.report ?? ok({ success: true, forwarded: true });
+      return fail(404, 'not found');
+    },
+    async httpPut(p: string, body: unknown): Promise<HttpResult> {
+      calls.push(`PUT ${p}`);
+      script.onPut?.(p, body);
+      if (p === '/api/workspaces/active') {
+        // 镜像服务端行为：setActiveWorkspace(workspaceId ?? null) → 回读并返回 { workspaceId }
+        const raw = (body as { workspaceId?: unknown } | undefined)?.workspaceId;
+        active = ok({ workspaceId: raw == null ? null : String(raw) });
+        return active;
+      }
       return fail(404, 'not found');
     },
     async wsHandshake(): Promise<WsProbeResult> {
@@ -183,14 +229,27 @@ export async function runSelfTest(): Promise<number> {
     const smoke = selectScenarios('smoke', []);
     h.eq('smoke 级别只选 smoke 场景', smoke.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip']);
     const full = selectScenarios('full', []);
-    h.eq('full 级别含全部非 opt-in 场景（对抗包默认不参赛）', full.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip', 'delegation-chain', 'receipt-chain', 'cancel-chain']);
-    h.check('full 默认不含 opt-in 对抗包', !full.selected.some((s) => s.name === 'adversarial'));
+    h.eq('full 级别含全部非 opt-in 场景（opt-in 默认不参赛）', full.selected.map((s) => s.name), ['connectivity', 'dialog-roundtrip', 'delegation-chain', 'receipt-chain']);
+    for (const name of ['adversarial', 'cancel-chain', 'project-routing', 'cross-project-handover', 'quota-concurrency']) {
+      h.check(`full 默认不含 opt-in ${name}`, !full.selected.some((s) => s.name === name));
+    }
     const smokeAdv = selectScenarios('smoke', []);
     h.check('smoke 默认也不含对抗包', !smokeAdv.selected.some((s) => s.name === 'adversarial'));
     const advAlias = selectScenarios('smoke', ['adv']);
     h.eq('别名 adv 显式点名可参赛', advAlias.selected.map((s) => s.name), ['adversarial']);
     const advByName = selectScenarios('full', ['adversarial']);
     h.eq('--scenario=adversarial 显式点名可参赛', advByName.selected.map((s) => s.name), ['adversarial']);
+    const cancelAlias = selectScenarios('smoke', ['cancel']);
+    h.eq('别名 cancel → cancel-chain（opt-in 点名可参赛）', cancelAlias.selected.map((s) => s.name), ['cancel-chain']);
+    const routingAlias = selectScenarios('smoke', ['routing']);
+    h.eq('别名 routing → project-routing', routingAlias.selected.map((s) => s.name), ['project-routing']);
+    const handoverAlias = selectScenarios('smoke', ['handover']);
+    h.eq('别名 handover → cross-project-handover', handoverAlias.selected.map((s) => s.name), ['cross-project-handover']);
+    const quotaAlias = selectScenarios('smoke', ['quota']);
+    h.eq('别名 quota → quota-concurrency', quotaAlias.selected.map((s) => s.name), ['quota-concurrency']);
+    const multi = selectScenarios('smoke', ['quota', 'routing', 'cancel']);
+    // 注册表顺序（cancel-chain < project-routing < quota-concurrency）
+    h.eq('多场景点名按注册表顺序排列', multi.selected.map((s) => s.name), ['cancel-chain', 'project-routing', 'quota-concurrency']);
     const filt = selectScenarios('smoke', ['delegation', 'conn']);
     h.eq('别名过滤 delegation→delegation-chain', filt.selected.map((s) => s.name), ['connectivity', 'delegation-chain']);
     h.eq('别名过滤 conn→connectivity', filt.selected[0].name, 'connectivity');
@@ -213,6 +272,20 @@ export async function runSelfTest(): Promise<number> {
     h.eq('waitFor 延迟命中', delayed, 'done');
     const timedOut = await waitFor(() => undefined, { timeoutMs: 30, pollMs: 5 });
     h.eq('waitFor 超时返回 undefined', timedOut, undefined);
+
+    // 场景文本助手（selftest 与真跑共用同一常量，语料一致性）
+    h.check('projectRouteText 含点名项目与任务措辞', projectRouteText('甲项目').includes('「甲项目」') && projectRouteText('甲项目').includes('让「') && projectRouteText('甲项目').includes('金丝雀路由验证任务'));
+    h.check('PROJECT_AMBIGUOUS_TEXT 不含「让「」（无点名）', !PROJECT_AMBIGUOUS_TEXT.includes('让「'));
+    h.check('quotaTaskText 条号唯一', quotaTaskText(1) !== quotaTaskText(2) && quotaTaskText(3).includes('第 3 条'));
+    h.check('CANCEL_TASK_TEXT 为任务类措辞（让团队…）', CANCEL_TASK_TEXT.startsWith('让团队') && CANCEL_TASK_TEXT.includes('sleep'));
+
+    // 撤回/跨项目断言助手形态
+    const cancelHit = assertCancelEvidence([mkEntry({ category: 'delegation', body: { phase: 'cancelled', channel: 'boss', status: 'cancelled-running', notified: true } })]);
+    h.check('assertCancelEvidence 命中 cancelled-running', cancelHit.ok && cancelHit.actual.includes('cancelled-running'));
+    h.check('assertCancelEvidence 无行→不通过', !assertCancelEvidence([]).ok);
+    const handoverHit = assertCrossProjectHandoverEvidence([mkEntry({ category: 'delegation', body: { phase: 'delegated', sourceProject: 'ws-b' } })]);
+    h.check('assertCrossProjectHandoverEvidence 命中 sourceProject', handoverHit.ok && handoverHit.actual.includes('ws-b'));
+    h.check('assertCrossProjectHandoverEvidence 无行→不通过', !assertCrossProjectHandoverEvidence([mkEntry({ category: 'delegation', body: { phase: 'delegated' } })]).ok);
   }
 
   // 4. 只读查询（临时 SQLite，不碰真实 events.db）
@@ -424,21 +497,88 @@ export async function runSelfTest(): Promise<number> {
     h.eq('④ 无 delegated 前置 → skip', noDelegated.status, 'skip');
     h.check('④ skip 说明缺前置', noDelegated.notes.some((n) => n.includes('delegationChainEvidence')));
 
-    // simulate-receipt：走 report-task 接口
+    // simulate-receipt：走 report-task 接口（载荷须过 fake 镜像的 task17·A3 校验）
     let reportPosted = false;
-    const simT = makeFakeTransport({ onPost: (p) => { if (p.includes('/report-task')) reportPosted = true; } });
+    let reportBody: { acceptance?: unknown; outputLocation?: unknown } | undefined;
+    const simT = makeFakeTransport({ onPost: (p, body) => { if (p.includes('/report-task')) { reportPosted = true; reportBody = body as typeof reportBody; } } });
     const sim = await runScenario(scenarioByName('receipt-chain'),
       mkCtx(simT, makeFakeQuery([delegatedRow, reportedRow]).query, { reportWaitMs: 60, simulateReceipt: true }));
     h.eq('④ simulate-receipt 通过', sim.status, 'pass');
     h.check('④ simulate-receipt 调用了 report-task', reportPosted);
+    h.check('④ simulate-receipt 载荷含 acceptance+outputLocation（task17·A3）', !!reportBody && isValidCompletedReport(reportBody));
   }
 
-  // 9. 场景⑤撤回链（未交付 → skip）
+  // 9. 场景⑤撤回链（任务16 已交付；opt-in 真撤回）
   {
-    const ctx = mkCtx(makeFakeTransport({}), makeFakeQuery([]).query);
-    const res = await runScenario(scenarioByName('cancel-chain'), ctx);
-    h.eq('⑤ 未交付能力 → skip', res.status, 'skip');
-    h.check('⑤ skip 说明任务16', res.notes.some((n) => n.includes('任务16')));
+    const mkCancelCase = (opts: {
+      auditStatus?: string;
+      notify?: boolean;
+      clarifyAsk?: boolean;
+      extraAudits?: number;
+    } = {}) => {
+      const rows: CanaryEntry[] = [];
+      let ts = Date.now();
+      const push = (partial: Partial<CanaryEntry> & { category: string }) => {
+        ts += 1;
+        rows.push(mkEntry({ ...partial, ts }));
+      };
+      const transport = makeFakeTransport({
+        agents: ok({ value: AGENT_JSON }),
+        onPost: (p, body) => {
+          if (p !== '/api/voice-companion/process') return;
+          const text = String((body as { text?: unknown } | undefined)?.text ?? '');
+          if (text === CANCEL_TASK_TEXT) {
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            push({ category: 'delegation', source: 'voice-companion', body: { phase: 'dispatched', channel: 'voice-companion', routedBy: 'delegate_to_boss', toAgentId: BOSS_ID, toAgentName: 'Boss' } });
+            push({ category: 'delegation', source: 'boss', body: { phase: 'delegated', channel: 'boss', toAgentId: 'sub-1', toAgentName: '下属甲', taskId: 't-cancel' } });
+            return;
+          }
+          if (text === defaultOptions().cancelText) {
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            if (opts.clarifyAsk) {
+              push({ category: 'delegation', source: 'voice-companion', body: { phase: 'cancelled', channel: 'voice-companion', status: 'clarify-ask', initiator: 'user' } });
+              return;
+            }
+            push({ category: 'delegation', source: 'boss', body: { phase: 'cancelled', channel: 'boss', status: opts.auditStatus ?? 'cancelled-running', notified: opts.notify ?? true, initiator: 'user', toAgentId: 'sub-1', reason: '别做了' } });
+            for (let i = 0; i < (opts.extraAudits ?? 0); i++) {
+              push({ category: 'delegation', source: 'boss', body: { phase: 'cancelled', channel: 'boss', status: 'cancelled-running', toAgentId: `sub-extra-${i}` } });
+            }
+          }
+        },
+      });
+      return { transport, query: makeFakeQuery(rows).query };
+    };
+    const cancelOpts = { bossWaitMs: 200, logWaitMs: 80 } as Partial<CanaryOptions>;
+
+    const passCase = mkCancelCase();
+    const pass = await runScenario(scenarioByName('cancel-chain'), mkCtx(passCase.transport, passCase.query, cancelOpts));
+    h.eq('⑤ 撤回链全通', pass.status, 'pass');
+    h.eq('⑤ 断言数=6', pass.assertions.length, 6);
+    h.check('⑤ a1 dispatched→Boss', pass.assertions.find((a) => a.id === 'a1')?.ok === true);
+    h.check('⑤ a3 审计行（channel=boss）', pass.assertions.find((a) => a.id === 'a3')?.ok === true);
+    h.check('⑤ a4 status=cancelled-running', pass.assertions.find((a) => a.id === 'a4')?.ok === true);
+    h.check('⑤ a5 notified=true', pass.assertions.find((a) => a.id === 'a5')?.ok === true);
+
+    // not-found：撤回未命中在办任务（任务已完成/不存在）→ a4/a5 必须如实判红
+    const nfCase = mkCancelCase({ auditStatus: 'not-found', notify: false });
+    const nf = await runScenario(scenarioByName('cancel-chain'), mkCtx(nfCase.transport, nfCase.query, cancelOpts));
+    h.eq('⑤ not-found（未命中在办）→ fail', nf.status, 'fail');
+    h.check('⑤ a4 红（未撤销任何在办任务）', nf.assertions.find((a) => a.id === 'a4')?.ok === false);
+    h.check('⑤ a5 红（未通知）', nf.assertions.find((a) => a.id === 'a5')?.ok === false);
+
+    // clarify-ask：多候选反问形态 → 要求直接取消的 a3 判红 + notes 登记
+    const caCase = mkCancelCase({ clarifyAsk: true });
+    const ca = await runScenario(scenarioByName('cancel-chain'), mkCtx(caCase.transport, caCase.query, cancelOpts));
+    h.eq('⑤ clarify-ask 反问 → fail（要求直接取消）', ca.status, 'fail');
+    h.check('⑤ notes 登记 clarify-ask', ca.notes.some((n) => n.includes('clarify-ask')));
+    h.check('⑤ a3 红（仅反问未取消）', ca.assertions.find((a) => a.id === 'a3')?.ok === false);
+
+    // 反向守卫：两条审计行（撤回误伤第二个任务）→ 仅 a6 红
+    const extraCase = mkCancelCase({ extraAudits: 1 });
+    const extra = await runScenario(scenarioByName('cancel-chain'), mkCtx(extraCase.transport, extraCase.query, cancelOpts));
+    h.eq('⑤ 两条审计行 → fail（不误伤判据）', extra.status, 'fail');
+    h.check('⑤ a6 红（误伤）', extra.assertions.find((a) => a.id === 'a6')?.ok === false);
+    h.check('⑤ a6 外其余通过', extra.assertions.filter((a) => a.id !== 'a6').every((a) => a.ok));
   }
 
   // 9b. 场景⑥对抗提示包（opt-in；onPost 按条动态落行，模拟真实运行时"下一条样本尚未发出"的窗口语义）
@@ -505,6 +645,171 @@ export async function runSelfTest(): Promise<number> {
     h.check('⑥ a-inv 失败（非 Boss dispatched）', leakRes.assertions.find((a) => a.id === 'a-inv')?.ok === false);
   }
 
+  // 9c. 场景⑦项目路由与并行隔离（opt-in；fake 预置 need-ask 分支与显式双腿）
+  {
+    const ROUTING_AGENTS = [
+      { id: 'boss-a', name: '主管甲', isBoss: true, class: 'boss', status: 'idle' },
+      { id: 'boss-b', name: '主管乙', isBoss: true, class: 'boss', status: 'idle' },
+      { id: 'sub-a', name: '下属甲', bossId: 'boss-a', status: 'idle' },
+    ] as AgentInfo[];
+    const mkRoutingCase = (opts: { ask?: boolean; wrongRouteForA?: boolean } = {}) => {
+      const rows: CanaryEntry[] = [];
+      let ts = Date.now();
+      const push = (partial: Partial<CanaryEntry> & { category: string }) => {
+        ts += 1;
+        rows.push(mkEntry({ ...partial, ts }));
+      };
+      const transport = makeFakeTransport({
+        agents: ok({ value: ROUTING_AGENTS }),
+        workspaces: ok({ value: [
+          { id: 'ws-a', name: '项目甲', areaIds: ['area-a'] },
+          { id: 'ws-b', name: '项目乙', areaIds: ['area-b'] },
+        ] }),
+        areas: ok({ value: [
+          { id: 'area-a', assignedAgentIds: ['boss-a'] },
+          { id: 'area-b', assignedAgentIds: ['boss-b'] },
+        ] }),
+        activeWorkspace: ok({ workspaceId: 'ws-a' }),
+        onPost: (p, body) => {
+          if (p !== '/api/voice-companion/process') return;
+          const text = String((body as { text?: unknown } | undefined)?.text ?? '');
+          if (text === PROJECT_AMBIGUOUS_TEXT) {
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            if (opts.ask) {
+              push({ category: 'system', source: 'project-routing', body: { cat: 'project-routing', kind: 'need-ask', question: '是哪个项目的任务？', askCount: 1 } });
+            } else {
+              // 非冷环境：②上下文层直路由（§9c 分支覆盖）
+              push({ category: 'system', source: 'project-routing', body: { cat: 'project-routing', kind: 'route', layer: 'context', source: 'last-project', projectId: 'ws-b', finalBossId: 'boss-b' } });
+              push({ category: 'delegation', source: 'voice-companion', body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: 'boss-b', routedBy: 'project-routing' } });
+            }
+            return;
+          }
+          if (opts.ask && text === '项目乙') {
+            // 腿1a：用项目 B 名回答反问
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            push({ category: 'system', source: 'project-routing', body: { cat: 'project-routing', kind: 'clarify-resolved', finalBossId: 'boss-b', projectId: 'ws-b' } });
+            push({ category: 'delegation', source: 'voice-companion', body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: 'boss-b', routedBy: 'project-clarify', status: 'clarify-resolved' } });
+            return;
+          }
+          for (const proj of [
+            { name: '项目甲', id: 'ws-a', boss: 'boss-a' },
+            { name: '项目乙', id: 'ws-b', boss: 'boss-b' },
+          ]) {
+            if (text !== projectRouteText(proj.name)) continue;
+            const wrong = opts.wrongRouteForA === true && proj.id === 'ws-a';
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            // 串台变体只坏 projectId 一处（finalBossId 保持正确）：单点判别——a3 必须只对 projectId 子句判红
+            push({ category: 'system', source: 'project-routing', body: { cat: 'project-routing', kind: 'route', layer: 'explicit', source: `alias:${proj.name}`, projectId: wrong ? 'ws-b' : proj.id, finalBossId: proj.boss } });
+            push({ category: 'delegation', source: 'voice-companion', body: { phase: 'dispatched', channel: 'voice-companion', toAgentId: proj.boss, routedBy: 'project-routing' } });
+            return;
+          }
+        },
+      });
+      return { transport, query: makeFakeQuery(rows).query };
+    };
+    const routingOpts = { logWaitMs: 80 } as Partial<CanaryOptions>;
+
+    const askCase = mkRoutingCase({ ask: true });
+    const ask = await runScenario(scenarioByName('project-routing'), mkCtx(askCase.transport, askCase.query, routingOpts));
+    h.eq('⑦ 项目路由（need-ask 分支）全通', ask.status, 'pass');
+    h.eq('⑦ 断言数=7（含 a2 澄清分支）', ask.assertions.length, 7);
+    h.check('⑦ a1 need-ask 命中', ask.assertions.find((a) => a.id === 'a1')?.ok === true);
+    h.check('⑦ a2 澄清回答命中项目 B', ask.assertions.find((a) => a.id === 'a2')?.ok === true);
+    h.check('⑦ a7 并行隔离', ask.assertions.find((a) => a.id === 'a7')?.ok === true);
+    h.check('⑦ PUT active 两次（临时 All + 恢复）', askCase.transport.calls.filter((c) => c === 'PUT /api/workspaces/active').length === 2);
+    h.check('⑦ notes 登记工作区恢复', ask.notes.some((n) => n.includes('恢复')));
+
+    // 非冷环境：歧义腿走②上下文层直路由（无 a2，notes 登记）
+    const routeCase = mkRoutingCase({ ask: false });
+    const route = await runScenario(scenarioByName('project-routing'), mkCtx(routeCase.transport, routeCase.query, routingOpts));
+    h.eq('⑦ 直路由分支 → pass（6 断言）', route.status, 'pass');
+    h.eq('⑦ 直路由时无 a2', route.assertions.length, 6);
+    h.check('⑦ notes 登记非冷环境', route.notes.some((n) => n.includes('非冷环境')));
+
+    // 反向守卫：route 事件报错项目（A 的文本路由到 B）→ a3 红而 a4 绿（判别力单点）
+    const wrongCase = mkRoutingCase({ ask: false, wrongRouteForA: true });
+    const wrong = await runScenario(scenarioByName('project-routing'), mkCtx(wrongCase.transport, wrongCase.query, routingOpts));
+    h.eq('⑦ route.projectId 串台 → fail', wrong.status, 'fail');
+    h.check('⑦ a3 红（projectId 不符）', wrong.assertions.find((a) => a.id === 'a3')?.ok === false);
+    h.check('⑦ a4 绿（派发仍正确、单点判别）', wrong.assertions.find((a) => a.id === 'a4')?.ok === true);
+  }
+
+  // 9d. 场景⑨并发配额（opt-in；fake 预置排队/出队行与播报/审计）
+  {
+    const QUEUE_N = QUOTA_DEFAULT_REQUESTS;
+    const mkQuotaCase = (opts: { noQueue?: boolean; noDequeue?: boolean; wrongFifo?: boolean } = {}) => {
+      const rows: CanaryEntry[] = [];
+      let ts = Date.now();
+      let lastReportBody: { acceptance?: unknown; outputLocation?: unknown } | undefined;
+      const push = (partial: Partial<CanaryEntry> & { category: string }) => {
+        ts += 1;
+        rows.push(mkEntry({ ...partial, ts }));
+      };
+      const transport = makeFakeTransport({
+        agents: ok({ value: AGENT_JSON }),
+        onPost: (p, body) => {
+          if (p === '/api/voice-companion/process') {
+            const text = String((body as { text?: unknown } | undefined)?.text ?? '');
+            let idx = 0;
+            for (let i = 1; i <= QUEUE_N; i++) if (text === quotaTaskText(i)) { idx = i; break; }
+            if (!idx) return;
+            push({ category: 'dialog', source: 'voice-companion', body: { direction: 'in', text } });
+            const queued = !opts.noQueue && idx > 3;   // 预算 3：第 4/5 条排队
+            push({ category: 'delegation', source: 'boss', taskId: `task-${idx}`, body: { phase: 'delegated', channel: 'boss', delivery: 'queue', status: queued ? 'queued' : undefined, toAgentId: `sub-${idx}`, toAgentName: `下属${idx}`, taskId: `task-${idx}` } });
+            if (queued) {
+              push({ category: 'delegation', source: 'quota', taskId: `task-${idx}`, body: { cat: 'delegation', phase: 'quota-queued', taskId: `task-${idx}`, bossId: BOSS_ID, queuedCount: 1, activeCount: 3, reason: 'quota-exhausted' } });
+              push({ category: 'broadcast', source: 'boss', body: { cat: 'broadcast', phase: 'server-sent', action: 'delegation_quota', text: `[并发配额] 任务已排队：等待在办任务结束（当前 ${idx - 3} 个排队）。` } });
+            }
+            return;
+          }
+          if (p.includes('/report-task')) {
+            lastReportBody = body as typeof lastReportBody;
+            if (opts.noDequeue) return;
+            const head = opts.wrongFifo ? { taskId: 'task-5', toAgentId: 'sub-5' } : { taskId: 'task-4', toAgentId: 'sub-4' };
+            push({ category: 'delegation', source: 'quota', taskId: head.taskId, body: { cat: 'delegation', phase: 'quota-dequeued', taskId: head.taskId, bossId: BOSS_ID, queueMs: 1000, queuedCount: 1, activeCount: 3, reason: 'completion' } });
+            push({ category: 'delegation', source: 'boss', taskId: head.taskId, body: { phase: 'delegated', channel: 'boss', delivery: 'queue', status: 'dequeued', toAgentId: head.toAgentId, toAgentName: '下属', taskId: head.taskId } });
+            push({ category: 'broadcast', source: 'boss', body: { cat: 'broadcast', phase: 'server-sent', action: 'delegation_quota', text: '[并发配额] 排队任务开始了：继续执行。' } });
+          }
+        },
+      });
+      return { transport, query: makeFakeQuery(rows).query, getLastReportBody: () => lastReportBody };
+    };
+    const quotaOpts = { bossWaitMs: 200, reportWaitMs: 80, logWaitMs: 80 } as Partial<CanaryOptions>;
+
+    // fake 镜像自证：completed 缺 acceptance/outputLocation → 400（与真实服务端一致；
+    // 同时保护下面的载荷断言不空转——镜像被删该检查先红）
+    const badRes = await makeFakeTransport({}).httpPost('/api/agents/x/report-task', { summary: 'x', status: 'completed' });
+    h.eq('fake 镜像：completed 缺 acceptance/outputLocation → 400', badRes.status, 400);
+
+    const passCase = mkQuotaCase();
+    const pass = await runScenario(scenarioByName('quota-concurrency'), mkCtx(passCase.transport, passCase.query, quotaOpts));
+    h.eq('⑨ 并发配额全通', pass.status, 'pass');
+    h.eq('⑨ 断言数=7', pass.assertions.length, 7);
+    h.check('⑨ report-task 打到在办下属 sub-1', passCase.transport.calls.some((c) => c.includes('sub-1/report-task')));
+    const quotaReportBody = passCase.getLastReportBody();
+    h.check('⑨ report-task 载荷含 acceptance+outputLocation（task17·A3）', !!quotaReportBody && isValidCompletedReport(quotaReportBody));
+    h.check('⑨ a2 排队出现', pass.assertions.find((a) => a.id === 'a2')?.ok === true);
+    h.check('⑨ a6 FIFO 命中队首', pass.assertions.find((a) => a.id === 'a6')?.ok === true);
+    h.check('⑨ a7 账目 N 条', pass.assertions.find((a) => a.id === 'a7')?.ok === true);
+
+    const noQueueCase = mkQuotaCase({ noQueue: true });
+    const noQueue = await runScenario(scenarioByName('quota-concurrency'), mkCtx(noQueueCase.transport, noQueueCase.query, quotaOpts));
+    h.eq('⑨ 无排队（预算未占满）→ fail', noQueue.status, 'fail');
+    h.check('⑨ a2 红', noQueue.assertions.find((a) => a.id === 'a2')?.ok === false);
+    h.check('⑨ a6 红（无队首可比）', noQueue.assertions.find((a) => a.id === 'a6')?.ok === false);
+
+    const noDequeueCase = mkQuotaCase({ noDequeue: true });
+    const noDequeue = await runScenario(scenarioByName('quota-concurrency'), mkCtx(noDequeueCase.transport, noDequeueCase.query, quotaOpts));
+    h.eq('⑨ 完成事件未触发出队 → fail', noDequeue.status, 'fail');
+    h.check('⑨ a5/a6 红', noDequeue.assertions.find((a) => a.id === 'a5')?.ok === false && noDequeue.assertions.find((a) => a.id === 'a6')?.ok === false);
+
+    // 反向守卫：出队跳队（非队首）→ a6 红而 a5 绿（FIFO 判据单点成立）
+    const wrongFifoCase = mkQuotaCase({ wrongFifo: true });
+    const wrongFifo = await runScenario(scenarioByName('quota-concurrency'), mkCtx(wrongFifoCase.transport, wrongFifoCase.query, quotaOpts));
+    h.eq('⑨ 出队跳队 → fail', wrongFifo.status, 'fail');
+    h.check('⑨ a6 红（FIFO 违规且 a5 绿）', wrongFifo.assertions.find((a) => a.id === 'a6')?.ok === false && wrongFifo.assertions.find((a) => a.id === 'a5')?.ok === true);
+  }
+
   // 10. dry-run 行为
   {
     const t = makeFakeTransport({ agents: ok({ value: AGENT_JSON }) });
@@ -520,6 +825,14 @@ export async function runSelfTest(): Promise<number> {
     h.eq('dry-run runtime 前置延后 → planned', receipt.status, 'planned');
     h.check('dry-run 前置 deferred 标记', receipt.prereqs.some((p) => p.id === 'delegationChainEvidence' && p.deferred === true));
 
+    const cancel = await runScenario(scenarioByName('cancel-chain'), ctx);
+    h.eq('dry-run 撤回链 → planned', cancel.status, 'planned');
+    const routing = await runScenario(scenarioByName('project-routing'), ctx);
+    h.eq('dry-run 项目路由 → planned', routing.status, 'planned');
+    h.check('dry-run multiProjectRouting 延后', routing.prereqs.some((p) => p.id === 'multiProjectRouting' && p.deferred === true));
+    const quota = await runScenario(scenarioByName('quota-concurrency'), ctx);
+    h.eq('dry-run 并发配额 → planned', quota.status, 'planned');
+
     const tDown = makeFakeTransport({ health: fail(0, 'ECONNREFUSED') });
     const connDown = await runScenario(scenarioByName('connectivity'), mkCtx(tDown, makeFakeQuery([]).query, { dryRun: true }));
     h.eq('dry-run 服务不可达 → fail', connDown.status, 'fail');
@@ -528,7 +841,8 @@ export async function runSelfTest(): Promise<number> {
   // 11. 报告与退出码
   {
     const pass = await runScenario(scenarioByName('connectivity'), mkCtx(makeFakeTransport({}), makeFakeQuery([]).query));
-    const skipRes = await runScenario(scenarioByName('cancel-chain'), mkCtx(makeFakeTransport({}), makeFakeQuery([]).query));
+    // 能力类 skip 用恒 SKIP 场景（cross-project-handover unsupported）——与真实 skip 语义一致
+    const skipRes = await runScenario(scenarioByName('cross-project-handover'), mkCtx(makeFakeTransport({}), makeFakeQuery([]).query));
     const report = buildReport({
       level: 'smoke', dryRun: false, scenarioFilter: [], baseUrl: 'http://fake:6200',
       dbPath: 'x.db', globalErrors: [], results: [pass, skipRes], startedAt: Date.now(),

@@ -14,7 +14,7 @@
  */
 
 import WebSocket from 'ws';
-import type { AgentInfo, CanaryTransport, HttpResult, WsProbeResult } from './types.js';
+import type { AgentInfo, AreaInfo, CanaryTransport, HttpResult, WorkspaceInfo, WsProbeResult } from './types.js';
 
 // ─── URL 工具 ───
 
@@ -43,7 +43,7 @@ export function createTransport(baseUrl: string, opts: TransportOptions): Canary
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (opts.token) headers['X-Auth-Token'] = opts.token;
 
-  async function request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<HttpResult> {
+  async function request(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<HttpResult> {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.httpTimeoutMs);
@@ -118,6 +118,7 @@ export function createTransport(baseUrl: string, opts: TransportOptions): Canary
     baseUrl: base,
     httpGet: (path) => request('GET', path),
     httpPost: (path, body) => request('POST', path, body),
+    httpPut: (path, body) => request('PUT', path, body),
     wsHandshake,
     close: () => { /* fetch/ws 无需显式释放 */ },
   };
@@ -172,12 +173,66 @@ export function findBoss(agents: AgentInfo[]): AgentInfo | undefined {
   return agents.find((a) => a.isBoss === true || a.class === 'boss');
 }
 
-/** 下属回执（真链路：POST /api/agents/:id/report-task，routes/agents.ts:1950） */
+/** 顶层数组解包（transport 把裸数组包成 {value:[...]}；兼容 {key:[...]} 包装） */
+function unwrapArray(raw: unknown, key: string): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  const wrapped = Array.isArray((raw as { value?: unknown })?.value)
+    ? (raw as { value: unknown[] }).value
+    : (raw as Record<string, unknown>)?.[key];
+  return Array.isArray(wrapped) ? wrapped : [];
+}
+
+/** 读取工作区列表（GET /api/workspaces；routes/workspaces.ts:24） */
+export async function fetchWorkspaces(t: CanaryTransport): Promise<{ ok: boolean; workspaces: WorkspaceInfo[]; error?: string }> {
+  const res = await t.httpGet('/api/workspaces');
+  if (!res.ok || !res.json) return { ok: false, workspaces: [], error: res.error ?? `HTTP ${res.status}` };
+  const workspaces = (unwrapArray(res.json as unknown, 'workspaces') as Array<Record<string, unknown>>).map((w) => ({
+    id: String(w.id ?? ''),
+    name: String(w.name ?? ''),
+    areaIds: Array.isArray(w.areaIds) ? (w.areaIds as string[]).map(String) : undefined,
+  }));
+  return { ok: true, workspaces };
+}
+
+/** 读取区域列表（GET /api/areas；仅取复刻项目↔Boss 链所需字段） */
+export async function fetchAreas(t: CanaryTransport): Promise<{ ok: boolean; areas: AreaInfo[]; error?: string }> {
+  const res = await t.httpGet('/api/areas');
+  if (!res.ok || !res.json) return { ok: false, areas: [], error: res.error ?? `HTTP ${res.status}` };
+  const areas = (unwrapArray(res.json as unknown, 'areas') as Array<Record<string, unknown>>).map((a) => ({
+    id: String(a.id ?? ''),
+    archived: a.archived === true,
+    assignedAgentIds: Array.isArray(a.assignedAgentIds) ? (a.assignedAgentIds as string[]).map(String) : undefined,
+  }));
+  return { ok: true, areas };
+}
+
+/** 读取激活工作区（GET /api/workspaces/active → { workspaceId: string|null }） */
+export async function fetchActiveWorkspace(t: CanaryTransport): Promise<{ ok: boolean; workspaceId: string | null; error?: string }> {
+  const res = await t.httpGet('/api/workspaces/active');
+  if (!res.ok || !res.json) return { ok: false, workspaceId: null, error: res.error ?? `HTTP ${res.status}` };
+  const raw = (res.json as { workspaceId?: unknown }).workspaceId;
+  return { ok: true, workspaceId: raw == null ? null : String(raw) };
+}
+
+/** 设置激活工作区（PUT /api/workspaces/active，body { workspaceId: string|null }；null = All） */
+export async function setActiveWorkspace(t: CanaryTransport, workspaceId: string | null): Promise<HttpResult> {
+  return t.httpPut('/api/workspaces/active', { workspaceId });
+}
+
+/** 下属回执（真链路：POST /api/agents/:id/report-task，routes/agents.ts:1950）。
+ *  task17·A3：status='completed'（含缺省）时服务端强制要求非空 acceptance[{item,done}] 与非空白
+ *  outputLocation，缺任一 → HTTP 400 且在一切副作用之前返回——半合成模拟也必须送真形状。 */
 export async function reportTask(
   t: CanaryTransport,
   agentId: string,
   summary: string,
   status: 'completed' | 'failed' = 'completed',
+  extras?: { acceptance?: Array<{ item: string; done: boolean }>; outputLocation?: string },
 ): Promise<HttpResult> {
-  return t.httpPost(`/api/agents/${encodeURIComponent(agentId)}/report-task`, { summary, status });
+  return t.httpPost(`/api/agents/${encodeURIComponent(agentId)}/report-task`, {
+    summary,
+    status,
+    ...(extras?.acceptance ? { acceptance: extras.acceptance } : {}),
+    ...(extras?.outputLocation ? { outputLocation: extras.outputLocation } : {}),
+  });
 }
