@@ -49,6 +49,8 @@ import {
   runCompanionTurn,
   stopCompanionProcess,
   getCompanionProcessInfo,
+  hasLiveCompanionProcess,
+  prewarmCompanionProcess,
   type CompanionContextUsage,
 } from '../voice/companion-runner.js';
 import type { Agent, DelegationDecision } from '../../shared/agent-types.js';
@@ -1853,6 +1855,27 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
   return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, nowText, persona, delegationHistory, bossNames });
 }
 
+/**
+ * W3 预热点火(服务侧入口):按当前世界状态提前建好常驻进程 —— 系统提示词与
+ * runHop1 同源同刻构建,resumeId 取当前 state.sessionId。
+ *
+ * 调用点:① 流式通道首个音频帧(用户开口,见 voice-companion-stream.ts);
+ * ② 回合收尾且常驻进程已不在(超时/中止/崩溃被杀后的补建,见下方 disposeTurn)。
+ * 全程静默:任何失败返回 false,绝不影响主链路;幂等判定在 companion-runner 内。
+ */
+export function prewarmCompanion(): boolean {
+  if (!isCompanionResidentEnabled()) return false;
+  try {
+    const cfg = loadServerConfig();
+    const state = loadCompanionState();
+    const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona);
+    return prewarmCompanionProcess({ systemPrompt, model: cfg.model, resumeId: state.sessionId });
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 预热失败(静默): ${(err as Error).message}`);
+    return false;
+  }
+}
+
 async function runHop1(
   userText: string,
   state: VoiceCompanionState,
@@ -2300,16 +2323,36 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           }
         : undefined,
     );
-    /** 回合收尾(正常 finish / 中止重抛)统一出口:停宽限计时器 + 停垫话。 */
-    const disposeTurn = () => {
-      slowFiller.cancel();
-      speech.dispose();
-    };
-
     const state = loadCompanionState();
     const personaKey = personaKeyOf(cfg.persona.preset, cfg.persona.custom);
 
+    /**
+     * W3 预热点火:回合收尾时若常驻进程已不在(超时/中止/崩溃被杀),静默补建 ——
+     * 下一回合直接复用,不再吃冷启动。事件回合不预热;活进程在场时零动作。
+     * 异步(setTimeout 0)不占回合响应路径;与下一回合 spawn 的竞态由单线程时序 +
+     * 幂等守卫兜底(进程已在/回合中则跳过)。
+     */
+    const schedulePrewarm = (): void => {
+      if (opts.isEvent || hasLiveCompanionProcess()) return;
+      setTimeout(() => { prewarmCompanion(); }, 0);
+    };
+
+    /** 回合收尾(正常 finish / 中止重抛)统一出口:停宽限计时器 + 停垫话 + 补建预热。 */
+    const disposeTurn = () => {
+      slowFiller.cancel();
+      speech.dispose();
+      schedulePrewarm();
+    };
+
     if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey) || isContextCompactionDue(state, cfg)) {
+      // W3 预热点火:是否需要停常驻进程,取决于「确有待失效对象」——
+      // ① 有会话:旧 --resume/旧提示词必须废,停;
+      // ② 人设从有记录的旧值变化:常驻进程里的提示词过期,停;
+      // ③ 首次开局(状态无人设记录、无会话):轮换只是把当前人设写进状态,预热点火
+      //    建好的进程拿的本就是当前人设 → 不停,否则预热会在首个回合被白杀掉
+      //    (首个回合恰恰是最值得藏冷启动的一次)。
+      const hadSession = !!state.sessionId;
+      const personaChangedFromRecorded = state.personaKey != null && state.personaKey !== personaKey;
       // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
       // 任务18:上下文到阈值(缺省 80%)同样走此路径 = 压缩 v1「摘要续跑」。
       if (state.sessionId) {
@@ -2340,7 +2383,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       state.turns = 0;
       state.context = null; // 任务18:占用快照随会话一并清零
       // 任务18:轮换后旧常驻进程(带旧 --resume/旧系统提示词)必须停掉,下一回合重新 spawn。
-      stopCompanionProcess('session-rotation');
+      if (hadSession || personaChangedFromRecorded) stopCompanionProcess('session-rotation');
     }
     state.personaKey = personaKey;
 

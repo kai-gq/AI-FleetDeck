@@ -27,7 +27,7 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, WebSocket } from 'ws';
 import { validateWebSocketAuth } from '../auth/index.js';
-import { loadVolcengineSttConfig, type VolcengineSttConfig } from '../services/voice-companion-service.js';
+import { loadVolcengineSttConfig, prewarmCompanion, type VolcengineSttConfig } from '../services/voice-companion-service.js';
 import { VolcengineAsrSession, type VolcengineAsrError } from './volcengine-asr-client.js';
 import { logVoiceAsr } from '../services/activity-log.js';
 import { logger } from '../utils/index.js';
@@ -81,7 +81,8 @@ export function attachVoiceCompanionStream(server: HttpServer | import('node:htt
   log.log(`[VoiceCompanion] 流式转写通道已挂载:${VOICE_COMPANION_WS_PATH}`);
 }
 
-function handleConnection(ws: WebSocket): void {
+/** 可见性:生产由 attach 内部调用;导出以便单测驱动连接协议(首个音频帧→预热等)。 */
+export function handleConnection(ws: WebSocket): void {
   const cfg = loadVolcengineSttConfig();
 
   const send = (obj: Record<string, unknown>): void => {
@@ -106,6 +107,9 @@ function handleConnection(ws: WebSocket): void {
   // 任务 02 语音链路埋点：记录一段流式会话的起点，onFinal/onError 落 ASR 文本与耗时。
   let sessionStartedAt: number | null = null;
   let closed = false;
+  // W3 预热点火:每连接一次 —— 用户开口的首帧音频即后台补建常驻 claude 进程,
+  // 把冷启动(spawn + CLI 引导)藏进说话时间;回合真正到来时直接复用。
+  let speechPrewarmed = false;
 
   const dropSession = (): void => {
     session = null;
@@ -158,6 +162,11 @@ function handleConnection(ws: WebSocket): void {
           ? Buffer.concat(data)
           : Buffer.from(data);
       if (chunk.length === 0 || chunk.length > MAX_FRAME_BYTES) return;
+      if (!speechPrewarmed) {
+        speechPrewarmed = true;
+        // 异步不占帧转发路径;失败静默(预热只是加成)。
+        setTimeout(() => { prewarmCompanion(); }, 0);
+      }
       sessionAudioBytes += chunk.length;
       if (sessionAudioBytes > MAX_SESSION_AUDIO_BYTES) {
         // 防御:单段超 60s,强制判停(客户端也会按 maxSegmentMs 自行切)

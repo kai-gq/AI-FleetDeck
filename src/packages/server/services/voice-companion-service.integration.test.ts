@@ -276,9 +276,13 @@ beforeEach(() => {
   service.resetProjectRoutingSession();
   bossService.init();
   writeConfig();
+  // W3 预热点火:本文件回合均以 close 收尾(常驻进程死亡),预热会在测试间隙
+  // 触发额外 spawn 污染计数 —— 统一关掉;预热语义由 resident.test.ts 的 P1-P6 专测。
+  vi.stubEnv('TC_VOICE_PREWARM', '0');
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 

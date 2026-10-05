@@ -254,6 +254,10 @@ beforeEach(() => {
   service.resetCancelClarificationSession();
   writeConfig();
   logSpy = vi.spyOn(logger.server, 'log').mockImplementation(() => {});
+  // W3 预热点火:默认关掉(与集成/取消两文件同口径)——否则「回合以 close 收尾」
+  // 的用例会在测试间隙被异步预热补建,污染 spawn 计数;预热语义由本文件 W3 节专测
+  // (专测内自行 stubEnv 打开)。
+  vi.stubEnv('TC_VOICE_PREWARM', '0');
 });
 
 afterEach(() => {
@@ -928,5 +932,105 @@ describe('任务18 补钉 F7:resetCompanion 停进程清会话', () => {
     completeTurn(call2.child, 'sess-2');
     await p2;
     expect(service.loadCompanionState().sessionId).toBe('sess-2');
+  });
+});
+
+// ============================================================================
+// W3·C8 预热点火(本文件默认 TC_VOICE_PREWARM=0;专测内自行打开)
+// ============================================================================
+
+describe('W3-C8 预热点火', () => {
+  it('P1 无进程时预热 spawn(无回合不写 stdin、台账落盘);真实回合直接复用', async () => {
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+
+    expect(service.prewarmCompanion()).toBe(true);
+    const call1 = await waitSpawn(1);
+    expect(call1.child.stdinWrites).toHaveLength(0); // 预热进程没有回合:不写 stdin
+    expect(resumeIdOf(call1)).toBeNull(); // 状态无会话 → 与常规首轮同款
+    expect(getCompanionProcessInfo()?.pid).toBe(4001);
+    expect(getCompanionRunnerStats().spawns).toBe(1);
+    expect(readPidRecord()).toMatchObject({ serverPid: process.pid, childPid: 4001, model: 'haiku' });
+
+    const p = startProcess('第一句');
+    await waitFor(() => call1.child.stdinWrites.length >= 1, '复用预热进程写 stdin');
+    expect(spawnCalls).toHaveLength(1); // 不再冷启动
+    completeTurn(call1.child, 'sess-1');
+    await p;
+    expect(getCompanionRunnerStats()).toMatchObject({ spawns: 1, reuses: 1 });
+  });
+
+  it('P2 幂等:同模型活进程在场,二次预热零新增(不打扰)', async () => {
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+    expect(service.prewarmCompanion()).toBe(true);
+    await waitSpawn(1);
+
+    expect(service.prewarmCompanion()).toBe(false);
+    expect(spawnCalls).toHaveLength(1);
+    expect(getCompanionProcessInfo()?.pid).toBe(4001);
+  });
+
+  it('P3 模型变更:停旧建新,resumeId 继承(下一回合 args 即刻生效)', async () => {
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+    seedCompanionState({ sessionId: 'sess-x' });
+
+    expect(service.prewarmCompanion()).toBe(true);
+    const call1 = await waitSpawn(1);
+    expect(resumeIdOf(call1)).toBe('sess-x');
+
+    writeConfig({ model: 'sonnet' }); // 配置口径只认 sonnet/haiku(loadServerConfig 规整)
+    expect(service.prewarmCompanion()).toBe(true);
+    const call2 = await waitSpawn(2);
+    expectResidentTreeKill(call1.child, 4001); // 旧进程树杀
+    expect(resumeIdOf(call2)).toBe('sess-x');
+    expect(argsOf(call2)).toContain('sonnet');
+    expect(getCompanionProcessInfo()?.pid).toBe(4002);
+  });
+
+  it('P4 开关:TC_VOICE_PREWARM=0 或常驻通道关 → 一律静默不 spawn', async () => {
+    // ① 本文件 beforeEach 默认已置 TC_VOICE_PREWARM=0。
+    expect(service.prewarmCompanion()).toBe(false);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(spawnCalls).toHaveLength(0);
+
+    // ② 预热开但常驻通道关:同样不 spawn(两者叠加判定在 runner 内)。
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+    vi.stubEnv('TC_JARVIS_COMPANION_RESIDENT', '0');
+    expect(service.prewarmCompanion()).toBe(false);
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('P5 崩溃降级回合:finish 尾自动补建,下一回合复用(不再吃冷启动)', async () => {
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+
+    const p1 = startProcess('崩一下');
+    const call1 = await waitSpawn(1);
+    call1.child.emit('close', 1); // 无文本退出 → 降级;常驻进程已死
+    const r1 = await p1;
+    expect(r1.degraded).toBe(true);
+
+    await waitFor(() => spawnCalls.length >= 2, '降级后预热补建');
+    const call2 = spawnCalls[1]!;
+    expect(getCompanionProcessInfo()?.pid).toBe(4002);
+
+    const p2 = startProcess('再试一句');
+    await waitFor(() => call2.child.stdinWrites.length >= 1, '复用预热进程');
+    expect(spawnCalls).toHaveLength(2);
+    completeTurn(call2.child, 'sess-p');
+    await p2;
+    expect(getCompanionRunnerStats()).toMatchObject({ spawns: 2, reuses: 1 });
+  });
+
+  it('P6 中止回合:disposeTurn 统一出口补建(与 finish 同款)', async () => {
+    vi.stubEnv('TC_VOICE_PREWARM', '1');
+
+    const controller = new AbortController();
+    const p1 = startProcess('中止一下', { signal: controller.signal });
+    const call1 = await waitSpawn(1);
+    controller.abort();
+    await expect(p1).rejects.toMatchObject({ name: 'VoiceCompanionAborted' });
+    expectResidentTreeKill(call1.child, 4001);
+
+    await waitFor(() => spawnCalls.length >= 2, '中止后预热补建');
+    expect(getCompanionProcessInfo()?.pid).toBe(4002);
   });
 });

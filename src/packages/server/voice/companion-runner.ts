@@ -20,6 +20,8 @@
  *   残留 + 进程退出钩子 + shell:true 下 taskkill /T /F 树杀(SIGTERM 只达 cmd.exe)。
  * - **回退开关**:TC_JARVIS_COMPANION_RESIDENT=0 → 调用方直走一次性 callClaudeOnce
  *   (本模块不被触碰)。
+ * - **W3 预热点火**:prewarmCompanionProcess 提前建好进程(用户开口/回合收尾补建),
+ *   幂等 + 失败静默;TC_VOICE_PREWARM=0 关。
  *
  * 回合内协议(与 callClaudeOnce 相同):
  *   stdin: {"type":"user","message":{"role":"user","content":<文本+REMINDER>}}\n
@@ -45,6 +47,13 @@ export const COMPANION_RESIDENT_ENV = 'TC_JARVIS_COMPANION_RESIDENT';
 
 export function isCompanionResidentEnabled(): boolean {
   return process.env[COMPANION_RESIDENT_ENV] !== '0';
+}
+
+/** W3 预热点火回退开关(缺省开;'0' = 关,排障用;常驻通道关时一并无效)。 */
+export const COMPANION_PREWARM_ENV = 'TC_VOICE_PREWARM';
+
+export function isCompanionPrewarmEnabled(): boolean {
+  return isCompanionResidentEnabled() && process.env[COMPANION_PREWARM_ENV] !== '0';
 }
 
 /** result 事件里采到的上下文占用(秘书侧原先全丢;任务18 起用于 80% 压缩判定)。 */
@@ -80,6 +89,13 @@ export interface CompanionTurnResult {
   context: CompanionContextUsage | null;
   /** W6 观测:本回合复用常驻进程(true)还是新建(false)。 */
   reused: boolean;
+}
+
+/** W3 预热点火请求:进程建立只需这三样(与真实回合解耦,不带 turn)。 */
+export interface CompanionPrewarmRequest {
+  systemPrompt: string;
+  model: string;
+  resumeId: string | null;
 }
 
 /** 常驻进程台账(PID 落盘;进程卫生三件套的凭据)。 */
@@ -368,6 +384,42 @@ export function runCompanionTurn(req: CompanionTurnRequest): Promise<CompanionTu
   return beginTurn(proc, req, reused);
 }
 
+/** W3:是否有活着的常驻进程(空闲/回合中都算;预热幂等判定用)。 */
+export function hasLiveCompanionProcess(): boolean {
+  return !!resident && !resident.exited;
+}
+
+/**
+ * W3 预热点火:提前建好常驻进程,把冷启动(进程 spawn + CLI 引导)藏到用户还在
+ * 说话/回合刚结束的空档;真实回合到来时经既有 stdin 复用直接开跑。
+ *
+ * - 幂等:已有活进程且模型一致 → 跳过(回合进行中也不打扰);
+ * - 模型变更 → 停旧建新(与 getReusableProcess 同口径,下一回合 args 即刻生效);
+ * - 失败静默:spawn 异常一律吞掉 —— 预热只是加成,主链路不受影响(下一次真实
+ *   回合自会按老路 spawn,行为与无预热逐字一致)。
+ * - resumeId 传「下一次 spawn 会用」的当前 state.sessionId(与 runHop1 同源);
+ *   null 时新进程不带 --resume,与常规首轮相同。
+ */
+export function prewarmCompanionProcess(req: CompanionPrewarmRequest): boolean {
+  if (!isCompanionPrewarmEnabled()) return false;
+  initCompanionProcessHygiene();
+  const live = resident;
+  if (live && !live.exited) {
+    if (live.turn) return false;
+    if (live.model === req.model) return false;
+    stopCompanionProcess(`prewarm-model-changed->${req.model}`);
+  }
+  try {
+    const proc = spawnResidentProcess(req);
+    stats.spawns += 1;
+    log.log(`[VoiceCompanion] 预热点火:常驻进程就绪 pid=${proc.pid ?? 'unknown'} model=${req.model}`);
+    return true;
+  } catch (err) {
+    log.warn(`[VoiceCompanion] 预热失败(静默): ${(err as Error).message}`);
+    return false;
+  }
+}
+
 /** 可复用的常驻进程:存活 + stdin 可写 + 模型未变(配置换模型时重建,args 随之生效)。 */
 function getReusableProcess(model: string): ResidentProcess | null {
   const proc = resident;
@@ -394,7 +446,7 @@ function getReusableProcess(model: string): ResidentProcess | null {
   return proc;
 }
 
-function spawnResidentProcess(req: CompanionTurnRequest): ResidentProcess {
+function spawnResidentProcess(req: CompanionPrewarmRequest): ResidentProcess {
   const claudeBackend = new ClaudeBackend();
   const executable = claudeBackend.getExecutablePath();
   const args = [
