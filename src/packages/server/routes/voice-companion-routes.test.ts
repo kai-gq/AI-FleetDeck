@@ -232,6 +232,7 @@ describe('POST /process 流式(NDJSON)', () => {
     let seenSignalAborted: boolean | undefined;
     vi.mocked(service.processVoiceInput).mockImplementation(async (_text, opts) => {
       seenSignalAborted = opts?.signal?.aborted;
+      opts?.onSentence?.('在,我去看一眼。', { pre: true }); // W4:过渡句带 pre 标记透传
       opts?.onSentence?.('第一句。');
       opts?.onSentence?.('第二句。');
       return { action: 'general_response', response: '第一句。第二句。', spoke: true, elapsedMs: 5 };
@@ -247,9 +248,11 @@ describe('POST /process 流式(NDJSON)', () => {
     expect(res.headers.get('cache-control')).toBe('no-cache, no-transform');
 
     const lines = parseNdjson(await res.text());
-    expect(lines[0]).toMatchObject({ type: 'sentence', text: '第一句。', tMs: expect.any(Number) });
-    expect(lines[1]).toMatchObject({ type: 'sentence', text: '第二句。', tMs: expect.any(Number) });
-    expect(lines.slice(2)).toEqual([
+    expect(lines[0]).toMatchObject({ type: 'sentence', text: '在,我去看一眼。', tMs: expect.any(Number), pre: true });
+    expect(lines[1]).toMatchObject({ type: 'sentence', text: '第一句。', tMs: expect.any(Number) });
+    expect(lines[1]).not.toHaveProperty('pre'); // 非过渡句不带标记
+    expect(lines[2]).toMatchObject({ type: 'sentence', text: '第二句。', tMs: expect.any(Number) });
+    expect(lines.slice(3)).toEqual([
       { type: 'final', result: { success: true, action: 'general_response', response: '第一句。第二句。', spoke: true, elapsedMs: 5 }, spoke: true },
     ]);
     expect(service.processVoiceInput).toHaveBeenCalledWith(

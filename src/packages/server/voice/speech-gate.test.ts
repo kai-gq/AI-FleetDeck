@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { SpeechGate } from './speech-gate.js';
+import type { SentenceMeta } from './speech-gate.js';
 
 function collect() {
   const spoken: string[] = [];
-  const gate = new SpeechGate((s) => spoken.push(s));
-  return { gate, spoken };
+  const metas: (SentenceMeta | undefined)[] = [];
+  const gate = new SpeechGate((s, m) => {
+    spoken.push(s);
+    metas.push(m);
+  });
+  return { gate, spoken, metas };
 }
 
 describe('SpeechGate', () => {
@@ -28,12 +33,26 @@ describe('SpeechGate', () => {
     expect(gate.spoke).toBe(false);
   });
 
-  it('drops buffered text and stays silent for query_agent_output', () => {
-    const { gate, spoken } = collect();
-    gate.push('我先看看。');
+  it('buffers query_agent_output until released, then plays as pre(W4 过渡话术照播,不进对账集)', () => {
+    const { gate, spoken, metas } = collect();
+    gate.push('在,我去看一眼。');
     gate.setAction('query_agent_output');
-    gate.push('还有这句。');
+    gate.push('还有这句等 release。');
+    expect(spoken).toEqual([]); // 未确定要跑 hop2 前保持静默
+    gate.release({ pre: true });
+    expect(spoken).toEqual(['在,我去看一眼。', '还有这句等 release。']);
+    expect(metas).toEqual([{ pre: true }, { pre: true }]);
+    expect(gate.spoke).toBe(true);
+  });
+
+  it('query_agent_output 目标无效时 discard 保持静默(失败路径不出声)', () => {
+    const { gate, spoken } = collect();
+    gate.setAction('query_agent_output');
+    gate.push('在,我去看一眼。');
+    gate.discard();
+    gate.push('后面的也不播。');
     expect(spoken).toEqual([]);
+    expect(gate.spokenCount).toBe(0);
   });
 
   it('drops buffered text and stays silent for analyze_logs(报告由分析产出,hop1 话术不出声)', () => {
@@ -57,12 +76,13 @@ describe('SpeechGate', () => {
   });
 
   it('holds send_to_agent confirmations until dispatch succeeds', () => {
-    const { gate, spoken } = collect();
+    const { gate, spoken, metas } = collect();
     gate.setAction('send_to_agent');
     gate.push('已让小美去修登录页。');
     expect(spoken).toEqual([]);
     gate.release();
     expect(spoken).toEqual(['已让小美去修登录页。']);
+    expect(metas).toEqual([undefined]); // 派发确认句不带 pre 标记(照常参与对账)
     expect(gate.spoke).toBe(true);
   });
 
@@ -108,13 +128,14 @@ describe('SpeechGate', () => {
     expect(gate.spokenCount).toBe(1);
   });
 
-  it('lets later pushes through once switched to a speaking action (hop2 usage)', () => {
-    const { gate, spoken } = collect();
+  it('reclassification query_agent_output → speaking action flushes the buffer without pre meta', () => {
+    const { gate, spoken, metas } = collect();
     gate.setAction('query_agent_output');
-    gate.push('丢弃。');
-    gate.setAction('general_response');
+    gate.push('缓冲句。');
+    gate.setAction('general_response'); // 重分类:改按说话动作放行
     gate.push('小美刚把登录页修完了。');
-    expect(spoken).toEqual(['小美刚把登录页修完了。']);
+    expect(spoken).toEqual(['缓冲句。', '小美刚把登录页修完了。']);
+    expect(metas).toEqual([undefined, undefined]);
   });
 
   // ---- 阶段一补测:五动作语义边界 ----

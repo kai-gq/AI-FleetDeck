@@ -40,7 +40,7 @@ import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
 import { findStringField, createJsonStringStream, type JsonStringStream } from '../voice/contract-stream.js';
 import { SpeechGate } from '../voice/speech-gate.js';
-import type { GateAction } from '../voice/speech-gate.js';
+import type { GateAction, SentenceMeta } from '../voice/speech-gate.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
 // 每回合 args 与既有 callClaudeOnce 逐字同构,权限姿态不变;hop2 保持一次性。
 import {
@@ -218,9 +218,10 @@ export interface VoiceProcessOptions {
   /**
    * 分句流式播报:模型边生成,responseToUser 里每完成一句就回调一次
    * (已经过 action 语义门控:noop 不出声、send_to_agent 等派发成功才放行)。
+   * meta.pre=true 的过渡/垫话句照播但不参与客户端最终对账(W4)。
    * 不传则完全走旧的整段返回路径。
    */
-  onSentence?: (sentence: string) => void;
+  onSentence?: (sentence: string, meta?: SentenceMeta) => void;
   /** 客户端断开时中止本轮 claude 调用(否则废弃请求会占着互斥队列)。 */
   signal?: AbortSignal;
 }
@@ -1485,12 +1486,12 @@ export function buildCompanionSystemPrompt(input: {
 【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块;严格按模板的字段顺序输出(action、responseToUser 在最前):
 ${CONTRACT_TEMPLATE}
 
-上面的模板只是字段格式示意:其中 responseToUser 是给老板播报的实际句子,**除 noop 动作外绝不允许为空字符串**。
+上面的模板只是字段格式示意:其中 responseToUser 是给老板播报的实际句子,**除 noop 及下方注明「可留空」的动作外,一律不允许为空字符串**。
 
 【action 说明】
 - delegate_to_boss: 老板要「派人干活」时唯一的派活动作(新建/修改/修复/安排/推进/催办/停掉某人的活等)。targetAgentId 一律留 null;messageToAgent 写成给主管的完整指令(写清要做什么、在哪个项目/目录、验收要求)。系统会把任务转给团队主管(列表里标 [BOSS] 的那位)由它拆解选人——你不要自己挑执行的人。
 - send_to_agent: 仅当老板明确要直接对主管([BOSS])本人说话时使用(补充说明、追问它的安排、对它提要求),targetAgentId 必须是 [BOSS] 的 id。**任何让普通 agent 干活的请求都不得用它**——一律走 delegate_to_boss。
-- query_agent_output: 老板问某个 agent(主管或普通 agent 都行)「最近做了什么/进展如何/结果是什么/输出了什么」。只读查询,不派活。targetAgentId 填该 agent;query 填老板的原始问题。此动作下 responseToUser 可留空,系统会做第二跳总结。
+- query_agent_output: 老板问某个 agent(主管或普通 agent 都行)「最近做了什么/进展如何/结果是什么/输出了什么」。只读查询,不派活。targetAgentId 填该 agent;query 填老板的原始问题。responseToUser 必须写一句 ≤12 字的过渡话术先应声(例:「在,我去看一眼」「我先去看看」)——只应声,不写结论、不编造;系统随后做第二跳总结,正式答案以第二跳为准。
 - analyze_logs: 老板要看日志/分析日志/「查一下昨天的日志」「今天出了哪些错」。只读查询,不派活;query 填老板的原始问法(含时间词)。responseToUser 可留空,系统会跑完整分析并播报四段报告(耗时一两分钟属正常)。
 - query_bolba_tasks: 老板问「业务待办/要盯的事/板上有什么/今天有什么要盯的/按项目看看」——Bolba 板是报价、付款、会议、证书这类 agent 干不了、需要人盯的业务清单。只读查询,不派活;query 填老板的原始问法(含项目名)。responseToUser 可留空,系统渲染实际情况。
 - create_bolba_task: 老板说「记一下/加到待办/提醒我」且内容是业务事项 → bolbaTask 填事项本身,**去掉「周五前/明天/下周三」等时间词**(系统从原话解析日期);responseToUser 可留空。
@@ -1517,7 +1518,7 @@ ${CONTRACT_TEMPLATE}
 - {"op":"setSummary","summary":"…"}: 压缩重写记忆总结(很少用)。
 没有新记忆时 memoryOps 为 []。
 
-【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」;不要追加「我盯着」「办好了马上回你」这类事后回报承诺——完成与进展由系统的主动汇报通道负责,不由你许诺。这是语音播报,写出来就要能直接念。
+【说话风格】除 noop 外,responseToUser 一律不能为空(query_agent_output 写 ≤12 字过渡话术即可);用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」;不要追加「我盯着」「办好了马上回你」这类事后回报承诺——完成与进展由系统的主动汇报通道负责,不由你许诺。这是语音播报,写出来就要能直接念。
 
 【当前时间】${nowText}
 
@@ -2066,7 +2067,7 @@ interface SpeechPipeline {
   onHop1Delta: (fullText: string) => void;
   onHop2Delta: (fullText: string) => void;
   setHop1Action: (action: CompanionAction) => void;
-  releaseHop1: () => void;
+  releaseHop1: (meta?: SentenceMeta) => void;
   discardHop1: () => void;
   /** 收尾:取消宽限 flush 定时器(避免请求结束后残留计时器)。 */
   dispose: () => void;
@@ -2088,7 +2089,7 @@ const GRACE_FLUSH_MS = 180;
  * 经 action 语义门控(SpeechGate)后逐句回调。无 onSentence 时返回全套
  * no-op —— 旧的整段返回路径零开销、行为不变。
  */
-function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPipeline {
+function createSpeechPipeline(onSentence?: (sentence: string, meta?: SentenceMeta) => void): SpeechPipeline {
   if (!onSentence) {
     return {
       onHop1Delta: () => {},
@@ -2158,8 +2159,8 @@ function createSpeechPipeline(onSentence?: (sentence: string) => void): SpeechPi
       actionSeen = true;
       gate.setAction(action);
     },
-    releaseHop1() {
-      gate.release();
+    releaseHop1(meta?: SentenceMeta) {
+      gate.release(meta);
     },
     discardHop1() {
       gate.discard();
@@ -2608,8 +2609,9 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       }, logCtx);
 
       if (!target) {
+        // W4:responseToUser 现在是过渡话术(≤12 字先应声),不能当整段答案重播 —— 一律确定性兜底。
         speech.discardHop1();
-        result.response = contract.responseToUser || `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
+        result.response = `没找到这个 agent(${contract.targetAgentName || contract.targetAgentId})。`;
         logQueryChain({
           phase: 'completed',
           request: requestPreview,
@@ -2651,6 +2653,11 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         material = buildDelegationQueryMaterial({ bossName: target.name, entries });
         subordinateIds = entries.map((e) => e.agentId);
       }
+
+      // W4 感知提速:至此已确定要走第二跳(目标有效、Boss 树有委派)—— 放行缓冲的
+      // 过渡话术(「在,我去看一眼」)即刻出声,等待不再静默;带 pre 标记,不参与客户端
+      // 最终对账(否则 hop2 答案到达时会因不等而整段重播)。
+      speech.releaseHop1({ pre: true });
 
       const excerpt = material ?? await fetchAgentOutputExcerpt(target.id);
       const hop2Started = Date.now();
@@ -2830,7 +2837,10 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     // (send/query 缺 targetAgentId 的畸形契约也会落到这里:缓冲丢弃,
     //  由 spoke=false 让客户端按 result.response 整段补播。)
     speech.discardHop1();
-    if (!result.response) {
+    if (contract.action === 'query_agent_output') {
+      // W4:query 的 responseToUser 现在是过渡话术(≤12 字),缺目标时不能当答案播。
+      result.response = '没听清要查谁,说个名字我再去看。';
+    } else if (!result.response) {
       if (contract.action === 'list_agents') {
         result.response = buildAgentListFallback();
       } else {

@@ -1162,7 +1162,7 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).toContain('没听清要让它做什么');
   });
 
-  it('G6-6 answers query_agent_output with a second hop(no resume, hop2 prompt, hop1 speech discarded)', async () => {
+  it('G6-6 answers query_agent_output with a second hop(no resume, hop2 prompt, hop1 过渡话术先播)', async () => {
     writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
     mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle', taskLabel: '登录页' });
     mockHistory = [
@@ -1172,14 +1172,20 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     ];
 
     const sentences: string[] = [];
-    const p = startProcess('小美最近干了什么', { onSentence: (s) => sentences.push(s) });
+    const metas: (undefined | { pre?: boolean })[] = [];
+    const p = startProcess('小美最近干了什么', {
+      onSentence: (s, m) => {
+        sentences.push(s);
+        metas.push(m);
+      },
+    });
     const call1 = await waitSpawn(1);
     expect(resumeIdOf(call1)).toBe('sess-1');
     await completeWith(call1.child, contractText({
       action: 'query_agent_output',
       targetAgentId: 'a1',
       query: '最近干了什么',
-      responseToUser: '（hop1 不该播报）好的。',
+      responseToUser: '在,我去看一眼。',
     }), { via: 'delta' });
 
     const call2 = await waitSpawn(2);
@@ -1196,7 +1202,29 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).toBe('小美刚完成了登录页,还修了一个 bug。');
     expect(typeof r.secondHopMs).toBe('number');
     expect(r.targetAgent).toEqual({ id: 'a1', name: '小美' });
-    expect(sentences).toEqual(['小美刚完成了登录页,还修了一个 bug。']); // 只播 hop2
+    // W4:过渡话术照播(带 pre,不参与客户端最终对账),hop2 答案随后跟播(不带 pre)。
+    expect(sentences).toEqual(['在,我去看一眼。', '小美刚完成了登录页,还修了一个 bug。']);
+    expect(metas).toEqual([{ pre: true }, undefined]);
+    expect(r.spoke).toBe(true);
+  });
+
+  it('G6-6b query 目标不存在:过渡句不出声也不当答案,确定性兜底(W4)', async () => {
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    const sentences: string[] = [];
+    const p = startProcess('幽灵最近干了什么', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'query_agent_output',
+      targetAgentId: 'nope',
+      targetAgentName: '幽灵',
+      query: '最近干了什么',
+      responseToUser: '在,我去看一眼。',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(sentences).toEqual([]); // 没查成功:过渡句丢弃(不空应声)
+    expect(spawnCalls).toHaveLength(1); // 不跑第二跳
+    expect(r.response).toBe('没找到这个 agent(幽灵)。'); // 不拿过渡话术当整段答案
   });
 
   it('G6-7 degrades hop2 failures into a deterministic excerpt summary', async () => {
@@ -1594,14 +1622,21 @@ describe('任务07·④ 查进度走下属(委派树 query)', () => {
     });
 
     const sentences: string[] = [];
-    const p = startProcess('团队那个任务到哪了', { onSentence: (s) => sentences.push(s) });
+    const metas: (undefined | { pre?: boolean })[] = [];
+    const p = startProcess('团队那个任务到哪了', {
+      onSentence: (s, m) => {
+        sentences.push(s);
+        metas.push(m);
+      },
+    });
     const call1 = await waitSpawn(1);
     await completeWith(call1.child, contractText({
       action: 'query_agent_output',
       targetAgentId: 'b1',
       targetAgentName: '大当家',
       query: '团队那个任务到哪了',
-    }));
+      responseToUser: '在,我去看一眼。',
+    }), { via: 'delta' });
 
     const call2 = await waitSpawn(2);
     const hop2User = stdinUserContent(call2);
@@ -1618,7 +1653,9 @@ describe('任务07·④ 查进度走下属(委派树 query)', () => {
     const r = await p;
     expect(r.response).toContain('小美');
     expect(r.targetAgent).toEqual({ id: 'b1', name: '大当家' });
-    expect(sentences).toEqual(['小美已经完成登录页重构,阿强还在改接口层。']); // 只播 hop2(hop1 话术被闸门丢弃)
+    // W4:hop1 过渡话术照播(pre)+ hop2 答案。
+    expect(sentences).toEqual(['在,我去看一眼。', '小美已经完成登录页重构,阿强还在改接口层。']);
+    expect(metas).toEqual([{ pre: true }, undefined]);
 
     // 🔴④ 观测点:system_log 可查出 路由判定 / 查了哪些下属 / hop 次数 / 耗时 / 返回摘要
     const rows = queryChainRows();

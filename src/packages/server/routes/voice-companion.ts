@@ -47,7 +47,8 @@ const ERROR_CODE = {
 
 /**
  * 分句流式分支(body.stream === true):NDJSON 逐行下推。
- *   {"type":"sentence","text":"…"}   模型边生成边播的整句(可能 0..n 行)
+ *   {"type":"sentence","text":"…","pre"?:true}  模型边生成边播的整句(可能 0..n 行);
+ *                                     pre=true 的过渡/垫话句照播但不参与客户端最终对账
  *   {"type":"final","result":{…},"spoke":bool}  最终结果;spoke=false 时客户端
  *                                     应按 result.response 整段补播
  *   {"type":"error","error":"…","code":"…","details":"…"}  失败
@@ -67,16 +68,16 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
     const result = await processVoiceInput(text, {
       isEvent,
       signal: controller.signal,
-      onSentence: (sentence) => {
+      onSentence: (sentence, meta) => {
         // tMs = 该句自请求受理起的服务端毫秒数(P5 延迟打点:配合客户端到达
         // 时间戳可拆分「服务端生成」与「网络+客户端」两段)。
         const tMs = Date.now() - startedAt;
         if (!firstSentenceLogged) {
           // W6 感知提速观测:首句到达打点(与同刻客户端锚点对表用)。
           firstSentenceLogged = true;
-          logger.server.log(`[VoiceCompanion] 首句 tMs=${tMs} chars=${Array.from(sentence).length}`);
+          logger.server.log(`[VoiceCompanion] 首句 tMs=${tMs} chars=${Array.from(sentence).length}${meta?.pre ? ' pre' : ''}`);
         }
-        writeNdjsonLine(res, { type: 'sentence', text: sentence, tMs });
+        writeNdjsonLine(res, { type: 'sentence', text: sentence, tMs, ...(meta?.pre ? { pre: true } : {}) });
       },
     });
     if (!firstSentenceLogged) {
