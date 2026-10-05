@@ -145,6 +145,21 @@ describe('取消 / 列表 / 上限', () => {
     expect(service.listDue()[0].fireAt).toBe(T0 + 120_000);
   });
 
+  it('待播逾期 >1h 未取件:下次 listDue 自动取消(与 rearm 同口径,防陈年补播)', () => {
+    const { service, pushed, advance } = makeService();
+    const res = service.register(createCmd('两分钟后提醒我喝水', T0), '两分钟后提醒我喝水');
+    if (!res.ok) throw new Error('unreachable');
+    advance(120_000); // 到点 → due(推送过,但页面不在线)
+    expect(pushed).toHaveLength(1);
+
+    advance(30 * 60_000); // 晚 30 分钟取件:仍在窗口内
+    expect(service.listDue()).toHaveLength(1);
+
+    advance(31 * 60_000); // 累计晚 61 分钟 > 1h → 逾期
+    expect(service.listDue()).toHaveLength(0);
+    expect(service.ack(res.reminder.id)).toBe(false); // 已 cancelled,回执拒绝
+  });
+
   it(`pending 上限 ${REMINDER_MAX_PENDING} 条,第 11 条拒绝(cap)`, () => {
     const { service } = makeService();
     for (let i = 0; i < REMINDER_MAX_PENDING; i++) {

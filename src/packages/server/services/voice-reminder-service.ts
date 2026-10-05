@@ -298,10 +298,27 @@ export class VoiceReminderService {
       .sort((a, b) => a.fireAt - b.fireAt);
   }
 
-  /** 待播(due)记录,按到点时间升序(客户端轮询兜底用)。 */
+  /**
+   * 待播(due)记录,按到点时间升序(客户端轮询兜底用)。
+   * 顺手清理逾期未取件的 due(页面一直没来取、晚于补播窗口):转 cancelled——
+   * 与 rearm 的「≤1h 补播,>1h 取消」同口径,防几天前的提醒下次进页突然炸响。
+   */
   listDue(): VoiceReminder[] {
-    return this.store
-      .load()
+    const all = this.store.load();
+    const now = this.now();
+    let changed = false;
+    for (const r of all) {
+      if (r.status === 'due' && now - r.fireAt > REMINDER_LATE_DELIVER_WINDOW_MS) {
+        r.status = 'cancelled';
+        r.closedAt = now;
+        changed = true;
+        logger.server.log(
+          `[VoiceReminder] 待播逾期取消(晚 ${now - r.fireAt}ms > 1h 未取件) id=${r.id} 事项="${r.itemText}"`,
+        );
+      }
+    }
+    if (changed) this.persist(all);
+    return all
       .filter((r) => r.status === 'due')
       .sort((a, b) => a.fireAt - b.fireAt);
   }
