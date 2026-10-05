@@ -3,12 +3,16 @@
  *
  * 覆盖：信号构造（含 dedupeKey/评分/时效）、跨日重置纯函数、扫描主流程四档
  * （SPEAK / PREPARE 深夜与攒批 / STORE 预算用尽 / SILENT 重复）、跨日预算回滚、
- * speak 降级 notice、fetch 失败兜底、cron 注册点幂等与可停。
+ * speak 降级 notice、fetch 失败兜底、cron 注册点幂等与可停、
+ * 任务29 晨报覆盖账（全查全有跳过 / 部分覆盖照常 / 无账与跨日不串）。
  *
  * 依赖 mock：voice-companion-service（logProactiveBroadcast 探针，不加载真实重模块）、
  * data/system-log（logEvent 探针，断言 bolba-sync 行）。
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SignalQueue } from '../jarvis-core/index.js';
 import {
@@ -18,6 +22,7 @@ import {
   rolloverGatesStateForNewDay,
   runBolbaDueReminderScan,
 } from './bolba-due-reminder-service.js';
+import { FileMorningCoverageStore } from './morning-coverage-store.js';
 import type { BolbaApiTask } from './bolba-bridge-service.js';
 import * as cronService from './cron-service.js';
 
@@ -65,6 +70,15 @@ function seededQueue(now: Date, spokenToday: number): SignalQueue {
   return queue;
 }
 
+const coverageDirs: string[] = [];
+
+/** 任务29：临时覆盖账（显式注入，绝不碰真实 XDG 路径）。 */
+function tmpCoverageStore(): FileMorningCoverageStore {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bolba-due-coverage-'));
+  coverageDirs.push(dir);
+  return new FileMorningCoverageStore({ filePath: path.join(dir, 'coverage.json') });
+}
+
 beforeEach(() => {
   broadcastMock.mockClear();
   logEventMock.mockClear();
@@ -73,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cronService.stopBolbaDueReminderJob();
+  for (const dir of coverageDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 // ============================================================================
@@ -303,5 +318,88 @@ describe('startBolbaDueReminderJob', () => {
   it('注册点与真实扫描模块可拼接（callback 存在且为函数）', () => {
     const job = cronService.startBolbaDueReminderJob();
     expect(typeof job.callback).toBe('function');
+  });
+});
+
+// ============================================================================
+// 任务29：晨报覆盖账（读侧去重）——「全部覆盖才跳过」的降级口径
+// ============================================================================
+
+describe('runBolbaDueReminderScan — 晨报覆盖账（任务29）', () => {
+  it('当日到期任务全部已随晨报播出 → 跳过独播：decisions 空 + morning-covered 日志 + 不调播报出口', async () => {
+    const coverageStore = tmpCoverageStore();
+    coverageStore.recordCoverage({ day: '2026-10-05', bolbaTaskIds: [1, 2, 3] });
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({ fetchTasks: async () => DUE_TASKS, now: () => NOW8, queue, coverageStore });
+
+    expect(r).toMatchObject({ scanned: 5, due: 3, decisions: [], degraded: false, coveredByMorningReport: true });
+    expect(broadcastMock).not.toHaveBeenCalled();
+    expect(queue.preparedCount).toBe(0); // 没进队列，不占当日预算
+    expect(syncLogs().some((row) => row.op === 'scan' && row.reason === 'morning-covered')).toBe(true);
+  });
+
+  it('部分覆盖 → 照常独播（v1 不做部分去重，防漏报）', async () => {
+    const coverageStore = tmpCoverageStore();
+    coverageStore.recordCoverage({ day: '2026-10-05', bolbaTaskIds: [1, 2] }); // 缺 3
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({ fetchTasks: async () => DUE_TASKS, now: () => NOW8, queue, coverageStore });
+
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'urgent' }]);
+    expect(r.coveredByMorningReport).toBeUndefined();
+    expect(broadcastMock).toHaveBeenCalledTimes(1);
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'bolba_due_reminder',
+      text: expect.stringContaining('今天要盯 3 件'),
+    }));
+    expect(syncLogs().some((row) => row.op === 'scan' && row.reason === 'morning-covered')).toBe(false);
+  });
+
+  it('无覆盖账（无晨报数据日）→ 照常独播', async () => {
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({
+      fetchTasks: async () => DUE_TASKS,
+      now: () => NOW8,
+      queue,
+      coverageStore: tmpCoverageStore(), // 空账
+    });
+
+    expect(r).toMatchObject({ due: 3, decisions: [{ tier: 'SPEAK', reason: 'urgent' }] });
+    expect(broadcastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('覆盖账是别的日键 → 不生效（跨日不串，昨日覆盖不静默今日）', async () => {
+    const coverageStore = tmpCoverageStore();
+    coverageStore.recordCoverage({ day: '2026-10-04', bolbaTaskIds: [1, 2, 3] });
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({ fetchTasks: async () => DUE_TASKS, now: () => NOW8, queue, coverageStore });
+
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'urgent' }]);
+    expect(broadcastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('严格全查全有：覆盖账多出一条不相干 id 不影响（以本次到期集为准）', async () => {
+    const coverageStore = tmpCoverageStore();
+    coverageStore.recordCoverage({ day: '2026-10-05', bolbaTaskIds: [1, 2, 3, 99] });
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({ fetchTasks: async () => DUE_TASKS, now: () => NOW8, queue, coverageStore });
+
+    expect(r.coveredByMorningReport).toBe(true);
+    expect(broadcastMock).not.toHaveBeenCalled();
+  });
+
+  it('无到期任务（no-due）→ 原有分支不变，不读账也不播报', async () => {
+    const coverageStore = tmpCoverageStore();
+    const queue = new SignalQueue({ now: NOW8.getTime() });
+    const r = await runBolbaDueReminderScan({
+      fetchTasks: async () => [task({ id: 4, title: 'D 两周后', due: '2026-10-20' })],
+      now: () => NOW8,
+      queue,
+      coverageStore,
+    });
+
+    expect(r).toMatchObject({ scanned: 1, due: 0, decisions: [], degraded: false });
+    expect(r.coveredByMorningReport).toBeUndefined();
+    expect(broadcastMock).not.toHaveBeenCalled();
+    expect(syncLogs().some((row) => row.op === 'scan' && row.reason === 'no-due')).toBe(true);
   });
 });

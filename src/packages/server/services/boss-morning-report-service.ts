@@ -13,6 +13,14 @@
  *   - PREPARE → 留在队列 prepared 缓冲（自然开口点 flush 未接，与任务13 同缺口）；
  *   - STORE → 只登记 system_log，不写 broadcast 假装已上屏（服务端无上屏消费者）。
  *
+ * 任务29（晨报与 13 排序去重）：
+ *   - 「今日待办」due 段扩为 union：委派卡 due ∪ Bolba 到期（复用 13 的
+ *     selectDueSoonTasks/classifyBolbaDue/renderDueReport，同 horizon）；
+ *   - 并入前查当日 broadcast 日志：已有 bolba_due_reminder 独播（13 先跑）→ 不并入（防双播）；
+ *   - 并入且真的播出去后写覆盖账（morning-coverage-store），13 读账后跳过独播
+ *     （对称防双播，与两服务触发顺序无关）；
+ *   - 反射草稿/主动发现第三来源 = 阻塞登记，本任务不实现（触发条件 = 任务28 LLM 通道接通）。
+ *
  * 边界与已知缺口（登记备查 2026-10-04）：
  *   - 病历只读（loadDelegationHistory），不写任何 Boss/委派数据（两本账不混）；
  *   - 队列无持久化：服务重启丢失预算计数/幂等键，同日可能重复播报一次（与客户端同口径）；
@@ -39,9 +47,18 @@ import type {
 } from '../../shared/broadcast-gates.js';
 import type { DelegationCompletion, DelegationDecision } from '../../shared/types.js';
 import { loadDelegationHistory } from '../data/index.js';
-import { logEvent } from '../data/system-log.js';
+import { logEvent, querySystemLog, type SystemLogEntry, type SystemLogQuery } from '../data/system-log.js';
 import { truncateOrEmpty } from '../utils/index.js';
 import { logProactiveBroadcast } from './voice-companion-service.js';
+// 任务29：Bolba 到期并入（复用 13 的数据源与渲染，不碰 Bolba 账）
+import {
+  fetchPendingBolbaTasks,
+  renderDueReport,
+  selectDueSoonTasks,
+  type BolbaApiTask,
+} from './bolba-bridge-service.js';
+import { BOLBA_DUE_REMINDER_ACTION } from './bolba-due-reminder-service.js';
+import { getMorningCoverageStore, type MorningCoverageStore } from './morning-coverage-store.js';
 // 任务19·A·⑮ P2：日报进 ⑨ 晨报聚合的只读数据源（缺文件静默跳过；只读，不写日报账）
 import { readLatestDailyReport, type DailyReportDigest } from './daily-log-report-service.js';
 
@@ -62,6 +79,10 @@ const NO_PROJECT_LABEL = '未归项目';
 const OPEN_TASK_CARD_STATUSES: ReadonlySet<string> = new Set(['pending', 'queued', 'running']);
 /** due 为 date-only 'YYYY-MM-DD'（与 TaskCard.due 契约同形）；形状不符按「无 due」跳过，不猜测。 */
 const DUE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** 任务29：Bolba 到期并入视野（与 13·⑩ DUE_HORIZON_DAYS 同值 1；有意本地复制——只引 13 的动作常量 BOLBA_DUE_REMINDER_ACTION 作查重判据，不引其余）。 */
+const BOLBA_DUE_HORIZON_DAYS = 1;
+/** 任务29：当日 broadcast 日志查询上限（08:00 前当日播报量很小；超限宁可漏判，也不拖慢晨报）。 */
+const BROADCAST_LOOKBACK_LIMIT = 500;
 
 // ─── 时间与文本工具 ───
 
@@ -110,7 +131,54 @@ function renderDueItem(record: DelegationDecision, due: string, todayStr: string
   return `${actor} 在办「${truncateOrEmpty(goal, GOAL_MAX)}」（${dueNote}）`;
 }
 
+// ─── 当日广播日志查询（任务29：与 13 的防双播判据） ───
+
+/**
+ * 当日本地日历日（00:00 ≤ ts < 次日 00:00）内是否已有 bolba_due_reminder 的
+ * server-sent 播报（13·⑩ 先跑过）。命中 → 晨报不并入 Bolba 到期（13 已独播，防双播）。
+ * body 是落库 JSON 串，需自行 parse；**查询抛错返回 true**（保守——方向选防双播）。
+ * 已知残留（独立验证 Low）：抛错恰逢 13 侧当日也静默（预算 STORE / 其 fetch 失败）时，
+ * 该日可能无人播 Bolba；触发前提是 EventDB 故障（此时写日志同样失败，非新增回归）。
+ */
+export function hasBolbaDueBroadcastToday(
+  now: Date,
+  query: (opts: SystemLogQuery) => readonly SystemLogEntry[] = querySystemLog,
+): boolean {
+  try {
+    // 次日 00:00 不含（跨 DST 由 Date 构造器归一，不做固定 24h 运算）
+    const nextDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const rows = query({
+      category: 'broadcast',
+      since: dayStartMillis(now),
+      until: nextDayStart - 1,
+      limit: BROADCAST_LOOKBACK_LIMIT,
+    });
+    return rows.some((row) => {
+      if (!row.body) return false;
+      try {
+        const body = JSON.parse(row.body) as { action?: unknown; phase?: unknown };
+        return body.action === BOLBA_DUE_REMINDER_ACTION && body.phase === 'server-sent';
+      } catch {
+        return false; // body 非 JSON（纯字符串正文）→ 不是目标播报
+      }
+    });
+  } catch {
+    return true;
+  }
+}
+
 // ─── 信号构造（纯函数） ───
+
+/**
+ * 任务29：Bolba 到期并入输入（IO 由扫描层准备——builder 保持纯函数，可单测）。
+ * `alreadyBroadcast` = 当日已有 bolba_due_reminder 独播（见 hasBolbaDueBroadcastToday）。
+ */
+export interface MorningReportBolbaInput {
+  /** 已拉取的 Bolba 在办任务（拉取失败 → 传空数组，等同不并入）。 */
+  tasks: readonly BolbaApiTask[];
+  /** true = 13 已独播 → 整体不并入（防双播，与触发顺序无关）。 */
+  alreadyBroadcast: boolean;
+}
 
 /**
  * 晨报信号（一天一条聚合：dedupeKey 按扫描日 → 同日重复扫描走幂等 SILENT）。
@@ -134,11 +202,18 @@ function renderDueItem(record: DelegationDecision, due: string, todayStr: string
  * → 加权 77（0.5·65+0.3·85+0.2·95）< 85，刻意不走 urgent——晨报是定点自然开口点，
  * 急迫性低，不必抢占紧急高分位；用 timeSensitive 表达「晨间定点」时效，过闸门④
  * 以 'time_sensitive' 走 SPEAK，但仍受闸门②③（深夜/打扰/预算/口播子配额）约束。
+ *
+ * 任务29：`bolba` = Bolba 到期并入（13·⑩ 同源数据；due ≤ 明日，与 13 同 horizon）。
+ * 13 当日已独播（alreadyBroadcast）→ 整体不并入；否则渲染成独立一句
+ * 「板上待办：今天要盯 N 件：…。」接在「今日待办」之后、日报之前。并入条数与
+ * bolbaTaskIds 落 payload，投递成功后由扫描层写覆盖账（13 读账跳过，对称防双播）。
+ * 纯函数：拉取/查询/写账都在扫描层，本函数只做筛选、渲染与判定。
  */
 export function buildMorningReportSignal(
   records: readonly DelegationDecision[],
   now: Date,
   dailyReport?: DailyReportDigest | null,
+  bolba?: MorningReportBolbaInput | null,
 ): RawSignal | null {
   const todayStart = dayStartMillis(now);
   const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
@@ -189,8 +264,14 @@ export function buildMorningReportSignal(
     ? `今日待办：${dueOrdered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`
     : '';
 
-  // 昨日无产出且无日报且无到期待办 → null（不空发）；任一句在即成信号。
-  if (yesterday.length === 0 && !digestClause && !dueClause) return null;
+  // ─── 任务29：Bolba 到期并入（「今日待办」第二来源；13 已独播则整体不并入） ───
+  const bolbaDue = bolba && !bolba.alreadyBroadcast
+    ? selectDueSoonTasks(bolba.tasks, now, BOLBA_DUE_HORIZON_DAYS)
+    : [];
+  const bolbaClause = bolbaDue.length > 0 ? `板上待办：${renderDueReport(bolbaDue, now)}` : '';
+
+  // 昨日无产出且无日报且无到期待办（委派卡与 Bolba 都无）→ null（不空发）；任一句在即成信号。
+  if (yesterday.length === 0 && !digestClause && !dueClause && !bolbaClause) return null;
 
   interface Segment {
     label: string;
@@ -213,7 +294,7 @@ export function buildMorningReportSignal(
   const yesterdayClause = yesterday.length > 0
     ? `昨日要点：${ordered.map((s) => `${s.label}：${s.items.join('，')}`).join('；')}。`
     : '';
-  const text = `${yesterdayClause}${dueClause}${digestClause}`;
+  const text = `${yesterdayClause}${dueClause}${bolbaClause}${digestClause}`;
 
   return {
     source: 'memory',
@@ -230,6 +311,10 @@ export function buildMorningReportSignal(
       /** 任务17·A2：due ≤ 今日的在办卡数（done/cancelled 与无 due/形状不符者不计）。 */
       dueCount: dueCards.length,
       dueProjects: dueOrdered.map((s) => s.projectId),
+      /** 任务29：并入播报的 Bolba 到期条数（13 已独播/无到期 → 0）。 */
+      bolbaDueCount: bolbaDue.length,
+      /** 任务29：并入的 Bolba 任务 id（覆盖账写入源；13 读账去重用）。 */
+      bolbaTaskIds: bolbaDue.map((t) => t.id),
       ...(digest
         ? {
             dailyReport: {
@@ -305,6 +390,8 @@ interface MorningReportLogFields {
   reason?: BroadcastReason | 'disabled' | 'no-yesterday';
   /** 任务19·A·⑮ P2：本条晨报是否聚合了日报（generate）。 */
   dailyReport?: boolean;
+  /** 任务29：并入播报的 Bolba 到期条数（generate；已独播跳过/无到期 → 0）。 */
+  bolbaDue?: number;
   error?: string;
 }
 
@@ -325,6 +412,7 @@ function logMorningReport(fields: MorningReportLogFields): void {
       tier: fields.tier,
       reason: fields.reason,
       dailyReport: fields.dailyReport,
+      bolbaDue: fields.bolbaDue,
       error: fields.error,
     },
   });
@@ -385,10 +473,16 @@ export interface BossMorningReportScanDeps {
   queue?: SignalQueue;
   /** 端口覆盖（测试用）。 */
   ports?: DeliveryPorts;
-  /** 投递覆盖（测试用：观察 ConsumedSignal，不真投递）。 */
+  /** 投递覆盖（测试用：观察 ConsumedSignal，不真投递；不写覆盖账）。 */
   deliver?: (consumed: ConsumedSignal) => void | Promise<void>;
   /** 日报摘要读取覆盖（测试用）；缺省 readLatestDailyReport（缺文件返回 null）。 */
   readDailyReport?: () => DailyReportDigest | null;
+  /** 任务29：Bolba 在办任务拉取覆盖（测试用）；缺省 fetchPendingBolbaTasks；抛错静默跳过不并入。 */
+  fetchBolbaTasks?: () => Promise<readonly BolbaApiTask[]>;
+  /** 任务29：当日是否已有 bolba_due_reminder 独播（测试用）；缺省 hasBolbaDueBroadcastToday。 */
+  hasBolbaBroadcastToday?: (now: Date) => boolean;
+  /** 任务29：覆盖账（测试注入临时文件）；缺省进程单例（XDG 数据目录）。 */
+  coverageStore?: MorningCoverageStore;
 }
 
 export interface BossMorningReportScanResult {
@@ -407,6 +501,10 @@ export interface BossMorningReportScanResult {
   disabled?: boolean;
   /** 任务19·A·⑮ P2：本次晨报信号是否聚合了每日日志分析日报。 */
   dailyReportIncluded: boolean;
+  /** 任务29：并入播报的 Bolba 到期条数（0 = 无到期/13 已独播跳过/拉取失败）。 */
+  bolbaDue: number;
+  /** 任务29：本次是否写入覆盖账（并入且真的播出才写）。 */
+  coverageRecorded: boolean;
 }
 
 /**
@@ -416,7 +514,17 @@ export async function runBossMorningReportScan(
   deps: BossMorningReportScanDeps = {},
 ): Promise<BossMorningReportScanResult> {
   const now = (deps.now ?? (() => new Date()))();
-  const empty = { bosses: 0, scanned: 0, yesterday: 0, segments: 0, decisions: [], degraded: false, dailyReportIncluded: false };
+  const empty = {
+    bosses: 0,
+    scanned: 0,
+    yesterday: 0,
+    segments: 0,
+    decisions: [],
+    degraded: false,
+    dailyReportIncluded: false,
+    bolbaDue: 0,
+    coverageRecorded: false,
+  };
 
   // 关闭开关在扫描入口读：关 = 不读盘、不投递（06-11 §6.4）。
   if (!isMorningReportEnabled()) {
@@ -442,8 +550,21 @@ export async function runBossMorningReportScan(
     dailyReport = null;
   }
 
+  // 任务29：Bolba 到期并入 —— 只在真有到期任务时才查当日广播日志（先查后并，
+  // 避免无谓读账）；拉取/查询异常一律静默跳过（绝不打断晨报）。
+  let bolbaInput: MorningReportBolbaInput | null = null;
+  try {
+    const bolbaTasks = await (deps.fetchBolbaTasks ?? fetchPendingBolbaTasks)();
+    if (selectDueSoonTasks(bolbaTasks, now, BOLBA_DUE_HORIZON_DAYS).length > 0) {
+      const alreadyBroadcast = (deps.hasBolbaBroadcastToday ?? hasBolbaDueBroadcastToday)(now);
+      bolbaInput = { tasks: bolbaTasks, alreadyBroadcast };
+    }
+  } catch {
+    bolbaInput = null;
+  }
+
   const records = [...histories.values()].flat();
-  const signal = buildMorningReportSignal(records, now, dailyReport);
+  const signal = buildMorningReportSignal(records, now, dailyReport, bolbaInput);
   if (!signal) {
     logMorningReport({ op: 'scan', ok: true, count: records.length, reason: 'no-yesterday' });
     return { ...empty, bosses: histories.size, scanned: records.length };
@@ -451,6 +572,7 @@ export async function runBossMorningReportScan(
 
   const payload = payloadOf(signal);
   const dailyReportIncluded = !!((signal.payload ?? {}) as { dailyReport?: unknown }).dailyReport;
+  const bolbaTaskIds = ((signal.payload ?? {}) as { bolbaTaskIds?: (string | number)[] }).bolbaTaskIds ?? [];
   logMorningReport({ op: 'scan', ok: true, count: records.length, yesterday: payload.count });
   logMorningReport({
     op: 'generate',
@@ -460,9 +582,11 @@ export async function runBossMorningReportScan(
     segments: payload.segments,
     dedupeKey: signal.dedupeKey,
     dailyReport: dailyReportIncluded,
+    bolbaDue: bolbaTaskIds.length,
   });
 
   const decisions: { tier: BroadcastTier; reason: BroadcastReason }[] = [];
+  let spoken = false;
   try {
     const queue = deps.queue ?? (morningReportQueue ??= new SignalQueue({ now: now.getTime() }));
     // 跨日重置归零预算计数（残余风险接管：日历语义由接线层判断）。
@@ -473,8 +597,14 @@ export async function runBossMorningReportScan(
     const consumed = queue.consumeAll();
     const ports = deps.ports ?? createMorningReportPorts();
     for (const entry of consumed) {
-      if (deps.deliver) await deps.deliver(entry);
-      else await deliverDecision(entry.signal, entry.decision, ports);
+      if (deps.deliver) {
+        // 测试/高级覆盖：注释约定「不真投递」——不据此判定已播出（不写覆盖账）。
+        await deps.deliver(entry);
+      } else {
+        const result = await deliverDecision(entry.signal, entry.decision, ports);
+        // voice = speak 出口成功；notice = speak 不可用的降级上屏——两者都真的发出了播报。
+        if (result.channel === 'voice' || result.channel === 'notice') spoken = true;
+      }
       decisions.push({ tier: entry.decision.tier, reason: entry.decision.reason });
     }
   } catch (err) {
@@ -486,6 +616,7 @@ export async function runBossMorningReportScan(
       yesterday: payload.count,
       segments: payload.segments,
       dedupeKey: signal.dedupeKey,
+      bolbaDue: bolbaTaskIds.length,
       error: errMessage(err),
     });
     return {
@@ -496,7 +627,24 @@ export async function runBossMorningReportScan(
       decisions,
       degraded: true,
       dailyReportIncluded,
+      bolbaDue: bolbaTaskIds.length,
+      coverageRecorded: false,
     };
+  }
+
+  // 任务29：并入的 Bolba 到期确实随晨报播出去之后，才写覆盖账（13 读账后跳过独播）。
+  // 只认真正上屏/口播的通道——PREPARE/STORE 没有发出声音，不得记账（否则 13 会因
+  // 「已覆盖」静默，用户什么都听不到）；写失败由覆盖账自身降级（13 照常独播）。
+  // 并发口径（任务29 独立验证锁定，勿破坏）：自 :558 查当日广播日志至本处写账，
+  // 全程同步代码 + 已决 Promise（speak 端口为同步 logProactiveBroadcast）——同一
+  // 宏任务内原子；勿在此段插入 I/O/定时器 await（会重开与 13 侧的真竞态）。
+  let coverageRecorded = false;
+  if (spoken && bolbaTaskIds.length > 0) {
+    (deps.coverageStore ?? getMorningCoverageStore()).recordCoverage({
+      day: formatDay(now.getTime()),
+      bolbaTaskIds,
+    });
+    coverageRecorded = true;
   }
 
   return {
@@ -507,5 +655,7 @@ export async function runBossMorningReportScan(
     decisions,
     degraded: false,
     dailyReportIncluded,
+    bolbaDue: bolbaTaskIds.length,
+    coverageRecorded,
   };
 }

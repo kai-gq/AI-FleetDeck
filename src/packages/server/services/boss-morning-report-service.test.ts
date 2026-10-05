@@ -7,19 +7,29 @@
  * cron 注册点幂等与可停。
  *
  * 依赖 mock：voice-companion-service（logProactiveBroadcast 探针）、
- * data/system-log（logEvent 探针，断言 boss-morning-report 行）。
+ * data/system-log（logEvent/querySystemLog 探针，断言 boss-morning-report 行）、
+ * bolba-bridge-service（fetchPendingBolbaTasks 探针——缺省拉取置空，单测不碰网络；
+ * 任务29 的 Bolba 并入用显式 deps 注入）。
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SignalQueue } from '../jarvis-core/index.js';
 import {
   buildMorningReportSignal,
   createMorningReportPorts,
+  hasBolbaDueBroadcastToday,
   isMorningReportEnabled,
   resetBossMorningReportStateForTests,
   rolloverGatesStateForNewDay,
   runBossMorningReportScan,
 } from './boss-morning-report-service.js';
+import { BOLBA_DUE_REMINDER_ACTION } from './bolba-due-reminder-service.js';
+import { FileMorningCoverageStore } from './morning-coverage-store.js';
+import type { BolbaApiTask } from './bolba-bridge-service.js';
+import type { SystemLogEntry } from '../data/system-log.js';
 import type { DelegationDecision } from '../../shared/types.js';
 import * as cronService from './cron-service.js';
 
@@ -27,14 +37,29 @@ vi.mock('./voice-companion-service.js', () => ({ logProactiveBroadcast: vi.fn() 
 
 vi.mock('../data/system-log.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/system-log.js')>();
-  return { ...actual, logEvent: vi.fn() };
+  return { ...actual, logEvent: vi.fn(), querySystemLog: vi.fn(() => []) };
+});
+
+// 任务29：缺省 Bolba 拉取置空——既有用例不因真实拉取（本机 bolba 看板可能在线）而变红。
+vi.mock('./bolba-bridge-service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./bolba-bridge-service.js')>();
+  return { ...actual, fetchPendingBolbaTasks: vi.fn(async (): Promise<BolbaApiTask[]> => []) };
 });
 
 import { logProactiveBroadcast } from './voice-companion-service.js';
-import { logEvent } from '../data/system-log.js';
+import { logEvent, querySystemLog } from '../data/system-log.js';
 
 const broadcastMock = vi.mocked(logProactiveBroadcast);
 const logEventMock = vi.mocked(logEvent);
+const querySystemLogMock = vi.mocked(querySystemLog);
+const coverageDirs: string[] = [];
+
+/** 任务29：临时覆盖账（显式注入，绝不碰真实 XDG 路径）。 */
+function tmpCoverageStore(): FileMorningCoverageStore {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'morning-report-coverage-'));
+  coverageDirs.push(dir);
+  return new FileMorningCoverageStore({ filePath: path.join(dir, 'coverage.json') });
+}
 
 /** 2026-10-05 周一 08:00（本地时区）——非深夜、非 focus 窗口。 */
 const NOW8 = new Date(2026, 9, 5, 8, 0, 0);
@@ -124,12 +149,14 @@ function seededQueue(now: Date, spokenToday: number): SignalQueue {
 beforeEach(() => {
   broadcastMock.mockClear();
   logEventMock.mockClear();
+  querySystemLogMock.mockClear();
   resetBossMorningReportStateForTests();
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   cronService.stopBossMorningReportJob();
+  for (const dir of coverageDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 // ============================================================================
@@ -664,5 +691,254 @@ describe('buildMorningReportSignal — 今日待办（任务17·A2）', () => {
       action: 'boss_morning_report',
       text: '今日待办：未归项目：甲 在办「到期任务」（今日到期）。',
     }));
+  });
+});
+
+// ============================================================================
+// 任务29：Bolba 到期并入与覆盖账
+// ============================================================================
+
+/** 2026-10-05 视角：12 逾期一天、11 今天到期、13 两周后（不进并入视野）。 */
+const BOLBA_TASKS: BolbaApiTask[] = [
+  { id: 11, title: '报价单', status: 'open', due: '2026-10-05', proj: 'BOL' },
+  { id: 12, title: '证书续期', status: 'open', due: '2026-10-04' },
+  { id: 13, title: '远期安排', status: 'open', due: '2026-10-20' },
+];
+
+function broadcastEntry(ts: number, body: unknown): SystemLogEntry {
+  return { ts, category: 'broadcast', level: 'info', body: JSON.stringify(body) };
+}
+
+describe('hasBolbaDueBroadcastToday（任务29：防双播判据）', () => {
+  const ROW_TS = new Date(2026, 9, 5, 8, 0, 0).getTime();
+
+  it('命中 action=bolba_due_reminder + phase=server-sent → true；窗口按本地日历日（昨日行不算）', () => {
+    const rows = [
+      broadcastEntry(new Date(2026, 9, 4, 23, 59, 59).getTime(), { cat: 'broadcast', phase: 'server-sent', action: BOLBA_DUE_REMINDER_ACTION }),
+      broadcastEntry(ROW_TS, { cat: 'broadcast', phase: 'server-sent', action: BOLBA_DUE_REMINDER_ACTION }),
+      broadcastEntry(ROW_TS + 1, { cat: 'broadcast', phase: 'server-sent', action: 'boss_morning_report' }),
+    ];
+    // 模拟真实 SQL 的窗口过滤：ts >= since && ts <= until
+    const windowed = (opts: { since?: number; until?: number }) =>
+      rows.filter((r) => r.ts >= (opts.since ?? 0) && r.ts <= (opts.until ?? Number.MAX_SAFE_INTEGER));
+    const query = vi.fn(windowed);
+
+    expect(hasBolbaDueBroadcastToday(NOW8, query)).toBe(true);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'broadcast',
+      since: TODAY0,
+      until: new Date(2026, 9, 6).getTime() - 1,
+    }));
+    // 只有昨日那条（今天是空窗）→ false
+    expect(hasBolbaDueBroadcastToday(NOW8, (opts) =>
+      rows.slice(0, 1).filter((r) => r.ts >= (opts.since ?? 0) && r.ts <= (opts.until ?? 0)))).toBe(false);
+  });
+
+  it('负例：action 不符 / phase 非 server-sent / body 缺失或非 JSON → false', () => {
+    const rows = [
+      broadcastEntry(ROW_TS, { cat: 'broadcast', phase: 'server-sent', action: 'other_action' }),
+      broadcastEntry(ROW_TS, { cat: 'broadcast', phase: 'queued', action: BOLBA_DUE_REMINDER_ACTION }),
+      { ts: ROW_TS, category: 'broadcast', level: 'info' } as SystemLogEntry,
+      { ts: ROW_TS, category: 'broadcast', level: 'info', body: '纯文本正文' } as SystemLogEntry,
+    ];
+    expect(hasBolbaDueBroadcastToday(NOW8, () => rows)).toBe(false);
+  });
+
+  it('查询抛错 → true（保守：宁可晨报少并入一句，也要防与 13 双播）', () => {
+    expect(hasBolbaDueBroadcastToday(NOW8, () => { throw new Error('Event database not initialized.'); })).toBe(true);
+  });
+});
+
+describe('buildMorningReportSignal — Bolba 到期并入（任务29）', () => {
+  it('bolba 到期并入独立一句「板上待办」（逾期在前/项目标注）；payload 记条数与 id', () => {
+    const signal = buildMorningReportSignal([], NOW8, DIGEST, { tasks: BOLBA_TASKS, alreadyBroadcast: false });
+
+    expect(signal).not.toBeNull();
+    expect(signal?.text).toBe(
+      `板上待办：今天要盯 2 件：①『证书续期』已过期 1 天；②『报价单』今天到期（BOL）。日志分析：${DIGEST.summary}。`,
+    );
+    expect(signal?.payload).toMatchObject({ bolbaDueCount: 2, bolbaTaskIds: [12, 11] });
+    expect(signal?.text).not.toContain('远期安排'); // 两周后不进 horizon
+  });
+
+  it('顺序：昨日要点 → 今日待办（委派卡）→ 板上待办（Bolba）→ 日志分析', () => {
+    const signal = buildMorningReportSignal(
+      [
+        record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'p1' }),
+        record({ at: YDAY0 + 2000, agent: '乙', objective: 'Z', due: '2026-10-05', cardStatus: 'running', noCompletion: true, id: 'p2' }),
+      ],
+      NOW8,
+      null,
+      { tasks: BOLBA_TASKS, alreadyBroadcast: false },
+    );
+    expect(signal?.text).toBe(
+      '昨日要点：未归项目：甲 完成「Y」。今日待办：未归项目：乙 在办「Z」（今日到期）。板上待办：今天要盯 2 件：①『证书续期』已过期 1 天；②『报价单』今天到期（BOL）。',
+    );
+  });
+
+  it('13 已独播（alreadyBroadcast=true）→ 不并入（文本无「板上待办」、bolbaDueCount=0）', () => {
+    // bolba 是唯一内容且不并入 → 不空发
+    expect(buildMorningReportSignal([], NOW8, null, { tasks: BOLBA_TASKS, alreadyBroadcast: true })).toBeNull();
+
+    const withYesterday = buildMorningReportSignal(
+      [record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })],
+      NOW8,
+      null,
+      { tasks: BOLBA_TASKS, alreadyBroadcast: true },
+    );
+    expect(withYesterday?.text).toBe('昨日要点：未归项目：甲 完成「Y」。');
+    expect(withYesterday?.text).not.toContain('板上待办');
+    expect(withYesterday?.payload).toMatchObject({ bolbaDueCount: 0, bolbaTaskIds: [] });
+  });
+
+  it('负例：无到期 bolba（仅远期）/ done 状态 / 不传 bolba → 无「板上待办」句', () => {
+    const far = buildMorningReportSignal(
+      [record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })],
+      NOW8,
+      null,
+      { tasks: [BOLBA_TASKS[2], { ...BOLBA_TASKS[0], status: 'done' }], alreadyBroadcast: false },
+    );
+    expect(far?.text).not.toContain('板上待办');
+    expect(far?.payload).toMatchObject({ bolbaDueCount: 0 });
+
+    const none = buildMorningReportSignal([record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd2' })], NOW8);
+    expect(none?.text).not.toContain('板上待办');
+    expect(none?.payload).toMatchObject({ bolbaDueCount: 0, bolbaTaskIds: [] });
+  });
+});
+
+describe('runBossMorningReportScan — Bolba 并入与覆盖账（任务29）', () => {
+  it('SPEAK 播出后写覆盖账（并入 ids）；text 含板上待办；generate 埋点 bolbaDue 如实', async () => {
+    const coverageStore = tmpCoverageStore();
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NOW8,
+      queue: new SignalQueue({ now: NOW8.getTime() }),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      hasBolbaBroadcastToday: () => false,
+      coverageStore,
+    });
+
+    expect(r).toMatchObject({ yesterday: 0, degraded: false, bolbaDue: 2, coverageRecorded: true });
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'time_sensitive' }]);
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'boss_morning_report',
+      text: expect.stringContaining('板上待办：今天要盯 2 件'),
+    }));
+    expect(reportLogs().some((row) => row.op === 'generate' && row.bolbaDue === 2)).toBe(true);
+    expect([...coverageStore.coveredIds('2026-10-05')].sort()).toEqual(['11', '12']);
+  });
+
+  it('当日已有 bolba_due_reminder 播报（默认查日志判定）→ 不并入、不写账', async () => {
+    const coverageStore = tmpCoverageStore();
+    querySystemLogMock.mockReturnValueOnce([
+      broadcastEntry(NOW8.getTime(), { cat: 'broadcast', phase: 'server-sent', action: BOLBA_DUE_REMINDER_ACTION }),
+    ]);
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue: new SignalQueue({ now: NOW8.getTime() }),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      coverageStore,
+    });
+
+    expect(r).toMatchObject({ yesterday: 1, bolbaDue: 0, coverageRecorded: false });
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.not.stringContaining('板上待办'),
+    }));
+    expect(querySystemLogMock).toHaveBeenCalledWith(expect.objectContaining({ category: 'broadcast', since: TODAY0 }));
+    expect(coverageStore.coveredIds('2026-10-05').size).toBe(0);
+  });
+
+  it('PREPARE（深夜攒批）/ STORE（预算用尽）没真的播出 → 不写账（13 不得被静默）', async () => {
+    const deepNightStore = tmpCoverageStore();
+    const r3 = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NOW3,
+      queue: new SignalQueue({ now: NOW3.getTime() }),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      hasBolbaBroadcastToday: () => false,
+      coverageStore: deepNightStore,
+    });
+    expect(r3.decisions).toEqual([{ tier: 'PREPARE', reason: 'deep_night' }]);
+    expect(r3).toMatchObject({ bolbaDue: 2, coverageRecorded: false });
+    expect(deepNightStore.coveredIds('2026-10-05').size).toBe(0);
+
+    const budgetStore = tmpCoverageStore();
+    const r10 = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NOW8,
+      queue: seededQueue(NOW8, 10),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      hasBolbaBroadcastToday: () => false,
+      coverageStore: budgetStore,
+    });
+    expect(r10.decisions).toEqual([{ tier: 'STORE', reason: 'budget_exhausted' }]);
+    expect(r10).toMatchObject({ coverageRecorded: false });
+    expect(budgetStore.coveredIds('2026-10-05').size).toBe(0);
+  });
+
+  it('deps.deliver 注入（不真投递）→ 不写账（覆盖账只认真实播出通道）', async () => {
+    const coverageStore = tmpCoverageStore();
+    const deliver = vi.fn();
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NOW8,
+      queue: new SignalQueue({ now: NOW8.getTime() }),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      hasBolbaBroadcastToday: () => false,
+      coverageStore,
+      deliver,
+    });
+
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ bolbaDue: 2, coverageRecorded: false });
+    expect(coverageStore.coveredIds('2026-10-05').size).toBe(0);
+  });
+
+  it('Bolba 拉取抛错 → 静默跳过（不降级、无板上待办、不写账）', async () => {
+    const coverageStore = tmpCoverageStore();
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue: new SignalQueue({ now: NOW8.getTime() }),
+      fetchBolbaTasks: async () => { throw new Error('ECONNREFUSED'); },
+      coverageStore,
+    });
+
+    expect(r).toMatchObject({ degraded: false, bolbaDue: 0, coverageRecorded: false });
+    expect(r.decisions).toEqual([{ tier: 'SPEAK', reason: 'time_sensitive' }]);
+    expect(broadcastMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.not.stringContaining('板上待办') }));
+  });
+
+  it('无 bolba 到期 → 不查当日广播日志（多余查询不做；负断言探针）', async () => {
+    const hasBroadcast = vi.fn(() => false);
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(record({ at: YDAY0 + 1000, agent: '甲', objective: 'Y', id: 'd1' })),
+      now: () => NOW8,
+      queue: new SignalQueue({ now: NOW8.getTime() }),
+      fetchBolbaTasks: async () => [BOLBA_TASKS[2]], // 仅远期
+      hasBolbaBroadcastToday: hasBroadcast,
+      coverageStore: tmpCoverageStore(),
+    });
+
+    expect(hasBroadcast).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ bolbaDue: 0, coverageRecorded: false });
+  });
+
+  it('跨日：次日扫描写次日的日键（13 按同日键读，昨日覆盖不串）', async () => {
+    const coverageStore = tmpCoverageStore();
+    const r = await runBossMorningReportScan({
+      loadHistory: () => history(),
+      now: () => NEXT_DAY8,
+      queue: new SignalQueue({ now: NEXT_DAY8.getTime() }),
+      fetchBolbaTasks: async () => BOLBA_TASKS,
+      hasBolbaBroadcastToday: () => false,
+      coverageStore,
+    });
+
+    expect(r.coverageRecorded).toBe(true);
+    expect([...coverageStore.coveredIds('2026-10-06')].sort()).toEqual(['11', '12']);
+    expect(coverageStore.coveredIds('2026-10-05').size).toBe(0);
   });
 });

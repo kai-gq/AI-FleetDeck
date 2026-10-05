@@ -162,6 +162,7 @@ describe('🟡⑨ 晨会生成与投递验收（真实 logEvent → querySystemL
       now: () => now,
       queue: new SignalQueue({ now: now.getTime() }),
       readDailyReport: () => null, // 验收 ⑨ 本体；⑮ 聚合口径在 boss 服务测试面另验
+      fetchBolbaTasks: async () => [], // 任务29：本用例验 ⑨ 本体，不拉 Bolba（也不写真实覆盖账）
     });
     expect(result).toMatchObject({ degraded: false, yesterday: 1, dailyReportIncluded: false });
 

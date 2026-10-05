@@ -12,6 +12,12 @@
  *   - PREPARE → 留在队列 prepared 缓冲（自然开口点 flush 未接，登记缺口）；
  *   - STORE → 只登记 system_log，不写 broadcast 假装已上屏（服务端无上屏消费者）。
  *
+ * 任务29（晨报与 13 排序去重）：播报前读晨报覆盖账（morning-coverage-store）——
+ * 当日本次到期任务**全部**已被晨报并入播出 → 跳过独播（仅登记日志，不发声）；
+ * 部分覆盖 → 维持现有行为照常独播（v1 不做部分去重，防漏报）；无账（无晨报数据日）
+ * → 照常独播。与晨报侧的「并入前查当日 bolba_due_reminder 广播」互为对称，防双播
+ * 且与两服务触发顺序无关。
+ *
  * 边界与已知缺口（登记备查 2026-10-04）：
  *   - 不碰 Boss 委派账本（两本账不混）；
  *   - 队列无持久化：服务重启丢失预算计数/幂等键，同日可能重复播报一次（与客户端同口径）；
@@ -44,6 +50,8 @@ import {
   type BolbaApiTask,
 } from './bolba-bridge-service.js';
 import { logProactiveBroadcast } from './voice-companion-service.js';
+// 任务29：晨报覆盖账（读侧）——晨报已并入并播出的到期任务不重复独播
+import { getMorningCoverageStore, type MorningCoverageStore } from './morning-coverage-store.js';
 
 // ─── 常量 ───
 
@@ -164,6 +172,8 @@ export interface BolbaDueScanDeps {
   ports?: DeliveryPorts;
   /** 投递覆盖（测试用：观察 ConsumedSignal，不真投递）。 */
   deliver?: (consumed: ConsumedSignal) => void | Promise<void>;
+  /** 任务29：晨报覆盖账（测试注入临时文件）；缺省进程单例（XDG 数据目录）。 */
+  coverageStore?: MorningCoverageStore;
 }
 
 export interface BolbaDueScanResult {
@@ -171,6 +181,8 @@ export interface BolbaDueScanResult {
   due: number;
   decisions: { tier: BroadcastTier; reason: BroadcastReason }[];
   degraded: boolean;
+  /** 任务29：因当日到期任务全部已随晨报播出而跳过独播（仅登记日志）。 */
+  coveredByMorningReport?: boolean;
 }
 
 /**
@@ -189,8 +201,30 @@ export async function runBolbaDueReminderScan(deps: BolbaDueScanDeps = {}): Prom
   }
 
   const signal = buildDueReminderSignal(tasks, now);
-  logBolbaSync({ op: 'scan', ok: true, count: tasks.length, ...(signal ? {} : { reason: 'no-due' }) });
-  if (!signal) return { scanned: tasks.length, due: 0, decisions: [], degraded: false };
+  if (!signal) {
+    logBolbaSync({ op: 'scan', ok: true, count: tasks.length, reason: 'no-due' });
+    return { scanned: tasks.length, due: 0, decisions: [], degraded: false };
+  }
+
+  // 任务29：晨报已把本日全部到期任务并入播出（覆盖账）→ 不再独播，仅登记日志。
+  // v1 口径：全查全有才跳过；部分覆盖照常独播（不做部分去重，防漏报）；无账照常。
+  // 并发口径（任务29 独立验证锁定，勿破坏）：自本处查账至 deliver 落播报日志
+  // （logProactiveBroadcast 同步写）只含同步代码 + 已决 Promise——同一宏任务内原子；
+  // 勿在「查账→落日志」之间插入 I/O/定时器 await（会重开与晨报侧查重的真竞态）。
+  const taskIds = ((signal.payload ?? {}) as { taskIds?: (string | number)[] }).taskIds ?? [];
+  const covered = (deps.coverageStore ?? getMorningCoverageStore()).coveredIds(formatDay(now.getTime()));
+  if (taskIds.length > 0 && taskIds.every((id) => covered.has(String(id)))) {
+    logBolbaSync({ op: 'scan', ok: true, count: tasks.length, reason: 'morning-covered' });
+    return {
+      scanned: tasks.length,
+      due: taskIds.length,
+      decisions: [],
+      degraded: false,
+      coveredByMorningReport: true,
+    };
+  }
+
+  logBolbaSync({ op: 'scan', ok: true, count: tasks.length });
 
   const queue = deps.queue ?? (reminderQueue ??= new SignalQueue({ now: now.getTime() }));
   // 跨日重置归零预算计数（残余风险接管：日历语义由接线层判断）。
