@@ -14,24 +14,47 @@
  *   病历=delegation/source=boss/phase ∈ completion-recorded|rating-recorded（boss-service.ts:717）。
  */
 
-import type { CanaryEntry, ProbeContext, ProbeDef } from '../types.js';
+import type { CanaryEntry, ProbeContext, ProbeDef, ProbeOutcome } from '../types.js';
 import {
-  assertCancelEvidence, assertThat, bodyString, bossIdSet, CANCEL_TASK_TEXT,
+  assertCancelEvidence, assertThat, bodyString, bossIdSet,
   dispatchedRows, entryEvidence, observedSummary, phaseOf, reportTask, sendTurn,
   SIMULATED_COMPLETION, sleep, truncate, waitDelegationPhase, waitDispatched,
-  delegationRows, queryRows,
+  delegationRows, queryRows, type TurnResult,
 } from '../runner.js';
 
 // ─── 无害任务模板 ───
 
+// 措辞与金丝雀 scenarios.ts:48/:63 对齐（已验证触发派活）：「让团队做一件…任务」前缀
+// 是派活必要触发句式；缺前缀时模型会把"只回复收到"读成对自己的指令，4s 内裸 ack 零派发
+// （2026-10-05 C2 首跑 HC-15/16 实况，样本作废）。
 export function taskT1(tag: string): string {
-  return `真人战役派活验证任务（${tag}）：只回复"收到"两个字，不要执行任何实际操作。`;
+  return `让团队做一件真人战役派活验证任务（${tag}）：只回复"收到"两个字，不要执行任何实际操作。`;
 }
 export function taskT2(tag: string): string {
-  return `真人战役保活任务（${tag}）：执行下属运行命令「sleep 120」，等待结束后只回复"收到"，不要做其他任何操作。`;
+  return `让团队做一件真人战役保活验证任务（${tag}）：执行下属运行命令「sleep 120」等待结束后回复"收到"，不要做其他任何操作。`;
 }
 
 const SETTLE_MS = 4000;
+
+// ─── 降级感知回合（C1 移植，2026-10-05） ───
+// 服务器 hop1 超时 → degraded=true 罐头回复 = LLM 从未处理该消息，该回合不构成有效评估。
+// 重发最多 2 次（各等 20s）；仍全降级 → 如实 SKIP（非 optional SKIP 阻塞门禁，不充红/充绿）。
+
+const TURN_OPTS = { retryOnDegrade: 2, degradeDelayMs: 20_000, outTimeoutMs: 120_000 };
+
+async function turnOrSkip(ctx: ProbeContext, text: string): Promise<{ t: TurnResult } | { skip: ProbeOutcome }> {
+  const t = await sendTurn(ctx, text, TURN_OPTS);
+  if (t.out?.body?.degraded === true) {
+    return {
+      skip: {
+        assertions: [],
+        notes: [`LLM 降级窗口未恢复：共 ${1 + (t.degradeRetries ?? 0)} 次尝试均 degraded=true（服务器 hop 超时，消息未被处理）`],
+        skipReason: 'LLM 降级窗口（环境阻塞）——目标链未获评估，待通道恢复后复跑',
+      },
+    };
+  }
+  return { t };
+}
 
 function findInFlightDelegation(ctx: ProbeContext): CanaryEntry | undefined {
   const rows = delegationRows(ctx, Date.now() - 30 * 60_000, 0);
@@ -54,8 +77,9 @@ const hc15: ProbeDef = {
   assertionDocs: ['HTTP 200', 'dispatched 恰 1 条', '全窗口非 Boss dispatched=0', '无 blocked'],
   prereqIds: ['serverReachable', 'companionAvailable', 'bossExists', 'teamIdle'],
   run: async (ctx) => {
-    const text = taskT1('HC-15');
-    const t = await sendTurn(ctx, text);
+    const r = await turnOrSkip(ctx, taskT1('HC-15'));
+    if ('skip' in r) return r.skip;
+    const t = r.t;
     const rows = await waitDispatched(ctx, t.since, t.anchorId, ctx.options.bossWaitMs);
     const dispatched = rows ?? dispatchedRows(ctx, t.since, t.anchorId);
     const bosses = await bossIdSet(ctx);
@@ -86,8 +110,9 @@ const hc16: ProbeDef = {
   assertionDocs: ['HTTP 200', '链路推进（delegated/reported/closed 任一）', '真回执到 reported/closed（超时→转半合成观察项）'],
   prereqIds: ['serverReachable', 'companionAvailable', 'bossExists', 'teamIdle'],
   run: async (ctx) => {
-    const text = taskT1('HC-16');
-    const t = await sendTurn(ctx, text);
+    const r = await turnOrSkip(ctx, taskT1('HC-16'));
+    if ('skip' in r) return r.skip;
+    const t = r.t;
     await waitDispatched(ctx, t.since, t.anchorId, ctx.options.bossWaitMs);
     const progressed = await (async () => {
       const deadline = Date.now() + ctx.options.bossWaitMs;
@@ -133,7 +158,9 @@ const hc17: ProbeDef = {
   assertionDocs: ['HTTP 200', '有 dialog out 回复', 'dispatched=0'],
   prereqIds: ['serverReachable', 'companionAvailable'],
   run: async (ctx) => {
-    const t = await sendTurn(ctx, '小陈手上那件事进行到哪一步了？');
+    const r = await turnOrSkip(ctx, '小陈手上那件事进行到哪一步了？');
+    if ('skip' in r) return r.skip;
+    const t = r.t;
     await sleep(SETTLE_MS);
     const dispatched = dispatchedRows(ctx, t.since, t.anchorId);
     return {
@@ -155,7 +182,9 @@ const hc18: ProbeDef = {
   assertionDocs: ['HTTP 200', '有 dialog out 回复', 'dispatched=0'],
   prereqIds: ['serverReachable', 'companionAvailable'],
   run: async (ctx) => {
-    const t = await sendTurn(ctx, '刚才派出去的那个，是谁在办来着？');
+    const r = await turnOrSkip(ctx, '刚才派出去的那个，是谁在办来着？');
+    if ('skip' in r) return r.skip;
+    const t = r.t;
     await sleep(SETTLE_MS);
     const dispatched = dispatchedRows(ctx, t.since, t.anchorId);
     return {
@@ -219,7 +248,9 @@ const hc20: ProbeDef = {
   assertionDocs: ['HTTP 200', '有 dialog out 回复', 'dispatched=0', '（观察）rating-recorded 行'],
   prereqIds: ['serverReachable', 'companionAvailable'],
   run: async (ctx) => {
-    const t = await sendTurn(ctx, '这单干得不错，给个好评');
+    const r = await turnOrSkip(ctx, '这单干得不错，给个好评');
+    if ('skip' in r) return r.skip;
+    const t = r.t;
     await sleep(SETTLE_MS);
     const dispatched = dispatchedRows(ctx, t.since, t.anchorId);
     const ratings = queryRows(ctx, { category: 'delegation', source: 'boss', since: t.since }, t.anchorId)
@@ -243,17 +274,26 @@ const hc20: ProbeDef = {
 
 // ─── HC-21 撤回 ───
 
+// 撤回话术：与金丝雀撤回链默认 --cancel-text 对齐（scenarios.ts:867「别做了，取消刚才的任务」）。
+// 勿用 CANCEL_TASK_TEXT——那是金丝雀撤回链的被撤【任务派活文本】（scenarios.ts:833，sleep 240 任务），
+// 不是撤回话术；C2 首跑误把它当撤回话术发送 → 撤回回合反而又派新任务（2026-10-05 修正，该样本作废）。
+const CANCEL_UTTERANCE = '别做了，取消刚才的任务';
+
 const hc21: ProbeDef = {
-  id: 'HC-21', wave: 2, title: '撤回「别做了，取消刚才那个」（T2 在办）', dim: '派活·撤回', effect: 'delegation',
-  utterance: CANCEL_TASK_TEXT,
+  id: 'HC-21', wave: 2, title: '撤回「别做了，取消刚才的任务」（T2 在办）', dim: '派活·撤回', effect: 'delegation',
+  utterance: CANCEL_UTTERANCE,
   steps: ['T2 派发并在办', '发送撤回话术', '等待 phase=cancelled 并核验结论/通知'],
   assertionDocs: ['HTTP 200', 'cancelled 行出现', '结论 status=cancelled-*；notified=true（queued 除外）'],
   prereqIds: ['serverReachable', 'companionAvailable', 'bossExists', 'teamIdle'],
   run: async (ctx) => {
-    const t1 = await sendTurn(ctx, taskT2('HC-21'));
+    const r1 = await turnOrSkip(ctx, taskT2('HC-21'));
+    if ('skip' in r1) return r1.skip;
+    const t1 = r1.t;
     await waitDispatched(ctx, t1.since, t1.anchorId, ctx.options.bossWaitMs);
     await sleep(3000); // 给 Boss 拆解留时间
-    const t2 = await sendTurn(ctx, CANCEL_TASK_TEXT);
+    const r2 = await turnOrSkip(ctx, CANCEL_UTTERANCE);
+    if ('skip' in r2) return r2.skip;
+    const t2 = r2.t;
     const cancelled = await waitDelegationPhase(ctx, 'cancelled', t2.since, t2.anchorId, ctx.options.bossWaitMs);
     const rows = cancelled ?? phaseRows(ctx, ['cancelled'], t2.since, t2.anchorId);
     const verdict = assertCancelEvidence(rows);
@@ -282,14 +322,20 @@ const hc22: ProbeDef = {
   assertionDocs: ['HTTP 200', '旧任务 cancelled', '新 dispatched 恰 1 且 taskId≠旧', '新任务未被同回合撤回'],
   prereqIds: ['serverReachable', 'companionAvailable', 'bossExists', 'teamIdle'],
   run: async (ctx) => {
-    const t1 = await sendTurn(ctx, taskT2('HC-22旧'));
+    const r1 = await turnOrSkip(ctx, taskT2('HC-22旧'));
+    if ('skip' in r1) return r1.skip;
+    const t1 = r1.t;
     const d1 = await waitDispatched(ctx, t1.since, t1.anchorId, ctx.options.bossWaitMs);
     const oldTaskId = d1?.find((e) => e.taskId)?.taskId;
     await sleep(3000);
-    const t2 = await sendTurn(ctx, CANCEL_TASK_TEXT);
+    const r2 = await turnOrSkip(ctx, CANCEL_UTTERANCE);
+    if ('skip' in r2) return r2.skip;
+    const t2 = r2.t;
     const cancelRows = await waitDelegationPhase(ctx, 'cancelled', t2.since, t2.anchorId, ctx.options.bossWaitMs)
       ?? phaseRows(ctx, ['cancelled'], t2.since, t2.anchorId);
-    const t3 = await sendTurn(ctx, HC22_TEXT);
+    const r3 = await turnOrSkip(ctx, HC22_TEXT);
+    if ('skip' in r3) return r3.skip;
+    const t3 = r3.t;
     const d3 = await waitDispatched(ctx, t3.since, t3.anchorId, ctx.options.bossWaitMs) ?? dispatchedRows(ctx, t3.since, t3.anchorId);
     await sleep(SETTLE_MS);
     const d3Final = dispatchedRows(ctx, t3.since, t3.anchorId);
