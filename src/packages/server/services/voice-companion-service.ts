@@ -2017,16 +2017,26 @@ async function runHop2(
 // W5 慢档续垫:一次性生成一句安抚垫话(不碰常驻进程、不污染主会话)
 // ============================================================================
 
-/** 垫话系统提示词(C17):≤10 字、自然口语应声 —— 不复述老板的话(防「团队一啊」式回声)、
- *  说法常换;仍不预告动作、不承诺、不编造、不提问(与主提示词隔离)。 */
+/** 垫话系统提示词(C18):顺着老板这句话的内容接(别答非所问)、像熟人随口应声、每次换说法。
+ *  只给按类别的示样句式,**不给整句通用示例** —— 模型会逐字照抄示例(C17 教训:「好嘞,我捋捋」
+ *  被原样搬出,听着又假又雷同);去掉可抄的整句后,多样性由服务端 recentFillerPhrases 记忆注入(见下)。与主提示词隔离。 */
 const SLOW_FILLER_SYSTEM_PROMPT = [
-  '你是语音伙伴的「垫话」模块。老板说完一句,主流程还没出结果,你先出声应一声,一句就够。',
-  '要求:不超过 10 个字,像真人随口应一声,自然、口语;',
-  '说法要常换:不要总用「嗯」开头,不要复述老板说的词(反例:老板说「团队一」,你回「团队一啊」——这种回声听着敷衍),也不要用「…啊」拖尾;',
-  '只说「在想、稍等」这类中性意思,可参考:「行,我想想」「这个我琢磨一下」「好,稍等哈」「好嘞,我捋捋」「我理一理」;',
-  '不要预告具体动作(如「我去查」「这就去办」「我看看」)——主流程接下来可能是回答、也可能是反问澄清,预告动作会前后不搭;也不要承诺时间、下结论、编造进展、反问;',
-  '不要 emoji、不要引号、不要解释,直接输出这一句话本身,不要任何多余内容。',
+  '你是语音伙伴的「垫话」模块。老板说完一句,主流程还在处理,你先像真人秘书那样随口接一声,一句就够。',
+  '要点:',
+  '- 顺着老板这句话的内容接,别答非所问:他让看什么/查什么,就应「看看」一类(如「我瞅瞅团队一」「我看看天气」);他让你办事,就应事情本身(如「行,这就叫」「好嘞,马上办」);他让你回忆/问事,才应「想想」一类;',
+  '- 像熟人随口说话:不超过 12 个字,口语化,别客套、别用敬语;',
+  '- 别把老板的话原样念回去(「团队一啊」这种只丢语气词的应声很敷衍);话题可以自然带进句子里,但要连着你要做的事一起说;',
+  '- 拿不准可能会反问澄清的,应轻一点,别把话说满:不承诺时间、不保证结果、不编进展;',
+  '- 每次换一种说法,开口、动词、句式都别重样;',
+  '- 不要 emoji、引号、解释;直接输出这一句话本身,不要任何多余内容。',
 ].join('\n');
+
+/** C18:最近实际产出的垫话(环缓冲,保留 3 条,进程级)—— 注入下一次生成,强制换说法。
+ *  为什么放服务端:提示词给整句示例会被照抄(C17),不给又容易句式雷同;
+ *  把「刚应过什么」当事实喂回去,比任何措辞约束都直接。 */
+const recentFillerPhrases: string[] = [];
+/** 保留条数:覆盖「连着几轮都要垫话」的常见场景,又不把提示撑长。 */
+const RECENT_FILLER_KEEP = 3;
 
 /** 生成超时(垫话是可选加成,慢过阈值就放弃,绝不拖回合)。 */
 const SLOW_FILLER_TIMEOUT_MS = 8_000;
@@ -2036,7 +2046,10 @@ const SLOW_FILLER_MAX_CHARS = 16;
 /** 生成一句垫话;任何失败(超时/中止/跑偏/空)一律 null(调用方静默)。 */
 async function generateSlowFillerPhrase(userText: string, model: string, signal?: AbortSignal): Promise<string | null> {
   try {
-    const result = await callClaudeOnce(SLOW_FILLER_SYSTEM_PROMPT, `老板刚才说:「${truncate(userText, 80)}」`, {
+    const recentHint = recentFillerPhrases.length
+      ? `\n(最近你已经应过:${recentFillerPhrases.map((p) => `「${p}」`).join('')}——这次换个说法,别重样。)`
+      : '';
+    const result = await callClaudeOnce(SLOW_FILLER_SYSTEM_PROMPT, `老板刚才说:「${truncate(userText, 80)}」${recentHint}`, {
       model,
       resumeId: null,
       timeoutMs: SLOW_FILLER_TIMEOUT_MS,
@@ -2047,6 +2060,8 @@ async function generateSlowFillerPhrase(userText: string, model: string, signal?
     const line = result.text.split('\n').map((s) => s.trim()).find(Boolean) ?? '';
     const cleaned = line.replace(/^["「『']+|["」』']+$/g, '').trim();
     if (!cleaned || Array.from(cleaned).length > SLOW_FILLER_MAX_CHARS) return null;
+    recentFillerPhrases.push(cleaned);
+    if (recentFillerPhrases.length > RECENT_FILLER_KEEP) recentFillerPhrases.shift();
     log.log(`[VoiceCompanion] 慢档垫话:${cleaned}`);
     return cleaned;
   } catch (err) {

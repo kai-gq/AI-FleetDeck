@@ -1422,8 +1422,8 @@ describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
       // C13:垫话生成跳过 MCP 加载(冷启动省 ~2.6s);主链路 spawn 不带该开关(不影响其他)。
       expect(filler.args).toContain('--strict-mcp-config');
       expect(hop1.args).not.toContain('--strict-mcp-config');
-      // C13/C17:垫话提示词要求「自然口语应声、不预告动作」(主流程可能是反问澄清,预告动作会前后不搭)。
-      expect(fs.readFileSync(promptFileOf(filler), 'utf-8')).toContain('不要预告具体动作');
+      // C18:垫话提示词要求「顺着内容接、别答非所问」(多样性改由服务端记忆注入,不再靠提示词给整句示例)。
+      expect(fs.readFileSync(promptFileOf(filler), 'utf-8')).toContain('别答非所问');
       emitLine(filler.child, { type: 'result', result: '稍等，我确认一下。' });
       await closeChild(filler.child, 0); // 生成就绪(服务端会打「慢档垫话:…」日志)
 
@@ -1453,6 +1453,55 @@ describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
     } finally {
       logSpy.mockRestore();
     }
+  });
+});
+
+// ============================================================================
+// C18 垫话提示词 v3:顺着内容接(别答非所问)+ 服务端「最近应过」记忆强制换说法
+//
+// C17 教训:提示词里给整句示例(「好嘞,我捋捋」)会被模型逐字照抄 —— 示例越通用越像模板。
+// 修法:①提示词删整句示例、改按类别示样(照抄类别句式仍贴题);②服务端把实际产出
+// 记进环缓冲(保留 3 条),注入下一次生成,跨次不重样。
+// ============================================================================
+
+describe('C18 垫话:提示词按内容接 + 跨次换说法(服务端记忆)', () => {
+  it('生成成功记入记忆;下一次生成请求带「最近你已经应过」且含上一条', async () => {
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+
+    // ── 第 1 轮:垫话生成成功「我瞅瞅天气哈」→ 记入服务端记忆 ──
+    const p1 = startProcess('看下天气', { onSentence: () => {} });
+    const hop1 = await waitSpawn(1);
+    await waitFor(() => spawnCalls.length >= 2, '第 1 轮垫话生成 spawn', 2_000);
+    const f1 = spawnCalls[1];
+    expect(fs.readFileSync(promptFileOf(f1), 'utf-8')).toContain('别答非所问'); // C18 提示词
+    emitLine(f1.child, { type: 'result', result: '我瞅瞅天气哈。' });
+    await closeChild(f1.child, 0); // 生成就绪 → push 进环缓冲
+    emitLine(hop1.child, {
+      type: 'stream_event',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: `{"action":"general_response","responseToUser":"今天晴。","targetAgentId":null}` } },
+    });
+    await closeChild(hop1.child, 0);
+    await p1;
+
+    // ── 第 2 轮:新一轮生成请求应带上记忆(含上一条),强制换说法 ──
+    const before = spawnCalls.length;
+    const p2 = startProcess('今天几号', { onSentence: () => {} });
+    const hop2 = await waitSpawn(before + 1);
+    const f2 = await waitSpawn(before + 2);
+    const user2 = stdinUserContent(f2);
+    expect(user2).toContain('老板刚才说:「今天几号」');
+    expect(user2).toContain('最近你已经应过');
+    expect(user2).toContain('我瞅瞅天气哈'); // 上一条实际产出
+    expect(user2).toContain('别重样');
+
+    emitLine(f2.child, { type: 'result', result: '我翻翻日历哈。' });
+    await closeChild(f2.child, 0);
+    emitLine(hop2.child, {
+      type: 'stream_event',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: `{"action":"general_response","responseToUser":"5 号。","targetAgentId":null}` } },
+    });
+    await closeChild(hop2.child, 0);
+    await p2;
   });
 });
 
