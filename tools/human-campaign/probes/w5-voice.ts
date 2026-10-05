@@ -2,7 +2,7 @@
  * C5 · 语音真链路 + 对抗 + 收口（HC-41..43）
  *
  * HC-41 TTS→STT 回环（零人工）：
- *   1) POST /api/tts/speak → WAV（edge-tts 垫片；routes/tts.ts:185-306）
+ *   1) POST /api/tts/speak → 音频（edge-tts 垫片默认直返 mp3，Content-Type 判型；routes/tts.ts:185-306）
  *   2) POST /api/stt/transcribe {audio: base64, language} → {success,text}（routes/stt.ts:27）
  *      ——**注意缺省 language='Spanish'，中文必须显式传**
  *   3) 流式通道：tools/voice-companion/selftest.mjs 灌 /ws/voice-companion → final 文本
@@ -58,25 +58,25 @@ function wsUrlOf(baseUrl: string): string {
 }
 
 const hc41: ProbeDef = {
-  id: 'HC-41', wave: 5, title: 'TTS→STT 回环：WAV 合成 → HTTP 转写 + 流式通道转写（字符相似度）', dim: '语音·回环', effect: 'none',
+  id: 'HC-41', wave: 5, title: 'TTS→STT 回环：TTS 合成 → HTTP 转写 + 流式通道转写（字符相似度）', dim: '语音·回环', effect: 'none',
   utterance: `（合成文本）${HC41_TEXT}`,
-  steps: ['POST /api/tts/speak 取 WAV', 'POST /api/stt/transcribe（language=Chinese）回译 + 相似度', 'selftest.mjs 灌流式 WS → final + 相似度'],
-  assertionDocs: ['TTS 返回音频 WAV（>1KB）', 'HTTP 转写成功且相似度 ≥0.5', '流式 final 成功且相似度 ≥0.5'],
+  steps: ['POST /api/tts/speak 取音频（mp3/wav 均可）', 'POST /api/stt/transcribe（language=Chinese）回译 + 相似度', 'selftest.mjs 灌流式 WS → final + 相似度'],
+  assertionDocs: ['TTS 返回音频（>1KB）', 'HTTP 转写成功且相似度 ≥0.5', '流式 final 成功且相似度 ≥0.5'],
   prereqIds: ['serverReachable', 'ttsAvailable', 'dbReadable'],
   run: async (ctx) => {
     const assertions: ProbeOutcome['assertions'] = [];
     const notes: string[] = [];
-    const wavPath = path.join(scratchDir(), 'hc41-tts.wav');
 
     const tts = await rawFetch(ctx, '/api/tts/speak', { body: { text: HC41_TEXT }, timeoutMs: 30_000, binary: true });
     const wav = tts.buffer;
     const audioOk = tts.ok && (wav?.length ?? 0) > 1024 && (tts.contentType ?? '').includes('audio');
-    assertions.push(assertThat('hc41-tts', 'TTS 返回 WAV（>1KB，audio/*）', audioOk,
+    const wavPath = path.join(scratchDir(), `hc41-tts${(tts.contentType ?? '').includes('mpeg') ? '.mp3' : '.wav'}`);
+    assertions.push(assertThat('hc41-tts', 'TTS 返回音频（>1KB，audio/*）', audioOk,
       'HTTP200 + audio/* + >1KB', `HTTP ${tts.status} ${tts.contentType ?? ''} ${wav?.length ?? 0}B ${tts.error ?? ''}`));
 
     if (wav && audioOk) {
       fs.writeFileSync(wavPath, wav);
-      notes.push(`WAV 已存：${wavPath}（供人工复听）`);
+      notes.push(`音频已存：${wavPath}（供人工复听）`);
       // 腿2：HTTP 批量转写（whisper CLI 通道）
       const stt = await rawFetch(ctx, '/api/stt/transcribe', {
         body: { audio: wav.toString('base64'), language: 'Chinese' }, timeoutMs: 180_000,

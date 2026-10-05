@@ -500,7 +500,7 @@ export const PREREQS: ReadonlyMap<string, PrereqDef> = new Map<string, PrereqDef
     },
   }],
   ['ttsAvailable', {
-    id: 'ttsAvailable', desc: 'TTS 可合成（POST /api/tts/speak 返回 WAV）', hint: '检查 tools/piper 垫片与 edge-tts 网络', kind: 'runtime',
+    id: 'ttsAvailable', desc: 'TTS 可合成（POST /api/tts/speak 返回音频 audio/*）', hint: '检查 tools/piper 垫片与 edge-tts 网络', kind: 'runtime',
     check: async (ctx) => {
       const res = await rawFetch(ctx, '/api/tts/speak', { body: { text: '测试' }, timeoutMs: 20_000, binary: true });
       const ok = res.ok && (res.buffer?.length ?? 0) > 0 && (res.contentType ?? '').includes('audio');

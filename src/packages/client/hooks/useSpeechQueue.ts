@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { SpeechQueue } from '../voice/speechQueue';
 import { apiUrl, authFetch } from '../utils/storage';
 
-/** POST /api/tts/speak 取 WAV Blob;lang 由调用方按用户话语判定(避免短句误判语种)。 */
+/** POST /api/tts/speak 取音频 Blob(mp3/wav 由响应头带入);lang 由调用方按用户话语判定(避免短句误判语种)。 */
 async function defaultSynthesize(text: string, lang: string | undefined, signal: AbortSignal): Promise<Blob> {
   const res = await authFetch(apiUrl('/api/tts/speak'), {
     method: 'POST',

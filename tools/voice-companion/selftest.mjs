@@ -2,19 +2,23 @@
 /**
  * 「语音伙伴」流式转写通道自测(无需麦克风)
  *
- * 把一段 wav 的 PCM 按协议灌进 /ws/voice-companion,打印 partial/final:
+ * 把一段音频的 PCM 按协议灌进 /ws/voice-companion,打印 partial/final:
  *   node tools/voice-companion/selftest.mjs 样例.wav
  *   node tools/voice-companion/selftest.mjs 样例.wav --url ws://localhost:6200/ws/voice-companion
  *   node tools/voice-companion/selftest.mjs 样例.wav --token <鉴权令牌>        # 开启鉴权时
  *   node tools/voice-companion/selftest.mjs 样例.wav --speed 2               # 2 倍速发送
  *
  * wav 支持 8/16/24/32bit PCM 与任意采样率/声道:自动降混为单声道并线性重采样到
- * 16kHz(与浏览器端 PCM 一致)。仅用于本机排障,凭据永远不出本机。
+ * 16kHz(与浏览器端 PCM 一致)。非 RIFF 音频(如 edge-tts 直返的 mp3,HC-41
+ * 回环用)自动交本机 ffmpeg 解码为 16kHz mono PCM。仅用于本机排障,凭据永不出本机。
  *
  * 退出码:0 = 收到 final;1 = 出错/超时(无凭据、识别失败、连不上服务端)。
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 
 // ---------------------------------------------------------------------------
@@ -125,6 +129,23 @@ function toPcm16(samples) {
   return buf;
 }
 
+/** 非 RIFF 输入(如 mp3):ffmpeg 解为 16kHz mono s16le PCM(HC-41 回环)。 */
+function decodeWithFfmpeg(file) {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const local = path.join(here, '..', 'whisper', 'ffmpeg', 'bin', 'ffmpeg.exe');
+  const bin = fs.existsSync(local) ? local : 'ffmpeg';
+  const p = spawnSync(
+    bin,
+    ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', file,
+     '-vn', '-ac', '1', '-ar', String(TARGET_RATE), '-f', 's16le', 'pipe:1'],
+    { maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (p.error) throw new Error(`ffmpeg 不可用:${p.error.message}`);
+  if (p.status !== 0) throw new Error(`ffmpeg 解码失败:${(p.stderr?.toString('utf-8', 'replace') ?? '').slice(0, 300)}`);
+  if (!p.stdout || p.stdout.length < 3200) throw new Error('解码结果过短(空音频?)');
+  return p.stdout;
+}
+
 // ---------------------------------------------------------------------------
 // 主流程
 // ---------------------------------------------------------------------------
@@ -136,8 +157,13 @@ try {
   pcm = toPcm16(resampled);
   console.log(`[selftest] ${file}:${wav.sampleRate}Hz ${wav.channels}ch ${wav.bits}bit → 16kHz mono, ${(pcm.length / 32000).toFixed(2)}s`);
 } catch (err) {
-  console.error(`[selftest] 读取 wav 失败:${err.message}`);
-  process.exit(1);
+  try {
+    pcm = decodeWithFfmpeg(file); // mp3 等非 RIFF:交给本机 ffmpeg
+    console.log(`[selftest] ${file}:非 RIFF(${err.message}) → ffmpeg 解码 16kHz mono, ${(pcm.length / 32000).toFixed(2)}s`);
+  } catch (err2) {
+    console.error(`[selftest] 读取音频失败:${err.message};${err2.message}`);
+    process.exit(1);
+  }
 }
 
 const CHUNK_BYTES = (TARGET_RATE * 2 * CHUNK_MS) / 1000; // 100ms = 3200B

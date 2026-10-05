@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { logVoiceTts } from '../services/activity-log.js';
+import { detectAudioMime } from '../voice/tts-audio-format.js';
 
 const router = Router();
 
@@ -179,7 +180,8 @@ export function buildPiperArgs(
 
 /**
  * POST /api/tts/speak
- * Generates audio using Piper TTS and returns WAV audio data
+ * Generates audio using Piper TTS and returns audio data
+ * (W1:垫片默认直返 mp3,Content-Type 按魔数判型;EDGE_TTS_MP3=0 回退 wav)
  * Auto-detects language if not specified
  */
 router.post('/speak', async (req: Request, res: Response) => {
@@ -296,12 +298,13 @@ router.post('/speak', async (req: Request, res: Response) => {
       }
     });
 
-    // Send WAV audio back to browser
+    // Send audio back to browser(W1:垫片默认直返 mp3,按魔数判 Content-Type;
+    // EDGE_TTS_MP3=0 回退 wav——播放端 res.blob() 继承响应头,零改动)
     logVoiceTts({
       voice: selectedVoice, textChars: cleanedText.length,
       durationMs: Date.now() - startedAt, audioBytes: audioData.length, ok: true,
     });
-    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Type', detectAudioMime(audioData));
     res.setHeader('Content-Length', audioData.length);
     res.send(audioData);
 

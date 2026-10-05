@@ -3,12 +3,17 @@
 调用约定(tts.ts 同款):
   piper.exe --model <voices_dir>/<voice>.onnx --output_file <out.wav>
             [--rate <±百分比>] [--volume <±百分比>]
-  文本从 stdin 读入;成功时 <out.wav> 为 16-bit PCM WAV。
+  文本从 stdin 读入;成功时 <out.wav> 为 edge-tts 原生 mp3(见下)。
   --rate/--volume 可选:CLI 传值 > voices.local.json(工具箱「文字转语音」
   保存的全局语速/音量)> 0(原速原音量)。数值为百分数:10 = 快 10%。
 
-单次合成:本进程直接 edge-tts 合成 → ffmpeg 转 wav,播完即退(无常驻进程、
-不占常驻内存);代价是每句多 ~0.5s 的 edge-tts import 时间。
+单次合成:本进程直接 edge-tts 合成,播完即退(无常驻进程、不占常驻内存);
+代价是每句多 ~0.5s 的 edge-tts import 时间。
+
+输出格式:默认直返 mp3 —— 省掉每次合成的 ffmpeg 转码段(24kHz WAV),
+播放端按服务端 Content-Type 判型(mp3 亦为浏览器原生格式)。设
+EDGE_TTS_MP3=0 回退旧行为(转 16-bit PCM WAV;注意环境变量随服务端进程
+生效,切换需重启服务端)。
 任何失败(断网、接口失效)→ 回退同目录 piper_real.exe(原版 piper):
 新参数会先剥离(--rate 非 0 时映射为 --length_scale = 1/(1+rate/100)),
 最坏 = 原来的机器音,绝不更差。日志:tools/edge-tts/shim.log
@@ -123,8 +128,22 @@ def find_ffmpeg():
     return shutil.which("ffmpeg") or "ffmpeg"
 
 
-def synth(text, voice, rate=0.0, volume=0.0):
-    """edge-tts 在线合成(import 放函数内,回退路径不必付这份开销)。"""
+def to_wav(mp3):
+    """mp3 → 24kHz 单声道 16-bit WAV(ffmpeg;EDGE_TTS_MP3=0 回退路径专用)。"""
+    p = subprocess.run(
+        [find_ffmpeg(), "-hide_banner", "-loglevel", "error",
+         "-i", "pipe:0", "-ar", "24000", "-ac", "1", "-f", "wav", "pipe:1"],
+        input=mp3, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        raise RuntimeError("ffmpeg: " + p.stderr.decode("utf-8", "replace")[:300])
+    return p.stdout
+
+
+def synth(text, voice, rate=0.0, volume=0.0, want_mp3=True):
+    """edge-tts 在线合成(import 放函数内,回退路径不必付这份开销)。
+
+    want_mp3=True 直返 edge-tts 原生 mp3(省一次 ffmpeg 转码,播放端按
+    Content-Type 判型);False 转 24kHz WAV(旧行为)。"""
     import asyncio
 
     import edge_tts
@@ -140,14 +159,7 @@ def synth(text, voice, rate=0.0, volume=0.0):
     mp3 = asyncio.run(asyncio.wait_for(collect(), timeout=45))
     if not mp3:
         raise RuntimeError("edge-tts 返回空音频")
-
-    p = subprocess.run(
-        [find_ffmpeg(), "-hide_banner", "-loglevel", "error",
-         "-i", "pipe:0", "-ar", "24000", "-ac", "1", "-f", "wav", "pipe:1"],
-        input=mp3, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if p.returncode != 0:
-        raise RuntimeError("ffmpeg: " + p.stderr.decode("utf-8", "replace")[:300])
-    return p.stdout
+    return mp3 if want_mp3 else to_wav(mp3)
 
 
 def strip_tuning(argv):
@@ -191,15 +203,16 @@ def main():
         log("参数不足: model=%s out=%s text_len=%d" % (model, out, len(text)))
         return fallback(argv, text) if text else 1
     rate = cli_rate if cli_rate is not None else 0.0
+    want_mp3 = os.environ.get("EDGE_TTS_MP3", "1") != "0"
     try:
         cfg = _read_voices(TOOL_DIR / "voices.local.json") or _read_voices(TOOL_DIR / "voices.json")
         voice = pick_voice(model, cfg)
         rate, volume = pick_tuning(cfg, cli_rate, cli_volume)
-        wav = synth(text, voice, rate, volume)
-        if len(wav) < 100:
-            raise RuntimeError("返回音频异常(%d 字节)" % len(wav))
-        Path(out).write_bytes(wav)
-        log("ok %dB voice=%s rate=%s volume=%s text=%r" % (len(wav), voice, format_pct(rate), format_pct(volume), text[:30]))
+        audio = synth(text, voice, rate, volume, want_mp3=want_mp3)
+        if len(audio) < 100:
+            raise RuntimeError("返回音频异常(%d 字节)" % len(audio))
+        Path(out).write_bytes(audio)
+        log("ok %dB fmt=%s voice=%s rate=%s volume=%s text=%r" % (len(audio), "mp3" if want_mp3 else "wav", voice, format_pct(rate), format_pct(volume), text[:30]))
         return 0
     except Exception as e:
         log("synth 失败(%s: %s),回退 piper" % (e.__class__.__name__, e))
