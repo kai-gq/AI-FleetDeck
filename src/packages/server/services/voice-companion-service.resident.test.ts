@@ -486,14 +486,14 @@ describe('任务18 常驻通道:复用与协议同构', () => {
     const promptFile = argsOf(call1)[10];
     expect(fs.existsSync(promptFile)).toBe(true);
 
-    // stdin 消息体:同款 stream-json user 行(含 REMINDER)。
+    // stdin 消息体:同款 stream-json user 行(含格式提醒)。
     const stdinMsg = JSON.parse(call1.child.stdinWrites[0]!) as { type: string; message: { role: string; content: string } };
     expect(stdinMsg.type).toBe('user');
     expect(stdinMsg.message.role).toBe('user');
     expect(stdinMsg.message.content).toContain('第一句');
     // 时间随回合注入用户消息(修复:resume 提示词冻结导致「现在几点」答的是建会话时刻)
     expect(stdinMsg.message.content).toContain('【当前时间】');
-    expect(stdinMsg.message.content).toContain('[REMINDER: Output ONLY the JSON object. No explanations.]');
+    expect(stdinMsg.message.content).toContain('【格式】只回那个 JSON 对象,不要任何解释。');
 
     // PID 台账:serverPid=本进程,childPid=子进程。
     const record = readPidRecord();

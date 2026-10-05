@@ -399,7 +399,7 @@ function promptFileOf(call: SpawnCall): string {
   return file;
 }
 
-/** 从 stdin 首条消息里取用户文本(含 REMINDER 追加段)。 */
+/** 从 stdin 首条消息里取用户文本(含格式提醒追加段)。 */
 function stdinUserContent(call: SpawnCall): string {
   const raw = call.child.stdinWrites[0];
   if (!raw) throw new Error('子进程没有收到 stdin 写入');
@@ -494,9 +494,9 @@ describe('G1 契约解析与三源防翻倍', () => {
     expect(r.action).toBe('general_response');
     expect(r.response).toBe('大家都好。');
     expect(r.degraded).toBeUndefined();
-    // 非事件、无 resume 的首轮:REMINDER 追加
+    // 非事件、无 resume 的首轮:格式提醒追加(自然中文,消评测感)
     expect(stdinUserContent(call)).toContain('帮我看看大家在干嘛');
-    expect(stdinUserContent(call)).toContain('[REMINDER');
+    expect(stdinUserContent(call)).toContain('【格式】');
   });
 
   it('G1-2 parses a contract delivered only through the assistant event', async () => {
@@ -1271,7 +1271,7 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(sentences).toEqual([]);
     const stdin = stdinUserContent(call);
     expect(stdin).toContain('⟦系统事件⟧');
-    expect(stdin).not.toContain('[REMINDER'); // isEvent 且无 resume → 不追加
+    expect(stdin).not.toContain('【格式】'); // isEvent 且无 resume → 不追加
   });
 
   it('G6-9 falls back to a deterministic roster for an empty list_agents reply', async () => {

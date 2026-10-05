@@ -555,7 +555,7 @@ function beginTurn(proc: ResidentProcess, req: CompanionTurnRequest, reused: boo
 
 /** 组装并写入本回合的 user 消息(与 callClaudeOnce 逐字同构;不 end stdin)。 */
 function writeTurnInput(proc: ResidentProcess, turn: ActiveTurn): void {
-  const reminder = turn.reminder ? '\n\n[REMINDER: Output ONLY the JSON object. No explanations.]' : '';
+  const reminder = turn.reminder ? '\n\n【格式】只回那个 JSON 对象,不要任何解释。' : '';
   const stdinMessage = JSON.stringify({
     type: 'user',
     message: { role: 'user', content: sanitizeUnicode(turn.userContent) + reminder },
