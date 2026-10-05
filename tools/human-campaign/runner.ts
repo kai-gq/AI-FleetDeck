@@ -178,9 +178,43 @@ export interface TurnResult {
   anchorId: number;
   anchorNote?: string;
   out?: CanaryEntry;
+  /** retryOnDegrade 生效时：为拿到非降级回合而重发的次数（0=首个回合即正常） */
+  degradeRetries?: number;
 }
 
 export async function sendTurn(
+  ctx: ProbeContext,
+  text: string,
+  opts?: {
+    waitOut?: boolean;
+    outTimeoutMs?: number;
+    event?: boolean;
+    /**
+     * LLM 降级窗口（服务器 hop1 超时 → degraded=true 罐头回复，消息从未被处理）时
+     * 重发次数上限。degraded 回合不构成对该消息的有效评估（类比重试 503）；
+     * 重发直至拿到正常回合或耗尽预算，probe 侧以 degradeRetries/最终 degraded 如实登记。
+     */
+    retryOnDegrade?: number;
+    degradeDelayMs?: number;
+  },
+): Promise<TurnResult> {
+  const maxDegradeRetries = opts?.retryOnDegrade ?? 0;
+  let degradeRetries = 0;
+  for (;;) {
+    const t = await sendTurnOnce(ctx, text, opts);
+    const degraded = t.out?.body?.degraded === true || (t.res.json as { degraded?: unknown } | undefined)?.degraded === true;
+    if (!degraded || degradeRetries >= maxDegradeRetries) {
+      t.degradeRetries = degradeRetries;
+      return t;
+    }
+    degradeRetries += 1;
+    const delay = opts?.degradeDelayMs ?? 20_000;
+    ctx.log(`↻ LLM 降级回合（degraded=true，服务器 hop 超时）→ ${Math.round(delay / 1000)}s 后重发（${degradeRetries}/${maxDegradeRetries}）`);
+    await sleep(delay);
+  }
+}
+
+async function sendTurnOnce(
   ctx: ProbeContext,
   text: string,
   opts?: { waitOut?: boolean; outTimeoutMs?: number; event?: boolean },
@@ -205,7 +239,7 @@ export async function sendTurn(
     if (result.out) {
       ctx.log(`← 回复（id=${result.out.id}，action=${bodyString(result.out, 'action') ?? '—'}）：${truncate(bodyString(result.out, 'text'), 100)}`);
     } else {
-      ctx.log(`⚠ ${ctx.options.logWaitMs}ms 内未见 dialog out（id>${anchorId}）`);
+      ctx.log(`⚠ ${opts?.outTimeoutMs ?? ctx.options.logWaitMs}ms 内未见 dialog out（id>${anchorId}）`);
     }
   }
   return result;

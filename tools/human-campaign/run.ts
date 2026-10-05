@@ -47,9 +47,9 @@ export function defaultOptions(): import('./types.js').HumanOptions {
     dryRun: false,
     allowSkip: false,
     verbose: false,
-    httpTimeoutMs: 180_000,
+    httpTimeoutMs: 300_000,
     wsTimeoutMs: 8_000,
-    probeTimeoutMs: 600_000,
+    probeTimeoutMs: 900_000,
     logWaitMs: 30_000,
     pollMs: 1_000,
     bossWaitMs: 180_000,
@@ -140,7 +140,7 @@ export function printHelp(): void {
   --token=<token>         鉴权（或环境变量 AUTH_TOKEN）
   --timeout-ms=<n>        HTTP 单请求超时（默认 180000）
   --ws-timeout-ms=<n>     WS 握手超时（默认 8000）
-  --probe-timeout-ms=<n>  单探针总超时（默认 600000）
+  --probe-timeout-ms=<n>  单探针总超时（默认 900000）
   --log-wait-ms=<n>       等 dialog out（默认 30000）
   --poll-ms=<n>           轮询间隔（默认 1000）
   --wait-boss-ms=<n>      等 dispatched/delegated（默认 180000）

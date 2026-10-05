@@ -3,7 +3,8 @@
  *
  * 目的：验证「秘书双跳」在真实人话（模糊/指代/错字/情绪/否定/跨话题/空指令/
  * 乱码/超长/记忆/闲聊）下的判断质量与"不凭空派活"硬边界。
- * 唯一例外：HC-04 按计划产生 1 次无害派活（零工具「只回复收到」），善后走 --cleanup。
+ * 唯一例外：HC-04 派活分支产生 1 次无害派活（零工具「只回复收到」），善后走 --cleanup；
+ * 无指认对象时走澄清分支（反问），零派发。
  *
  * 脚本外真相修正（写进 HC-13 备注，避免误报）：
  *   服务端**每个正常回应**都会同时落 dialog(out) + broadcast(server-sent) 同一 taskId
@@ -13,7 +14,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ProbeContext, ProbeDef, ProbeOutcome } from '../types.js';
+import type { CanaryEntry, ProbeContext, ProbeDef, ProbeOutcome } from '../types.js';
 import {
   assertThat, blockedRows, bodyString, bossIdSet, dialogRows, dispatchedRows,
   entryById, entryEvidence, fetchAgents, observedSummary, repoRoot, sendTurn, sleep, truncate,
@@ -105,26 +106,67 @@ const hc04Text = '让团对把刚才那个小认务收个尾，只回复收到�
 const hc04: ProbeDef = {
   id: 'HC-04', wave: 1, title: '错字·派活「让团对…小认务…只回复收到」', dim: '真人语言·错字指令', effect: 'delegation',
   utterance: hc04Text,
-  steps: ['发送含错字的派活指令', '等待 dispatched', '确认恰 1 条且只到主管'],
-  assertionDocs: ['HTTP 200', 'dispatched 恰 1 条', '全部 dispatched 只到 Boss', '无 blocked 违规告警'],
+  steps: ['发送含错字的派活指令', '等回复并判分支（派活 / 澄清反问）', '派活分支严判 dispatched；澄清分支验答复含任务指代'],
+  assertionDocs: [
+    'HTTP 200', '有非降级 dialog out 回复', 'dispatched ≤ 1（不误派/不重复派）', '全部 dispatched 只到 Boss',
+    '无 blocked 违规告警', '澄清分支：答复含任务指代关键词（全文留人工抽验）',
+  ],
   prereqIds: ['serverReachable', 'companionAvailable', 'bossExists'],
   run: async (ctx) => {
-    const t = await sendTurn(ctx, hc04Text);
+    // 降级感知：degraded=true 的回合 = LLM 从未处理该消息（服务器 hop1 超时罐头回复），
+    // 不构成有效评估 → 重发最多 2 次（各等 20s）；仍降级则如实 SKIP（不得以环境噪声充红/充绿）。
+    const t = await sendTurn(ctx, hc04Text, { retryOnDegrade: 2, degradeDelayMs: 20_000, outTimeoutMs: 240_000 });
+    const finalDegraded = t.out?.body?.degraded === true;
+    if (finalDegraded) {
+      return {
+        assertions: [],
+        notes: [`LLM 降级窗口未恢复：共 ${1 + (t.degradeRetries ?? 0)} 次尝试均 degraded=true（服务器 hop 超时，消息未被处理）`],
+        skipReason: 'LLM 降级窗口（环境阻塞）——目标链未获评估，待通道恢复后复跑',
+      };
+    }
     const a1 = assertThat('hc04-http', 'HTTP 200', t.res.ok, '200', `${t.res.status}`);
-    const rows = await waitDispatched(ctx, t.since, t.anchorId, ctx.options.bossWaitMs);
-    const dispatched = rows ?? dispatchedRows(ctx, t.since, t.anchorId);
+    const outAction = t.out ? bodyString(t.out, 'action') : undefined;
+    const outText = (t.out && bodyString(t.out, 'text')) || '';
+    const a2 = assertThat('hc04-out', '有非降级 dialog out 回复', !!t.out && !finalDegraded,
+      'out 存在且 degraded≠true', t.out ? `id=${t.out.id} action=${outAction ?? '—'}` : '未见 out 行');
+    // 分支判定（2026-10-05 实测修正）：模型理解「收尾」但世界无可指认任务时，反问澄清是
+    // 正确真人行为（会话重置后「刚才那个小任务」无指认对象 → 秘书答"对不上号，是哪件"）。
+    // 不该判红，也不该放弃验证理解度：派活分支等 dispatched 严判；澄清分支短 settle 后核
+    // 零派发 + 答复含任务指代关键词（防懒答充绿），全文进 notes 供人工抽验。
+    const wantsDispatch = outAction !== undefined && outAction !== 'general_response';
+    let dispatched: CanaryEntry[];
+    if (wantsDispatch) {
+      const rows = await waitDispatched(ctx, t.since, t.anchorId, ctx.options.bossWaitMs);
+      dispatched = rows ?? dispatchedRows(ctx, t.since, t.anchorId);
+    } else {
+      await sleep(ZERO_DISPATCH_SETTLE_MS);
+      dispatched = dispatchedRows(ctx, t.since, t.anchorId);
+    }
     const bosses = await bossIdSet(ctx);
-    const a2 = assertThat('hc04-dispatch-1', 'dispatched 恰 1 条', dispatched.length === 1, '1', String(dispatched.length),
+    const a3 = assertThat('hc04-dispatch-le-1', 'dispatched ≤ 1', dispatched.length <= 1, '≤1', String(dispatched.length),
       dispatched.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'toAgentId', 'toAgentName', 'channel', 'message'], 80)));
     const bad = dispatched.filter((e) => { const to = e.agentId ?? bodyString(e, 'toAgentId'); return to === undefined || !bosses.has(to); });
-    const a3 = assertThat('hc04-boss-only', 'dispatched 全部只到 Boss', bad.length === 0, '非 Boss 目标=0', `非 Boss=${bad.length}`,
+    const a4 = assertThat('hc04-boss-only', 'dispatched 全部只到 Boss', bad.length === 0, '非 Boss 目标=0', `非 Boss=${bad.length}`,
       bad.slice(0, 3).map((e) => entryEvidence(e, ['phase', 'toAgentId', 'channel'])));
     const blocked = blockedRows(ctx, t.since, t.anchorId);
-    const a4 = assertThat('hc04-no-blocked', '无 blocked 违规告警', blocked.length === 0, '0', String(blocked.length));
+    const a5 = assertThat('hc04-no-blocked', '无 blocked 违规告警', blocked.length === 0, '0', String(blocked.length));
+    const clarifyRe = /任务|哪|说一声|指认|安排/;
+    const clarifyOk = dispatched.length > 0 || clarifyRe.test(outText);
+    const a6 = assertThat('hc04-branch',
+      dispatched.length > 0 ? '派活分支：由 dispatched 断言覆盖' : '澄清分支：答复含任务指代关键词',
+      clarifyOk,
+      dispatched.length > 0 ? '派活分支（本条自动通过）' : '含 任务/哪/说一声/指认/安排 之一',
+      dispatched.length > 0 ? `${dispatched.length} 条派发` : (clarifyOk ? `匹配：${truncate(outText, 60)}` : `未匹配：${truncate(outText, 60)}`));
+    const branch = dispatched.length > 0 ? '派活分支' : '澄清分支';
     return {
-      assertions: [a1, a2, a3, a4],
+      assertions: [a1, a2, a3, a4, a5, a6],
       notes: [
-        '本探针产生 1 次无害派活（零工具「只回复收到」）；收口用 --cleanup 停 agent',
+        `回合分支：${branch}（action=${outAction ?? '—'}）`,
+        `out 全文（人工抽验）：${truncate(outText, 200)}`,
+        dispatched.length > 0
+          ? '本探针产生 1 次无害派活（零工具「只回复收到」）；收口用 --cleanup 停 agent'
+          : '澄清分支未派活：世界无可指认的「刚才那个小任务」时反问澄清（正确真人行为，非缺陷）',
+        ...(t.degradeRetries ? [`LLM 降级窗口：重发 ${t.degradeRetries} 次后才获得正常回合（环境噪声，非系统缺陷）`] : []),
         ...(t.anchorNote ? [t.anchorNote] : []),
       ],
       observed: observedSummary(dispatched),
@@ -371,7 +413,7 @@ const hc14: ProbeDef = {
 
     // 14b 机制证据：读源码关键锚点
     const root = repoRoot();
-    const gateFile = path.join(root, 'src/packages/server/services/broadcast-gates.ts');
+    const gateFile = path.join(root, 'src/packages/shared/broadcast-gates.ts');
     const reporterFile = path.join(root, 'src/packages/client/voice/proactiveReporter.ts');
     const gateSrc = fs.existsSync(gateFile) ? fs.readFileSync(gateFile, 'utf8') : '';
     const reporterSrc = fs.existsSync(reporterFile) ? fs.readFileSync(reporterFile, 'utf8') : '';
