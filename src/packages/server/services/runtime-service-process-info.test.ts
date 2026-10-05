@@ -13,6 +13,7 @@ const mockSnapshotProviderProcesses = vi.hoisted(() => vi.fn());
 const mockLoadRunningProcesses = vi.hoisted(() => vi.fn());
 const mockIsProcessRunning = vi.hoisted(() => vi.fn());
 const mockGetActiveProcessesState = vi.hoisted(() => vi.fn(() => [] as Array<{ agentId: string; pid?: number }>));
+const mockIsAgentProcessUnmanaged = vi.hoisted(() => vi.fn(() => false));
 const mockCreateRunner = vi.hoisted(() => vi.fn(() => ({
   run: vi.fn(async () => {}),
   stop: vi.fn(async () => {}),
@@ -23,6 +24,7 @@ const mockCreateRunner = vi.hoisted(() => vi.fn(() => ({
   onNextActivity: vi.fn(),
   supportsStdin: vi.fn(() => false),
   getActiveProcessesState: mockGetActiveProcessesState,
+  isAgentProcessUnmanaged: mockIsAgentProcessUnmanaged,
 })));
 
 vi.mock('./agent-service.js', () => ({
@@ -134,5 +136,32 @@ describe('getAgentRuntimeProcessInfoBatch', () => {
       source: 'discovered',
     });
     await expect(getAgentRuntimeProcessInfo('a-missing')).resolves.toEqual({ isRunning: false, source: 'none' });
+  });
+});
+
+describe('isAgentProcessUnmanaged', () => {
+  // NOTE: init() constructs a REAL ClaudeRunnerRouter for the claude provider
+  // (only codex/opencode/grok/pi come from the mocked providers), so the
+  // delegation assertions use a grok agent to reach the mock runner.
+  it('delegates to the runner that owns the agent’s provider', async () => {
+    const { init, isAgentProcessUnmanaged } = await import('./runtime-service.js');
+    init();
+    mockIsAgentProcessUnmanaged.mockReturnValue(true);
+
+    expect(isAgentProcessUnmanaged('a-wrong-provider')).toBe(true);
+    expect(mockIsAgentProcessUnmanaged).toHaveBeenCalledWith('a-wrong-provider');
+
+    mockIsAgentProcessUnmanaged.mockReturnValue(false);
+    expect(isAgentProcessUnmanaged('a-wrong-provider')).toBe(false);
+  });
+
+  it('coerces a missing verdict to false', async () => {
+    const { init, isAgentProcessUnmanaged } = await import('./runtime-service.js');
+    init();
+    // A runner without the optional method (or one that returns undefined)
+    // must read as "managed" so the reattach gate never blocks a normal agent.
+    mockIsAgentProcessUnmanaged.mockReturnValue(undefined as any);
+
+    expect(isAgentProcessUnmanaged('a-wrong-provider')).toBe(false);
   });
 });

@@ -24,6 +24,15 @@ vi.mock('../../services/system-prompt-service.js', () => ({
   getTmuxIdleTimeoutMs: vi.fn(() => 1_800_000),
 }));
 
+const mockKillProcessTree = vi.hoisted(() => vi.fn());
+
+// Partial mock: keep the real getEffectivePid, stub only the tree-kill (which
+// would otherwise shell out to taskkill against a fake PID in tests).
+vi.mock('./process-identity.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./process-identity.js')>();
+  return { ...actual, killProcessTree: mockKillProcessTree };
+});
+
 describe('RunnerWatchdog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -267,5 +276,89 @@ describe('RunnerWatchdog stuck-working reconciler', () => {
     (await makeWatchdog(processes)).runWatchdog();
 
     expect(mockUpdateAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('RunnerWatchdog adopted orphans', () => {
+  let killSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    killSpy.mockRestore();
+  });
+
+  function makeAdoptedProc(over: Partial<ActiveProcess> = {}): ActiveProcess {
+    const tenMinAgo = Date.now() - 600_000;
+    return {
+      agentId: 'a1',
+      startTime: tenMinAgo,
+      // The placeholder child we never own — all checks must use recoveredPid.
+      process: { pid: 111 } as any,
+      recoveredPid: 4242,
+      turnState: 'waiting_for_input',
+      lastActivityTime: tenMinAgo,
+      ...over,
+    };
+  }
+
+  async function makeWatchdog(processes: Map<string, ActiveProcess>) {
+    const { RunnerWatchdog } = await import('./watchdog.js');
+    return new RunnerWatchdog({
+      activeProcesses: processes,
+      lastStderr: new Map(),
+      bus: new RunnerInternalEventBus(),
+    });
+  }
+
+  it('checks liveness of the recovered PID, not the placeholder', async () => {
+    mockIsProcessRunning.mockReturnValue(false);
+    const processes = new Map<string, ActiveProcess>([['a1', makeAdoptedProc()]]);
+    const bus = new RunnerInternalEventBus();
+    const onMissing = vi.fn();
+    bus.on('runner.watchdog_missing_process', onMissing);
+    const { RunnerWatchdog } = await import('./watchdog.js');
+    const watchdog = new RunnerWatchdog({ activeProcesses: processes, lastStderr: new Map(), bus });
+
+    watchdog.runWatchdog();
+
+    expect(mockIsProcessRunning).toHaveBeenCalledWith(4242);
+    expect(onMissing).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'a1', pid: 4242 }));
+    expect(watchdog.getDeathHistory()[0].pid).toBe(4242);
+    expect(processes.has('a1')).toBe(false);
+  });
+
+  it('tree-kills the recovered PID (not the placeholder) when stuck mid-turn', async () => {
+    mockIsProcessRunning.mockReturnValue(true);
+    const processes = new Map<string, ActiveProcess>([
+      ['a1', makeAdoptedProc({ turnState: 'processing' })],
+    ]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(mockKillProcessTree).toHaveBeenCalledWith(4242, 'SIGKILL');
+    expect(killSpy).not.toHaveBeenCalled();
+  });
+
+  it('still SIGKILLs the owned process directly for normal processes', async () => {
+    mockIsProcessRunning.mockReturnValue(true);
+    const tenMinAgo = Date.now() - 600_000;
+    const processes = new Map<string, ActiveProcess>([
+      ['a1', {
+        agentId: 'a1',
+        startTime: tenMinAgo,
+        process: { pid: 99_999 } as any,
+        turnState: 'processing',
+        lastActivityTime: tenMinAgo,
+      }],
+    ]);
+
+    (await makeWatchdog(processes)).runWatchdog();
+
+    expect(killSpy).toHaveBeenCalledWith(99_999, 'SIGKILL');
+    expect(mockKillProcessTree).not.toHaveBeenCalled();
   });
 });

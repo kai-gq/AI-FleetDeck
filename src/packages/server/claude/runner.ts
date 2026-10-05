@@ -15,6 +15,7 @@ import { createLogger } from '../utils/logger.js';
 import { withAgentContext } from '../utils/log-context.js';
 import { isProcessRunning } from '../data/index.js';
 import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid } from './runner/tmux-helper.js';
+import { getEffectivePid, isSameProcess } from './runner/process-identity.js';
 import type { RunningProcessInfo } from '../data/index.js';
 import { spawn } from 'child_process';
 import * as agentService from '../services/agent-service.js';
@@ -75,6 +76,7 @@ export class ClaudeRunner {
       reconnectTmux: (agentId, logFile, offset, savedProcess) => {
         this.reconnectToTmuxSession(agentId, logFile, offset, savedProcess);
       },
+      reconnectDetached: (agentId, savedProcess) => this.reconnectDetachedProcess(agentId, savedProcess),
     });
 
     this.lifecycle = new RunnerProcessLifecycle({
@@ -396,7 +398,8 @@ export class ClaudeRunner {
     return Array.from(this.activeProcesses.entries()).map(([agentId, proc]) => {
       // For tmux processes, the launcher PID exits quickly — resolve the real
       // PID from the tmux pane so witr/debug tools can find the process.
-      let pid = proc.process.pid;
+      // Adopted processes report their recovered PID, not the placeholder.
+      let pid = getEffectivePid(proc);
       if (proc.tmuxSession) {
         const panePid = getTmuxPanePid(agentId);
         if (panePid) {
@@ -482,6 +485,15 @@ export class ClaudeRunner {
     const activeProcess = this.activeProcesses.get(agentId);
     if (!activeProcess) {
       log.error(`❌ [SEND_MESSAGE] No active process for agent ${agentId}`);
+      return false;
+    }
+
+    if (activeProcess.recoveredPid) {
+      // Adopted orphan: we never owned its stdio — a write cannot reach it.
+      // Return false so sendCommand falls through to its detached branch,
+      // which stops the orphan (tree kill) and respawns the session with
+      // --resume, delivering this message as the new prompt.
+      log.log(`↪️ [SEND_MESSAGE] Agent ${agentId}: adopted orphan (PID ${activeProcess.recoveredPid}) — deferring to detached-takeover path`);
       return false;
     }
 
@@ -766,6 +778,80 @@ export class ClaudeRunner {
     log.log(`✅ [TMUX] Reconnected to tmux session ${sessionName} for agent ${agentId} (status=${wasWorking ? 'working' : 'idle'})`);
   }
 
+  /**
+   * Adopt a live process from a previous server instance (dev restart or
+   * crash). We never owned its stdio pipe, so this can only track, surface,
+   * and kill it — a follow-up message routes through the detached-takeover
+   * path in sendCommand (stop + resume) instead of stdin.
+   *
+   * Resolves true when the process passed the identity probe and is tracked.
+   */
+  private async reconnectDetachedProcess(agentId: string, savedProcess: RunningProcessInfo): Promise<boolean> {
+    const pid = savedProcess.pid;
+
+    // A recycled PID must not be adopted: verify the live process started
+    // when we recorded the spawn. Fail-open on platforms without a probe.
+    const same = await isSameProcess(pid, savedProcess.startTime);
+    if (!same) {
+      log.error(`❌ [ADOPT] PID ${pid} for agent ${agentId} failed the identity probe (start-time mismatch) — not adopting (PID reuse?)`);
+      return false;
+    }
+    if (!isProcessRunning(pid)) {
+      log.error(`❌ [ADOPT] PID ${pid} for agent ${agentId} died before adoption — not adopting`);
+      return false;
+    }
+
+    // Placeholder child so the map holds a ChildProcess-shaped entry. It is
+    // never waited on or signaled — liveness checks and kills all go through
+    // getEffectivePid(), which resolves to recoveredPid.
+    const placeholder = spawn(process.execPath, ['-e', ''], { stdio: 'ignore', windowsHide: true });
+    placeholder.unref();
+
+    const agent = agentService.getAgent(agentId);
+    const lastRequest = savedProcess.lastRequest as RunnerRequest | undefined;
+    const wasWorking = agent?.status === 'working' || savedProcess.agentStatus === 'working';
+
+    const activeProcess: ActiveProcess = {
+      agentId,
+      sessionId: savedProcess.sessionId,
+      startTime: savedProcess.startTime ?? Date.now(),
+      process: placeholder,
+      lastRequest,
+      restartCount: 0,
+      // Conservative: the orphan's turn state is unknowable without a stdout
+      // channel, and 'processing' + a stale lastActivityTime would let the
+      // idle-watchdog SIGKILL it as "stuck" ~3 min after boot.
+      // 'waiting_for_input' parks it until the user acts (stop or message).
+      turnState: 'waiting_for_input',
+      lastActivityTime: Date.now(),
+      recoveredPid: pid,
+      isReconnected: true,
+    };
+    this.activeProcesses.set(agentId, activeProcess);
+
+    if (agent) {
+      agentService.updateAgent(agentId, {
+        status: wasWorking ? 'working' : 'idle',
+        ...(wasWorking && typeof lastRequest?.prompt === 'string' && lastRequest.prompt.length > 0
+          ? { currentTask: lastRequest.prompt.substring(0, 100) }
+          : {}),
+        isDetached: true,
+      });
+    }
+
+    log.log(`🔄 [ADOPT] Adopted live orphan for agent ${agentId} (PID ${pid}, session=${savedProcess.sessionId ?? 'none'}, was=${wasWorking ? 'working' : 'idle'})`);
+    return true;
+  }
+
+  /**
+   * True when the agent's live process is tracked but not manageable — an
+   * adopted orphan with no stdio channel. Callers must not offer reattach;
+   * stop or a follow-up message take it over.
+   */
+  isAgentProcessUnmanaged(agentId: string): boolean {
+    return this.activeProcesses.get(agentId)?.recoveredPid !== undefined;
+  }
+
   interrupt(agentId: string): boolean {
     return withAgentContext(agentId, () => this.lifecycle.interrupt(agentId));
   }
@@ -823,7 +909,7 @@ export class ClaudeRunner {
       return true;
     }
 
-    const pid = activeProcess.process.pid;
+    const pid = getEffectivePid(activeProcess);
     if (!pid) {
       this.activeProcesses.delete(agentId);
       return false;

@@ -450,6 +450,16 @@ export function isAgentRunning(agentId: string): boolean {
   return isAnyRunnerActive(agentId);
 }
 
+/**
+ * True when the agent is tracked as an ADOPTED orphan (live PID from a prior
+ * server instance, no stdio channel). Such agents cannot be "reattached" —
+ * the client should stop them or send a message (detached-takeover).
+ */
+export function isAgentProcessUnmanaged(agentId: string): boolean {
+  const runner = getRunnerForAgent(agentId);
+  return runner?.isAgentProcessUnmanaged?.(agentId) ?? false;
+}
+
 export interface AgentRuntimeProcessInfo {
   pid?: number;
   isRunning: boolean;

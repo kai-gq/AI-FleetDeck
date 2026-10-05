@@ -24,6 +24,15 @@ vi.mock('../../grok/session-watcher.js', () => ({
   startGrokSessionWatcher: vi.fn(),
 }));
 
+const mockKillProcessTree = vi.hoisted(() => vi.fn());
+
+// Partial mock: keep the real getEffectivePid, stub only the tree-kill (which
+// would otherwise shell out to taskkill against a fake PID in tests).
+vi.mock('./process-identity.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./process-identity.js')>()),
+  killProcessTree: mockKillProcessTree,
+}));
+
 async function buildHarness() {
   const { RunnerProcessLifecycle } = await import('./process-lifecycle.js');
 
@@ -39,6 +48,12 @@ async function buildHarness() {
     handleTmuxLog: vi.fn(() => ({ stop: vi.fn(), getOffset: vi.fn(() => 0) })),
   };
 
+  const callbacks = {
+    onSessionId: vi.fn(),
+    onComplete: vi.fn(),
+    onError: vi.fn(),
+  };
+
   const lifecycle = new RunnerProcessLifecycle({
     backend: {
       name: 'claude',
@@ -46,11 +61,7 @@ async function buildHarness() {
       getExecutablePath: () => 'claude',
       requiresStdinInput: () => false,
     } as any,
-    callbacks: {
-      onSessionId: vi.fn(),
-      onComplete: vi.fn(),
-      onError: vi.fn(),
-    } as any,
+    callbacks: callbacks as any,
     activeProcesses,
     lastStderr: new Map(),
     activityCallbacks: new Map(),
@@ -60,7 +71,7 @@ async function buildHarness() {
     onDisableAutoRestart: vi.fn(),
   });
 
-  return { lifecycle, activeProcesses, persistCalls, persistSpy };
+  return { lifecycle, activeProcesses, persistCalls, persistSpy, callbacks };
 }
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
@@ -116,5 +127,49 @@ describe('RunnerProcessLifecycle — persist on spawn edge', () => {
     expect(harness.persistSpy).toHaveBeenCalledTimes(1);
     expect(harness.persistCalls).toEqual([{ agentTracked: true }]);
     expect(harness.activeProcesses.get('a1')?.tmuxSession).toBe('tc-a1');
+  });
+});
+
+describe('RunnerProcessLifecycle — adopted orphans have no stdio channel', () => {
+  function adoptedProc(over: Partial<ActiveProcess> = {}): ActiveProcess {
+    return {
+      agentId: 'a1',
+      startTime: Date.now(),
+      // Placeholder child we never own — must never be signaled.
+      process: { pid: 111, kill: vi.fn() } as any,
+      recoveredPid: 4242,
+      turnState: 'waiting_for_input',
+      lastActivityTime: Date.now(),
+      ...over,
+    };
+  }
+
+  it('stops an adopted orphan by tree-killing the recovered PID', async () => {
+    const harness = await buildHarness();
+    const proc = adoptedProc();
+    harness.activeProcesses.set('a1', proc);
+
+    await harness.lifecycle.stop('a1');
+
+    expect(mockKillProcessTree).toHaveBeenCalledWith(4242);
+    expect((proc.process as any).kill).not.toHaveBeenCalled();
+    expect(harness.activeProcesses.has('a1')).toBe(false);
+    expect(harness.callbacks.onComplete).toHaveBeenCalledWith('a1', false);
+  });
+
+  it('interrupts an adopted orphan with a tree signal', async () => {
+    const harness = await buildHarness();
+    harness.activeProcesses.set('a1', adoptedProc());
+
+    expect(harness.lifecycle.interrupt('a1')).toBe(true);
+
+    expect(mockKillProcessTree).toHaveBeenCalledWith(4242, 'SIGINT');
+  });
+
+  it('returns false from interrupt when nothing is tracked', async () => {
+    const harness = await buildHarness();
+
+    expect(harness.lifecycle.interrupt('a1')).toBe(false);
+    expect(mockKillProcessTree).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import {
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
 import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath, tmuxSessionName } from './tmux-helper.js';
+import { getEffectivePid } from './process-identity.js';
 // 任务19·A（⑭ P2·系统活动6）：孤儿 tmux 会话清理埋点（helper 内部失败隔离）
 import { logProcess } from '../../services/activity-log.js';
 
@@ -65,6 +66,12 @@ interface RecoveryStoreDeps {
   activeProcesses: Map<string, ActiveProcess>;
   run: (request: RunnerRequest) => Promise<void>;
   reconnectTmux?: (agentId: string, logFile: string, offset: number, savedProcess?: RunningProcessInfo) => void;
+  /**
+   * Adopt a live orphaned process (PID still alive, but its stdio channel
+   * died with the previous server instance). Resolves true when the process
+   * was verified (identity probe) and is now tracked.
+   */
+  reconnectDetached?: (agentId: string, savedProcess: RunningProcessInfo) => Promise<boolean>;
 }
 
 export class RunnerRecoveryStore {
@@ -72,12 +79,14 @@ export class RunnerRecoveryStore {
   private activeProcesses: Map<string, ActiveProcess>;
   private run: (request: RunnerRequest) => Promise<void>;
   private reconnectTmux?: (agentId: string, logFile: string, offset: number, savedProcess?: RunningProcessInfo) => void;
+  private reconnectDetached?: (agentId: string, savedProcess: RunningProcessInfo) => Promise<boolean>;
 
   constructor(deps: RecoveryStoreDeps) {
     this.backend = deps.backend;
     this.activeProcesses = deps.activeProcesses;
     this.run = deps.run;
     this.reconnectTmux = deps.reconnectTmux;
+    this.reconnectDetached = deps.reconnectDetached;
   }
 
   persistRunningProcesses(): void {
@@ -91,7 +100,7 @@ export class RunnerRecoveryStore {
         const agent = agentService.getAgent(agentId);
         myProcesses.push({
           agentId,
-          pid: activeProcess.process.pid ?? 0,
+          pid: getEffectivePid(activeProcess) ?? 0,
           sessionId: activeProcess.sessionId,
           startTime: activeProcess.startTime,
           outputFile: activeProcess.outputFile,
@@ -174,6 +183,7 @@ export class RunnerRecoveryStore {
 
     const toResume: RunningProcessInfo[] = [];
     const toReconnectTmux: RunningProcessInfo[] = [];
+    const toAdopt: RunningProcessInfo[] = [];
 
     for (const savedProcess of savedProcesses) {
       // Only recover processes that belong to this runner's provider.
@@ -201,7 +211,18 @@ export class RunnerRecoveryStore {
       }
 
       if (isProcessRunning(savedProcess.pid)) {
-        log.log(`✅ Found orphaned process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) - still running`);
+        if (process.env.TIDE_RECOVER_LIVE_ORPHANS === '0') {
+          // Legacy behavior (escape hatch): drop live orphans from the ledger.
+          log.log(`✅ Found orphaned process for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) - still running`);
+          continue;
+        }
+        // Live process from the previous instance. The old code logged and
+        // dropped this entry (the rewrite below then deleted it from disk) —
+        // the process kept running with no UI handle. Adopt it instead:
+        // track it with recoveredPid so the user can stop it or take it over
+        // with a follow-up message.
+        log.log(`🔄 [ADOPT] Live orphan for agent ${savedProcess.agentId} (PID ${savedProcess.pid}) - will adopt`);
+        toAdopt.push(savedProcess);
         continue;
       }
 
@@ -256,14 +277,15 @@ export class RunnerRecoveryStore {
     }
 
     // Rewrite the persist file: other providers' entries stay untouched, and
-    // our to-reconnect tmux entries are KEPT (not consumed) — if the server
-    // dies again before the reconnect below re-persists, the next boot can
-    // still find them. Everything else of ours is consumed.
+    // our to-reconnect tmux entries AND to-adopt entries are KEPT (not
+    // consumed) — if the server dies again before the reconnect below
+    // re-persists, the next boot can still find them. Everything else of
+    // ours is consumed.
     const otherProviders = savedProcesses.filter((p) => {
       const prov = p.provider ?? agentService.getAgent(p.agentId)?.provider ?? 'claude';
       return prov !== this.backend.name;
     });
-    const preserved = [...otherProviders, ...toReconnectTmux];
+    const preserved = [...otherProviders, ...toReconnectTmux, ...toAdopt];
     if (preserved.length > 0) {
       saveRunningProcesses(preserved);
     } else {
@@ -288,6 +310,42 @@ export class RunnerRecoveryStore {
         // Re-persist immediately so the freshly tracked processes survive
         // another quick restart (the periodic persist is up to 10s away, and
         // tsx-watch dev restarts land inside that window all the time).
+        this.persistRunningProcesses();
+      }, 1000);
+    }
+
+    // Adopt live non-tmux orphans. Each adoption runs a process-identity
+    // probe (on win32 a PowerShell CIM shell-out, a few hundred ms), so this
+    // is async, settled off the same delay, and re-persists at the end —
+    // adopted entries must reach disk before the next restart window.
+    if (toAdopt.length > 0 && this.reconnectDetached) {
+      setTimeout(async () => {
+        for (const saved of toAdopt) {
+          const agent = agentService.getAgent(saved.agentId);
+          if (!agent) {
+            log.log(`🔄 [ADOPT] Skipping adoption for agent ${saved.agentId} - agent no longer exists`);
+            continue;
+          }
+
+          let adopted = false;
+          try {
+            adopted = await this.reconnectDetached!(saved.agentId, saved);
+          } catch (err) {
+            log.error(`🔄 [ADOPT] Adoption failed for agent ${saved.agentId}:`, err);
+          }
+
+          if (!adopted) {
+            // The process did not survive (or failed the identity probe).
+            // Clear any leftover detached flag so the UI doesn't show a
+            // phantom badge for an agent that isn't running.
+            const fresh = agentService.getAgent(saved.agentId);
+            if (fresh?.isDetached) {
+              agentService.updateAgent(saved.agentId, { isDetached: false });
+            }
+          }
+        }
+        // Re-persist immediately so adopted processes survive another quick
+        // restart (same rationale as the tmux reconnect above).
         this.persistRunningProcesses();
       }, 1000);
     }

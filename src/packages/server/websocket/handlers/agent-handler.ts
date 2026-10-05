@@ -1619,6 +1619,16 @@ export async function handleReattachAgent(
     return;
   }
 
+  if (runtimeService.isAgentProcessUnmanaged(payload.agentId)) {
+    // Adopted orphan: we know its PID but never owned its stdio channel, so
+    // there is no stream to reattach to. Stay silent (no sendError) so the
+    // client's reattach-retry prompt loop doesn't kick in — the real user
+    // paths are stop (tree-kill) or send a message (detached-takeover
+    // resumes the same session with a fresh process).
+    log.log(` Agent ${payload.agentId} runs an adopted process — reattach not applicable (stop or message instead)`);
+    return;
+  }
+
   if (!agent.sessionId) {
     log.error(` Cannot reattach agent ${payload.agentId} - no session ID available`);
     ctx.sendError(`Cannot reattach agent - no existing session found`);

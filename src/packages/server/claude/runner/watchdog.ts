@@ -3,6 +3,7 @@ import { createLogger } from '../../utils/logger.js';
 import { isProcessRunning } from '../../data/index.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
 import { hasTmuxSession, isTmuxPaneCommandAlive, killTmuxSession } from './tmux-helper.js';
+import { getEffectivePid, killProcessTree } from './process-identity.js';
 import * as agentService from '../../services/agent-service.js';
 import { clearPendingBackgroundTasks } from '../../services/runtime-subagents.js';
 import { clearBackgroundTasks } from '../../services/background-tasks.js';
@@ -99,7 +100,7 @@ export class RunnerWatchdog {
           }
           this.recordDeath({
             agentId,
-            pid: activeProcess.process.pid ?? 0,
+            pid: getEffectivePid(activeProcess) ?? 0,
             exitCode: null,
             signal: null,
             runtime: Date.now() - activeProcess.startTime,
@@ -112,7 +113,7 @@ export class RunnerWatchdog {
           this.bus.emit({
             type: 'runner.watchdog_missing_process',
             agentId,
-            pid: activeProcess.process.pid ?? 0,
+            pid: getEffectivePid(activeProcess) ?? 0,
             activeProcess,
           });
           continue;
@@ -200,7 +201,9 @@ export class RunnerWatchdog {
         continue;
       }
 
-      const pid = activeProcess.process.pid;
+      // Adopted orphans carry the real PID in recoveredPid; `process.pid` is
+      // only the placeholder we never own.
+      const pid = getEffectivePid(activeProcess);
       if (!pid) continue;
 
       if (!isProcessRunning(pid)) {
@@ -251,7 +254,12 @@ export class RunnerWatchdog {
           `[idle-watchdog] no model output for ${idleSec}s while processing — killed and respawning`
         );
         try {
-          process.kill(pid, 'SIGKILL');
+          if (activeProcess.recoveredPid) {
+            // Adopted orphan: no stdio channel — kill the whole tree.
+            killProcessTree(activeProcess.recoveredPid, 'SIGKILL');
+          } else {
+            process.kill(pid, 'SIGKILL');
+          }
         } catch (err) {
           log.error(`🐕 [WATCHDOG] Agent ${agentId}: SIGKILL on pid ${pid} failed:`, err);
         }

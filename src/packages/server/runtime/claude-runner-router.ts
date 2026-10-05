@@ -144,4 +144,9 @@ export class ClaudeRunnerRouter implements RuntimeRunner {
     const interactiveState = this.interactive.getActiveProcessesState();
     return [...headlessState, ...interactiveState];
   }
+
+  /** Only the headless runner adopts orphans — the interactive runner never does. */
+  isAgentProcessUnmanaged(agentId: string): boolean {
+    return this.headless.isAgentProcessUnmanaged?.(agentId) ?? false;
+  }
 }

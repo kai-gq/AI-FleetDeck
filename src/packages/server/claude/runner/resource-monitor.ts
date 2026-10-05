@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import type { ActiveProcess } from '../types.js';
+import { getEffectivePid } from './process-identity.js';
 
 interface ResourceMonitorDeps {
   activeProcesses: Map<string, ActiveProcess>;
@@ -14,11 +15,11 @@ export class RunnerResourceMonitor {
 
   getProcessMemoryMB(agentId: string): number | undefined {
     const activeProcess = this.activeProcesses.get(agentId);
-    if (!activeProcess || !activeProcess.process.pid) {
+    // Adopted orphans: the real PID lives in recoveredPid.
+    const pid = activeProcess ? getEffectivePid(activeProcess) : undefined;
+    if (!pid) {
       return undefined;
     }
-
-    const pid = activeProcess.process.pid;
 
     try {
       const status = execSync(`cat /proc/${pid}/status 2>/dev/null | grep VmRSS`, {

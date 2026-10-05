@@ -14,6 +14,7 @@ import {
   interruptTmuxSession,
 } from './tmux-helper.js';
 import { startGrokSessionWatcher } from '../../grok/session-watcher.js';
+import { getEffectivePid, killProcessTree } from './process-identity.js';
 
 const log = createLogger('Runner');
 
@@ -343,9 +344,17 @@ export class RunnerProcessLifecycle {
       return interruptTmuxSession(agentId);
     }
 
-    const pid = activeProcess.process.pid;
+    const pid = getEffectivePid(activeProcess);
     if (!pid) {
       return false;
+    }
+
+    if (activeProcess.recoveredPid) {
+      // Adopted orphan: no stdio channel for a graceful interrupt — signal
+      // the real tree instead (win32: taskkill /T /F; POSIX: group SIGINT).
+      log.log(`⚠️ [INTERRUPT] Agent ${agentId}: adopted orphan (PID ${activeProcess.recoveredPid}) — tree kill instead of SIGINT`);
+      killProcessTree(activeProcess.recoveredPid, 'SIGINT');
+      return true;
     }
 
     try {
@@ -363,7 +372,7 @@ export class RunnerProcessLifecycle {
       return;
     }
 
-    const pid = activeProcess.process.pid;
+    const pid = getEffectivePid(activeProcess);
     log.log(`🛑 Stopping agent ${agentId} (pid ${pid})`);
 
     // Stop tmux tailer if active
@@ -384,6 +393,15 @@ export class RunnerProcessLifecycle {
     // tmux mode: kill the tmux session and clean up
     if (activeProcess.tmuxSession) {
       killTmuxSession(agentId);
+      this.callbacks.onComplete(agentId, false);
+      return;
+    }
+
+    // Adopted orphan: the placeholder child is not the real process — we
+    // never owned its streams, so terminate the recovered PID's tree.
+    if (activeProcess.recoveredPid) {
+      log.log(`🛑 [ADOPT] Agent ${agentId}: stopping adopted orphan (PID ${activeProcess.recoveredPid}) via tree kill`);
+      killProcessTree(activeProcess.recoveredPid);
       this.callbacks.onComplete(agentId, false);
       return;
     }

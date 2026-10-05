@@ -96,6 +96,13 @@ export interface RuntimeRunner {
    * nothing is removed and false is returned.
    */
   removeQueuedMessage?(agentId: string, index: number, expectedText: string): boolean;
+  /**
+   * True when the agent's tracked process is an ADOPTED orphan from a previous
+   * server instance: we know its PID but never owned its stdio channel, so a
+   * client "reattach" is meaningless — the user path is stop (tree-kill) or
+   * send a message (detached-takeover: stop + resume in the same session).
+   */
+  isAgentProcessUnmanaged?(agentId: string): boolean;
 }
 
 export interface RuntimeProvider {

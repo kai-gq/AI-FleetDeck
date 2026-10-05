@@ -322,6 +322,14 @@ export interface ActiveProcess {
   fileReadPosition?: number;  // Current read position in output file
   // Flag indicating this is a reconnected orphan process
   isReconnected?: boolean;
+  /**
+   * PID of an adopted live process from a previous server instance. The
+   * `process` field is only a placeholder we never own — every liveness
+   * check and kill must go through getEffectivePid(). Adopted processes have
+   * no stdio channel: messages fall through to the detached-takeover path
+   * (stop + resume), and stop/interrupt tree-kill this PID.
+   */
+  recoveredPid?: number;
   // Track last activity time for stdin watchdog (detects stuck processes)
   lastActivityTime?: number;
   // Track errors that occur during the process lifetime
