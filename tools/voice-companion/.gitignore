@@ -4,3 +4,6 @@ config.json
 
 # 运行日志(如有)
 *.log
+
+# bench 基准结果(本地测量产物)
+bench/
