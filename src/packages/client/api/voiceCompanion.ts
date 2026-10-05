@@ -490,6 +490,33 @@ export async function processVoiceCompanionTextStream(
   }
 }
 
+/** 分钟级提醒的待播载荷(server/services/voice-reminder-service.ts toDuePayload 的镜像)。 */
+export interface DueVoiceReminder {
+  id: string;
+  itemText: string;
+  fireAt: number;
+  /** 到点话术(服务端确定性拼好;客户端直接播,不自行拼)。 */
+  say: string;
+}
+
+/** GET /reminders/due:待播(due)提醒(WS 推送为主通道,轮询兜底;开关关 → 空)。 */
+export async function fetchVoiceReminderDue(): Promise<DueVoiceReminder[]> {
+  const res = await authFetch(apiUrl('/api/voice-companion/reminders/due'));
+  if (!res.ok) throw new Error(`提醒轮询失败(${res.status})`);
+  const data = (await res.json().catch(() => ({}))) as { reminders?: DueVoiceReminder[] };
+  return Array.isArray(data.reminders) ? data.reminders : [];
+}
+
+/** POST /reminders/ack:播报完成回执(幂等;失败抛,由调用方降级为「下回补播」)。 */
+export async function ackVoiceReminder(id: string): Promise<void> {
+  const res = await authFetch(apiUrl('/api/voice-companion/reminders/ack'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error(`提醒回执失败(${res.status})`);
+}
+
 export interface CompanionMemoryNote {
   id: string;
   text: string;

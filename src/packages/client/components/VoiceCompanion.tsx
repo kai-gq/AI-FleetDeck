@@ -23,10 +23,13 @@ import {
   loadVoiceCompanionConfig,
   processVoiceCompanionTextStream,
   subscribeVoiceCompanionConfig,
+  fetchVoiceReminderDue,
+  ackVoiceReminder,
   type VoiceCompanionConfig,
   type VoiceProcessStreamFinal,
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
+import { createReminderWatcher, type ReminderWatcherHandle } from '../voice/reminderWatcher';
 import { preloadTtsAudio } from '../voice/ttsPreload';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
@@ -65,7 +68,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const [entries, setEntries] = useState<BubbleEntry[]>([]);
   const [isLeader, setIsLeader] = useState(true);
 
-  const { enqueue: enqueueSpeech, stop: stopSpeech, speaking: ttsSpeaking } = useSpeechQueue();
+  const { enqueue: enqueueSpeech, stop: stopSpeech, drain: drainSpeech, speaking: ttsSpeaking } = useSpeechQueue();
   const entryIdRef = useRef(0);
   const speakGenRef = useRef(0);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -76,7 +79,10 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const busyRef = useRef(false);
   const thinkingRef = useRef(false);
   const ttsSpeakingRef = useRef(false);
+  const isLeaderRef = useRef(true);
+  const listeningPhaseRef = useRef<string>('off');
   const reporterRef = useRef<ProactiveReporterHandle | null>(null);
+  const reminderWatcherRef = useRef<ReminderWatcherHandle | null>(null);
 
   // 卸载:中止在途流;播报队列由 useSpeechQueue 自行停止
   useEffect(() => () => {
@@ -328,6 +334,12 @@ export function VoiceCompanion({ className }: { className?: string }) {
   useEffect(() => {
     ttsSpeakingRef.current = ttsSpeaking;
   }, [ttsSpeaking]);
+  useEffect(() => {
+    isLeaderRef.current = isLeader;
+  }, [isLeader]);
+  useEffect(() => {
+    listeningPhaseRef.current = listening.phase;
+  }, [listening.phase]);
 
   // 只在「启用 + 主动汇报开 + 本页是 leader」时运行(多标签页避免重复播报)
   const proactiveActive = !!config?.enabled && cfg.proactive.enabled && isLeader;
@@ -375,6 +387,38 @@ export function VoiceCompanion({ className }: { className?: string }) {
       reporterRef.current = null;
     };
   }, [config, proactiveActive, pushEntry, runStreamSafely]);
+
+  // ---- 分钟级提醒取件:到点(WS 主通道 + 5s 轮询兜底)→ 播报 → 回执(仅 leader) ----
+  // 链路与边界见 voice/reminderWatcher;闹钟语义,不搭车 hop1(事故教训:36s 级延迟不可接受)。
+  useEffect(() => {
+    if (!config?.enabled || !isLeader) {
+      reminderWatcherRef.current?.stop();
+      reminderWatcherRef.current = null;
+      return;
+    }
+    const watcher = createReminderWatcher({
+      isLeader: () => isLeaderRef.current,
+      // 不插话:用户正在说话(听写/转写)、大脑处理中、播报中一律挂起,下一 tick 重试
+      isBusy: () =>
+        busyRef.current ||
+        thinkingRef.current ||
+        ttsSpeakingRef.current ||
+        listeningPhaseRef.current === 'hearing' ||
+        listeningPhaseRef.current === 'transcribing',
+      speak: (text) => {
+        enqueueSpeech(text, speechLangFor(text));
+        return drainSpeech(); // 播完(或被打断)才 resolve → 之后才回执
+      },
+      ack: ackVoiceReminder,
+      fetchDue: fetchVoiceReminderDue,
+    });
+    watcher.start();
+    reminderWatcherRef.current = watcher;
+    return () => {
+      watcher.stop();
+      reminderWatcherRef.current = null;
+    };
+  }, [config?.enabled, isLeader, enqueueSpeech, drainSpeech]);
 
   const handleButtonClick = useCallback(() => {
     if (!isLeader) {
