@@ -65,13 +65,14 @@ E:\tide-commander\tide-commander\tools\whisper\venv\Scripts
 E:\tide-commander\tide-commander\tools\whisper\ffmpeg\bin
 ```
 
-加 PATH 的命令(PowerShell,只改当前用户,重复执行安全):
+加 PATH 用本目录的 `add_path.ps1`(幂等,只改当前用户,重复执行安全;
+目录按脚本位置推导——仓库挪动后在新位置重跑即可)。由你亲自执行:
 
 ```powershell
-$p=[Environment]::GetEnvironmentVariable('Path','User')
-$add='E:\tide-commander\tide-commander\tools\whisper\venv\Scripts;E:\tide-commander\tide-commander\tools\whisper\ffmpeg\bin'
-if ($p -notlike "*tools\whisper\venv\Scripts*") { [Environment]::SetEnvironmentVariable('Path', $p + ';' + $add, 'User') }
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\whisper\add_path.ps1
 ```
+
+看到 `ADDED: ...` 或 `ALREADY_PRESENT` 即成功,**必须重启 Tide Commander** 生效。
 
 ## 日常使用
 
