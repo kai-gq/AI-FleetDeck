@@ -135,6 +135,23 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | 提示「小模型加载失败,已用能量判停」 | Silero 模型/运行时没加载起来(离线、文件缺失或浏览器太旧)。功能自动回退能量,不残;想再试一次就关掉再开聆听,或把「判停引擎」切到「能量」消掉提示 |
 | 设置面板「判停引擎」一直显示加载中 | 模型 2.2MB,首次加载视网络而定;超过 ~8s 会判失败并回退。看 Network 里 `/silero_vad.onnx` 是否 200 |
 
+## 基准(bench)
+
+`bench.mjs` 走真实回合(与语音页同一条 `POST /api/voice-companion/process` 流式路径),
+按套件/动作统计首句到达 tMs、首句字数与全程耗时,给「感知提速」这类改动做前后对比:
+
+```bash
+node tools/voice-companion/bench.mjs --label=before            # 默认 general + query 各 5 条
+node tools/voice-companion/bench.mjs --suites=general --n=3 --label=after
+node tools/voice-companion/bench.mjs --compare bench/before.jsonl bench/after.jsonl
+node tools/voice-companion/bench.mjs --once "现在几点了？"      # 单条即测
+```
+
+- **跑的是真实回合**:会进秘书会话与 dialog 日志,请在没人正用语音页时跑(`--dry-run` 只打计划不联网)。
+- 派活套件(`delegate`)会真派任务给主管,默认跳过,需显式 `--allow-dispatch`。
+- 产物在 `bench/`(gitignored);首轮 W1–W6 的前后数据与结论见
+  `obsidian-docs/06-功能域专题/06-10-语音、监控统计与浏览器桥.md` §1e。
+
 ## 代码地图
 
 | 位置 | 作用 |
@@ -151,3 +168,4 @@ wav 任意采样率/声道/位深(PCM)都会自动转成 16k 单声道;`--url` �
 | `src/packages/client/components/VoiceCompanion.tsx` | 悬浮钮 + 气泡 + FSM |
 | `src/packages/client/components/toolbox/VoiceCompanionSection.tsx` | 设置面板节 |
 | `tools/voice-companion/selftest.mjs` | 无麦克风流式链路自测 |
+| `tools/voice-companion/bench.mjs` | 感知延迟基准(真实回合:首句 tMs/字数/全长;`--compare` 前后对比) |
