@@ -6,8 +6,12 @@
 import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../shared/types.js';
 import type { TaskCard } from '../../shared/agent-types.js';
 import * as agentService from './agent-service.js';
+import * as skillService from './skill-service.js';
+import { createLogger } from '../utils/index.js';
 import { buildBossContext } from './subordinate-context-service.js';
 import { formatTaskCardForBoss, parseTaskCardFromText } from './task-card-service.js';
+
+const log = createLogger('BossMessage');
 
 /**
  * Build minimal system prompt for boss agent.
@@ -24,6 +28,19 @@ Your agent ID for notifications: ${bossId}`;
   // Append agent-specific custom instructions
   if (customInstructions) {
     prompt += `\n\n# Custom Instructions\n\n${customInstructions}`;
+  }
+
+  // HC-B2 修复（2026-10-05）：显式拼接该 agent 的技能内容（含 boss-instructions 的
+  // ```delegation 委派协议）。此前唯一物化通道是 buildCustomAgentConfig（command-handler），
+  // 但它对 class==='boss' 早退——协议从未到达主管会话，决策/任务卡/回执/撤回审计链
+  // 全历史零行（真人战役 C2 取证；上游同源缺陷）。技能读取失败时降级为基座提示词。
+  try {
+    const skillsContent = skillService.buildSkillPromptContent(bossId, agent?.class ?? 'boss', true);
+    if (skillsContent.trim()) {
+      prompt += `\n\n${skillsContent}`;
+    }
+  } catch (err) {
+    log.warn(` skill content skipped for boss ${bossId}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return prompt;
