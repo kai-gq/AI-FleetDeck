@@ -1226,7 +1226,7 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
 
   it('G6-8 stays silent on noop events(fresh event turn carries no reminder)', async () => {
     const sentences: string[] = [];
-    const p = startProcess('[系统事件] 一切正常', { isEvent: true, onSentence: (s) => sentences.push(s) });
+    const p = startProcess('⟦系统事件⟧ 一切正常', { isEvent: true, onSentence: (s) => sentences.push(s) });
     const call = await waitSpawn(1);
     await completeWith(call.child, contractText({ action: 'noop', responseToUser: '不该出声。' }), { via: 'delta' });
 
@@ -1235,7 +1235,7 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).toBe('');
     expect(sentences).toEqual([]);
     const stdin = stdinUserContent(call);
-    expect(stdin).toContain('系统事件');
+    expect(stdin).toContain('⟦系统事件⟧');
     expect(stdin).not.toContain('[REMINDER'); // isEvent 且无 resume → 不追加
   });
 
@@ -1492,7 +1492,7 @@ describe('任务27·尾:记忆三挂点(真实 processVoiceInput 编排)', () =>
     await p;
 
     memoryWire.captures.length = 0;
-    const p2 = startProcess('[系统事件] 任务完成', { isEvent: true });
+    const p2 = startProcess('⟦系统事件⟧ 任务完成', { isEvent: true });
     const call2 = await waitSpawn(2);
     await completeWith(call2.child, contractText({ action: 'noop' }));
     await p2;

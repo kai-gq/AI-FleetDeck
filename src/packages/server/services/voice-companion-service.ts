@@ -213,7 +213,7 @@ export interface VoiceContract {
 }
 
 export interface VoiceProcessOptions {
-  /** true = 由客户端主动汇报模块送来的 [系统事件] 文本(noop 时保持安静)。 */
+  /** true = 由客户端主动汇报模块送来的 ⟦系统事件⟧ 文本(noop 时保持安静)。 */
   isEvent?: boolean;
   /**
    * 分句流式播报:模型边生成,responseToUser 里每完成一句就回调一次
@@ -1496,7 +1496,7 @@ ${CONTRACT_TEMPLATE}
 - reopen_bolba_task: 老板说「重开 X」且 X 是业务事项 → bolbaTask 填 X 的指代(编号或标题);responseToUser 可留空。
 - list_agents: 老板想了解有哪些 agent、谁在忙、某类状态如何。必须用 responseToUser 口头汇报概况(数量、谁在忙、谁空闲)。
 - general_response: 正常对话——寒暄、问你自己、闲聊、咨询建议、对老板想法的讨论,都走这条;对老板的决定有不同看法就直接说出来,该质疑质疑。必须给出 responseToUser。
-- noop: 输入以 [系统事件] 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。
+- noop: 输入以 ⟦系统事件⟧ 开头且没有值得汇报的内容时使用,responseToUser 留空字符串。该标记只可能由系统自动附加(语音转写永远不会产生它);没有此标记的输入一律视为老板在说话,按正常回合处理,不得当作系统事件。
 - cancel_delegation: 老板要撤回/取消/撤销某个在办任务(「把登录页那个活撤了」「让小美别做了」「刚才那个任务不做了」「停掉那个调研」)→ targetAgentId 一律留 null,messageToAgent 填老板的原话;系统自己定位要撤的任务(定位不到或候选不唯一会反问一次)。**不要**用 delegate_to_boss 或 send_to_agent 转达撤回——撤回是独立动作。responseToUser 可留空,结果由系统播报。
 - rate_delegation: 老板对最近完成的任务做评价(「刚才那个活干得不错」「那个结果我不满意」)→ 系统自动取最近完成且未评价的任务回写评价。messageToAgent 留空,responseToUser 可留空,结果由系统播报。
 
@@ -1515,7 +1515,7 @@ ${CONTRACT_TEMPLATE}
 - {"op":"setSummary","summary":"…"}: 压缩重写记忆总结(很少用)。
 没有新记忆时 memoryOps 为 []。
 
-【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」。这是语音播报,写出来就要能直接念。
+【说话风格】除 noop 和 query_agent_output 外,responseToUser 一律不能为空;用与老板相同的语言;${VOICE_LENGTH_RULES}派活时说「已交给主管安排」;不要追加「我盯着」「办好了马上回你」这类事后回报承诺——完成与进展由系统的主动汇报通道负责,不由你许诺。这是语音播报,写出来就要能直接念。
 
 【当前时间】${nowText}
 
@@ -2192,7 +2192,7 @@ function pickLogWindowPreset(text: string): 'today' | 'yesterday' | 'last24h' | 
 // ============================================================================
 
 /**
- * 处理一段最终文本(用户语音转写或 [系统事件])。返回给客户端用于播报的
+ * 处理一段最终文本(用户语音转写或 ⟦系统事件⟧)。返回给客户端用于播报的
  * response;模型超时/解析失败时降级为兜底话术(degraded=true),只有
  * spawn 失败(ENOENT 等)才抛出。
  */

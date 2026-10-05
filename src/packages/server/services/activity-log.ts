@@ -56,7 +56,7 @@ export interface DialogLogFields {
   action?: string;
   degraded?: boolean;
   targetAgentId?: string;
-  /** true = 本次输入是客户端合并上报的 [系统事件]（主动汇报），非用户语音 */
+  /** true = 本次输入是客户端合并上报的 ⟦系统事件⟧（主动汇报），非用户语音 */
   isEvent?: boolean;
   level?: SystemLogLevel;
 }

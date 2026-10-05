@@ -111,9 +111,9 @@ describe('POST /process 非流式', () => {
 
   it('forwards the event flag', async () => {
     vi.mocked(service.processVoiceInput).mockResolvedValue({ action: 'noop', response: '', elapsedMs: 1 });
-    const { status } = await post({ text: '[系统事件] 全部完成', event: true });
+    const { status } = await post({ text: '⟦系统事件⟧ 全部完成', event: true });
     expect(status).toBe(200);
-    expect(service.processVoiceInput).toHaveBeenCalledWith('[系统事件] 全部完成', { isEvent: true });
+    expect(service.processVoiceInput).toHaveBeenCalledWith('⟦系统事件⟧ 全部完成', { isEvent: true });
   });
 
   it('maps ENOENT to 500 Claude CLI not found', async () => {

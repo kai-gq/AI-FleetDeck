@@ -7,7 +7,9 @@
  * 事件先入队,静默窗口(默认 45s)去抖合并;flush 需要「非 busy」(聆听/转写/
  * 思考/播报中不插话,推迟到静默窗口后再试);另有定时巡查兜底(默认 30 分钟,
  * 仅在有事件时提前 flush,无事不打扰)。合并文本形如:
- *   [系统事件] 过去 3 分钟:① 小美 完成任务:登录页改版;② 阿强 出错:构建失败
+ *   ⟦系统事件⟧ 过去 3 分钟:① 小美 完成任务:登录页改版;② 阿强 出错:构建失败
+ * 定界标记用不可口述的 ⟦⟧(任务35 协议安全化):该标记同时是服务端 hop1 的 noop 判定
+ * 协议(vcs 系统提示词);旧版普通文本标记(方括号「系统事件」)老板口语/转写命中即可能被误判静默。
  * 交给组件 → POST /api/voice-companion/process { text, event:true }。
  *
  * 09·B 播报分级(四闸门 = shared/broadcast-gates 纯函数):快照 diff 事件在**进队时**
@@ -181,7 +183,7 @@ export function formatEvents(events: ProactiveEvent[], now: number): string | nu
   const oldest = events.reduce((min, e) => Math.min(min, e.at), events[0].at);
   const minutes = Math.max(1, Math.round((now - oldest) / 60_000));
   const body = events.map((e, i) => `${CIRCLED[i] ?? `${i + 1}.`} ${e.text}`).join(';');
-  return `[系统事件] 过去 ${minutes} 分钟:${body}`;
+  return `⟦系统事件⟧ 过去 ${minutes} 分钟:${body}`;
 }
 
 function truncate(text: string, max: number): string {

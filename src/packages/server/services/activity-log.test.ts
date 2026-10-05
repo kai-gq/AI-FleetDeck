@@ -74,7 +74,7 @@ describe('基础四类：dialog / broadcast / delegation', () => {
 
   it('dialog in 标记 isEvent（主动汇报），out 带 action/degraded/targetAgentId', () => {
     logDialogMessage({
-      direction: 'in', text: '[系统事件] a1 任务完成', isEvent: true, sessionId: 'sess-al-dlg',
+      direction: 'in', text: '⟦系统事件⟧ a1 任务完成', isEvent: true, sessionId: 'sess-al-dlg',
     });
     logDialogMessage({
       direction: 'out', text: '兜底话术', action: 'general_response', degraded: true, sessionId: 'sess-al-dlg',
@@ -83,7 +83,7 @@ describe('基础四类：dialog / broadcast / delegation', () => {
     const rows = querySystemLog({ sessionId: 'sess-al-dlg', order: 'asc' });
     expect(rows).toHaveLength(2);
     expect(bodyOf(rows[0])).toMatchObject({
-      cat: 'dialog', direction: 'in', text: '[系统事件] a1 任务完成', isEvent: true, channel: 'voice-companion',
+      cat: 'dialog', direction: 'in', text: '⟦系统事件⟧ a1 任务完成', isEvent: true, channel: 'voice-companion',
     });
     expect(rows[1].level).toBe('warn'); // degraded 回合按 warn 全量落盘
     expect(bodyOf(rows[1])).toMatchObject({

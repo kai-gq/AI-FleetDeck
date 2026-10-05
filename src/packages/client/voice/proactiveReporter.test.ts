@@ -150,7 +150,7 @@ describe('formatEvents', () => {
     expect(formatEvents([], 1000)).toBeNull();
   });
 
-  it('merges events into one [系统事件] line with circled markers', () => {
+  it('merges events into one ⟦系统事件⟧ line with circled markers', () => {
     const text = formatEvents(
       [
         { at: 0, kind: 'completed', agentId: 'a', text: '小美 完成任务:登录页' },
@@ -158,7 +158,9 @@ describe('formatEvents', () => {
       ],
       3 * 60_000,
     );
-    expect(text).toContain('[系统事件] 过去 3 分钟');
+    expect(text).toContain('⟦系统事件⟧ 过去 3 分钟');
+    // 任务35 协议安全化:定界标记必须不可口述——旧普通文本标记不得回潮(它同时是服务端 noop 判定协议)
+    expect(text).not.toContain('[系统事件]');
     expect(text).toContain('① 小美 完成任务:登录页');
     expect(text).toContain('② 阿强 出错:构建失败');
   });

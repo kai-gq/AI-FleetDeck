@@ -523,6 +523,19 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     expect(prompt).toContain('老板说「去查一下/问一下 XX」也是查询,不是让你派活');
     expect(prompt).toContain('绝不擅自派活');
   });
+
+  it('系统事件定界标记为不可口述的 ⟦系统事件⟧,且明示语音转写不会产生它(任务35 协议安全化)', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('noop: 输入以 ⟦系统事件⟧ 开头');
+    expect(prompt).toContain('语音转写永远不会产生它');
+    // 旧普通文本标记不得回潮:它曾被老板口语命中即触发误判静默
+    expect(prompt).not.toContain('[系统事件]');
+  });
+
+  it('派活话术不收事后回报空诺(W10 期中② 收口:完成提醒归主动汇报通道)', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('不要追加「我盯着」「办好了马上回你」这类事后回报承诺');
+  });
 });
 
 // ============================================================================
