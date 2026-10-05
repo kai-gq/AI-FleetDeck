@@ -200,6 +200,10 @@ export class RunnerProcessLifecycle {
         closesStdinAfterPrompt,
       };
       this.activeProcesses.set(agentId, activeProcess);
+      // Capture the freshly-spawned session for crash recovery right away —
+      // the 10s persist timer in runner.ts leaves a window where a crash
+      // loses the entry entirely (same precedent as interactive-runner.ts).
+      this.recoveryStore.persistRunningProcesses();
       this.attachGrokSideChannel(activeProcess, agentId, workingDir, grokWatcherSessionId);
 
       // Use file-tailing stdout pipeline for tmux mode
@@ -254,6 +258,10 @@ export class RunnerProcessLifecycle {
       turnState: 'processing',
     };
     this.activeProcesses.set(agentId, activeProcess);
+    // Capture the freshly-spawned session for crash recovery right away —
+    // the 10s persist timer in runner.ts leaves a window where a crash
+    // loses the entry entirely (same precedent as interactive-runner.ts).
+    this.recoveryStore.persistRunningProcesses();
     this.attachGrokSideChannel(activeProcess, agentId, workingDir, grokWatcherSessionId);
 
     const stdoutDone = this.stdoutPipeline.handleStdout(agentId, childProcess);

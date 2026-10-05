@@ -171,6 +171,10 @@ export class ClaudeRunner {
       if (activeProcess.lastRequest && !activeProcess.lastRequest.sessionId) {
         activeProcess.lastRequest.sessionId = sessionId;
       }
+      // Persist on the session-id edge: the on-disk ledger is what orphan
+      // recovery reads, and it must carry a resumable session id before any
+      // crash window (a lost session id means the next boot cannot adopt).
+      this.recoveryStore.persistRunningProcesses();
     });
 
     this.bus.on('runner.process_spawned', ({ agentId, pid }) => {
@@ -258,6 +262,9 @@ export class ClaudeRunner {
         log.log(`🔄 [TURN] Agent ${agentId}: Turn complete, now waiting for input (stdin reuse ready)`);
         // Drain any messages that were queued while the agent was mid-turn
         this.drainMessageQueue(agentId, activeProcess);
+        // Refresh the on-disk ledger at the turn boundary so a crash right
+        // after a turn still leaves a resumable, adoptable entry.
+        this.recoveryStore.persistRunningProcesses();
       } else if (event.type === 'text' || event.type === 'tool_start' || event.type === 'thinking') {
         // Actively processing
         activeProcess.turnState = 'processing';
