@@ -551,6 +551,10 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     expect(prompt).toContain('一句话拒绝或确认,不展开分析');
     // 噪声例补充:C20 加的句首噪声示例
     expect(prompt).toContain('多半是转写噪声,不是假设句');
+    // C24 零对象指令(「看一下。」69s 事故):没对象就一句最短反问,不穷举
+    expect(prompt).toContain('零对象指令');
+    expect(prompt).toContain('立即用一句最短反问');
+    expect(prompt).toContain('不猜、不穷举可能性');
   });
 
   it('系统事件定界标记为不可口述的 ⟦系统事件⟧,且明示语音转写不会产生它(任务35 协议安全化)', () => {
