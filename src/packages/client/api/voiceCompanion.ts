@@ -154,7 +154,9 @@ export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
     sessionMaxAgeDays: 7,
     maxNotes: 40,
     firstSentenceMaxChars: 0,
-    slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
+    // 与服务端 DEFAULT_SERVER_CONFIG.slowFiller 保持一致(面板保存全量覆写,两侧别漂移)。
+    // emitMs 6500(总 9.0s):hop1 首字节到达即取消垫话,吐出底线抬后避免「垫话+过渡句」双出声。
+    slowFiller: { enabled: true, armMs: 2_500, emitMs: 6_500 },
   },
 };
 

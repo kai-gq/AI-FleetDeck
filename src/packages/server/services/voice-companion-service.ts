@@ -299,7 +299,11 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   contextWindowTokens: 200_000,
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
-  slowFiller: { enabled: true, armMs: 2_500, emitMs: 5_500 },
+  // W5 加固(真麦双垫教训):emitMs 5500→6500 —— 吐出底线抬到 9.0s。垫话吐出的真实
+  // 时刻是 max(armMs+emitMs, 生成就绪≈8.0–8.8s);抬到 9.0 后,hop1 开始出字
+  // (text_delta → 首字节即取消,见 processVoiceInput 接线)总能赶在垫话之前插队,
+  // 不会出现「垫话 8.8s + 过渡句 9.1s」前后脚双出声。无出字的慢回合才轮得到垫话。
+  slowFiller: { enabled: true, armMs: 2_500, emitMs: 6_500 },
 };
 
 const DEFAULT_MEMORY: CompanionMemory = {
@@ -2473,7 +2477,16 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     let outcome: Hop1Outcome;
     try {
       outcome = await runHop1(text, state, cfg, !!opts.isEvent, {
-        onTextDelta: speech.onHop1Delta,
+        // W5 加固(真麦双垫教训):hop1 一动笔(思考结束、开始出文本),首句/过渡句
+        // 就在 1 秒内 —— 此刻垫话已无必要,立即作废在途垫话。这比「整句出闸才取消」
+        // 更早:query 过渡句在 SpeechGate 里缓到目标解析后才放行(实测 ~9.1s),只靠
+        // 句子取消时垫话可能已吐出(实测 8.79s) → 「垫话+过渡句」双出声。
+        // 思考过程不在 text_delta 里(callClaudeOnce 只转发 text_delta),长思考的
+        // 静默依然由垫话兜底。
+        onTextDelta: (fullText: string) => {
+          slowFiller.cancel();
+          speech.onHop1Delta(fullText);
+        },
         signal: opts.signal,
       });
     } catch (err) {

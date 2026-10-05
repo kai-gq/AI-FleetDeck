@@ -201,7 +201,10 @@ const DEFAULT_TEST_CONFIG = {
 function writeConfig(overrides: {
   model?: string;
   persona?: { preset: string; custom?: string };
-  brain?: Partial<typeof DEFAULT_TEST_CONFIG.brain>;
+  // W5:slowFiller 是可选子键(server 缺省 armMs/emitMs;用例可压到下限做实时观测)。
+  brain?: Partial<typeof DEFAULT_TEST_CONFIG.brain> & {
+    slowFiller?: { enabled: boolean; armMs: number; emitMs: number };
+  };
 } = {}): void {
   const cfg = {
     ...DEFAULT_TEST_CONFIG,
@@ -1388,6 +1391,63 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).toBe('嗯,我在。');
     expect(sentences).toEqual([]); // 模型没吐过整句
     expect(r.spoke).toBeFalsy(); // 客户端按 spoke=false 整段补播兜底话术
+  });
+});
+
+// ============================================================================
+// W5 慢档续垫 · 双垫加固(真麦教训:垫话与 query 过渡句前后脚播出)
+//
+// 修复语义:hop1 一动笔(首个 text_delta,整句尚未闭合)即取消在途垫话 ——
+// 不能等「整句出闸」才取消:query 过渡句在 SpeechGate 里缓到目标解析后才放行
+// (实测 ~9.1s),而垫话吐出底线是 max(armMs+emitMs, 生成就绪≈8.0–8.8s),
+// 取消来晚一步就会「垫话 8.8s + 过渡句 9.1s」双出声。
+// ============================================================================
+
+describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
+  it('垫话已生成就绪,hop1 刚出文本(整句未闭合)就一票否决;整句闭合后只播真实回复', async () => {
+    // 阈值压到下限(armMs≥500 / emitMs≥1000 为 clamp 下限),让状态机在百 ms 级可观测。
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+
+    const sentences: Array<{ text: string; pre: boolean }> = [];
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p = startProcess('查一下主管在干什么', {
+        onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+      });
+
+      const hop1 = await waitSpawn(1);
+      // armMs=500 后垫话开始预生成(第二个 spawn:一次性调用,不碰常驻)。
+      await waitFor(() => spawnCalls.length >= 2, '垫话生成 spawn', 2_000);
+      const filler = spawnCalls[1];
+      emitLine(filler.child, { type: 'result', result: '稍等，我确认一下。' });
+      await closeChild(filler.child, 0); // 生成就绪(服务端会打「慢档垫话:…」日志)
+
+      // hop1 开始出文本但整句未闭合 —— 此刻就该取消(而不是等句子出闸)。
+      emitLine(hop1.child, {
+        type: 'stream_event',
+        event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '{"action":"general_response","responseToUser":"我看看' } },
+      });
+      // 睡过吐出底线(armMs+emitMs=1500ms;取消发生在 ~500ms 后不久)。
+      await new Promise((r) => setTimeout(r, 1_400));
+
+      expect(sentences.filter((s) => s.pre)).toEqual([]); // 垫话已就绪也一票否决
+      // 反蒙混:证明生成确实跑完并打了日志(不是「没就绪所以没吐」碰巧通过)。
+      expect(logSpy.mock.calls.some((c) => String(c[0]).includes('慢档垫话'))).toBe(true);
+
+      // 正常收尾:整句闭合 → 唯一出声的是真实回复。
+      emitLine(hop1.child, {
+        type: 'stream_event',
+        event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '，主管在整理日志。","targetAgentId":null}' } },
+      });
+      await closeChild(hop1.child, 0);
+
+      const r = await p;
+      expect(r.response).toBe('我看看，主管在整理日志。');
+      expect(sentences).toEqual([{ text: '我看看，主管在整理日志。', pre: false }]);
+      expect(spawnCalls).toHaveLength(2); // 只有 hop1 + 垫话生成,无多余进程
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
 
