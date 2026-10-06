@@ -300,6 +300,9 @@ beforeEach(() => {
   // W3 预热点火:本文件回合均以 close 收尾(常驻进程死亡),预热会在测试间隙
   // 触发额外 spawn 污染计数 —— 统一关掉;预热语义由 resident.test.ts 的 P1-P6 专测。
   vi.stubEnv('TC_VOICE_PREWARM', '0');
+  // 任务39:交接链路(环缓冲/预生成/渲染)默认关——既有用例的状态文件与 spawn
+  // 计数逐字不变;交接专测(G10 等)在用例内自行 stubEnv 打开。
+  vi.stubEnv('TC_VOICE_HANDOFF', '0');
   // 任务19:档案模块的 MCP 源固定到夹具(缺省档 allowlist;断言不依赖真实用户配置)。
   vi.stubEnv('TC_VOICE_MCP_SOURCE', mcpFixturePath);
 });
@@ -862,6 +865,77 @@ describe('G9 上下文压缩阈值(任务39)', () => {
     cfg = service.loadServerConfig();
     expect(cfg.contextCompactPercent).toBe(0.95);
     expect(cfg.contextCompactTokens).toBe(0);
+  });
+});
+
+// ============================================================================
+// G10 交接素材环缓冲(任务39·F2)
+// ============================================================================
+
+describe('G10 交接素材环缓冲(任务39·F2)', () => {
+  /** 直读状态文件的 recentTurns(共享 StateFile 类型未含该字段,专测直读)。 */
+  function readRecentTurns(): Array<{ role: string; text: string; at: number; event?: boolean }> {
+    const raw = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8')) as {
+      recentTurns?: Array<{ role: string; text: string; at: number; event?: boolean }>;
+    };
+    return raw.recentTurns ?? [];
+  }
+
+  it('G10-1 用户句与助手最终回复入缓冲;开关关(缺省)不入', async () => {
+    // beforeEach 已置 TC_VOICE_HANDOFF=0:转一圈不记(全链回退现状)。
+    const p0 = startProcess('开关关的一回合');
+    const call0 = await waitSpawn(1);
+    await completeWith(call0.child, contractText({ action: 'general_response', responseToUser: '收到。' }), { sessionId: 'sess-off' });
+    await p0;
+    expect(readRecentTurns()).toEqual([]);
+
+    // 打开:user + assistant 各一条,旧→新。
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const p1 = startProcess('帮我看下订单');
+    const call1 = await waitSpawn(2);
+    await completeWith(call1.child, contractText({ action: 'general_response', responseToUser: '好嘞,我这就看。' }), { sessionId: 'sess-on' });
+    await p1;
+
+    const turns = readRecentTurns();
+    expect(turns.map((t) => t.role)).toEqual(['user', 'assistant']);
+    expect(turns[0]!.text).toBe('帮我看下订单');
+    expect(turns[1]!.text).toBe('好嘞,我这就看。');
+    expect(typeof turns[0]!.at).toBe('number');
+  });
+
+  it('G10-2 轮换清空缓冲:新会话只带轮换后自己的两条', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const p1 = startProcess('旧会话第一句');
+    const call1 = await waitSpawn(1);
+    await completeWith(call1.child, contractText({ action: 'general_response', responseToUser: '旧会话回复。' }), { sessionId: 'sess-old' });
+    await p1;
+    expect(readRecentTurns()).toHaveLength(2);
+
+    // 拨到轮数上限(保留 recentTurns 字段)→ 次回合轮换。
+    const patch = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8')) as Record<string, unknown>;
+    patch.turns = DEFAULT_TEST_CONFIG.brain.maxTurns;
+    fs.writeFileSync(stateFilePath, JSON.stringify(patch));
+
+    const p2 = startProcess('新会话第一句');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBeNull(); // 轮换生效
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '新会话回复。' }), { sessionId: 'sess-new' });
+    await p2;
+
+    const turns = readRecentTurns();
+    expect(turns.map((t) => t.text)).toEqual(['新会话第一句', '新会话回复。']);
+  });
+
+  it('G10-3 降级回合只记用户句(降级话术不当材料)', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const p = startProcess('会失败的回合');
+    const call = await waitSpawn(1);
+    await closeChild(call.child, 1); // 非零退出且无文本 → 降级
+    const r = await p;
+    expect(r.degraded).toBe(true);
+    const turns = readRecentTurns();
+    expect(turns.map((t) => t.role)).toEqual(['user']);
+    expect(turns[0]!.text).toBe('会失败的回合');
   });
 });
 

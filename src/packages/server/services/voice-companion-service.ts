@@ -46,6 +46,8 @@ import { createSlowFiller } from '../voice/slow-filler.js';
 import { FILLER_RULE_GUIDANCE, checkFillerSafety, isFillerGuardEnabled } from '../voice/filler-guard.js';
 // W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
 import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
+// 任务39·F2:最近轮次环缓冲(交接材料源)——轮换前攒「最近在聊什么」,供 F3 预生成交接便签。
+import { appendRecentTurn, sanitizeRecentTurns, isHandoffEnabled, type RecentTurn } from '../voice/handoff.js';
 // 任务19:工具白名单/中立 cwd/effort —— spawn 档案唯一解析点(与常驻通道共用)。
 import { resolveCompanionCliProfile } from '../voice/companion-cli-profile.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
@@ -167,6 +169,8 @@ export interface VoiceCompanionState {
   memory: CompanionMemory;
   /** 任务18:上下文占用(可选——旧状态文件/测试内联构造无此字段)。 */
   context?: VoiceCompanionContextState | null;
+  /** 任务39·F2:最近轮次环缓冲(交接材料源;旧状态文件缺字段 → [];轮换时清空)。 */
+  recentTurns?: RecentTurn[];
 }
 
 export type CompanionAction =
@@ -341,6 +345,7 @@ const DEFAULT_STATE: VoiceCompanionState = {
   personaKey: null,
   memory: DEFAULT_MEMORY,
   context: null,
+  recentTurns: [],
 };
 
 /** Agent 状态里算「正在干活」(打断有代价)的三种。 */
@@ -552,6 +557,8 @@ export function loadCompanionState(): VoiceCompanionState {
       personaKey: typeof raw?.personaKey === 'string' ? raw.personaKey : null,
       memory: sanitizeMemory(raw?.memory),
       context: sanitizeContextState(raw?.context),
+      // 任务39·F2:环缓冲逐条容错;旧状态文件缺字段 → []。
+      recentTurns: sanitizeRecentTurns(raw?.recentTurns),
     };
     return state;
   } catch (err) {
@@ -2641,6 +2648,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       state.sessionStartedAt = null;
       state.turns = 0;
       state.context = null; // 任务18:占用快照随会话一并清零
+      state.recentTurns = []; // 任务39·F2:环缓冲随轮换清空(新会话从零攒;F4 认领素材来自内存预生成,与此无关)
       // 任务18:轮换后旧常驻进程(带旧 --resume/旧系统提示词)必须停掉,下一回合重新 spawn。
       if (hadSession || personaChangedFromRecorded) stopCompanionProcess('session-rotation');
     }
@@ -2649,6 +2657,16 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     // 任务 27·尾 挂点1(先写后回应):用户陈述命中触发词先落工作记忆再进 hop1;系统事件不算用户陈述。
     if (!opts.isEvent) {
       await getJarvisMemory().engine.captureUserTurn(text, { sessionId: state.sessionId ?? undefined });
+    }
+    // 任务39·F2:用户句入环缓冲(事件回合也记,event:true 是语境);本回合收尾的
+    // saveCompanionState 落盘(轮换清空在前,此处记的是新会话的第一句)。
+    if (isHandoffEnabled()) {
+      state.recentTurns = appendRecentTurn(state.recentTurns, {
+        role: 'user',
+        text,
+        at: Date.now(),
+        ...(opts.isEvent ? { event: true as const } : {}),
+      });
     }
 
     // 任务 02 埋点：本回合 taskId 在此生成一次（对话 in/out、播报、委派共用同一时间线）。
@@ -2662,9 +2680,20 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       isEvent: !!opts.isEvent,
     });
 
+    // 任务39·F2:finish 每回合只调一次;幂等旗标防未来多路径重用(重复记素材)。
+    let handoffClosed = false;
     const finish = (r: VoiceProcessResult): VoiceProcessResult => {
       disposeTurn(); // 取消悬尾宽限计时器(正常收尾时未被触发的那次)+ 停垫话计时
       if (speech.spoke) r.spoke = true;
+      // 任务39·F2:最终回复入环缓冲(不取中间过渡句;降级话术不算材料,异常路径不走 finish)。
+      // 此处统一补一次落盘(早前各 return 点保存的快照不含本回合助手侧)。
+      if (isHandoffEnabled() && !handoffClosed) {
+        handoffClosed = true;
+        if (typeof r.response === 'string' && r.response.trim().length > 0 && !r.degraded) {
+          state.recentTurns = appendRecentTurn(state.recentTurns, { role: 'assistant', text: r.response, at: Date.now() });
+          saveCompanionState(state);
+        }
+      }
       // 任务 02 埋点：回合最终回应 = 对话(out) + 播报(phase=server-sent，实际播放链路在客户端)
       if (r.response) {
         logDialogMessage({
@@ -3333,6 +3362,7 @@ export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   state.sessionStartedAt = null;
   state.turns = 0;
   state.context = null; // 任务18:占用快照随重置清零
+  state.recentTurns = []; // 任务39·F2:环缓冲随重置清空(keepMemory 与否都清——它是会话素材,不是记忆)
   if (!options.keepMemory) state.memory = { ...structuredClone(DEFAULT_MEMORY) };
   saveCompanionState(state);
   resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）一并清空

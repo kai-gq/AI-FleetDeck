@@ -275,6 +275,8 @@ beforeEach(() => {
   vi.stubEnv('TC_VOICE_PREWARM', '0');
   // 任务19:档案模块的 MCP 源固定到夹具(缺省档 allowlist;断言不依赖真实用户配置)。
   vi.stubEnv('TC_VOICE_MCP_SOURCE', mcpFixturePath);
+  // 任务39:交接链路默认关(与集成文件同口径)——R5 等用例的状态文件/spawn 计数逐字不变。
+  vi.stubEnv('TC_VOICE_HANDOFF', '0');
 });
 
 afterEach(() => {
