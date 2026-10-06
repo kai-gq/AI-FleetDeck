@@ -81,3 +81,115 @@ export function sanitizeRecentTurns(raw: unknown): RecentTurn[] {
   }
   return boundRecentTurns(out);
 }
+
+// ============================================================================
+// F3 · 交接笔记预生成(纯函数)
+// ============================================================================
+
+/** 预生成便签(内存态;F4 在轮换点认领后写进 memory.handoff)。 */
+export interface HandoffNote {
+  forSessionId: string;
+  text: string;
+  at: number;
+}
+
+/**
+ * F3 预生成运行时(模块级内存,不落盘——异步完成时若写状态文件,会与回合流的
+ * 整文件保存竞态互相覆盖;认领只发生在串行轮换点,窗口内进程重启 = 丢预生成
+ * = 降级现状,可接受)。
+ */
+export interface HandoffPregenRuntime {
+  /** 已生成待认领的便签。 */
+  pending: HandoffNote | null;
+  /** 在途生成的会话 id(防重入;完成/失败后清)。 */
+  inFlight: string | null;
+  /** 上次预生成 {sessionId, turns}(同会话 ≥2 回合冷却,防每回合都生成)。 */
+  lastPregen: { sessionId: string; turns: number } | null;
+}
+
+/** 预备线 = 触发线 − 0.1(缺省 0.3 → 0.2 = 40K@200K;留一段提前量给生成)。 */
+export const HANDOFF_PREPARE_GAP = 0.1;
+/** 同会话预生成冷却:≥2 回合(L3 参数表)。 */
+export const HANDOFF_PREGEN_COOLDOWN_TURNS = 2;
+/** 预生成独立上限 15s(不占回合关键路径;超时即降级现状)。 */
+export const HANDOFF_PREGEN_TIMEOUT_MS = 15_000;
+/** 便签上限 300 字 / 下限 10 字(下限以下视为没写出有效内容)。 */
+export const HANDOFF_TEXT_MAX_CHARS = 300;
+export const HANDOFF_TEXT_MIN_CHARS = 10;
+
+/** 触发判定:开关 + 会话/上下文就绪 + 跨过预备线 + 无在途 + 冷却已过。 */
+export function shouldPregenHandoff(
+  state: { sessionId: string | null; turns: number; context?: { tokensUsed: number; percent: number } | null },
+  cfg: { contextCompactPercent: number; contextCompactTokens: number },
+  runtime: HandoffPregenRuntime,
+): boolean {
+  if (!isHandoffEnabled()) return false;
+  if (!state.sessionId || !state.context) return false;
+  if (runtime.inFlight) return false;
+  const last = runtime.lastPregen;
+  if (last && last.sessionId === state.sessionId && state.turns - last.turns < HANDOFF_PREGEN_COOLDOWN_TURNS) {
+    return false;
+  }
+  // 与 isContextCompactionDue 同为「取或」:percent 支或绝对值支任一跨线即触发。
+  if (state.context.percent >= cfg.contextCompactPercent - HANDOFF_PREPARE_GAP) return true;
+  return cfg.contextCompactTokens > 0 && state.context.tokensUsed >= cfg.contextCompactTokens * 0.8;
+}
+
+/** buildHandoffUserContent 的记忆侧材料(结构类型,避免与 service 循环依赖)。 */
+export interface HandoffMemoryMaterial {
+  notes?: Array<{ text: string }>;
+  handoff?: { text: string } | null;
+}
+
+/**
+ * 预生成输入材料:长期记忆(不重复)+ 上一张便签(未了事项优先保留)+ 最近对话(旧→新)。
+ * 有界:对话段已由环缓冲封顶 1600 字,此处再防御性截断一次。
+ */
+export function buildHandoffUserContent(recentTurns: RecentTurn[], memory: HandoffMemoryMaterial): string {
+  const parts: string[] = [];
+  const notes = (memory.notes ?? []).map((n) => `- ${n.text}`).join('\n');
+  parts.push(`【长期记忆（不重复）】\n${notes || '(无)'}`);
+  if (memory.handoff?.text) parts.push(`【上一张交接便签（未了事项优先保留）】\n${memory.handoff.text}`);
+  const dialog = recentTurns
+    .map((t) => `${t.role === 'user' ? (t.event ? '系统事件' : '用户') : '助手'}: ${t.text}`)
+    .join('\n')
+    .slice(0, RECENT_TURNS_TOTAL_CHARS);
+  parts.push(`【最近对话（旧→新）】\n${dialog || '(无)'}`);
+  return parts.join('\n\n');
+}
+
+/** 交接便签的系统提示词:≤3 行 + 只许写材料中出现过的事实(禁止推测编造)。 */
+export const HANDOFF_SYSTEM_PROMPT = [
+  '你是「交接便签」生成器:把材料压缩成不超过 3 行中文便签,供下一个全新会话的语音助手快速接手。',
+  '三行内容:',
+  '① 最近在谈/在办什么;',
+  '② 没了结 / 等着结果 / 承诺过的事(没有写「无」);',
+  '③ 继续对话必须知道的语境(称呼/口径/情绪;没有写「无」)。',
+  '硬规则:只许写材料中出现过的事实,禁止推测、补全、编造;不客套、不解释、不加标题,直接输出便签。',
+].join('\n');
+
+/** 剥引号包裹(中英文引号/书名号/括号引号)。 */
+function stripQuotes(line: string): string {
+  return line.replace(/^["'“”「『]+|["'“”」』]+$/g, '').trim();
+}
+
+/**
+ * 清洗模型输出:剥代码围栏 → 去空行 → 取≤3 行 → 逐行剥引号 → 总长 >300 截断;
+ * 结果 <10 字返回 null(视为没写出有效内容,调用方降级现状)。
+ */
+export function cleanHandoffText(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  let s = raw.trim();
+  if (s.startsWith('```')) {
+    s = s.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '');
+  }
+  const lines = s
+    .split(/\r?\n/)
+    .map((l) => stripQuotes(l))
+    .filter(Boolean)
+    .slice(0, 3);
+  let out = lines.join('\n').trim();
+  if (out.length > HANDOFF_TEXT_MAX_CHARS) out = out.slice(0, HANDOFF_TEXT_MAX_CHARS);
+  if (out.length < HANDOFF_TEXT_MIN_CHARS) return null;
+  return out;
+}

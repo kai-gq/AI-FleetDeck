@@ -46,8 +46,19 @@ import { createSlowFiller } from '../voice/slow-filler.js';
 import { FILLER_RULE_GUIDANCE, checkFillerSafety, isFillerGuardEnabled } from '../voice/filler-guard.js';
 // W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
 import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
-// 任务39·F2:最近轮次环缓冲(交接材料源)——轮换前攒「最近在聊什么」,供 F3 预生成交接便签。
-import { appendRecentTurn, sanitizeRecentTurns, isHandoffEnabled, type RecentTurn } from '../voice/handoff.js';
+// 任务39·F2/F3:最近轮次环缓冲(交接材料源)+ 交接便签预生成(纯函数;轮换前攒材料、后台出便签)。
+import {
+  appendRecentTurn,
+  sanitizeRecentTurns,
+  isHandoffEnabled,
+  shouldPregenHandoff,
+  buildHandoffUserContent,
+  cleanHandoffText,
+  HANDOFF_SYSTEM_PROMPT,
+  HANDOFF_PREGEN_TIMEOUT_MS,
+  type RecentTurn,
+  type HandoffPregenRuntime,
+} from '../voice/handoff.js';
 // 任务19:工具白名单/中立 cwd/effort —— spawn 档案唯一解析点(与常驻通道共用)。
 import { resolveCompanionCliProfile } from '../voice/companion-cli-profile.js';
 // 任务18·秘书常驻化:轻量常驻通道(进程跨回合存活 + stdin 复用;回退开关在模块内)。
@@ -2540,6 +2551,71 @@ function pickLogWindowPreset(text: string): 'today' | 'yesterday' | 'last24h' | 
   return 'yesterday';
 }
 
+// ----------------------------------------------------------------------------
+// 任务39·F3:交接笔记预生成(内存态 + 后台生成;F4 在轮换点认领)
+// ----------------------------------------------------------------------------
+
+/** 预生成内存态(只存内存不落盘;设计理由见 voice/handoff.ts 的 HandoffPregenRuntime)。 */
+const handoffRuntime: HandoffPregenRuntime = { pending: null, inFlight: null, lastPregen: null };
+
+/** 清空预生成内存态(resetCompanion 与测试用;认领/丢弃在正常路径自然清)。 */
+export function clearHandoffRuntime(): void {
+  handoffRuntime.pending = null;
+  handoffRuntime.inFlight = null;
+  handoffRuntime.lastPregen = null;
+}
+
+/** 测试/观测只读入口(断言 pending 落地与否,不参与生产逻辑)。 */
+export function getHandoffRuntime(): Readonly<HandoffPregenRuntime> {
+  return handoffRuntime;
+}
+
+/**
+ * 任务39·F3:跨过预备线即后台预生成一张交接便签(fire-and-forget,不进回合
+ * 关键路径)。完成回调重新读状态核对会话未变才落 pending;失败/超时/清洗失败
+ * → 降级现状(日志如实,轮换照常走 summarizeSession 旧文案)。
+ */
+function maybePregenHandoff(state: VoiceCompanionState, cfg: VoiceCompanionServerConfig): void {
+  if (!shouldPregenHandoff(state, cfg, handoffRuntime)) return;
+  const forSessionId = state.sessionId;
+  if (!forSessionId) return;
+  const material = buildHandoffUserContent(state.recentTurns ?? [], state.memory);
+  handoffRuntime.inFlight = forSessionId;
+  handoffRuntime.lastPregen = { sessionId: forSessionId, turns: state.turns };
+  const startedAt = Date.now();
+  log.log(
+    `[VoiceCompanion] 交接预生成 触发(session=${forSessionId.slice(0, 8)} turns=${state.turns} 材料=${material.length}字)`,
+  );
+  void (async () => {
+    try {
+      const result = await callClaudeOnce(HANDOFF_SYSTEM_PROMPT, material, {
+        model: cfg.model,
+        resumeId: null,
+        timeoutMs: HANDOFF_PREGEN_TIMEOUT_MS,
+        skipMcp: true,
+      });
+      const text = cleanHandoffText(result.text);
+      if (!text) {
+        log.log('[VoiceCompanion] 交接预生成 失败(清洗后无有效内容),降级现状');
+        return;
+      }
+      const current = loadCompanionState();
+      if (current.sessionId !== forSessionId) {
+        log.log(
+          `[VoiceCompanion] 交接预生成 跳过(已轮换 ${forSessionId.slice(0, 8)} → ${(current.sessionId ?? 'null').slice(0, 8)})`,
+        );
+        return;
+      }
+      handoffRuntime.pending = { forSessionId, text, at: Date.now() };
+      log.log(`[VoiceCompanion] 交接预生成 完成(字节=${text.length}, 用时=${Date.now() - startedAt}ms)`);
+    } catch (err) {
+      log.log(`[VoiceCompanion] 交接预生成 失败(${(err as Error).message ?? String(err)}),降级现状`);
+    } finally {
+      if (handoffRuntime.inFlight === forSessionId) handoffRuntime.inFlight = null;
+    }
+  })();
+}
+
 // ============================================================================
 // Main entry
 // ============================================================================
@@ -2802,6 +2878,9 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
             compactTokens: cfg.contextCompactTokens || undefined,
           },
         });
+        // 任务39·F3:跨过预备线(触发线−0.1)即后台预生成交接便签——
+        // fire-and-forget 不进关键路径;轮换在下一回合起点,此处是最后的提前量。
+        maybePregenHandoff(state, cfg);
       }
     }
     // W6 感知提速观测:每回合 usage/缓存命中/常驻复用(hop1 耗时已有独立行;首句 tMs 打点在路由)。

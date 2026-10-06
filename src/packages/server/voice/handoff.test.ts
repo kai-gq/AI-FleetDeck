@@ -3,11 +3,16 @@ import {
   RECENT_TURNS_MAX,
   RECENT_TURN_MAX_CHARS,
   RECENT_TURNS_TOTAL_CHARS,
+  HANDOFF_TEXT_MAX_CHARS,
   normalizeTurnText,
   appendRecentTurn,
   sanitizeRecentTurns,
   isHandoffEnabled,
+  shouldPregenHandoff,
+  buildHandoffUserContent,
+  cleanHandoffText,
   type RecentTurn,
+  type HandoffPregenRuntime,
 } from './handoff.js';
 
 function turn(role: 'user' | 'assistant', text: string, extra: Partial<RecentTurn> = {}): RecentTurn {
@@ -107,5 +112,96 @@ describe('isHandoffEnabled(开关)', () => {
     expect(isHandoffEnabled()).toBe(false);
     vi.stubEnv('TC_VOICE_HANDOFF', '1');
     expect(isHandoffEnabled()).toBe(true);
+  });
+});
+
+describe('cleanHandoffText(任务39·F3 清洗)', () => {
+  it('正常三行便签原样保留', () => {
+    const raw = '在聊订单同步的事\n等 A 方案结果\n老大比较急';
+    expect(cleanHandoffText(raw)).toBe(raw);
+  });
+  it('剥代码围栏,空行丢弃', () => {
+    expect(cleanHandoffText('```text\n在聊订单\n\n等结果\n上下文:无\n```')).toBe('在聊订单\n等结果\n上下文:无');
+  });
+  it('逐行剥引号包裹', () => {
+    expect(cleanHandoffText('「在聊订单同步的事」\n『等着 A 方案结果』')).toBe('在聊订单同步的事\n等着 A 方案结果');
+  });
+  it('超过 3 行只取前 3 行', () => {
+    expect(cleanHandoffText('在聊订单同步\n等着结果\n老大比较急\n第四行\n第五行')).toBe('在聊订单同步\n等着结果\n老大比较急');
+  });
+  it(`总长超 ${HANDOFF_TEXT_MAX_CHARS} 字截断`, () => {
+    const out = cleanHandoffText('x'.repeat(500));
+    expect(out).toHaveLength(HANDOFF_TEXT_MAX_CHARS);
+  });
+  it('空/纯空白/太短(<10 字) → null', () => {
+    expect(cleanHandoffText('')).toBeNull();
+    expect(cleanHandoffText('  \n \n')).toBeNull();
+    expect(cleanHandoffText('好的')).toBeNull();
+    expect(cleanHandoffText(undefined)).toBeNull();
+  });
+});
+
+describe('shouldPregenHandoff(任务39·F3 触发矩阵)', () => {
+  const cfg = { contextCompactPercent: 0.3, contextCompactTokens: 0 };
+  function rt(over: Partial<HandoffPregenRuntime> = {}): HandoffPregenRuntime {
+    return { pending: null, inFlight: null, lastPregen: null, ...over };
+  }
+  function state(over: { sessionId?: string | null; turns?: number; percent?: number; tokensUsed?: number } = {}) {
+    const { sessionId = 's1', turns = 5, percent = 0.25, tokensUsed = 50_000 } = over;
+    return { sessionId, turns, context: percent == null ? null : { tokensUsed, percent } };
+  }
+
+  it('无会话 / 无 context → 不触发', () => {
+    expect(shouldPregenHandoff(state({ sessionId: null }), cfg, rt())).toBe(false);
+    expect(shouldPregenHandoff({ sessionId: 's1', turns: 5, context: null }, cfg, rt())).toBe(false);
+  });
+  it('预备线 0.2:0.19 不触发,0.20 触发(含等号)', () => {
+    expect(shouldPregenHandoff(state({ percent: 0.19 }), cfg, rt())).toBe(false);
+    expect(shouldPregenHandoff(state({ percent: 0.2 }), cfg, rt())).toBe(true);
+  });
+  it('在途生成 → 不触发(防重入)', () => {
+    expect(shouldPregenHandoff(state(), cfg, rt({ inFlight: 's1' }))).toBe(false);
+  });
+  it('同会话冷却 <2 回合不触发;≥2 回合触发;换会话不受冷却限制', () => {
+    const last = { sessionId: 's1', turns: 4 };
+    expect(shouldPregenHandoff(state({ turns: 5 }), cfg, rt({ lastPregen: last }))).toBe(false);
+    expect(shouldPregenHandoff(state({ turns: 6 }), cfg, rt({ lastPregen: last }))).toBe(true);
+    expect(shouldPregenHandoff(state({ sessionId: 's2', turns: 5 }), cfg, rt({ lastPregen: last }))).toBe(true);
+  });
+  it('开关关 → 不触发(即使跨线)', () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '0');
+    expect(shouldPregenHandoff(state({ percent: 0.9 }), cfg, rt())).toBe(false);
+  });
+  it('绝对值模式:大窗口 percent 很低,tokensUsed ≥ 0.8×cap 即触发(48K 边界)', () => {
+    const absCfg = { contextCompactPercent: 0.3, contextCompactTokens: 60_000 };
+    expect(shouldPregenHandoff(state({ percent: 0.05, tokensUsed: 48_000 }), absCfg, rt())).toBe(true);
+    expect(shouldPregenHandoff(state({ percent: 0.05, tokensUsed: 47_999 }), absCfg, rt())).toBe(false);
+    // 关掉绝对闸口后同样局面不触发(纯 percent 支,0.05 < 0.2)
+    expect(shouldPregenHandoff(state({ percent: 0.05, tokensUsed: 48_000 }), cfg, rt())).toBe(false);
+  });
+});
+
+describe('buildHandoffUserContent(任务39·F3 材料)', () => {
+  it('三段齐:长期记忆 / 上一张便签 / 最近对话(旧→新,事件标注)', () => {
+    const out = buildHandoffUserContent(
+      [
+        { role: 'user', text: '帮我看订单', at: 1 },
+        { role: 'assistant', text: '好嘞,我这就看。', at: 2 },
+        { role: 'user', text: 'XX 办好了', at: 3, event: true },
+      ],
+      { notes: [{ text: '老大喜欢先看结论' }], handoff: { text: '在聊订单同步' } },
+    );
+    expect(out).toContain('【长期记忆（不重复）】');
+    expect(out).toContain('- 老大喜欢先看结论');
+    expect(out).toContain('【上一张交接便签（未了事项优先保留）】');
+    expect(out).toContain('在聊订单同步');
+    expect(out).toContain('【最近对话（旧→新）】');
+    expect(out.indexOf('帮我看订单')).toBeLessThan(out.indexOf('好嘞,我这就看。'));
+    expect(out).toContain('系统事件: XX 办好了');
+  });
+  it('空材料有界输出(不抛,标注 (无))', () => {
+    const out = buildHandoffUserContent([], {});
+    expect(out).toContain('(无)');
+    expect(out).not.toContain('【上一张交接便签');
   });
 });

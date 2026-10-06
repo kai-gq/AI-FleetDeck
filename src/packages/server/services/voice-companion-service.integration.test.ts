@@ -295,6 +295,8 @@ beforeEach(() => {
   fs.rmSync(workspacesFilePath, { force: true });
   fs.rmSync(jarvisProjectsDir, { recursive: true, force: true });
   service.resetProjectRoutingSession();
+  // 任务39:预生成内存态跨用例隔离(未完成的在途生成会封住后续触发)。
+  service.clearHandoffRuntime();
   bossService.init();
   writeConfig();
   // W3 预热点火:本文件回合均以 close 收尾(常驻进程死亡),预热会在测试间隙
@@ -405,6 +407,24 @@ async function completeWith(
   if (opts.sessionId) emitLine(child, { type: 'system', subtype: 'init', session_id: opts.sessionId });
   emitText(child, text, opts.via ?? 'assistant');
   await closeChild(child, opts.code ?? 0);
+}
+
+/** 带 usage 的回合收尾(任务39 G9/G11 共用;R5 同款 result 行)。 */
+async function completeWithUsage(
+  child: FakeChild,
+  text: string,
+  opts: { sessionId?: string; usage: Record<string, number>; modelUsage?: Record<string, unknown> },
+): Promise<void> {
+  if (opts.sessionId) emitLine(child, { type: 'system', subtype: 'init', session_id: opts.sessionId });
+  emitText(child, text, 'assistant');
+  emitLine(child, {
+    type: 'result',
+    subtype: 'success',
+    result: text,
+    usage: opts.usage,
+    modelUsage: opts.modelUsage ?? { 'claude-haiku-4-5': { contextWindow: 200_000 } },
+  });
+  await closeChild(child);
 }
 
 function flagValue(call: SpawnCall, flag: string): string | null {
@@ -750,24 +770,6 @@ describe('G3 会话轮换', () => {
 // ============================================================================
 
 describe('G9 上下文压缩阈值(任务39)', () => {
-  /** 带 usage 的回合收尾(R5 同款 result 行)。 */
-  async function completeWithUsage(
-    child: FakeChild,
-    text: string,
-    opts: { sessionId: string; usage: Record<string, number>; modelUsage?: Record<string, unknown> },
-  ): Promise<void> {
-    emitLine(child, { type: 'system', subtype: 'init', session_id: opts.sessionId });
-    emitText(child, text, 'assistant');
-    emitLine(child, {
-      type: 'result',
-      subtype: 'success',
-      result: text,
-      usage: opts.usage,
-      modelUsage: opts.modelUsage ?? { 'claude-haiku-4-5': { contextWindow: 200_000 } },
-    });
-    await closeChild(child);
-  }
-
   it('G9-1 到缺省 0.3(62K/200K=31%)次回合轮换:不带 --resume + context-compact 留痕(0.31)', async () => {
     const p1 = startProcess('第一句');
     const call1 = await waitSpawn(1);
@@ -936,6 +938,149 @@ describe('G10 交接素材环缓冲(任务39·F2)', () => {
     const turns = readRecentTurns();
     expect(turns.map((t) => t.role)).toEqual(['user']);
     expect(turns[0]!.text).toBe('会失败的回合');
+  });
+});
+
+// ============================================================================
+// G11 交接预生成(任务39·F3;认领/渲染在 G12)
+// ============================================================================
+
+describe('G11 交接预生成(任务39·F3)', () => {
+  /** 回合1 usage → percent=0.25:跨过预备线 0.2、未到触发线 0.3。 */
+  const PREPARE_USAGE = {
+    input_tokens: 30_000,
+    output_tokens: 500,
+    cache_read_input_tokens: 15_000,
+    cache_creation_input_tokens: 5_000,
+  };
+  const NOTE_TEXT = '在聊订单同步\n等 A 方案结果\n老大比较急';
+
+  it('G11-1 跨过预备线 → 后台预生成(spawn+1,材料/提示词正确);返回 → pending 落地', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p1 = startProcess('帮我看下订单');
+      const call1 = await waitSpawn(1);
+      await completeWithUsage(
+        call1.child,
+        contractText({ action: 'general_response', responseToUser: '好嘞,我这就看。' }),
+        { sessionId: 'sess-prep', usage: PREPARE_USAGE },
+      );
+      await p1;
+      expect(service.loadCompanionState().context?.percent).toBeCloseTo(0.25, 5);
+
+      // 后台预生成启动:spawn #2,一次性、不带 --resume、skipMcp。
+      await waitFor(() => spawnCalls.length >= 2, '交接预生成 spawn');
+      const pregenCall = spawnCalls[1]!;
+      expect(resumeIdOf(pregenCall)).toBeNull();
+      expect(fs.readFileSync(promptFileOf(pregenCall), 'utf-8')).toContain('交接便签');
+      await waitFor(() => pregenCall.child.stdinWrites.length >= 1, '预生成 stdin 写入');
+      expect(stdinUserContent(pregenCall)).toContain('【最近对话（旧→新）】');
+      expect(stdinUserContent(pregenCall)).toContain('帮我看下订单');
+
+      // 预生成返回 → pending 落地(内存),in-flight 清空。
+      await completeWith(pregenCall.child, NOTE_TEXT);
+      await waitFor(() => service.getHandoffRuntime().pending !== null, 'pending 落地');
+      expect(service.getHandoffRuntime().pending).toMatchObject({ forSessionId: 'sess-prep', text: NOTE_TEXT });
+      expect(service.getHandoffRuntime().inFlight).toBeNull();
+      const logs = logSpy.mock.calls.map(([m]) => String(m));
+      expect(logs.some((m) => m.includes('交接预生成 触发'))).toBe(true);
+      expect(logs.some((m) => m.includes('交接预生成 完成'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('G11-2 竞态:预生成未及返回就轮换 → 完成后丢弃(跳过(已轮换)),pending 保持 null', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p1 = startProcess('第一句');
+      const call1 = await waitSpawn(1);
+      await completeWithUsage(
+        call1.child,
+        contractText({ action: 'general_response', responseToUser: '一。' }),
+        { sessionId: 'sess-old', usage: PREPARE_USAGE },
+      );
+      await p1;
+      await waitFor(() => spawnCalls.length >= 2, '交接预生成 spawn');
+      const pregenCall = spawnCalls[1]!;
+      expect(service.getHandoffRuntime().inFlight).toBe('sess-old');
+
+      // 拨过触发线 → 次回合轮换(发生在预生成返回之前;此时 pending 还没生成)。
+      const patch = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8')) as { context?: { percent?: number } };
+      patch.context = { ...(patch.context ?? {}), percent: 0.31 };
+      fs.writeFileSync(stateFilePath, JSON.stringify(patch));
+
+      const p2 = startProcess('第二句');
+      const call2 = await waitSpawn(3); // #0=回合1 #1=预生成 #2=回合2(轮换后新会话)
+      expect(resumeIdOf(call2)).toBeNull();
+      await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-new' });
+      await p2;
+      expect(service.loadCompanionState().sessionId).toBe('sess-new');
+
+      // 预生成此刻才返回 → 核对会话已变 → 丢弃。
+      await completeWith(pregenCall.child, NOTE_TEXT);
+      await waitFor(() => service.getHandoffRuntime().inFlight === null, 'in-flight 清空');
+      expect(service.getHandoffRuntime().pending).toBeNull();
+      const logs = logSpy.mock.calls.map(([m]) => String(m));
+      expect(logs.some((m) => m.includes('交接预生成 跳过(已轮换'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('G11-3 降级:预生成失败(非零退出) → pending 保持 null,in-flight 清空,回合链不受影响', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p1 = startProcess('第一句');
+      const call1 = await waitSpawn(1);
+      await completeWithUsage(
+        call1.child,
+        contractText({ action: 'general_response', responseToUser: '一。' }),
+        { sessionId: 'sess-f', usage: PREPARE_USAGE },
+      );
+      await p1;
+      await waitFor(() => spawnCalls.length >= 2, '交接预生成 spawn');
+      const pregenCall = spawnCalls[1]!;
+      await closeChild(pregenCall.child, 1); // 非零退出 → callClaudeOnce 抛错
+      await waitFor(() => service.getHandoffRuntime().inFlight === null, 'in-flight 清空');
+      expect(service.getHandoffRuntime().pending).toBeNull();
+      const logs = logSpy.mock.calls.map(([m]) => String(m));
+      expect(logs.some((m) => m.includes('交接预生成 失败'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('G11-4 冷却:同会话 2 回合内不再触发(回合2 只有主 spawn,无预生成 spawn)', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    await completeWithUsage(
+      call1.child,
+      contractText({ action: 'general_response', responseToUser: '一。' }),
+      { sessionId: 'sess-c', usage: PREPARE_USAGE },
+    );
+    await p1;
+    await waitFor(() => spawnCalls.length >= 2, '交接预生成 spawn');
+    await completeWith(spawnCalls[1]!.child, NOTE_TEXT); // 完成预生成 → lastPregen.turns=1
+    await waitFor(() => service.getHandoffRuntime().pending !== null, 'pending 落地');
+
+    // 回合2:同会话再跨线、turns=2(距上次预生成 1 回合 < 2)→ 冷却拦住;只有主 spawn(#2)。
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(3);
+    expect(resumeIdOf(call2)).toBe('sess-c');
+    await completeWithUsage(
+      call2.child,
+      contractText({ action: 'general_response', responseToUser: '二。' }),
+      { sessionId: 'sess-c', usage: PREPARE_USAGE },
+    );
+    await p2;
+    // 等待一小段确认没有第三个 spawn(pregen)。
+    await drainMicrotasks();
+    expect(spawnCalls).toHaveLength(3);
   });
 });
 
