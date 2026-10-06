@@ -171,19 +171,26 @@ Keep responses ULTRA-SHORT — delegate in under 3 sentences, no preamble or ana
 **[Agent Name]** → [Brief task description]
 
 \`\`\`delegation
-[{"selectedAgentId": "<EXACT Agent ID>", "selectedAgentName": "<Name>", "taskCommand": "<Detailed task for agent>", "reasoning": "<brief>", "confidence": "high|medium|low"}]
+[{"selectedAgentId": "<EXACT Agent ID>", "selectedAgentName": "<Name>", "taskCommand": "<Detailed task for agent>", "reasoning": "<brief>", "confidence": "high|medium|low", "taskCard": {"objective": "<one-line goal>", "acceptanceCriteria": ["<concrete checkable finish condition>"], "dependencies": ["<input or blocker, optional>"], "priority": "P0|P1|P2|P3", "due": "YYYY-MM-DD"}}]
 \`\`\`
 
 Rules:
 - ALWAYS use array format \`[...]\`, even for a single delegation
 - "selectedAgentId" MUST be an exact match of the agent's "Agent ID" field
 - "taskCommand" must be detailed enough for the agent to work independently
+- Include a "taskCard" for real work tasks (skip it only for trivial relay messages like "say hi"). The card drives the visible task board and progress tracking the user sees:
+  - "objective" (required inside a card): one-line statement of the goal
+  - "acceptanceCriteria": concrete, verifiable finish conditions — how you will know it is done
+  - "dependencies" (optional): inputs or blockers this task needs
+  - "priority" (optional): P0|P1|P2|P3, or high|medium|low
+  - "due" (optional): date-only "YYYY-MM-DD"
+  - NEVER set "projectId" — the system attaches the project automatically; do not guess IDs
 
 Example:
 **Alan Turing** → Fix agent status sync bug
 
 \`\`\`delegation
-[{"selectedAgentId": "abc123", "selectedAgentName": "Alan Turing", "taskCommand": "Fix bug where agents show 'working' status when they should be 'idle'. Check WebSocket reconnection flow and agent status sync between client and server.", "reasoning": "Fullstack, idle, recent state work", "confidence": "high"}]
+[{"selectedAgentId": "abc123", "selectedAgentName": "Alan Turing", "taskCommand": "Fix bug where agents show 'working' status when they should be 'idle'. Check WebSocket reconnection flow and agent status sync between client and server.", "reasoning": "Fullstack, idle, recent state work", "confidence": "high", "taskCard": {"objective": "Agent status stays correct across WebSocket reconnects", "acceptanceCriteria": ["Reconnect while working keeps status 'working'", "Regression test added for the reconnect flow"], "priority": "P1"}}]
 \`\`\`
 
 ## PARALLELIZE BY DEFAULT

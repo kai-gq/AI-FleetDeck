@@ -30,7 +30,7 @@ import {
   type DelegationQuotaCancelResult,
   type QueuedDelegation,
 } from '../../services/delegation-quota-gate.js';
-import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
+import { getLastBossDispatch, logProactiveBroadcast } from '../../services/voice-companion-service.js';
 import { loadDelegationHistory } from '../../data/index.js';
 
 const log = logger.ws;
@@ -987,9 +987,17 @@ export function parseBossDelegation(
 
       const decisionTimestamp = Date.now();
       // ⑦ 现场组卡：状态机从 pending 起（statusUpdatedAt = 落卡时间），随委派史落盘
-      const taskCard: TaskCard | undefined = delegationJson.taskCard
+      let taskCard: TaskCard | undefined = delegationJson.taskCard
         ? { ...delegationJson.taskCard, status: 'pending', statusUpdatedAt: decisionTimestamp }
         : undefined;
+      // HC-B5：主管按提示词不再猜项目 id——卡缺 projectId 时，从 vcs 路由侧「最近一次交给
+      // 该主管的派发」回填（同 14·B 别名表 id 空间；TTL 120s）。仅回填存在的卡，不凭空造卡。
+      if (taskCard && !taskCard.projectId) {
+        const dispatch = getLastBossDispatch();
+        if (dispatch && dispatch.bossId === agentId && dispatch.projectId) {
+          taskCard = { ...taskCard, projectId: dispatch.projectId };
+        }
+      }
 
       const decision: DelegationDecision = {
         id: `del-${decisionTimestamp}-${Math.random().toString(36).slice(2, 11)}`,

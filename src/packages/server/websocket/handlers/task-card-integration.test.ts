@@ -44,6 +44,8 @@ vi.mock('./command-handler.js', () => ({
 
 import { completeDelegation, getBossForSubordinate, parseBossDelegation, resetBossDelegationStateForTests } from './boss-response-handler.js';
 import * as bossService from '../../services/boss-service.js';
+import { recordLastBossDispatch, resetLastBossDispatchForTests } from '../../services/voice-companion-service.js';
+import { bossInstructions } from '../../data/builtin-skills/boss-instructions.js';
 import { closeEventDb, initEventDb } from '../../data/event-db.js';
 import { querySystemLog, type SystemLogEntry } from '../../data/system-log.js';
 import type { DelegationDecision } from '../../../shared/types.js';
@@ -88,6 +90,7 @@ describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状�
   beforeEach(() => {
     vi.clearAllMocks();
     resetBossDelegationStateForTests();
+    resetLastBossDispatchForTests(); // HC-B5：派发缓存跨用例复位
   });
 
   it('⑥2 代理：delegation 块带验收标准 → 委派历史可见验收字段；pending→running→done 全链路真实写盘', async () => {
@@ -206,5 +209,58 @@ describe('任务卡集成链路：带验收标准的卡 → 委派历史 + 状�
     expect(fs.readFileSync(historyFile, 'utf8')).toBe(bytesAfterFirst);
     expect(readDecision('幂等任务').completion?.summary).toBeUndefined();
     expect(completionRows(decision.id)).toHaveLength(1);
+  });
+
+  it('HC-B5：卡缺 projectId → 从「最近一次交给该主管的派发」回填（同 id 空间）；有值不覆盖、过期/串主管不回填', async () => {
+    bossService.init();
+
+    // ① 路由侧派发记录（真实来源 = vcs 路由 projectId），主管产卡不填 → 回填
+    recordLastBossDispatch({ bossId: 'boss-1', at: Date.now(), projectId: 'task-muv06lcr', taskId: 't-route' });
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-5","selectedAgentName":"Builder Five","taskCommand":"回填任务","confidence":"medium","taskCard":{"objective":"回填目标","acceptanceCriteria":["ok"]}}]
+\`\`\``, vi.fn());
+    expect(readDecision('回填任务').taskCard?.projectId).toBe('task-muv06lcr');
+    h.resolveSend();
+    await tick();
+
+    // ② 卡自带 projectId → 原值优先（派发记录不覆盖）
+    recordLastBossDispatch({ bossId: 'boss-1', at: Date.now(), projectId: 'proj-route' });
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-6","selectedAgentName":"Builder Six","taskCommand":"自带项目任务","confidence":"medium","taskCard":{"objective":"自有项目","projectId":"proj-explicit"}}]
+\`\`\``, vi.fn());
+    expect(readDecision('自带项目任务').taskCard?.projectId).toBe('proj-explicit');
+    h.resolveSend();
+    await tick();
+
+    // ③ 派发记录属于别的主管 → 不回填（防串项目）；无卡条目照旧不造卡
+    recordLastBossDispatch({ bossId: 'boss-2', at: Date.now(), projectId: 'proj-other' });
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-7","selectedAgentName":"Builder Seven","taskCommand":"串主管任务","confidence":"medium","taskCard":{"objective":"不该回填"}}]
+\`\`\``, vi.fn());
+    expect(readDecision('串主管任务').taskCard?.projectId).toBeUndefined();
+    h.resolveSend();
+    await tick();
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-8","selectedAgentName":"Builder Eight","taskCommand":"无卡任务","confidence":"medium"}]
+\`\`\``, vi.fn());
+    expect(readDecision('无卡任务').taskCard).toBeUndefined();
+    h.resolveSend();
+    await tick();
+
+    // ④ 派发已过期（TTL 120s）→ 不回填
+    recordLastBossDispatch({ bossId: 'boss-1', at: Date.now() - 120_001, projectId: 'proj-stale' });
+    parseBossDelegation('boss-1', 'Boss', `\`\`\`delegation
+[{"selectedAgentId":"agent-9","selectedAgentName":"Builder Nine","taskCommand":"过期派发任务","confidence":"medium","taskCard":{"objective":"过期不回填"}}]
+\`\`\``, vi.fn());
+    expect(readDecision('过期派发任务').taskCard?.projectId).toBeUndefined();
+    h.resolveSend();
+    await tick();
+  });
+
+  it('HC-B5 规格守卫：DELEGATION FORMAT 含 taskCard 字段规格与「不猜 projectId」口径', () => {
+    const content = bossInstructions.content;
+    expect(content).toContain('"taskCard"');
+    expect(content).toContain('acceptanceCriteria');
+    expect(content).toContain('NEVER set "projectId"');
   });
 });
