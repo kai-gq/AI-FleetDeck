@@ -2666,6 +2666,16 @@ const GATE_ACTIONS = new Set<string>(COMPANION_ACTIONS);
 const GRACE_FLUSH_MS = 180;
 
 /**
+ * 垫话反冲抑制窗(2026-10-07,用户真麦反馈「垫语出现两次」):慢档垫话刚出过声
+ * 后的这个窗口内,query 过渡句(「在,我去看一眼」)不再放行 —— 一回合连出两句
+ * 短垫听起来像复读(实测:「好嘞」3.0s 出声,过渡句 6.1s 紧随,隔 3.1s)。
+ * W5 的「hop1 首字节即取消」只堵在途垫话:静态档零生成、emitMs 到点即吐,
+ * 早于 hop1 首字节,取消永远来不及;这里才是最后一道出口闸。
+ * 超窗(hop1 拖长、又静了一段)过渡句恢复出声价值,照常放行。
+ */
+const PRE_ACK_SUPPRESS_AFTER_FILLER_MS = 5_000;
+
+/**
  * 分句流式播报管线:把 hop1/hop2 的文本增量变成「可播报的整句」,
  * 经 action 语义门控(SpeechGate)后逐句回调。无 onSentence 时返回全套
  * no-op —— 旧的整段返回路径零开销、行为不变。
@@ -2866,6 +2876,8 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     const pregen = !opts.isEvent && cfg.slowFiller.enabled && rawOnSentence
       ? takeFillerPregen(text)
       : null;
+    /** 本回合垫话真正吐出时刻(0=没吐过);供 query 过渡句反冲抑制判定(见 releaseHop1 处)。 */
+    let fillerEmittedAt = 0;
     const slowFiller = createSlowFiller({
       enabled: cfg.slowFiller.enabled && !!rawOnSentence,
       armMs: pregen ? 0 : cfg.slowFiller.armMs,
@@ -2876,6 +2888,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       emit: (sentence) => {
         // 与「慢档垫话:…」(生成完成,可能随后被取消)区分:这一行才是真正推给客户端播出的垫话。
         log.log(`[VoiceCompanion] 垫话吐出:${sentence}`);
+        fillerEmittedAt = Date.now();
         rawOnSentence?.(sentence, { pre: true });
       },
     });
@@ -3434,7 +3447,14 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       // W4 感知提速:至此已确定要走第二跳(目标有效、Boss 树有委派)—— 放行缓冲的
       // 过渡话术(「在,我去看一眼」)即刻出声,等待不再静默;带 pre 标记,不参与客户端
       // 最终对账(否则 hop2 答案到达时会因不等而整段重播)。
-      speech.releaseHop1({ pre: true });
+      // 垫话反冲(2026-10-07):慢档垫话刚出过声时不再叠加过渡句(上闸见常量注释);
+      // 丢弃的只是过渡话术,hop2 答案不受影响。
+      if (fillerEmittedAt > 0 && Date.now() - fillerEmittedAt < PRE_ACK_SUPPRESS_AFTER_FILLER_MS) {
+        speech.discardHop1();
+        log.log(`[VoiceCompanion] 过渡句抑制(垫话 ${Date.now() - fillerEmittedAt}ms 前刚出声,双垫防线)`);
+      } else {
+        speech.releaseHop1({ pre: true });
+      }
 
       const excerpt = material ?? await fetchAgentOutputExcerpt(target.id);
       const hop2Started = Date.now();

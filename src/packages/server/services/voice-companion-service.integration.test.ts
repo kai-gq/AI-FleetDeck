@@ -2099,6 +2099,63 @@ describe('静态垫话:池内选句、零生成 spawn、连续不重样', () => 
 });
 
 // ============================================================================
+// 垫话 v2 反冲(2026-10-07,用户真麦反馈「垫语出现两次」)
+//
+// 事故:静态档垫话 3.0s 吐出「好嘞」→ hop1 6.1s 解析出 query_agent_output →
+// 过渡句「在,我去看一眼」照常放行,一回合两句短垫前后脚(隔 3.1s)。
+// W5 的「hop1 首字节即取消」只堵在途垫话;静态档零生成、emitMs 到点即吐,
+// 早于 hop1 首字节,取消永远来不及 —— 出口闸落在 releaseHop1 前的反冲抑制窗。
+// ============================================================================
+
+describe('垫话 v2 反冲:垫话刚出声 → query 过渡句不再叠加', () => {
+  it('垫话 1s 吐出后 hop1 解析 query:过渡句被抑制(唯一 pre 句是垫话),hop2 照常两跳', async () => {
+    vi.stubEnv('TC_VOICE_FILLER_MODE', 'static');
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+    writeState({ sessionId: 'sess-1', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao' });
+    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle', taskLabel: '登录页' });
+    mockHistory = [{ type: 'assistant', content: '完成了登录页' }];
+
+    const sentences: string[] = [];
+    const metas: (undefined | { pre?: boolean })[] = [];
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      const p = startProcess('小美最近干了什么', {
+        onSentence: (s, m) => {
+          sentences.push(s);
+          metas.push(m);
+        },
+      });
+      const call1 = await waitSpawn(1);
+      // 静态垫话 1.0s 吐出(零生成 spawn,池内选句)。
+      await waitFor(() => metas.some((m) => m?.pre), '垫话吐出', 3_000);
+
+      // hop1 随即解析为 query —— 垫话刚出声,落在抑制窗内。
+      await completeWith(call1.child, contractText({
+        action: 'query_agent_output',
+        targetAgentId: 'a1',
+        query: '最近干了什么',
+        responseToUser: '在,我去看一眼。',
+      }), { via: 'delta' });
+
+      const call2 = await waitSpawn(2); // hop2 照常(抑制的只是过渡话术)
+      await completeWith(call2.child, '{"responseToUser":"小美刚完成了登录页。"}', { via: 'delta' });
+
+      const r = await p;
+      expect(r.response).toBe('小美刚完成了登录页。');
+      const pre = sentences.filter((_, i) => metas[i]?.pre);
+      const normal = sentences.filter((_, i) => !metas[i]?.pre);
+      expect(pre).toHaveLength(1); // 唯一 pre = 垫话本身
+      expect(STATIC_FILLER_PHRASES).toContain(pre[0]);
+      expect(normal).toEqual(['小美刚完成了登录页。']); // 过渡句「在,我去看一眼。」被出口闸挡下
+      expect(sentences).not.toContain('在,我去看一眼。');
+      expect(logSpy.mock.calls.some((c) => String(c[0]).includes('过渡句抑制'))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+});
+
+// ============================================================================
 // C18 垫话提示词 v3:顺着内容接(别答非所问)+ 服务端「最近应过」记忆强制换说法
 //
 // C17 教训:提示词里给整句示例(「好嘞,我捋捋」)会被模型逐字照抄 —— 示例越通用越像模板。
