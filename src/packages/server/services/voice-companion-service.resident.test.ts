@@ -8,7 +8,7 @@
  *   ③ 崩溃(假进程意外 close)→ 下轮 respawn + --resume 续会话;
  *   ④ 回退开关 TC_JARVIS_COMPANION_RESIDENT=0 → 逐字回退一次性 spawn(2 次 spawn、
  *      每次 stdin.end、第二跳带 --resume、常驻通道零接触);
- *   ⑤ usage 采集 → ≥80% 触发压缩轮换(摘要续跑,reason='context-compact',新进程不带 --resume);
+ *   ⑤ usage 采集 → ≥阈值(任务39 缺省 30%)触发压缩轮换(摘要续跑,reason='context-compact',新进程不带 --resume);
  *   ⑥ 进程卫生:stop → SIGTERM + taskkill /T /F 树杀 + 台账清除;启动清扫(仅 owner 已死才杀);
  *   ⑦ 流式保留:stream_event text_delta → onTextDelta 累计回调;中止 → VoiceCompanionAborted。
  *
@@ -610,16 +610,16 @@ describe('任务18 回退开关(=0 逐字回退一次性 spawn)', () => {
 });
 
 // ============================================================================
-// ⑤ usage 采集 → 80% 压缩轮换
+// ⑤ usage 采集 → 阈值压缩轮换(任务39 缺省 30%)
 // ============================================================================
 
-describe('任务18 上下文压缩 v1(80% 摘要续跑)', () => {
+describe('任务18/39 上下文压缩(阈值摘要续跑)', () => {
   it('R5 usage 落状态 + context_stats 观测;超阈值次回合以 context-compact 轮换', async () => {
     const usage = {
       input_tokens: 20_000,
       output_tokens: 500,
       cache_read_input_tokens: 100_000,
-      cache_creation_input_tokens: 40_000, // 合计 160000 / 200000 = 80%
+      cache_creation_input_tokens: 40_000, // 合计 160000 / 200000 = 80%(远超任务39 缺省 30% 阈值)
     };
     const modelUsage = { 'claude-haiku-4-5': { contextWindow: 200_000 } };
 

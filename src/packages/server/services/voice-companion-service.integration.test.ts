@@ -208,6 +208,10 @@ function writeConfig(overrides: {
   // W5:slowFiller 是可选子键(server 缺省 armMs/emitMs/pregenEmitMs;用例可压到下限做实时观测)。
   brain?: Partial<typeof DEFAULT_TEST_CONFIG.brain> & {
     slowFiller?: { enabled: boolean; armMs: number; emitMs: number; pregenEmitMs?: number };
+    // 任务39:压缩阈值三键不在 DEFAULT_TEST_CONFIG.brain 里,但 loadServerConfig 从 brain 读,用例透传。
+    contextCompactPercent?: number;
+    contextWindowTokens?: number;
+    contextCompactTokens?: number;
   };
 } = {}): void {
   const cfg = {
@@ -735,6 +739,129 @@ describe('G3 会话轮换', () => {
     expect(resumeIdOf(call2)).toBe('sess-1'); // 只轮换这一次
     await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }));
     await p2;
+  });
+});
+
+// ============================================================================
+// G9 上下文压缩阈值(任务39:缺省 0.3 + 绝对闸口)
+// ============================================================================
+
+describe('G9 上下文压缩阈值(任务39)', () => {
+  /** 带 usage 的回合收尾(R5 同款 result 行)。 */
+  async function completeWithUsage(
+    child: FakeChild,
+    text: string,
+    opts: { sessionId: string; usage: Record<string, number>; modelUsage?: Record<string, unknown> },
+  ): Promise<void> {
+    emitLine(child, { type: 'system', subtype: 'init', session_id: opts.sessionId });
+    emitText(child, text, 'assistant');
+    emitLine(child, {
+      type: 'result',
+      subtype: 'success',
+      result: text,
+      usage: opts.usage,
+      modelUsage: opts.modelUsage ?? { 'claude-haiku-4-5': { contextWindow: 200_000 } },
+    });
+    await closeChild(child);
+  }
+
+  it('G9-1 到缺省 0.3(62K/200K=31%)次回合轮换:不带 --resume + context-compact 留痕(0.31)', async () => {
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    await completeWithUsage(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), {
+      sessionId: 'sess-long',
+      usage: { input_tokens: 31_000, output_tokens: 500, cache_read_input_tokens: 20_000, cache_creation_input_tokens: 11_000 },
+    });
+    await p1;
+    expect(service.loadCompanionState().sessionId).toBe('sess-long');
+    expect(service.loadCompanionState().context?.percent).toBeCloseTo(0.31, 5);
+
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBeNull(); // 轮换 = 新会话
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-2' });
+    await p2;
+
+    const compact = sessionRows().filter((r) => r.reason === 'context-compact' && r.sessionId === 'sess-long');
+    expect(compact).toHaveLength(1);
+    expect(compact[0]?.sessionId).toBe('sess-long');
+    expect(compact[0]?.phase).toBe('rotated');
+    const stored = readStateFile();
+    expect(stored.sessionId).toBe('sess-2');
+    expect(stored.turns).toBe(1);
+  });
+
+  it('G9-1b 低于阈值(58K/200K=29%)不轮换:次回合仍带旧会话 --resume(0.29)', async () => {
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    await completeWithUsage(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), {
+      sessionId: 'sess-ok',
+      usage: { input_tokens: 30_000, output_tokens: 500, cache_read_input_tokens: 20_000, cache_creation_input_tokens: 8_000 },
+    });
+    await p1;
+    expect(service.loadCompanionState().context?.percent).toBeCloseTo(0.29, 5);
+
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBe('sess-ok'); // 未到线:原会话续跑
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-ok' });
+    await p2;
+  });
+
+  it('G9-2 绝对闸口:窗口报 1M 时 percent 仅 6.1% 也按 tokensUsed 轮换(60K)', async () => {
+    writeConfig({ brain: { contextCompactTokens: 60_000 } });
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    await completeWithUsage(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), {
+      sessionId: 'sess-1m',
+      usage: { input_tokens: 40_000, output_tokens: 500, cache_read_input_tokens: 15_000, cache_creation_input_tokens: 6_000 },
+      modelUsage: { 'claude-haiku-4-5': { contextWindow: 1_000_000 } },
+    });
+    await p1;
+    const st = service.loadCompanionState();
+    expect(st.context?.windowTokens).toBe(1_000_000);
+    expect(st.context?.tokensUsed).toBe(61_000);
+    expect(st.context?.percent).toBeCloseTo(0.061, 5); // 远低于 0.3
+
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBeNull(); // 绝对闸口兜住了
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-2' });
+    await p2;
+  });
+
+  it('G9-2b 绝对闸口缺省 0 = 关:同 61K/1M 局面不轮换', async () => {
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    await completeWithUsage(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), {
+      sessionId: 'sess-1m',
+      usage: { input_tokens: 40_000, output_tokens: 500, cache_read_input_tokens: 15_000, cache_creation_input_tokens: 6_000 },
+      modelUsage: { 'claude-haiku-4-5': { contextWindow: 1_000_000 } },
+    });
+    await p1;
+
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(2);
+    expect(resumeIdOf(call2)).toBe('sess-1m'); // 未到线、闸口关:续跑
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-1m' });
+    await p2;
+  });
+
+  it('G9-3 配置解析:缺省 0.3/0;0.05→0.1、0.99→0.95;闸口 -5→0、2M→1M', () => {
+    writeConfig();
+    let cfg = service.loadServerConfig();
+    expect(cfg.contextCompactPercent).toBe(0.3);
+    expect(cfg.contextCompactTokens).toBe(0);
+
+    writeConfig({ brain: { contextCompactPercent: 0.05, contextCompactTokens: 2_000_000 } });
+    cfg = service.loadServerConfig();
+    expect(cfg.contextCompactPercent).toBe(0.1);
+    expect(cfg.contextCompactTokens).toBe(1_000_000);
+
+    writeConfig({ brain: { contextCompactPercent: 0.99, contextCompactTokens: -5 } });
+    cfg = service.loadServerConfig();
+    expect(cfg.contextCompactPercent).toBe(0.95);
+    expect(cfg.contextCompactTokens).toBe(0);
   });
 });
 

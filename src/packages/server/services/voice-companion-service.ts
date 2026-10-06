@@ -272,10 +272,12 @@ export interface VoiceCompanionServerConfig {
   maxTurns: number;
   sessionMaxAgeDays: number;
   maxNotes: number;
-  /** 任务18:上下文压缩阈值(0-1;缺省 0.8 = 行业推导值,待 ⑭/⑮ 标定回写)。 */
+  /** 任务18:上下文压缩阈值(0-1;任务39 实测推导,缺省 0.3 = 60K@200K——见 06-10 §1e)。 */
   contextCompactPercent: number;
   /** 任务18:压缩判定窗口兜底(CLI modelUsage.contextWindow 缺失时用;缺省 200K)。 */
   contextWindowTokens: number;
+  /** 任务39:绝对 token 闸口(>0 生效;与 percent 取或,缺省 0 = 关)。 */
+  contextCompactTokens: number;
   /** W2 阶段2:首句机械上限(>0 生效;0 = 关,缺省)。建议开启值 24。 */
   firstSentenceMaxChars: number;
   /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
@@ -301,10 +303,16 @@ export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
   maxTurns: 120,
   sessionMaxAgeDays: 7,
   maxNotes: 40,
-  // 任务18 登记:80% 阈值为行业推导(Claude 官方 90% 服务端压缩 / 社区 70% 的折中),
-  // 非实测;窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
-  contextCompactPercent: 0.8,
+  // 任务39 改判:原 0.8 是行业推导(非实测)。任务39 实测(06-10 §1e):同一句话
+  // 新会话 3.6s vs 长会话 74.4s(thinking ~140× 退化,主因=会话历史;in≈82K、cacheR≈0,
+  // 中继无 prompt 缓存 → 每回合成本 ∝ 会话长度)。55.8%(111K/200K)已达显著退化区,
+  // 等 80% 永远等不到(轮换块先于阈值触发前会话早已拖垮)。故提前到 0.3(=60K@200K)。
+  // 窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
+  contextCompactPercent: 0.3,
   contextWindowTokens: 200_000,
+  // 任务39:绝对值闸口(与 percent 取或)。缺省 0 = 关;窗口被 CLI 上报为更大值
+  // (e.g. 1M)时,percent 阈值不够用,可用它钉死绝对开销上界。
+  contextCompactTokens: 0,
   // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
   firstSentenceMaxChars: 0,
   // W5/C13 兜底档:生成跳过 MCP 加载(冷启动 4.9→2.2s),吐出 ≈3.0–3.5s。
@@ -419,9 +427,11 @@ export function loadServerConfig(): VoiceCompanionServerConfig {
       maxTurns: clampNumber(brain.maxTurns, 10, 2_000, DEFAULT_SERVER_CONFIG.maxTurns),
       sessionMaxAgeDays: clampNumber(brain.sessionMaxAgeDays, 1, 365, DEFAULT_SERVER_CONFIG.sessionMaxAgeDays),
       maxNotes: clampNumber(brain.maxNotes, 5, 200, DEFAULT_SERVER_CONFIG.maxNotes),
-      // 任务18:可配置压缩阈值/窗口(缺省 0.8 / 200K;见 DEFAULT_SERVER_CONFIG 登记)。
-      contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.5, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
+      // 任务18:可配置压缩阈值/窗口;任务39:百分比缺省 0.3、下限放宽到 0.1(上限原样),
+      // 并新增绝对 token 闸口(0 = 关;上限 1M 与窗口上限对齐)。
+      contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.1, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
       contextWindowTokens: clampNumber(brain.contextWindowTokens, 50_000, 1_000_000, DEFAULT_SERVER_CONFIG.contextWindowTokens),
+      contextCompactTokens: clampNumber(brain.contextCompactTokens, 0, 1_000_000, DEFAULT_SERVER_CONFIG.contextCompactTokens),
       firstSentenceMaxChars: clampNumber(brain.firstSentenceMaxChars, 0, 60, DEFAULT_SERVER_CONFIG.firstSentenceMaxChars),
       slowFiller: slowFillerConfigFrom(brain),
     };
@@ -726,11 +736,15 @@ export function computeContextState(
 }
 
 /**
- * 任务18·压缩 v1:到阈值(缺省 80%)即应摘要续跑——走既有 summarizeSession + 轮换路径
+ * 任务18·压缩 v1:到阈值即应摘要续跑——走既有 summarizeSession + 轮换路径
  * (轮换块里 reason='context-compact'),不做 /compact、不发 stdin control_request。
+ * 任务39:百分比(缺省 0.3 = 60K@200K)+ 可选绝对 token 闸口,两者取或;
+ * contextCompactTokens=0(缺省)时与旧判定逐字节等价(仅阈值不同)。
  */
 export function isContextCompactionDue(state: VoiceCompanionState, cfg: VoiceCompanionServerConfig): boolean {
-  return !!state.sessionId && !!state.context && state.context.percent >= cfg.contextCompactPercent;
+  if (!state.sessionId || !state.context) return false;
+  if (state.context.percent >= cfg.contextCompactPercent) return true;
+  return cfg.contextCompactTokens > 0 && state.context.tokensUsed >= cfg.contextCompactTokens;
 }
 
 /** 快照用的 agent 结构子集(Agent 天然满足,测试可造轻量对象)。 */
@@ -2619,7 +2633,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           reason: ageExpired ? 'max-age'
             : rotateByTurns ? 'max-turns'
               : rotateByPersona ? 'persona-changed'
-                : 'context-compact', // 任务18:压缩 v1 触发(percent >= contextCompactPercent)
+                : 'context-compact', // 任务18:压缩 v1 触发(percent 或绝对 token 闸口,见 isContextCompactionDue)
           ageMs: sessionAgeMs,
         });
       }
@@ -2755,6 +2769,8 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
             windowTokens: ctx.windowTokens,
             percent: Math.round(ctx.percent * 1000) / 10,
             compactPercent: Math.round(cfg.contextCompactPercent * 100),
+            // 任务39:绝对 token 闸口(0 = 关);列进采样便于 ⑭ 观测阈值命中分布。
+            compactTokens: cfg.contextCompactTokens || undefined,
           },
         });
       }

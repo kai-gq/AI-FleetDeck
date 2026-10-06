@@ -10,8 +10,10 @@ import {
   isBossLikeAgent,
   shouldRotateSession,
   shouldRotateForPersona,
+  isContextCompactionDue,
   DEFAULT_SERVER_CONFIG,
   type CompanionMemory,
+  type VoiceCompanionServerConfig,
   type VoiceCompanionState,
 } from './voice-companion-service.js';
 import { VOICE_PERSONAS } from '../../shared/voice-personas.js';
@@ -409,6 +411,70 @@ describe('shouldRotateForPersona', () => {
   it('rotates when the persona changed', () => {
     const state = { ...emptyState(), sessionId: 's1', personaKey: 'butler' };
     expect(shouldRotateForPersona(state, 'sharp')).toBe(true);
+  });
+});
+
+describe('isContextCompactionDue — 任务39 轮换阈值提前', () => {
+  function cfgWith(over: Partial<VoiceCompanionServerConfig>): VoiceCompanionServerConfig {
+    return { ...DEFAULT_SERVER_CONFIG, ...over };
+  }
+  /** 造一个「窗口 200K、占用 proportional percent」的 context 快照。 */
+  function stateAtPercent(percent: number, tokensUsed?: number): VoiceCompanionState {
+    const windowTokens = 200_000;
+    return {
+      ...emptyState(),
+      sessionId: 's1',
+      context: {
+        tokensUsed: tokensUsed ?? Math.round(windowTokens * percent),
+        windowTokens,
+        percent,
+        updatedAt: 0,
+      },
+    };
+  }
+
+  it('缺省阈值钉死为 0.3 = 60K@200K,绝对闸口缺省关', () => {
+    expect(DEFAULT_SERVER_CONFIG.contextCompactPercent).toBe(0.3);
+    expect(DEFAULT_SERVER_CONFIG.contextCompactTokens).toBe(0);
+  });
+
+  it('无会话 / 无快照 → 不轮换(哪怕 percent 高)', () => {
+    expect(isContextCompactionDue({ ...emptyState(), context: stateAtPercent(0.9).context }, DEFAULT_SERVER_CONFIG)).toBe(false);
+    expect(isContextCompactionDue({ ...emptyState(), sessionId: 's1' }, DEFAULT_SERVER_CONFIG)).toBe(false);
+  });
+
+  it('percent 边界:0.29 不触发,0.30 触发(含等号)', () => {
+    expect(isContextCompactionDue(stateAtPercent(0.29), DEFAULT_SERVER_CONFIG)).toBe(false);
+    expect(isContextCompactionDue(stateAtPercent(0.3), DEFAULT_SERVER_CONFIG)).toBe(true);
+  });
+
+  it('实测事故档 55.8% 现在会触发(旧缺省 0.8 永远不会)', () => {
+    const state = stateAtPercent(0.5583, 111_660);
+    expect(isContextCompactionDue(state, DEFAULT_SERVER_CONFIG)).toBe(true);
+    expect(isContextCompactionDue(state, cfgWith({ contextCompactPercent: 0.8 }))).toBe(false);
+  });
+
+  it('绝对闸口:>0 时按 tokensUsed 触发,与 percent 取或', () => {
+    const cfg = cfgWith({ contextCompactTokens: 60_000 });
+    // 大窗口(1M)下 percent 远不到 0.3,但绝对量越过 60K → 触发。
+    const bigWindow: VoiceCompanionState = {
+      ...emptyState(),
+      sessionId: 's1',
+      context: { tokensUsed: 60_000, windowTokens: 1_000_000, percent: 0.06, updatedAt: 0 },
+    };
+    expect(isContextCompactionDue(bigWindow, cfg)).toBe(true);
+    expect(isContextCompactionDue({ ...bigWindow, context: { ...bigWindow.context!, tokensUsed: 59_999 } }, cfg)).toBe(false);
+  });
+
+  it('绝对闸口缺省 0 = 关(percent 未到就不触发)', () => {
+    // 2M 窗口、99.9 万 token(percent 0.4995 < 0.95):percent 分支不触发。
+    const state: VoiceCompanionState = {
+      ...emptyState(),
+      sessionId: 's1',
+      context: { tokensUsed: 999_000, windowTokens: 2_000_000, percent: 0.4995, updatedAt: 0 },
+    };
+    expect(isContextCompactionDue(state, cfgWith({ contextCompactPercent: 0.95 }))).toBe(false);
+    expect(isContextCompactionDue(state, cfgWith({ contextCompactPercent: 0.95, contextCompactTokens: 500_000 }))).toBe(true);
   });
 });
 
