@@ -35,7 +35,7 @@ import { preloadTtsAudio } from '../voice/ttsPreload';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
 import { store } from '../store';
-import { executeOpenCommand, matchOpenCommand } from '../voice/openCommand';
+import { OPEN_COMMAND_ACK, executeOpenCommand, matchOpenCommand } from '../voice/openCommand';
 import '../styles/components/voice-companion.scss';
 
 const LEADER_KEY = 'tide:voice-companion:leader';
@@ -316,7 +316,14 @@ export function VoiceCompanion({ className }: { className?: string }) {
     config: cfg.listening,
     ttsSpeaking,
     turnInFlight: thinking,
-    onPartial: (text) => setLiveText(text),
+    onPartial: (text) => {
+      setLiveText(text);
+      // 疑似「打开X」:趁人还在说,先把确认语「已打开」合成进 TTS 缓存 ——
+      // 命中瞬间零合成直接播(与垫话同款预热,关键路径省 ~0.5s 合成段)
+      if (text.trim().startsWith('打开')) {
+        preloadTtsAudio(OPEN_COMMAND_ACK, speechLangFor(OPEN_COMMAND_ACK));
+      }
+    },
     onFillerHint: (text) => preloadTtsAudio(text, speechLangFor(text)),
     onFinal: (text, meta) => {
       // 手动提交回放的同一文本已上屏过,不再重复 push(P11)

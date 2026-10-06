@@ -10,7 +10,8 @@
  * 执行(executeOpenCommand):
  *   agent = Spotlight 同款动作(selectAgent + 非 flat 视图下 requestTerminalExpand);
  *   指挥官 = 派发 tide:open-commander 事件桥(App.tsx 监听后 commanderModal.open())。
- *   返回一句确认语,由调用方出声播报(用户拍板:命中要出声确认)。
+ *   返回确认语 OPEN_COMMAND_ACK(「已打开」,短句求快),由调用方出声播报
+ *   (用户拍板:命中要出声确认;VoiceCompanion 在 partial 阶段用同一常量预热音频)。
  *
  * 边界(明确不做,见 2026-10-07 计划):「帮我打开」「打开一下」「打开X的聊天框」
  * 等变体;关闭类指令;其他动词(切换/看看)。查询类(「打开小陈的日志」)一律不命中。
@@ -21,6 +22,13 @@ import { store } from '../store';
 export type OpenCommand =
   | { kind: 'agent'; agentId: string; name: string }
   | { kind: 'commander' };
+
+/**
+ * 命中后的固定确认语。刻意最短(用户拍板「直接说已打开」):
+ * 短的合成快、播得也快;VoiceCompanion 在 ASR partial 以「打开」开头时
+ * 用同一常量预热 TTS 缓存 → 命中瞬间直接播,省掉关键路径的合成段。
+ */
+export const OPEN_COMMAND_ACK = '已打开';
 
 /** 指挥官视图的固定别名(「指挥官是视图」,优先于同名 agent)。 */
 const COMMANDER_ALIASES = ['指挥官', '指挥官视图'];
@@ -75,7 +83,7 @@ export function matchOpenCommand(
 }
 
 /**
- * 执行指令并返回确认语(「好,打开X」)。
+ * 执行指令并返回确认语(固定 OPEN_COMMAND_ACK)。
  * 副作用:agent → 选中 + 展开终端面板;指挥官 → 派发 tide:open-commander。
  */
 export function executeOpenCommand(cmd: OpenCommand): string {
@@ -84,8 +92,8 @@ export function executeOpenCommand(cmd: OpenCommand): string {
     if (store.getState().viewMode !== 'flat') {
       store.requestTerminalExpand();
     }
-    return `好,打开${cmd.name}`;
+    return OPEN_COMMAND_ACK;
   }
   window.dispatchEvent(new CustomEvent('tide:open-commander'));
-  return '好,打开指挥官';
+  return OPEN_COMMAND_ACK;
 }

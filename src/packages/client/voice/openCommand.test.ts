@@ -134,11 +134,11 @@ describe('executeOpenCommand — 动作与确认语', () => {
     setViewMode('3d');
   });
 
-  it('agent:选中 + 非 flat 视图请求展开终端,确认语「好,打开X」', () => {
+  it('agent:选中 + 非 flat 视图请求展开终端,确认语「已打开」', () => {
     const ack = executeOpenCommand({ kind: 'agent', agentId: 'a-liutao', name: '小陈' });
     expect(store.selectAgent).toHaveBeenCalledWith('a-liutao');
     expect(store.requestTerminalExpand).toHaveBeenCalledTimes(1);
-    expect(ack).toBe('好,打开小陈');
+    expect(ack).toBe('已打开');
   });
 
   it('agent:flat 视图不请求展开(与 Spotlight 同款)', () => {
@@ -148,7 +148,7 @@ describe('executeOpenCommand — 动作与确认语', () => {
     expect(store.requestTerminalExpand).not.toHaveBeenCalled();
   });
 
-  it('commander:派发 tide:open-commander 事件,确认语「好,打开指挥官」', () => {
+  it('commander:派发 tide:open-commander 事件,确认语「已打开」', () => {
     const dispatch = vi.fn();
     vi.stubGlobal('window', { dispatchEvent: dispatch });
     try {
@@ -156,7 +156,7 @@ describe('executeOpenCommand — 动作与确认语', () => {
       expect(dispatch).toHaveBeenCalledTimes(1);
       const evt = dispatch.mock.calls[0][0] as CustomEvent;
       expect(evt.type).toBe('tide:open-commander');
-      expect(ack).toBe('好,打开指挥官');
+      expect(ack).toBe('已打开');
     } finally {
       vi.unstubAllGlobals();
     }
