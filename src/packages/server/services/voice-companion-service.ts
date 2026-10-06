@@ -125,6 +125,8 @@ import {
   buildDelegationQueryMaterial,
   buildNoDelegationResponse,
   buildQueryChainLogBody,
+  buildSingleAgentQueryMaterial,
+  pickRecentAgentDelegations,
   pickRecentDelegations,
   planQueryRoute,
   // 任务16·⑬ 撤回/评价纯逻辑(目标解析/反问消费/评价极性/话术)
@@ -2543,15 +2545,24 @@ function readBossDelegationHistory(bossId: string): DelegationDecision[] {
  * 把一条委派决策转成 hop2 材料的下属条目:
  * agent 已不在快照(被删/未加载)→ 名字回退委派记录、状态未知;
  * 历史读取失败 → 按「无产出」处理(材料会如实说暂无进展,不编造)。
+ * excerptOverride(单 agent 查询用):传入即不再逐条读会话 —— 同一 agent 的多条记录共享
+ * 一次读取的产出(新→旧里只有最新那条给真产出,其余传 '' 走「无产出」分支,避免同文重复)。
  */
-async function buildSubordinateQueryEntry(decision: DelegationDecision): Promise<SubordinateQueryEntry> {
+async function buildSubordinateQueryEntry(
+  decision: DelegationDecision,
+  excerptOverride?: string,
+): Promise<SubordinateQueryEntry> {
   const subordinate = agentService.getAgent(decision.selectedAgentId);
   let excerpt: string;
-  try {
-    excerpt = await fetchAgentOutputExcerpt(decision.selectedAgentId);
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 读取下属产出失败(${decision.selectedAgentId}),按无产出处理: ${(err as Error).message}`);
-    excerpt = '';
+  if (excerptOverride !== undefined) {
+    excerpt = excerptOverride;
+  } else {
+    try {
+      excerpt = await fetchAgentOutputExcerpt(decision.selectedAgentId);
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 读取下属产出失败(${decision.selectedAgentId}),按无产出处理: ${(err as Error).message}`);
+      excerpt = '';
+    }
   }
   // ⑦ 任务卡为可选字段(旧委派记录无卡) → 按无卡处理,绝不假定存在。
   const objective = decision.taskCard?.objective;
@@ -3442,6 +3453,24 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         const entries = await Promise.all(recent.map((d) => buildSubordinateQueryEntry(d)));
         material = buildDelegationQueryMaterial({ bossName: target.name, entries });
         subordinateIds = entries.map((e) => e.agentId);
+      } else {
+        // B(2026-10-07):单 agent 查询也带病历段 —— 从委派史取该 agent 最近任务,与
+        // boss-tree 同款条目化(完成看病历、在办看进度),不再只给一段原始会话输出;
+        // 产出一次性读取,仅最新一条携带(见 buildSubordinateQueryEntry 的 override 注释);
+        // 无委派记录 → material 保持 null,走原有 excerpt 兜底(行为不变)。
+        const records = pickRecentAgentDelegations(collectDelegationHistory(agentService.getAllAgents()), target.id);
+        if (records.length > 0) {
+          let agentExcerpt = '';
+          try {
+            agentExcerpt = await fetchAgentOutputExcerpt(target.id);
+          } catch (err) {
+            log.warn(`[VoiceCompanion] 读取产出失败(${target.id}),按无产出处理: ${(err as Error).message}`);
+          }
+          const entries = await Promise.all(
+            records.map((d, i) => buildSubordinateQueryEntry(d, i === 0 ? agentExcerpt : '')),
+          );
+          material = buildSingleAgentQueryMaterial({ agentName: target.name, entries });
+        }
       }
 
       // W4 感知提速:至此已确定要走第二跳(目标有效、Boss 树有委派)—— 放行缓冲的
@@ -3518,14 +3547,34 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       let plan = planCancelAction({ text, live, history });
       // HC-B4：撤回落在「已交给主管、主管回合还没拆解完」的窗口(dispatched→delegated ~秒级)时
       // 此刻没有任何候选——有界等待主管的委派落地再撤；超时不再说「没有在办任务」(与事实不符)。
+      // C2 修正(2026-10-07 实况):plan='none' 有两种语义 —— ① 真没有候选(B4 等待窗口);
+      // ② 有在办候选但原话没对上号(例:「不用查了」与任务词面仅单字重合,阈值 2 不命中)。
+      // 旧代码把 ② 当 ① → 任务明明在办,却等 10s 后播「刚交给主管的那条还在安排…」——
+      // 误导话术(当晚实况:任务 5 秒后正常完成)。② 改为复用既有一遍反问,把在办候选摊开。
       let waitedOnDispatch = false;
       if (plan.kind === 'none') {
-        const dispatch = getLastBossDispatch();
-        // env 关闭(0)时整段回退旧行为:不等待、仍播旧话术（0 = B4 功能关）。
-        if (dispatch && cancelWaitBudgetMs() > 0) {
-          waitedOnDispatch = true;
-          const fresh = await waitFreshDispatchCandidate(text, live, history, dispatch, opts.signal);
-          if (fresh) plan = fresh;
+        const seen = new Set<string>();
+        const unmatchedActionable = [...live, ...history].filter((c) => {
+          if (!isActionableCancelState(c.state)) return false;
+          const key = c.decisionId ?? c.taskId ?? `${c.subordinateId}:${c.label}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        if (unmatchedActionable.length > 0) {
+          plan = {
+            kind: 'ask',
+            question: buildCancelClarifyQuestion(unmatchedActionable),
+            candidates: unmatchedActionable,
+          };
+        } else {
+          const dispatch = getLastBossDispatch();
+          // env 关闭(0)时整段回退旧行为:不等待、仍播旧话术（0 = B4 功能关）。
+          if (dispatch && cancelWaitBudgetMs() > 0) {
+            waitedOnDispatch = true;
+            const fresh = await waitFreshDispatchCandidate(text, live, history, dispatch, opts.signal);
+            if (fresh) plan = fresh;
+          }
         }
       }
       if (plan.kind === 'ask') {

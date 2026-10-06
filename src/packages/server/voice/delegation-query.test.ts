@@ -13,12 +13,15 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   DELEGATION_MATERIAL_BUDGET,
   DELEGATION_QUERY_MAX,
+  DELEGATION_SINGLE_AGENT_MAX,
   DELEGATION_TASK_TRUNCATE,
   buildDelegationQueryMaterial,
   buildNoDelegationResponse,
   buildQueryChainLogBody,
+  buildSingleAgentQueryMaterial,
   formatDelegationDuration,
   hasSubstantiveOutput,
+  pickRecentAgentDelegations,
   pickRecentDelegations,
   planQueryRoute,
   type SubordinateQueryEntry,
@@ -127,6 +130,40 @@ describe('pickRecentDelegations — 最近 N 条 + 按下属去重', () => {
 });
 
 // ============================================================================
+// B(2026-10-07):单 agent 查询 —— 该 agent 自己的记录(不去重)+ 病历段材料
+// ============================================================================
+
+describe('pickRecentAgentDelegations — 单 agent 记录(新→旧,限 3,不去重)', () => {
+  it('只取该 agent 的记录,按时间倒序,缺省最多 3 条', () => {
+    const history = [
+      decision({ selectedAgentId: 'a1', userCommand: '甲任务', timestamp: 1_000 }),
+      decision({ selectedAgentId: 'a2', userCommand: '别人的活', timestamp: 2_000 }),
+      decision({ selectedAgentId: 'a1', userCommand: '乙任务', timestamp: 3_000 }),
+      decision({ selectedAgentId: 'a1', userCommand: '丙任务', timestamp: 4_000 }),
+      decision({ selectedAgentId: 'a1', userCommand: '丁任务', timestamp: 5_000 }),
+    ];
+    const picked = pickRecentAgentDelegations(history, 'a1');
+    expect(picked).toHaveLength(DELEGATION_SINGLE_AGENT_MAX);
+    expect(picked.map((d) => d.userCommand)).toEqual(['丁任务', '丙任务', '乙任务']);
+  });
+
+  it('同一 agent 的连续任务不去重(与 pickRecentDelegations 的关键区别);不修改输入', () => {
+    const history = [
+      decision({ selectedAgentId: 'a1', userCommand: '旧活', timestamp: 1_000 }),
+      decision({ selectedAgentId: 'a1', userCommand: '新活', timestamp: 2_000 }),
+    ];
+    const before = history.map((d) => d.id);
+    const picked = pickRecentAgentDelegations(history, 'a1');
+    expect(picked.map((d) => d.userCommand)).toEqual(['新活', '旧活']);
+    expect(history.map((d) => d.id)).toEqual(before);
+  });
+
+  it('无该 agent 记录 → 空数组(调用方走原始 excerpt 兜底)', () => {
+    expect(pickRecentAgentDelegations([decision({ selectedAgentId: 'a9' })], 'a1')).toEqual([]);
+  });
+});
+
+// ============================================================================
 // 材料拼接:三分支
 // ============================================================================
 
@@ -196,6 +233,54 @@ describe('buildDelegationQueryMaterial — 下属行拼接', () => {
     expect(material.length).toBeLessThanOrEqual(DELEGATION_MATERIAL_BUDGET);
     // 新→旧顺序即入参顺序,每段都保留(头部不下沉)
     for (let i = 0; i < entries.length; i++) expect(material).toContain(`下属${i}`);
+  });
+});
+
+// ============================================================================
+// B(2026-10-07):单 agent 查询材料 —— 病历段(条目格式与 boss-tree 同款)
+// ============================================================================
+
+describe('buildSingleAgentQueryMaterial — 单 agent 病历段', () => {
+  it('有病历:完成行(执行者/耗时/产出);标题指向该 agent 的任务记录', () => {
+    const material = buildSingleAgentQueryMaterial({
+      agentName: '小刘',
+      entries: [entry({
+        agentName: '小刘',
+        userCommand: '查一下服务器的系统情况',
+        excerpt: '',
+        completion: { completedAt: 2_000_000, durationMs: 91_612, result: 'completed', summary: 'CPU 正常,内存 62%' },
+      })],
+    });
+    expect(material).toContain('以下为「小刘」最近被委派的任务记录(新→旧,共 1 条):');
+    expect(material).toContain('【小刘】任务「查一下服务器的系统情况」已完成（耗时 1.5 分钟）');
+    expect(material).toContain('产出: CPU 正常,内存 62%');
+  });
+
+  it('无病历:在办看进度(正在做行)、有产出看产出(与 boss-tree 同款三分支)', () => {
+    const material = buildSingleAgentQueryMaterial({
+      agentName: '小美',
+      entries: [
+        entry({ userCommand: '在办的任务', status: 'working', excerpt: '(没有可用的会话记录)' }),
+        entry({ userCommand: '旧任务', excerpt: '登录页改成 React 18 了' }),
+      ],
+    });
+    expect(material).toContain('【小美】正在做「在办的任务」,暂无实质进展');
+    expect(material).toContain('【小美】任务「旧任务」');
+    expect(material).toContain('登录页改成 React 18 了');
+  });
+
+  it('entries 为空 → 空串(调用方回退原始 excerpt 兜底,行为不变)', () => {
+    expect(buildSingleAgentQueryMaterial({ agentName: '小美', entries: [] })).toBe('');
+  });
+
+  it('体积护栏:多条长产出不超 DELEGATION_MATERIAL_BUDGET,各段头保留', () => {
+    const entries = Array.from({ length: DELEGATION_SINGLE_AGENT_MAX }, (_, i) => entry({
+      userCommand: `任务${i}`,
+      excerpt: 'x'.repeat(1_500),
+    }));
+    const material = buildSingleAgentQueryMaterial({ agentName: '小美', entries });
+    expect(material.length).toBeLessThanOrEqual(DELEGATION_MATERIAL_BUDGET);
+    for (let i = 0; i < entries.length; i++) expect(material).toContain(`任务${i}`);
   });
 });
 

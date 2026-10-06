@@ -22,6 +22,9 @@ import type { DelegationCompletion, DelegationDecision, DelegationUserRating } f
 /** 只查最近委派条数上限 —— 与任务06【最近委派】注入(vcs MAX_DELEGATION_INJECT=5)同口径,不深追溯历史。 */
 export const DELEGATION_QUERY_MAX = 5;
 
+/** 单 agent 查询材料最多带几条该 agent 的委派记录(病历段;再多旧记录无益,控预算)。 */
+export const DELEGATION_SINGLE_AGENT_MAX = 3;
+
 /**
  * hop2 材料总体积护栏:按单下属 excerpt 护栏(6 条 / 1500 字,§8.1)的 3 倍取整,
  * 保证多下属汇总不无界膨胀(取值保守,非实测最优,待观测标定)。
@@ -68,6 +71,21 @@ export function pickRecentDelegations(
     if (picked.length >= limit) break;
   }
   return picked;
+}
+
+/**
+ * B(2026-10-07):单 agent 查询 —— 该 agent 自己的最近委派记录(新→旧,不去重:
+ * 同一 agent 的连续任务都要)。用于「查某个下属」时给病历段,而不是只有一段原始会话输出。
+ */
+export function pickRecentAgentDelegations(
+  history: readonly DelegationDecision[],
+  agentId: string,
+  limit: number = DELEGATION_SINGLE_AGENT_MAX,
+): DelegationDecision[] {
+  return [...history]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .filter((d) => d.selectedAgentId === agentId)
+    .slice(0, limit);
 }
 
 // ============================================================================
@@ -211,6 +229,26 @@ export function buildDelegationQueryMaterial(input: {
     : material;
 }
 
+/**
+ * B(2026-10-07):单 agent 查询材料 —— 该 agent 自己最近的任务记录(条目格式与 boss-tree
+ * 同款:有病历看病历、有产出行看产出、在办看进度)。entries 为空返回 ''(调用方回退
+ * 原始会话输出兜底,保持旧行为)。
+ */
+export function buildSingleAgentQueryMaterial(input: {
+  agentName: string;
+  entries: readonly SubordinateQueryEntry[];
+}): string {
+  const { agentName, entries } = input;
+  if (entries.length === 0) return '';
+  const header = `以下为「${agentName}」最近被委派的任务记录(新→旧,共 ${entries.length} 条):`;
+  const share = Math.max(1, Math.floor(DELEGATION_MATERIAL_BUDGET / entries.length));
+  const sections = entries.map((entry) => buildSubordinateSection(entry, share));
+  const material = [header, ...sections].join('\n\n');
+  return material.length > DELEGATION_MATERIAL_BUDGET
+    ? `${material.slice(0, DELEGATION_MATERIAL_BUDGET - 1)}…`
+    : material;
+}
+
 // ============================================================================
 // 🔴 决策观测点④ 查询链路事件字段(Spec §4.14)
 // ============================================================================
@@ -302,6 +340,15 @@ export function normalizeCancelMatchText(text: string): string {
 
 /** 撤回动词（从原话里剥掉，剩下的才是「撤回对象」线索）。 */
 const CANCEL_VERB_RE = /撤回|撤销|取消|作废|终止|停止|停掉|停下|别做了|不做了|不要做了|不要做|别做|别干|不用做|不用做了|不干了|算了/g;
+/**
+ * 整句口语否定 = 裸撤回（通用模板，**不枚举动词**）：否定词(+再) + ≤3 个汉字 + 语气词，整句耗尽。
+ * 例：「不用查了」「别折腾了」「先不弄了」「不用再看了」——动作动词是开放集，穷举必漏
+ * （2026-10-07 实测：「不用查了」不在动词表 → 残留整句当「对象」→ 与任务词面重合 <2 字 → 撤回永远对不上号）。
+ * 构成裸撤回而不是剥离动词：带对象的句子（「别弄登录页了」「不用Proj-Login了」）超不出模板 → 照常走 LCS 匹配。
+ * ⚠️ 排除 停/撤/止/继续 ——「别停」「不要停」= 继续做，绝不能当撤回。
+ */
+const BARE_NEGATIVE_UTTERANCE_RE =
+  /^(?:先|暂时|那就|就|好)?(?:不用|不需要|不要|别|不)(?:再)?(?!.*[停撤止])[一-龥]{1,3}(?:了|啦|吧)?$/;
 /** 指代/语气填充词（不携带对象信息，剥掉避免假命中）。 */
 const CANCEL_FILLER_RE = /那个|这个|这些|那些|刚刚|刚才|请|帮我|给我|一下|的任务|的活|活儿|事情/g;
 /** 剥完后只剩这些词 = 「裸撤回」（没说撤哪个，按全部在途候选处理）。 */
@@ -313,9 +360,9 @@ export function extractCancelSubject(text: string): string {
   return normalizeCancelMatchText(stripped);
 }
 
-/** 裸撤回 = 没给出可匹配的对象线索。 */
+/** 裸撤回 = 没给出可匹配的对象线索（空 / 只有泛词 / 整句就是口语否定短语）。 */
 export function isBareCancelSubject(subject: string): boolean {
-  return subject.length === 0 || GENERIC_SUBJECT_RE.test(subject);
+  return subject.length === 0 || GENERIC_SUBJECT_RE.test(subject) || BARE_NEGATIVE_UTTERANCE_RE.test(subject);
 }
 
 /** 最长公共子串长度（短文本 DP；命中靠「词面重合」而不是顺序包含，容忍口语插字）。 */

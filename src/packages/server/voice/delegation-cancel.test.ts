@@ -94,6 +94,22 @@ describe('撤回对象抽取（动词/填充词剥离 + 裸撤回判定）', () 
     expect(isBareCancelSubject(extractCancelSubject('登录页那个任务别做了'))).toBe(false);
   });
 
+  it('通用口语否定整句 → 裸撤回（不枚举动作动词）；反义否定与带对象句不得误判', () => {
+    // 正控:动作动词是开放集,模板按「否定(+再)+≤3 汉字+语气词」整句识别
+    expect(isBareCancelSubject(extractCancelSubject('不用查了。'))).toBe(true);
+    expect(isBareCancelSubject(extractCancelSubject('别折腾了'))).toBe(true);
+    expect(isBareCancelSubject(extractCancelSubject('先不弄了'))).toBe(true);
+    expect(isBareCancelSubject(extractCancelSubject('不用再看了'))).toBe(true);
+    expect(isBareCancelSubject(extractCancelSubject('别收拾了'))).toBe(true);
+    // 负控:「别停/不要停/别撤了」= 继续做(反义),绝不能当撤回
+    expect(isBareCancelSubject(extractCancelSubject('别停'))).toBe(false);
+    expect(isBareCancelSubject(extractCancelSubject('不要停'))).toBe(false);
+    expect(isBareCancelSubject(extractCancelSubject('别撤了'))).toBe(false);
+    // 负控:带对象(整句超出模板) → 非裸,照常走 LCS 匹配
+    expect(isBareCancelSubject(extractCancelSubject('不用查了,那个登录页的活'))).toBe(false);
+    expect(isBareCancelSubject(extractCancelSubject('不用 Proj-Login 了'))).toBe(false);
+  });
+
   it('normalizeCancelMatchText：去标点空白 + 小写（LCS 用）', () => {
     expect(normalizeCancelMatchText(' Proj-Login、页面 ')).toBe('projlogin页面');
   });
@@ -154,6 +170,14 @@ describe('planCancelAction —— live 优先 / 史源兜底 / 明确 none', () 
     const plan = planCancelAction({ text: '把登录页那个活撤了', live: [mei(), gang()], history: [] });
     expect(plan.kind).toBe('match');
     if (plan.kind === 'match') expect(plan.candidate.subordinateId).toBe('a-mei');
+  });
+
+  it('口语否定「不用查了。」= 裸撤回,唯一在办 → match（2026-10-07 实况回归）', () => {
+    const plan = planCancelAction({ text: '不用查了。', live: [mei()], history: [] });
+    expect(plan.kind).toBe('match');
+    if (plan.kind === 'match') expect(plan.candidate.subordinateId).toBe('a-mei');
+    // 「别停」= 继续做(反义),不得命中任何候选
+    expect(planCancelAction({ text: '别停', live: [mei()], history: [] }).kind).toBe('none');
   });
 
   it('live 多候选/平票 → 一次反问（问题含编号与两个对象）', () => {
