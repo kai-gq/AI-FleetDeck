@@ -31,6 +31,7 @@ import {
   type QueuedDelegation,
 } from '../../services/delegation-quota-gate.js';
 import { getLastBossDispatch, logProactiveBroadcast } from '../../services/voice-companion-service.js';
+import { appendDecisionToAssetLibrary } from '../../services/team-memory-service.js';
 import { loadDelegationHistory } from '../../data/index.js';
 
 const log = logger.ws;
@@ -178,7 +179,7 @@ export function completeDelegation(
     }
     // ⑧ 病历：完成事件写回（decisionId 在 delete 后不可达，必须在清理前落盘）
     if (delegation.decisionId) {
-      bossService.recordDelegationCompletion(delegation.bossId, delegation.decisionId, {
+      const recorded = bossService.recordDelegationCompletion(delegation.bossId, delegation.decisionId, {
         at,
         result,
         summary: opts.summary,
@@ -188,6 +189,10 @@ export function completeDelegation(
         subordinateId,
         taskId: delegation.taskId,
       });
+      // 任务23 · 团队资产库：完成/失败事件驱动 append（唯一完成漏斗挂点）。
+      // store 层按 decisionId 幂等拒绝重复；appendDecisionToAssetLibrary 内部 fail-open，
+      // 任何资产库故障绝不拦断回执/病历链路。
+      if (recorded?.completion) appendDecisionToAssetLibrary(recorded);
     }
   }
   // 任务15·B ⑫：释放配额（:103 删除前的旧挂点语义）——只动配额账本，不碰 activeDelegations，

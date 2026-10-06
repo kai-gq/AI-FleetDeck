@@ -10,6 +10,7 @@ import * as skillService from './skill-service.js';
 import { createLogger } from '../utils/index.js';
 import { buildBossContext } from './subordinate-context-service.js';
 import { formatTaskCardForBoss, parseTaskCardFromText } from './task-card-service.js';
+import { buildAssetHitBlock } from './team-memory-service.js';
 
 const log = createLogger('BossMessage');
 
@@ -92,10 +93,15 @@ export async function buildBossMessage(
   const card = taskCard ?? parseTaskCardFromText(command);
   const commandBlock = card ? `${formatTaskCardForBoss(card)}\n\n${command}` : command;
 
+  // 任务23 · Boss 派活先查：注入资产库命中摘要（只读；总/行双长度上限见 team-memory-service）。
+  // fail-open：库故障/无命中时 hitsSection=''，输出与旧版逐字节一致（本文件测试钉死该形态）。
+  const assetHits = buildAssetHitBlock(command);
+  const hitsSection = assetHits ? `\n\n${assetHits}` : '';
+
   if (!context) {
     // No subordinates - just inject instructions
     const message = `${BOSS_CONTEXT_START}
-${instructions}
+${instructions}${hitsSection}
 ${BOSS_CONTEXT_END}
 
 ${commandBlock}`;
@@ -106,7 +112,7 @@ ${commandBlock}`;
   // Static boss instructions are injected once via the boss-instructions skill.
   const contextBlock = instructions ? `${instructions}\n\n${context}` : context;
   const message = `${BOSS_CONTEXT_START}
-${contextBlock}
+${contextBlock}${hitsSection}
 ${BOSS_CONTEXT_END}
 
 ${commandBlock}`;
