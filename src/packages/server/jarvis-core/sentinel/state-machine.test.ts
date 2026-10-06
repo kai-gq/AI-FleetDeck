@@ -308,6 +308,16 @@ describe('同日幂等与乱序防护', () => {
     expect(backfill.transition).toBeNull();
     expect(backfill.state.phase).toBe('normal');
   });
+
+  it('未评估过的状态不做乱序判定：首评放行（回归钉·10-06 日期炸弹）', () => {
+    // 服务首启 load() 用真实时钟播种 updatedAt，而 runDailyScan 注入的 now 可早于它；
+    // 从未评估过就没有「上次评估」可倒灌，首评必须放行——不许出现 out-of-order。
+    const fresh: SentinelPhaseState = { ...createSentinelPhaseState(T(4)), updatedAt: T(5) }; // 播种日 10-5 > 注入日 10-4
+    const ev = evaluate(fresh, CRITICAL(KEY(4)), T(4));
+    expect(ev.skippedReason).not.toBe('out-of-order');
+    expect(ev.verdict).toBe('critical');
+    expect(ev.transition).toMatchObject({ from: 'normal', to: 'degraded' });
+  });
 });
 
 describe('开关与配置注入', () => {

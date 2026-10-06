@@ -195,7 +195,11 @@ export function evaluateSentinelPhase(
       thresholds: resolved.thresholds,
     });
 
-  if (localDayDiff(state.updatedAt, now) < 0) {
+  // 乱序守卫仅对「已有评估」的状态生效（lastEvaluatedDay 非空）：从未评估过的状态
+  // （如服务首启，updatedAt 由真实时钟播种）没有「上次评估」可被倒灌，首评一律放行——
+  // 否则注入历史 now 的首次扫描会被误判乱序（2026-10-06 实锤：测试 NOW 固定 10-05，
+  // 服务 load() 播种 10-06，五个首评用例全部翻红）。
+  if (state.lastEvaluatedDay && localDayDiff(state.updatedAt, now) < 0) {
     createOnceLogger(logger)(
       'warn',
       'out-of-order',
