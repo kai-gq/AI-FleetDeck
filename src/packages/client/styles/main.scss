@@ -22,6 +22,7 @@
 @use '../plugins/bolba-tasks/bolba' as bolba-plugin;
 @use '../plugins/gmail/gmail' as gmail-plugin;
 @use '../plugins/jira/jira' as jira-plugin;
+@use '../plugins/delegation-board/delegation-board' as delegation-board;
 @use 'components/markdown';
 @use 'components/commander-view/index' as commander-view;
 @use 'components/file-viewer';

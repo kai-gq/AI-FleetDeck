@@ -19,7 +19,13 @@
  * 回退开关：`TC_TEAM_MEMORY=0` 同时关停「资产入库」与「派活注入」（视图纯函数不受影响）。
  */
 
-import type { DelegationDecision, TaskCard, TaskCardStatus } from '../../shared/types.js';
+import type {
+  DelegationDecision,
+  DelegationUserRating,
+  TaskCard,
+  TaskCardPriority,
+  TaskCardStatus,
+} from '../../shared/types.js';
 import {
   getTeamAssetStore,
   type TeamAssetEntry,
@@ -41,23 +47,33 @@ export type TeamMemoryStatus = TaskCardStatus | 'sent' | 'in-flight' | 'complete
  */
 export interface TeamMemoryEntry {
   decisionId: string;
+  /** 派发链路 taskId（HC-B7；旧记录缺省）——任务24 看板按此关联派发行。 */
+  taskId?: string;
   bossId: string;
   bossName?: string;
   /** 谁：执行者（agentId + 名字快照——agent 已删时名字仍可读）。 */
   who: { agentId: string; agentName: string };
   /** 何时：委派时刻 / 完成时刻 / 耗时（病历 durationMs）。 */
   when: { delegatedAt: number; completedAt?: number; durationMs?: number };
-  /** 做了什么：任务目标 + 当前状态 + 截止日（任务17·A2）。 */
-  what: { objective: string; status: TeamMemoryStatus; due?: string };
+  /** 做了什么：任务目标 + 当前状态 + 截止日（任务17·A2）+ 优先级/项目归属（任务卡字段）。 */
+  what: {
+    objective: string;
+    status: TeamMemoryStatus;
+    due?: string;
+    priority?: TaskCardPriority;
+    projectId?: string;
+  };
   /** 为什么：用户原话 + Boss 委派理由（+ 置信度）。 */
   why: { userCommand: string; reasoning: string; confidence?: 'high' | 'medium' | 'low' };
   /** 产出在哪：病历 outputLocation / summary（缺省 = 入口不可得，如实缺省不编造）。 */
   where: { outputLocation?: string; summary?: string };
-  /** 结果面：终态结果 + 验收标准与打勾（病历 acceptance）。 */
+  /** 结果面：终态结果 + 验收标准与打勾（病历 acceptance）+ 用户评价（⑧ 病历 userRating）。 */
   outcome: {
     result?: 'completed' | 'failed';
     acceptanceCriteria?: string[];
     acceptance?: Array<{ item: string; done: boolean }>;
+    rating?: DelegationUserRating;
+    ratedAt?: number;
   };
 }
 
@@ -107,6 +123,7 @@ export function entryFromDecision(
     metas.status ?? completion?.result ?? card?.status ?? decision.status;
   return {
     decisionId: decision.id,
+    ...(decision.taskId ? { taskId: decision.taskId } : {}),
     bossId: metas.bossId ?? decision.bossId,
     ...(metas.bossName ? { bossName: metas.bossName } : {}),
     who: { agentId: decision.selectedAgentId, agentName: decision.selectedAgentName },
@@ -118,6 +135,8 @@ export function entryFromDecision(
       objective: card?.objective?.trim() || decision.userCommand,
       status,
       ...(card?.due ? { due: card.due } : {}),
+      ...(card?.priority ? { priority: card.priority } : {}),
+      ...(card?.projectId ? { projectId: card.projectId } : {}),
     },
     why: {
       userCommand: decision.userCommand,
@@ -132,6 +151,8 @@ export function entryFromDecision(
       ...(completion?.result ? { result: completion.result } : {}),
       ...(card?.acceptanceCriteria?.length ? { acceptanceCriteria: [...card.acceptanceCriteria] } : {}),
       ...(completion?.acceptance?.length ? { acceptance: [...completion.acceptance] } : {}),
+      ...(decision.userRating ? { rating: decision.userRating } : {}),
+      ...(decision.ratedAt ? { ratedAt: decision.ratedAt } : {}),
     },
   };
 }
@@ -176,6 +197,7 @@ export function buildTeamMemoryEntries(
       const key = l.decisionId ?? `live:${l.subordinateId}`;
       entries.push({
         decisionId: key,
+        ...(l.taskId ? { taskId: l.taskId } : {}),
         bossId: boss.bossId,
         ...(boss.bossName ? { bossName: boss.bossName } : {}),
         who: { agentId: l.subordinateId, agentName: l.subordinateName ?? l.subordinateId },
@@ -184,6 +206,8 @@ export function buildTeamMemoryEntries(
           objective: l.taskCard?.objective?.trim() || l.taskDescription,
           status: 'in-flight',
           ...(l.taskCard?.due ? { due: l.taskCard.due } : {}),
+          ...(l.taskCard?.priority ? { priority: l.taskCard.priority } : {}),
+          ...(l.taskCard?.projectId ? { projectId: l.taskCard.projectId } : {}),
         },
         why: { userCommand: l.taskDescription, reasoning: '(追踪态：委派史无对应记录)' },
         where: {},

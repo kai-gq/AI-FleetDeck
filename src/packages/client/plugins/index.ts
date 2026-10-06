@@ -1,4 +1,5 @@
 import { registerBolbaTasksPlugin } from './bolba-tasks';
+import { registerDelegationBoardPlugin } from './delegation-board';
 import { registerExecuteSudoCommandPlugin } from './execute-sudo-command';
 import { registerGmailPendingPlugin } from './gmail';
 import { registerJiraTicketsPlugin } from './jira';
@@ -10,6 +11,7 @@ import { initializePluginRuntime } from './registry';
 /** Register bundled contributions synchronously, then discover installed plugins. */
 export function initializePlugins(): void {
   registerBolbaTasksPlugin();
+  registerDelegationBoardPlugin();
   registerExecuteSudoCommandPlugin();
   registerGmailPendingPlugin();
   registerJiraTicketsPlugin();

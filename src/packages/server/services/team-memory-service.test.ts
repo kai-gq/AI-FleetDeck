@@ -102,6 +102,37 @@ describe('五要素统一视图', () => {
     expect(entry.bossName).toBe('王经理');
   });
 
+  it('任务卡归属与病历评价透传(taskId/priority/projectId/rating/ratedAt);缺省不产空字段', () => {
+    const entry = entryFromDecision(
+      makeDecision({
+        taskId: 'task-7',
+        userRating: 'unsatisfied',
+        ratedAt: 1_040_000,
+        taskCard: {
+          objective: '实现登录页',
+          acceptanceCriteria: [],
+          dependencies: [],
+          priority: 'P0',
+          projectId: 'proj-9',
+          status: 'done',
+        },
+      })
+    );
+    expect(entry.taskId).toBe('task-7');
+    expect(entry.what.priority).toBe('P0');
+    expect(entry.what.projectId).toBe('proj-9');
+    expect(entry.outcome.rating).toBe('unsatisfied');
+    expect(entry.outcome.ratedAt).toBe(1_040_000);
+
+    // 旧记录（无这些字段）→ 键不出现（不给看板/注入消费方造伪值）
+    const plain = entryFromDecision(makeDecision());
+    expect('taskId' in plain).toBe(false);
+    expect('priority' in plain.what).toBe(false);
+    expect('projectId' in plain.what).toBe(false);
+    expect('rating' in plain.outcome).toBe(false);
+    expect('ratedAt' in plain.outcome).toBe(false);
+  });
+
   it('无卡旧记录:objective 回退用户原话;无 completion 时 where 为空（如实缺省不编造）', () => {
     const entry = entryFromDecision(makeDecision({ taskCard: undefined, completion: undefined, status: 'sent' }));
     expect(entry.what.objective).toBe('做个登录页');

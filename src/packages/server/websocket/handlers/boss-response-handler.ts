@@ -128,6 +128,27 @@ export function getBossForSubordinate(subordinateId: string): ActiveDelegation |
   return activeDelegations.get(subordinateId);
 }
 
+/** 在办委派快照条目（subordinateId + 追踪内容拷贝）。 */
+export interface ActiveDelegationSnapshot extends ActiveDelegation {
+  subordinateId: string;
+}
+
+/**
+ * 任务24：在办委派只读快照（拷贝——调用方改写不影响追踪 Map；taskCard 浅拷贝一层）。
+ * 与 getBossForSubordinate 同口径先触发 HC-B7 重建，保证重启后首个读者看到完整在办列表。
+ */
+export function listActiveDelegations(): ActiveDelegationSnapshot[] {
+  ensureActiveDelegationsRebuilt();
+  return [...activeDelegations.entries()].map(([subordinateId, d]) => ({
+    subordinateId,
+    bossId: d.bossId,
+    taskDescription: d.taskDescription,
+    ...(d.taskId ? { taskId: d.taskId } : {}),
+    ...(d.decisionId ? { decisionId: d.decisionId } : {}),
+    ...(d.taskCard ? { taskCard: { ...d.taskCard } } : {}),
+  }));
+}
+
 /**
  * Clear delegation for a subordinate (call when task completes)
  */

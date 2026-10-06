@@ -66,6 +66,7 @@
     "re:^terminal:slackBubble\\.",
     "re:^terminal:chatMessageCard\\.",
     "re:^terminal:delegationCard\\.",
+    "re:^terminal:delegationBoard\\.",
     "re:^terminal:pm2Log\\.",
     "re:^terminal:curlCard\\.",
     "re:^terminal:toolRenderers\\.",

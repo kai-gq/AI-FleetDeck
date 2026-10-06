@@ -3573,5 +3573,52 @@
   },
   "dbTabs": {
     "closeTabAria": "关闭 {{name}} 标签页"
+  },
+  "delegationBoard": {
+    "viewTitle": "委派看板",
+    "loading": "正在加载委派…",
+    "empty": "暂无委派任务",
+    "requestFailed": "委派看板请求失败({{status}})",
+    "invalidResponse": "委派看板返回了非法响应",
+    "back": "返回",
+    "notRecorded": "未记录",
+    "filter": {
+      "all": "全部",
+      "inFlight": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "status": {
+      "pending": "待派发",
+      "queued": "排队中",
+      "running": "执行中",
+      "done": "已完结",
+      "cancelled": "已取消",
+      "sent": "已派发",
+      "in-flight": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "fact": {
+      "status": "状态",
+      "agent": "执行者",
+      "boss": "委派方",
+      "duration": "耗时",
+      "priority": "优先级",
+      "project": "项目",
+      "due": "截止",
+      "delegatedAt": "委派时间",
+      "completedAt": "完成时间"
+    },
+    "rating": {
+      "satisfied": "满意",
+      "unsatisfied": "不满意"
+    },
+    "section": {
+      "why": "为什么",
+      "where": "产出在哪",
+      "acceptance": "验收",
+      "ids": "标识"
+    }
   }
 }
