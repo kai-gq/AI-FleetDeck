@@ -30,6 +30,7 @@ import {
 } from '../api/voiceCompanion';
 import { createProactiveReporter, type ProactiveReporterHandle } from '../voice/proactiveReporter';
 import { createReminderWatcher, type ReminderWatcherHandle } from '../voice/reminderWatcher';
+import { createUserActivityReporter, type UserActivityReporterHandle } from '../voice/userActivityReporter';
 import { preloadTtsAudio } from '../voice/ttsPreload';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
@@ -83,6 +84,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const listeningPhaseRef = useRef<string>('off');
   const reporterRef = useRef<ProactiveReporterHandle | null>(null);
   const reminderWatcherRef = useRef<ReminderWatcherHandle | null>(null);
+  const userActivityReporterRef = useRef<UserActivityReporterHandle | null>(null);
 
   // 卸载:中止在途流;播报队列由 useSpeechQueue 自行停止
   useEffect(() => () => {
@@ -419,6 +421,23 @@ export function VoiceCompanion({ className }: { className?: string }) {
       reminderWatcherRef.current = null;
     };
   }, [config?.enabled, isLeader, enqueueSpeech, drainSpeech]);
+
+  // ---- 用户活跃上报:输入节奏/焦点变化(不含内容)节流上报,服务端据此判断「用户在场」 ----
+  // 模块与边界见 voice/userActivityReporter;只记「发生过输入」,绝不读 key/坐标。
+  useEffect(() => {
+    if (!config?.enabled) {
+      userActivityReporterRef.current?.stop();
+      userActivityReporterRef.current = null;
+      return;
+    }
+    const reporter = createUserActivityReporter();
+    reporter.start();
+    userActivityReporterRef.current = reporter;
+    return () => {
+      reporter.stop();
+      userActivityReporterRef.current = null;
+    };
+  }, [config?.enabled]);
 
   const handleButtonClick = useCallback(() => {
     if (!isLeader) {

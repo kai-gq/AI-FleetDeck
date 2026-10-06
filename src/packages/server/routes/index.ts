@@ -40,6 +40,7 @@ import cadRouter from './cad.js';
 import pluginsRouter from './plugins.js';
 import pushRouter from './push.js';
 import delegationBoardRouter from './delegation-board.js';
+import userActivityRouter from './user-activity.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -84,6 +85,8 @@ router.use('/plugins', pluginsRouter);
 router.use('/push', pushRouter);
 // 任务24 · 委派看板（只读 GET /api/delegations/board）
 router.use('/delegations', delegationBoardRouter);
+// W13 用户活动上报（播报时机/时间感知）
+router.use('/user-activity', userActivityRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {

@@ -45,9 +45,15 @@ vi.mock('../services/voice-reminder-service.js', async (importOriginal) => {
   };
 });
 
+// W13:用户活动登记(mock 掉,绝不碰真实活动账文件;只断言「何时登记 voice-turn」)
+vi.mock('../services/user-activity-service.js', () => ({
+  noteUserActivity: vi.fn(),
+}));
+
 import * as service from '../services/voice-companion-service.js';
 import * as sentinel from '../services/sentinel-service.js';
 import * as reminderSvc from '../services/voice-reminder-service.js';
+import * as userActivity from '../services/user-activity-service.js';
 import voiceCompanionRoutes from './voice-companion.js';
 import type { SentinelEventGateResult } from '../services/sentinel-service.js';
 import type { VoiceReminder, VoiceReminderService } from '../services/voice-reminder-service.js';
@@ -596,5 +602,67 @@ describe('状态 / 重置 / 记忆接口', () => {
     });
     expect(cleared.status).toBe(200);
     expect(service.updateCompanionMemory).toHaveBeenLastCalledWith({ ops: undefined, clear: true });
+  });
+});
+
+describe('W13 用户活动登记(voice-turn)', () => {
+  it('用户回合(非事件)三条成功路径都登记；事件回合/失败回合不登记', async () => {
+    const note = vi.mocked(userActivity.noteUserActivity);
+    vi.mocked(service.processVoiceInput).mockResolvedValue({
+      action: 'general_response',
+      response: '嗯',
+      elapsedMs: 1,
+    });
+
+    // ① 非流式用户回合
+    await post({ text: '你好' });
+    expect(note).toHaveBeenCalledTimes(1);
+    expect(note).toHaveBeenCalledWith('voice-turn');
+
+    // ② 流式用户回合（最终 final 写出后登记）
+    vi.mocked(service.processVoiceInput).mockResolvedValue({
+      action: 'general_response',
+      response: '好的。',
+      spoke: true,
+      elapsedMs: 1,
+    });
+    const streamed = await fetch(`${baseUrl}/api/voice-companion/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '讲讲进展', stream: true }),
+    });
+    expect(streamed.status).toBe(200);
+    await streamed.text();
+    expect(note).toHaveBeenCalledTimes(2);
+
+    // ③ 提醒快通道命中（不进 LLM，也算用户回合）
+    useReminderService({ register: vi.fn(() => ({ ok: true as const, reminder: fakeReminder() })) });
+    await post({ text: '两分钟后叫我一下' });
+    expect(note).toHaveBeenCalledTimes(3);
+
+    // 事件回合（非流式 / 流式）不登记
+    await post({ text: '⟦系统事件⟧ 一切正常', event: true });
+    const eventStream = await fetch(`${baseUrl}/api/voice-companion/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '⟦系统事件⟧ 又一条', event: true, stream: true }),
+    });
+    await eventStream.text();
+    expect(note).toHaveBeenCalledTimes(3);
+
+    // 失败回合（非流式 500）不登记
+    vi.mocked(service.processVoiceInput).mockRejectedValue(new Error('boom'));
+    await post({ text: '你好' });
+    expect(note).toHaveBeenCalledTimes(3);
+
+    // 提醒负例：不命中快通道 → 走原链路，只登记原链路那一次
+    vi.mocked(service.processVoiceInput).mockResolvedValue({
+      action: 'general_response',
+      response: '嗯',
+      elapsedMs: 1,
+    });
+    await post({ text: '两分钟后喊我了吗' });
+    expect(note).toHaveBeenCalledTimes(4);
+    expect(note).toHaveBeenLastCalledWith('voice-turn');
   });
 });

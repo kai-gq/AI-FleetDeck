@@ -33,6 +33,7 @@ import {
   toDuePayload,
 } from '../services/voice-reminder-service.js';
 import { initNdjson, writeNdjsonLine, endNdjson } from '../voice/ndjson.js';
+import { noteUserActivity } from '../services/user-activity-service.js';
 import { logger } from '../utils/index.js';
 
 const router = Router();
@@ -94,6 +95,8 @@ async function handleStreamProcess(res: Response, text: string, isEvent: boolean
     }
     writeNdjsonLine(res, { type: 'final', result: { success: true, ...result }, spoke: !!result.spoke });
     endNdjson(res);
+    // W13 用户活动账:用户说话成功完成(最终结果已写出)后登记;事件回合不登记
+    if (!isEvent) noteUserActivity('voice-turn');
   } catch (err) {
     if (err instanceof VoiceCompanionAbortedError) {
       endNdjson(res); // 客户端已断开:静默收尾,不写不记
@@ -145,6 +148,8 @@ function tryHandleReminderCommand(text: string, stream: boolean, res: Response):
 
   logger.server.log(`[VoiceCompanion] 提醒快通道 ${command.op}: "${say}"`);
   const result = { success: true, action: 'noop' as const, response: say, elapsedMs: 0 };
+  // W13 用户活动账:快通道命中 = 用户回合成功(此分支必然返回 true),登记 voice-turn
+  noteUserActivity('voice-turn');
   if (stream) {
     initNdjson(res);
     writeNdjsonLine(res, { type: 'sentence', text: say, tMs: 0 });
@@ -204,6 +209,8 @@ router.post('/process', async (req: Request, res: Response) => {
 
   try {
     const result = await processVoiceInput(text.trim(), { isEvent: !!event });
+    // W13 用户活动账:用户说话成功完成后登记(event === true 为系统事件,不登记)
+    if (event !== true) noteUserActivity('voice-turn');
     return res.json({ success: true, ...result });
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
