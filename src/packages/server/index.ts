@@ -31,6 +31,8 @@ import {
   initClaudeCredentialKeepAlive,
   shutdownClaudeCredentialKeepAlive,
 } from './services/claude-credentials-service.js';
+// W13：jarvis-core 生产接线（六源齐采 + 心跳 + PREPARE flush 注册；TC_JARVIS_CORE=0 关）
+import { initJarvisCoreProduction, shutdownJarvisCoreProduction } from './services/jarvis-production.js';
 import type { IntegrationContext } from '../shared/integration-types.js';
 import { initPlugins, shutdownPlugins } from './plugins/index.js';
 
@@ -197,6 +199,9 @@ async function main(): Promise<void> {
   // Keep every saved Claude OAuth account warm while Tide Commander is on.
   initClaudeCredentialKeepAlive();
 
+  // W13：jarvis-core 生产接线（心跳六源齐采 + 四档投递 + PREPARE flush；失败降级不阻断启动）
+  initJarvisCoreProduction();
+
   logger.server.log(`Data directory: ${getDataDir()}`);
   logger.server.log(`Log file: ${getLogFilePath()}`);
 
@@ -323,6 +328,7 @@ async function main(): Promise<void> {
       shutdownAutoUpdateService();
       shutdownAttachmentJanitor();
       shutdownClaudeCredentialKeepAlive();
+      await shutdownJarvisCoreProduction();
       triggerService.shutdown();
       autoCollapseService.shutdown();
       workflowService.shutdown();
