@@ -583,3 +583,34 @@ describe('session-loader provider normalization', () => {
     expect(history?.messages[0].content).toContain('response_item.future_event_type');
   });
 });
+
+// ============================================================================
+// encodeProjectPath — Claude projects 目录编码(2026-10-07 修复:所有非字母数字 → '-')
+// 背景:旧实现只替换 '/' 与 '_',Windows 路径的 ':' '\' '.' 原样幸存 →
+// 目录永不命中 → 面板历史/语音查产出/会话搜索全失效(服务端日志 Loaded==0: 190)。
+// ============================================================================
+
+describe('encodeProjectPath — Claude projects 目录编码规则', () => {
+  it('Windows 绝对路径:冒号/反斜杠/点号/波浪号全部映射为 -', async () => {
+    const { encodeProjectPath } = await import('./session-loader.js');
+    // 本机实存目录(修复前编码 E:\tide-commander\tide-commander,永不命中)
+    expect(encodeProjectPath('E:\\tide-commander\\tide-commander')).toBe('E--tide-commander-tide-commander');
+    expect(encodeProjectPath('C:\\Users\\Administrator\\.local\\share\\tide-commander\\voice-cwd')).toBe(
+      'C--Users-Administrator--local-share-tide-commander-voice-cwd',
+    );
+    expect(encodeProjectPath('C:\\Users\\ADMINI~1\\AppData')).toBe('C--Users-ADMINI-1-AppData');
+  });
+
+  it('尾部路径分隔符(正/反斜杠)剥离', async () => {
+    const { encodeProjectPath } = await import('./session-loader.js');
+    expect(encodeProjectPath('/home/user/project/')).toBe('-home-user-project');
+    expect(encodeProjectPath('E:\\tide-commander\\tide-commander\\')).toBe('E--tide-commander-tide-commander');
+  });
+
+  it('posix 回归:斜杠/下划线/点号', async () => {
+    const { encodeProjectPath } = await import('./session-loader.js');
+    expect(encodeProjectPath('/home/user/project')).toBe('-home-user-project');
+    expect(encodeProjectPath('/home/user/my_project')).toBe('-home-user-my-project');
+    expect(encodeProjectPath('/home/user/v1.2-beta')).toBe('-home-user-v1-2-beta');
+  });
+});
