@@ -3,7 +3,7 @@
  * runtime 'complete' 事件 → 委派终结（completeDelegation reason 'turn-complete'）
  *   → 回执订阅播报统一入口 notifyTaskCompletion（source 'runtime'，无委派也走——防漏报）。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/index.js', () => ({
   agentService: {
@@ -14,6 +14,7 @@ vi.mock('../../services/index.js', () => ({
     on: vi.fn(),
     setCommandStartedCallback: vi.fn(),
     setSessionUpdateCallback: vi.fn(),
+    getTurnStateForAgent: vi.fn(() => 'waiting_for_input'),
   },
 }));
 
@@ -89,7 +90,8 @@ import { setupRuntimeListeners } from './runtime-listeners.js';
 import { agentService, runtimeService } from '../../services/index.js';
 import { getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
 import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
-import { logSkill } from '../../services/activity-log.js';
+import { logSkill, logDelegation } from '../../services/activity-log.js';
+import { getBackgroundTasksForAgent } from '../../services/background-tasks.js';
 
 /** 取 setupRuntimeListeners 注册到 runtimeService 的 'complete' 回调。 */
 function completeListener(): (agentId: string, success: boolean) => void {
@@ -168,6 +170,116 @@ describe('runtime complete 入口：委派终结 + 回执订阅播报接线', ()
 
     completeListener()('boss-1', true);
 
+    expect(completeDelegation).not.toHaveBeenCalled();
+    expect(notifyTaskCompletion).not.toHaveBeenCalled();
+  });
+});
+
+describe('HC-B6：step_complete 延迟闭包（stdin 常驻模式回合结束补闭包）', () => {
+  const broadcast = vi.fn();
+  const sendActivity = vi.fn();
+  const liveDelegation = { bossId: 'boss-1', taskDescription: '写周报', taskId: 't-b6', decisionId: 'del-1' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.mocked(runtimeService.getTurnStateForAgent).mockReturnValue('waiting_for_input');
+    vi.mocked(getBackgroundTasksForAgent).mockReturnValue([]);
+    setupRuntimeListeners({ broadcast, sendActivity });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('回合真结束（waiting_for_input + idle + 无后台任务）→ 延迟后补走完成漏斗：广播 + closed 埋点 + completeDelegation + 回执', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(liveDelegation as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Builder One', status: 'idle', provider: 'claude' } as any);
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    expect(completeDelegation).not.toHaveBeenCalled(); // 延迟窗内不闭包
+
+    vi.advanceTimersByTime(2500);
+
+    expect(broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent_task_completed',
+        payload: { bossId: 'boss-1', subordinateId: 'agent-1', success: true },
+      }),
+    );
+    expect(logDelegation).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'closed', toAgentId: 'agent-1', taskId: 't-b6', status: 'completed' }),
+    );
+    expect(completeDelegation).toHaveBeenCalledWith('agent-1', { success: true, reason: 'turn-complete' });
+    expect(notifyTaskCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ subordinateId: 'agent-1', success: true, source: 'runtime' }),
+    );
+  });
+
+  it('排队消息被排干起了新回合（turnState=processing）→ 不闭包（B6 机理：不能把新回合误判为结束）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(liveDelegation as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Builder One', status: 'working', provider: 'claude' } as any);
+    vi.mocked(runtimeService.getTurnStateForAgent).mockReturnValue('processing');
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(completeDelegation).not.toHaveBeenCalled();
+    expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'agent_task_completed' }));
+    expect(notifyTaskCompletion).not.toHaveBeenCalled();
+  });
+
+  it('后台任务未结束 → 不闭包（其 <task-notification> 会唤新回合）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(liveDelegation as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', status: 'idle', provider: 'claude' } as any);
+    vi.mocked(getBackgroundTasksForAgent).mockReturnValue([{ toolUseId: 'bg-1' }] as any);
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(completeDelegation).not.toHaveBeenCalled();
+  });
+
+  it('decisionId 已换（闭包前来了新委派）→ 旧判定退出，不误闭新委派', () => {
+    vi.mocked(getBossForSubordinate)
+      .mockReturnValueOnce(liveDelegation as any) // step_complete 调度时
+      .mockReturnValue({ ...liveDelegation, decisionId: 'del-2' } as any); // 触发时已是新委派
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', status: 'idle', provider: 'claude' } as any);
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(completeDelegation).not.toHaveBeenCalled();
+  });
+
+  it('codex 常驻跨回合换进程 → 由退出路径闭包，step_complete 不闭', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(liveDelegation as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', status: 'idle', provider: 'codex' } as any);
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(completeDelegation).not.toHaveBeenCalled();
+  });
+
+  it('error 态回合结束 → 按失败闭包（success=false）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(liveDelegation as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', status: 'error', provider: 'claude' } as any);
+
+    eventListener()('agent-1', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(completeDelegation).toHaveBeenCalledWith('agent-1', { success: false, reason: 'turn-complete' });
+  });
+
+  it('无 live 委派 → 不调度（调度期仅一次追踪读取，延迟后无动作）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue(undefined as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-9', status: 'idle' } as any);
+
+    eventListener()('agent-9', { type: 'step_complete' });
+    vi.advanceTimersByTime(2500);
+
+    expect(vi.mocked(getBossForSubordinate)).toHaveBeenCalledTimes(1); // 仅调度期读取，未安排延迟复核
     expect(completeDelegation).not.toHaveBeenCalled();
     expect(notifyTaskCompletion).not.toHaveBeenCalled();
   });

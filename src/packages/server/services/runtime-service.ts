@@ -365,6 +365,17 @@ export function getQueuedMessagesForAgent(agentId: string): string[] {
   return runner?.getQueuedMessages?.(agentId) ?? [];
 }
 
+/**
+ * HC-B6：某 agent 当前回合状态（runner 视角）。
+ * 'processing' = 有回合在跑；'waiting_for_input' = 回合已结束、等下一条输入；
+ * undefined = 无 runner/无在跟踪进程。stdin 常驻模式下 step_complete 后若排队消息被排干，
+ * 新回合的 init 会把它重新置为 'processing' —— 这是「回合真的结束了」的唯一可靠信号
+ * （agent.status 会被 step_complete 的 200ms idle 定时器抢先翻掉）。
+ */
+export function getTurnStateForAgent(agentId: string): 'processing' | 'waiting_for_input' | undefined {
+  return getRunnerForAgent(agentId)?.getTurnState?.(agentId);
+}
+
 /** Remove one queued mid-run message by position (guarded by expectedText). */
 export function removeQueuedMessageForAgent(agentId: string, index: number, expectedText: string): boolean {
   const runner = getRunnerForAgent(agentId);

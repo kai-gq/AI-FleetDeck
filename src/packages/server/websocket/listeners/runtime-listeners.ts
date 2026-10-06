@@ -493,6 +493,9 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
             : undefined,
           sub: 'turn',
         });
+        // HC-B6：stdin 常驻模式回合结束进程不退出、'complete' 不触发 —— 延迟判定补走完成漏斗。
+        // 子代理 step_complete 不代表父代理回合结束，跳过（parentToolUseId 已在上面过滤）。
+        scheduleTurnCompleteClosure(agentId);
       }
     }
 
@@ -655,16 +658,18 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     }
   );
 
-  runtimeService.on('complete', (agentId, success) => {
-    pendingBashCommands.delete(agentId);
-    pendingBashSnapshots.delete(agentId);
-    clearBashToolCalls(agentId);
-    ctx.sendActivity(agentId, success ? 'Task completed' : 'Task failed');
-
+  /**
+   * HC-B6：下属回合结束的完成漏斗（agent_task_completed 广播 + closed 埋点 + 卡迁移/病历 + 回执播报）。
+   * 两个入口共用：
+   *  - runtime 'complete'：进程退出（runner.callbacks.onComplete）；
+   *  - step_complete 兜底：stdin 常驻模式下回合结束进程不退出、'complete' 不触发，
+   *    由 scheduleTurnCompleteClosure 延迟判定「回合真的结束」后调用（回复型任务的唯一闭包路径）。
+   */
+  function handleSubordinateCompletion(agentId: string, success: boolean, reason: string): void {
     const delegation = getBossForSubordinate(agentId);
-    log.log(`[COMPLETE] Agent ${agentId} completed (success=${success}), delegation=${delegation ? `bossId=${delegation.bossId}` : 'none'}`);
+    log.log(`[COMPLETE] Agent ${agentId} completed (success=${success}, reason=${reason}), delegation=${delegation ? `bossId=${delegation.bossId}` : 'none'}`);
     if (delegation) {
-      log.log(`[COMPLETE] Broadcasting agent_task_completed for subordinate ${agentId} to boss ${delegation.bossId}`);
+      log.log(`[COMPLETE] Broadcasting agent_task_completed for subordinate ${agentId} to boss ${delegation.bossId} (reason=${reason})`);
       ctx.broadcast({
         type: 'agent_task_completed',
         payload: {
@@ -690,7 +695,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       //    agentId+success；Agent 快照无产出字段（currentTask 是任务名非结果），会话史摘要属异步
       //    IO（fetchAgentOutputExcerpt）会改变同步完成链时序、超出调用点边界。summary 缺省，
       //    产出摘要由 report-task 入口（req.body.summary）提供。
-      completeDelegation(agentId, { success, reason: 'turn-complete' });
+      completeDelegation(agentId, { success, reason });
     }
 
     // 任务08② 回执订阅播报：**仅下属**完成进入回执管线——
@@ -709,6 +714,45 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         broadcast: ctx.broadcast,
       });
     }
+  }
+
+  /**
+   * HC-B6：step_complete 后的延迟闭包判定。不能立即闭包 —— stdout-pipeline 的事件顺序是
+   * bus.emit('runner.event') 先（runner 构造器监听：置 turnState='waiting_for_input' 并
+   * drainMessageQueue，把排队消息直接写进 stdin 起新回合）、callbacks.onEvent 后，所以
+   * runtime-listeners 收到 step_complete 时排队消息已经排干。延迟后复核（任一不满足即跳过）：
+   *  - 追踪仍是同一决策（decisionId 未变；已闭包/已换新委派则退出）；
+   *  - turnState 已回到 waiting_for_input（被判干消息起的新回合会先由 init 置 processing；
+   *    也排除 codex/opencode 这类跨回合换进程的 provider —— 它们由 'complete' 退出路径闭包）；
+   *  - 无后台任务（其 <task-notification> 会唤新回合，step_complete 不是真结束）；
+   *  - agent 状态不在忙态词表（working/waiting/waiting_permission）；error 态按失败闭包。
+   */
+  const TURN_COMPLETE_CLOSE_DELAY_MS = 2500;
+  function scheduleTurnCompleteClosure(agentId: string): void {
+    const delegation = getBossForSubordinate(agentId);
+    if (!delegation) return;
+    const decisionId = delegation.decisionId;
+    setTimeout(() => {
+      const current = getBossForSubordinate(agentId);
+      if (!current || current.decisionId !== decisionId) return; // 已闭包 / 已换新委派
+      const agent = agentService.getAgent(agentId);
+      const provider = agent?.provider ?? 'claude';
+      if (provider === 'codex' || provider === 'opencode') return;
+      if (runtimeService.getTurnStateForAgent(agentId) !== 'waiting_for_input') return; // 新回合已在跑
+      if (getBackgroundTasksForAgent(agentId).length > 0) return;
+      if (agent && (agent.status === 'working' || agent.status === 'waiting' || agent.status === 'waiting_permission')) return;
+      const success = agent?.status !== 'error';
+      log.log(`[COMPLETE] step_complete closure for agent ${agentId} (decisionId=${decisionId}, success=${success}) — stdin-reuse turn ended without 'complete' event`);
+      handleSubordinateCompletion(agentId, success, 'turn-complete');
+    }, TURN_COMPLETE_CLOSE_DELAY_MS);
+  }
+
+  runtimeService.on('complete', (agentId, success) => {
+    pendingBashCommands.delete(agentId);
+    pendingBashSnapshots.delete(agentId);
+    clearBashToolCalls(agentId);
+    ctx.sendActivity(agentId, success ? 'Task completed' : 'Task failed');
+    handleSubordinateCompletion(agentId, success, 'turn-complete');
   });
 
   runtimeService.on('error', (agentId, error) => {
