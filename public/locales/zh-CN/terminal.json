@@ -2497,7 +2497,7 @@
     "requestFailed": "Bolba 请求失败({{status}})",
     "invalidTaskList": "Bolba 插件返回了无效的任务列表响应",
     "loading": "正在加载任务…",
-    "sidebarTitle": "任务",
+    "sidebarTitle": "我的待办",
     "modalTitle": "任务详情",
     "loadFailed": "加载任务失败({{status}})",
     "invalidDetails": "Bolba 返回了无效的任务详情",
