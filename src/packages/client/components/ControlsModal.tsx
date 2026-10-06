@@ -37,7 +37,7 @@ const MOUSE_GROUP_LABEL_KEYS: Record<string, string> = {
   interaction: 'terminal:controls.interaction',
 };
 
-type ControlTab = 'keyboard' | 'mouse' | 'trackpad';
+type ControlTab = 'keyboard' | 'mouse' | 'trackpad' | 'voice';
 type AgentWithShortcut = { id: string; name: string; shortcut?: string };
 
 export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
@@ -292,6 +292,17 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
             </svg>
             {t('terminal:controls.trackpad')}
           </button>
+          <button
+            className={`controls-main-tab ${activeTab === 'voice' ? 'active' : ''}`}
+            onClick={() => setActiveTab('voice')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+            </svg>
+            {t('terminal:controls.voice', { defaultValue: 'Voice' })}
+          </button>
         </div>
 
         {/* Keyboard Tab Content */}
@@ -456,52 +467,52 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                   </div>
                 </div>
               )}
-
-              {/* 语音「打开X」直达指令(voice/openCommand.ts:命中即本地打开、不进大脑) */}
-              {(expandedContext === 'all' || expandedContext === 'global') && (
-                <div className="shortcuts-context-group">
-                  {expandedContext === 'all' && (
-                    <div className="shortcuts-context-header">
-                      <span className="shortcuts-context-label">
-                        {t('terminal:controlsModal.voiceOpenTitle', { defaultValue: 'Voice "Open" Commands' })}
-                      </span>
-                      <span className="shortcuts-context-description">
-                        {t('terminal:controlsModal.voiceOpenDescription', {
-                          defaultValue: 'Say "open <agent name>" to jump straight to that agent. Handled locally — no brain round-trip; anything unmatched is processed as usual.',
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  <div className="shortcuts-grid">
-                    <div className="shortcut-item">
-                      <div className="shortcut-item-info">
-                        <span className="shortcut-item-name">
-                          {t('terminal:controlsModal.voiceOpenAgentName', { defaultValue: 'Open <agent name>' })}
-                        </span>
-                        <span className="shortcut-item-description">
-                          {t('terminal:controlsModal.voiceOpenAgentDesc', {
-                            defaultValue: 'Opens that agent\'s terminal panel directly, e.g. 打开小陈 / 打开主管',
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="shortcut-item">
-                      <div className="shortcut-item-info">
-                        <span className="shortcut-item-name">
-                          {t('terminal:controlsModal.voiceOpenCommanderName', { defaultValue: 'Open commander' })}
-                        </span>
-                        <span className="shortcut-item-description">
-                          {t('terminal:controlsModal.voiceOpenCommanderDesc', {
-                            defaultValue: 'Opens the commander view, e.g. 打开指挥官',
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </>
+        )}
+
+        {/* Voice Tab Content —— 语音直达指令用法(voice/openCommand.ts:命中即本地打开、不进大脑) */}
+        {activeTab === 'voice' && (
+          <div className="shortcuts-modal-content">
+            <div className="shortcuts-context-group">
+              <div className="shortcuts-context-header">
+                <span className="shortcuts-context-label">
+                  {t('terminal:controlsModal.voiceOpenTitle', { defaultValue: 'Voice "Open" Commands' })}
+                </span>
+                <span className="shortcuts-context-description">
+                  {t('terminal:controlsModal.voiceOpenDescription', {
+                    defaultValue: 'Say "open <agent name>" to jump straight to that agent. Handled locally — no brain round-trip; anything unmatched is processed as usual.',
+                  })}
+                </span>
+              </div>
+              <div className="shortcuts-grid">
+                <div className="shortcut-item">
+                  <div className="shortcut-item-info">
+                    <span className="shortcut-item-name">
+                      {t('terminal:controlsModal.voiceOpenAgentName', { defaultValue: 'Open <agent name>' })}
+                    </span>
+                    <span className="shortcut-item-description">
+                      {t('terminal:controlsModal.voiceOpenAgentDesc', {
+                        defaultValue: 'Opens that agent\'s terminal panel directly, e.g. 打开小陈 / 打开主管',
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <div className="shortcut-item">
+                  <div className="shortcut-item-info">
+                    <span className="shortcut-item-name">
+                      {t('terminal:controlsModal.voiceOpenCommanderName', { defaultValue: 'Open commander' })}
+                    </span>
+                    <span className="shortcut-item-description">
+                      {t('terminal:controlsModal.voiceOpenCommanderDesc', {
+                        defaultValue: 'Opens the commander view, e.g. 打开指挥官',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Mouse Tab Content */}
@@ -568,7 +579,11 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                 : t('terminal:controls.hintKeyboard')
               : activeTab === 'mouse'
                 ? t('terminal:controls.hintMouse')
-                : t('terminal:controls.hintTrackpad')}
+                : activeTab === 'trackpad'
+                  ? t('terminal:controls.hintTrackpad')
+                  : t('terminal:controls.hintVoice', {
+                      defaultValue: 'Say "open <name>" to open the matching panel directly; other speech goes to the brain as usual.',
+                    })}
           </span>
         </div>
       </div>

@@ -1256,7 +1256,9 @@
         "name": "关闭工具箱",
         "description": "关闭设置面板"
       }
-    }
+    },
+    "voice": "语音",
+    "hintVoice": "说「打开+名字」直接打开对应面板,并回一声「已打开」;其余话照常进大脑。"
   },
   "logs": {
     "title": "日志",
@@ -3274,7 +3276,7 @@
     "agentShortcutsTitle": "智能体终端快捷键",
     "agentShortcutsDescription": "用于打开 guake 终端的各智能体全局快捷键",
     "voiceOpenTitle": "语音直达指令",
-    "voiceOpenDescription": "说「打开+名字」直接打开对应面板,本地直达、不经过大脑;其余话照常进大脑。",
+    "voiceOpenDescription": "说「打开+名字」直接打开对应面板,本地直达、不经过大脑,并回一声「已打开」;其余话照常进大脑。",
     "voiceOpenAgentName": "打开 <智能体名>",
     "voiceOpenAgentDesc": "例:打开小陈、打开主管——直接打开该智能体的终端面板",
     "voiceOpenCommanderName": "打开指挥官",

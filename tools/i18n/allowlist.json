@@ -96,6 +96,8 @@
     "re:^terminal:spawnModal\\.",
     "re:^terminal:sessionSearch\\.",
     "re:^terminal:controlsModal\\.",
+    "terminal:controls.voice",
+    "terminal:controls.hintVoice",
     "re:^terminal:agentPanel\\.",
     "re:^terminal:missingFile\\.",
     "re:^terminal:bossSpawn\\.",
