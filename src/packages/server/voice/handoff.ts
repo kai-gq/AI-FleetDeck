@@ -193,3 +193,41 @@ export function cleanHandoffText(raw: unknown): string | null {
   if (out.length < HANDOFF_TEXT_MIN_CHARS) return null;
   return out;
 }
+
+// ============================================================================
+// F4 · 认领与渲染(纯函数)
+// ============================================================================
+
+/**
+ * F4 渲染门控:交接便签只在「非本会话 + 72h 内」渲染。
+ *
+ * 会话门控的理由(C23 副作用):系统提示词每回合重发,不加 `forSessionId !== 当前会话`
+ * 的话,**当前会话会看到描述自己的便签**(冗余且浪费);轮换后的新会话(sessionId 为
+ * null 或新 id)才需要接手。空笔记不渲染(别把空段塞进提示词)。
+ */
+export function handoffRenderable(
+  handoff: HandoffNote | null | undefined,
+  currentSessionId: string | null,
+  now: number,
+): boolean {
+  if (!handoff || !handoff.text.trim()) return false;
+  if (handoff.forSessionId === currentSessionId) return false;
+  return now - handoff.at <= HANDOFF_TTL_MS;
+}
+
+/**
+ * F4 观测(⑦ 观测点接入):本回合交接状态——`attached`(新会话已带)/ `pending`
+ * (已生成待认领)/ `stale`(有笔记但不可用:同会话或超 72h)/ `none`。
+ * 进 context_stats 采样,供 ⑮ 标定认领率与时效命中。
+ */
+export function handoffObservation(
+  handoff: HandoffNote | null | undefined,
+  pending: HandoffNote | null,
+  currentSessionId: string | null,
+  now: number,
+): 'attached' | 'pending' | 'stale' | 'none' {
+  if (handoffRenderable(handoff, currentSessionId, now)) return 'attached';
+  if (pending) return 'pending';
+  if (handoff) return 'stale';
+  return 'none';
+}

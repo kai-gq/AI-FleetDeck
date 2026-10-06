@@ -691,6 +691,50 @@ describe('任务18/39 上下文压缩(阈值摘要续跑)', () => {
     completeTurn(call1.child, 'sess-1');
     await p2;
   });
+
+  it('R5c 任务39·F4 认领:轮换点消费 pending——handoff 落盘、summarizeSession 实参 = 便签文本、新会话提示词含交接段', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const NOTE = '在聊订单同步\n等 A 方案结果\n老大比较急';
+    seedCompanionState({ sessionId: 'sess-claim-old', turns: 0, personaKey: 'doubao' });
+
+    // 回合1:percent=0.25(跨预备线 0.2、未到触发线 0.3)→ 后台预生成 → pending 落地。
+    const p1 = startProcess('帮我看下订单');
+    const call1 = await waitSpawn(1);
+    completeTurn(call1.child, 'sess-claim-old', contractText(), {
+      usage: { input_tokens: 30_000, output_tokens: 500, cache_read_input_tokens: 15_000, cache_creation_input_tokens: 5_000 },
+      modelUsage: { 'claude-haiku-4-5': { contextWindow: 200_000 } },
+    });
+    await p1;
+    const pregenCall = await waitSpawn(2); // 一次性预生成子进程
+    completeTurn(pregenCall.child, 'sess-pregen', NOTE);
+    pregenCall.child.emit('close', 0); // 一次性路径以进程退出收尾(callClaudeOnce 等 close)
+    await waitFor(() => service.getHandoffRuntime().pending !== null, 'pending 落地');
+
+    // 回合2:0.25 < 0.3 不轮换 → 复用常驻进程;收尾涨到 0.35(冷却期,不再预生成)。
+    const p2 = startProcess('第二句');
+    await waitFor(() => call1.child.stdinWrites.length >= 2, '回合2 复用');
+    completeTurn(call1.child, 'sess-claim-old', contractText(), {
+      usage: { input_tokens: 40_000, output_tokens: 500, cache_read_input_tokens: 25_000, cache_creation_input_tokens: 5_000 },
+      modelUsage: { 'claude-haiku-4-5': { contextWindow: 200_000 } },
+    });
+    await p2;
+    expect(service.loadCompanionState().context?.percent).toBeCloseTo(0.35, 5);
+
+    // 回合3:起点跨触发线 → 轮换 + 认领;新会话进程不带 --resume,提示词带交接段。
+    const p3 = startProcess('第三句');
+    const call3 = await waitSpawn(3);
+    expect(resumeIdOf(call3)).toBeNull();
+    await waitFor(() => memoryEngine.summarizeSession.mock.calls.length > 0, 'summarizeSession 调用');
+    expect(memoryEngine.summarizeSession).toHaveBeenCalledWith({ sessionId: 'sess-claim-old', summary: NOTE });
+    expect(service.getHandoffRuntime().pending).toBeNull(); // 认领即消费
+    expect(fs.readFileSync(argsOf(call3)[10]!, 'utf-8')).toContain('【上段会话交接】(自动生成,可能不全)');
+
+    completeTurn(call3.child, 'sess-new');
+    await p3;
+    // 落盘:memory.handoff 持久,forSessionId = 旧会话(新会话渲染门控依据)。
+    expect(service.loadCompanionState().memory.handoff).toMatchObject({ text: NOTE, forSessionId: 'sess-claim-old' });
+    expect(rotationBodies('sess-claim-old').some((b) => b.reason === 'context-compact')).toBe(true);
+  });
 });
 
 // ============================================================================

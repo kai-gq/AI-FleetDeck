@@ -4,6 +4,7 @@ import {
   RECENT_TURN_MAX_CHARS,
   RECENT_TURNS_TOTAL_CHARS,
   HANDOFF_TEXT_MAX_CHARS,
+  HANDOFF_TTL_MS,
   normalizeTurnText,
   appendRecentTurn,
   sanitizeRecentTurns,
@@ -11,7 +12,10 @@ import {
   shouldPregenHandoff,
   buildHandoffUserContent,
   cleanHandoffText,
+  handoffRenderable,
+  handoffObservation,
   type RecentTurn,
+  type HandoffNote,
   type HandoffPregenRuntime,
 } from './handoff.js';
 
@@ -203,5 +207,56 @@ describe('buildHandoffUserContent(任务39·F3 材料)', () => {
     const out = buildHandoffUserContent([], {});
     expect(out).toContain('(无)');
     expect(out).not.toContain('【上一张交接便签');
+  });
+});
+
+describe('handoffRenderable(任务39·F4 渲染门控)', () => {
+  const NOW = 1_800_000_000_000;
+  const note = (over: Partial<HandoffNote> = {}): HandoffNote => ({
+    text: '在聊订单同步,等 A 方案结果',
+    forSessionId: 's-old',
+    at: NOW - 60_000,
+    ...over,
+  });
+
+  it('会话不同 → 渲染(新会话才需要接手)', () => {
+    expect(handoffRenderable(note(), 's-new', NOW)).toBe(true);
+  });
+  it('当前无会话(null)→ 渲染(轮换刚发生、新会话未建)', () => {
+    expect(handoffRenderable(note(), null, NOW)).toBe(true);
+  });
+  it('同会话 → 不渲染(系统提示词每回合重发,防当前会话自看)', () => {
+    expect(handoffRenderable(note({ forSessionId: 's-old' }), 's-old', NOW)).toBe(false);
+  });
+  it('72h 边界:恰好 72h 渲染;超 1ms 不渲染', () => {
+    expect(handoffRenderable(note({ at: NOW - HANDOFF_TTL_MS }), 's-new', NOW)).toBe(true);
+    expect(handoffRenderable(note({ at: NOW - HANDOFF_TTL_MS - 1 }), 's-new', NOW)).toBe(false);
+  });
+  it('空笔记/缺笔记/空文本 → 不渲染', () => {
+    expect(handoffRenderable(null, 's-new', NOW)).toBe(false);
+    expect(handoffRenderable(undefined, 's-new', NOW)).toBe(false);
+    expect(handoffRenderable(note({ text: '  ' }), 's-new', NOW)).toBe(false);
+  });
+});
+
+describe('handoffObservation(任务39·F4 观测态)', () => {
+  const NOW = 1_800_000_000_000;
+  const note = (over: Partial<HandoffNote> = {}): HandoffNote => ({
+    text: '在聊订单同步',
+    forSessionId: 's-old',
+    at: NOW - 1_000,
+    ...over,
+  });
+
+  it('可渲染的笔记 → attached(优先于 pending)', () => {
+    expect(handoffObservation(note(), note(), 's-new', NOW)).toBe('attached');
+  });
+  it('只有待认领 → pending', () => {
+    expect(handoffObservation(null, note(), 's-old', NOW)).toBe('pending');
+  });
+  it('笔记不可用(同会话/超时)→ stale;无笔记无待认领 → none', () => {
+    expect(handoffObservation(note(), null, 's-old', NOW)).toBe('stale');
+    expect(handoffObservation(note({ at: NOW - HANDOFF_TTL_MS - 1 }), null, 's-new', NOW)).toBe('stale');
+    expect(handoffObservation(null, null, 's-new', NOW)).toBe('none');
   });
 });

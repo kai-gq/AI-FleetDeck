@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { HANDOFF_TTL_MS, type HandoffNote } from '../voice/handoff.js';
 import {
   stripCodeFences,
   parseContractJson,
@@ -25,6 +26,10 @@ function emptyMemory(): CompanionMemory {
 function emptyState(): VoiceCompanionState {
   return { sessionId: null, sessionStartedAt: null, turns: 0, lastUsedAt: null, personaKey: null, memory: emptyMemory() };
 }
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('stripCodeFences', () => {
   it('removes ```json fences', () => {
@@ -566,6 +571,46 @@ describe('buildCompanionSystemPrompt — persona & 自适应长度', () => {
     // 具体时间戳(/【当前时间】2026-…/)不得出现在系统提示词;注记里对该标记的引用不算
     expect(prompt).not.toMatch(/【当前时间】\s*\d/);
     expect(prompt).toContain('【时间注记】');
+  });
+});
+
+describe('buildCompanionSystemPrompt — 任务39·F4 上段会话交接渲染(U4)', () => {
+  const now = Date.now();
+  const note: HandoffNote = { text: '在聊订单同步,等 A 方案结果', forSessionId: 's-old', at: now };
+  const base = (memory: CompanionMemory, currentSessionId?: string | null) => ({
+    agentLines: [] as string[], totalAgents: 0, truncated: false, memory, currentSessionId,
+  });
+
+  it('新会话(不同 sessionId)→ 渲染【上段会话交接】,文本原样', () => {
+    const prompt = buildCompanionSystemPrompt(base({ ...emptyMemory(), handoff: note }, 's-new'));
+    expect(prompt).toContain('【上段会话交接】(自动生成,可能不全)\n在聊订单同步,等 A 方案结果');
+  });
+
+  it('当前会话不渲染自己的笔记(forSessionId === currentSessionId)', () => {
+    const prompt = buildCompanionSystemPrompt(base({ ...emptyMemory(), handoff: note }, 's-old'));
+    expect(prompt).not.toContain('上段会话交接');
+  });
+
+  it('超过 72h 不渲染', () => {
+    const stale = { ...note, at: now - HANDOFF_TTL_MS - 1 };
+    const prompt = buildCompanionSystemPrompt(base({ ...emptyMemory(), handoff: stale }, 's-new'));
+    expect(prompt).not.toContain('上段会话交接');
+  });
+
+  it('TC_VOICE_HANDOFF=0:有笔记也不渲染,且与无笔记提示词逐字节一致(回退档)', () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '0');
+    const withNote = buildCompanionSystemPrompt(base({ ...emptyMemory(), handoff: note }, 's-new'));
+    const without = buildCompanionSystemPrompt(base(emptyMemory(), 's-new'));
+    expect(withNote).not.toContain('上段会话交接');
+    expect(withNote).toBe(without);
+  });
+
+  it('无 handoff(旧状态文件)时输出与接入前逐字节一致:显式 null 与缺字段同观感', () => {
+    const missing = buildCompanionSystemPrompt(base(emptyMemory(), 's-new'));
+    const explicitNull = buildCompanionSystemPrompt(base({ ...emptyMemory(), handoff: null }, 's-new'));
+    expect(explicitNull).toBe(missing);
+    expect(missing).toContain('【长期记忆】\n(暂无)'); // 空记忆仍是 '(暂无)' 分支
+    expect(missing).not.toContain('上段会话交接');
   });
 });
 

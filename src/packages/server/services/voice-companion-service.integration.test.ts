@@ -183,7 +183,12 @@ interface StateFile {
     notes: Array<{ id: string; text: string; createdAt: number; source: string }>;
     updatedAt: number;
     droppedCount: number;
+    /** 任务39·F4:交接便签(旧夹具不带键;渲染门控见 G12/G13)。 */
+    handoff?: { text: string; forSessionId: string; at: number } | null;
   };
+  /** 任务39:上下文快照/环缓冲(旧夹具不带键;按需 seed)。 */
+  context?: { tokensUsed: number; windowTokens: number; percent: number; updatedAt: number } | null;
+  recentTurns?: Array<{ role: string; text: string; at: number; event?: boolean }>;
 }
 
 let service: typeof import('./voice-companion-service.js');
@@ -1081,6 +1086,167 @@ describe('G11 交接预生成(任务39·F3)', () => {
     // 等待一小段确认没有第三个 spawn(pregen)。
     await drainMicrotasks();
     expect(spawnCalls).toHaveLength(3);
+  });
+});
+
+// ============================================================================
+// G12/G13/G14 交接认领与渲染(任务39·F4)
+// ============================================================================
+
+describe('G12/G13/G14 交接认领与渲染(任务39·F4)', () => {
+  /** 回合1 usage → percent=0.25:跨过预备线 0.2、未到触发线 0.3(与 G11 同源)。 */
+  const PREPARE_USAGE = {
+    input_tokens: 30_000,
+    output_tokens: 500,
+    cache_read_input_tokens: 15_000,
+    cache_creation_input_tokens: 5_000,
+  };
+  const NOTE_TEXT = '在聊订单同步\n等 A 方案结果\n老大比较急';
+
+  it('G12-1 全链认领:预生成 → 跨线轮换 → 便签落盘 + 新会话提示词含【上段会话交接】', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      // 回合1:sessionId=sess-claim,收尾 percent=0.25 → 后台预生成 → pending 落地。
+      const p1 = startProcess('帮我看下订单');
+      const call1 = await waitSpawn(1);
+      await completeWithUsage(
+        call1.child,
+        contractText({ action: 'general_response', responseToUser: '好嘞,我这就看。' }),
+        { sessionId: 'sess-claim', usage: PREPARE_USAGE },
+      );
+      await p1;
+      await waitFor(() => spawnCalls.length >= 2, '交接预生成 spawn');
+      await completeWith(spawnCalls[1]!.child, NOTE_TEXT);
+      await waitFor(() => service.getHandoffRuntime().pending !== null, 'pending 落地');
+
+      // 拨过触发线 → 回合2 起点轮换,认领便签。
+      const patch = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8')) as { context?: { percent?: number } };
+      patch.context = { ...(patch.context ?? {}), percent: 0.31 };
+      fs.writeFileSync(stateFilePath, JSON.stringify(patch));
+
+      const p2 = startProcess('第二句');
+      const call2 = await waitSpawn(3); // #0=回合1 #1=预生成 #2=回合2(轮换后新会话)
+      expect(resumeIdOf(call2)).toBeNull(); // 轮换 = 新会话
+      // 认领即消费:内存待收清空 + 日志。
+      expect(service.getHandoffRuntime().pending).toBeNull();
+      const logs = logSpy.mock.calls.map(([m]) => String(m));
+      expect(logs.some((m) => m.includes('交接笔记已认领'))).toBe(true);
+      // 新会话首回合系统提示词(轮换后 spawn)带上交接段 = 笔记文本。
+      const prompt = fs.readFileSync(promptFileOf(call2), 'utf-8');
+      expect(prompt).toContain('【上段会话交接】(自动生成,可能不全)');
+      expect(prompt).toContain(NOTE_TEXT);
+
+      await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-new' });
+      await p2;
+
+      // 落盘:memory.handoff 已持久(forSessionId = 旧会话),loadCompanionState 认它。
+      const stored = readStateFile();
+      expect(stored.memory.handoff).toMatchObject({ text: NOTE_TEXT, forSessionId: 'sess-claim' });
+      expect(service.loadCompanionState().memory.handoff?.text).toBe(NOTE_TEXT);
+      // /status 状态口不新增字段(⑨ 兼容)。
+      expect('handoff' in service.getCompanionStatus().memory).toBe(false);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('G12-2 未及生成:轮换时无 pending → 降级现状(summary 原样)+ 日志如实', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    const logSpy = vi.spyOn(logger.server, 'log');
+    try {
+      writeState({
+        sessionId: 'sess-dg', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+        memory: { summary: '老板喜欢先看结论', notes: [], updatedAt: 1, droppedCount: 0 },
+        context: { tokensUsed: 62_000, windowTokens: 200_000, percent: 0.31, updatedAt: Date.now() },
+      });
+      const p = startProcess('第二句');
+      const call = await waitSpawn(1);
+      expect(resumeIdOf(call)).toBeNull(); // 轮换照常
+      await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '嗯。' }), { sessionId: 'sess-dg-new' });
+      await p;
+
+      const logs = logSpy.mock.calls.map(([m]) => String(m));
+      expect(logs.some((m) => m.includes('交接笔记未及生成'))).toBe(true);
+      // 降级 = 现状:无便签落盘,长期总结不被覆盖。
+      const stored = readStateFile();
+      expect(stored.memory.handoff).toBeNull();
+      expect(stored.memory.summary).toBe('老板喜欢先看结论');
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('G13-1 门控:当前会话不渲染自己的便签(同 sessionId)', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    writeState({
+      sessionId: 'sess-own', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+      memory: { summary: '', notes: [], updatedAt: 1, droppedCount: 0, handoff: { text: NOTE_TEXT, forSessionId: 'sess-own', at: Date.now() } },
+    });
+    const p = startProcess('随便聊聊');
+    const call = await waitSpawn(1);
+    expect(resumeIdOf(call)).toBe('sess-own'); // 未轮换,续跑本会话
+    expect(fs.readFileSync(promptFileOf(call), 'utf-8')).not.toContain('上段会话交接');
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '嗯。' }), { sessionId: 'sess-own' });
+    await p;
+  });
+
+  it('G13-2 时效:73h 前的便签跨会话也不渲染', async () => {
+    vi.stubEnv('TC_VOICE_HANDOFF', '1');
+    writeState({
+      sessionId: 'sess-cur', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+      memory: {
+        summary: '', notes: [], updatedAt: 1, droppedCount: 0,
+        handoff: { text: NOTE_TEXT, forSessionId: 'sess-prev', at: Date.now() - 73 * 3_600_000 },
+      },
+    });
+    const p = startProcess('随便聊聊');
+    const call = await waitSpawn(1);
+    expect(fs.readFileSync(promptFileOf(call), 'utf-8')).not.toContain('上段会话交接');
+    await completeWith(call.child, contractText({ action: 'general_response', responseToUser: '嗯。' }), { sessionId: 'sess-cur' });
+    await p;
+  });
+
+  it('G13-3 回退:TC_VOICE_HANDOFF=0 时旧便签不渲染,提示词与无便签状态逐字节一致', async () => {
+    // HANDOFF 保持 beforeEach 的 '0'(回退档)。
+    const stateBase = {
+      sessionId: 'sess-ret', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+    } as const;
+    writeState({
+      ...stateBase,
+      memory: { summary: '', notes: [], updatedAt: 1, droppedCount: 0, handoff: { text: NOTE_TEXT, forSessionId: 'sess-prev', at: Date.now() } },
+    });
+    const p1 = startProcess('第一句');
+    const call1 = await waitSpawn(1);
+    const promptWithNote = fs.readFileSync(promptFileOf(call1), 'utf-8');
+    await completeWith(call1.child, contractText({ action: 'general_response', responseToUser: '一。' }), { sessionId: 'sess-ret' });
+    await p1;
+
+    writeState({ ...stateBase, memory: { summary: '', notes: [], updatedAt: 1, droppedCount: 0 } });
+    const p2 = startProcess('第二句');
+    const call2 = await waitSpawn(2);
+    const promptWithout = fs.readFileSync(promptFileOf(call2), 'utf-8');
+    await completeWith(call2.child, contractText({ action: 'general_response', responseToUser: '二。' }), { sessionId: 'sess-ret' });
+    await p2;
+
+    expect(promptWithNote).not.toContain('上段会话交接');
+    expect(promptWithNote).toBe(promptWithout); // 逐字节一致(留存的旧便签不含在提示词里)
+  });
+
+  it('G14 reset 清留语义:keepMemory=true 保留便签、false 清空;预生成内存态必清;状态口不出口', () => {
+    writeState({
+      sessionId: 'sess-r', sessionStartedAt: Date.now(), turns: 2, personaKey: 'doubao',
+      memory: { summary: '', notes: [], updatedAt: 1, droppedCount: 0, handoff: { text: NOTE_TEXT, forSessionId: 'sess-prev', at: Date.now() } },
+    });
+    expect(service.loadCompanionState().memory.handoff?.text).toBe(NOTE_TEXT);
+
+    service.resetCompanion({ keepMemory: true });
+    expect(readStateFile().memory.handoff?.text).toBe(NOTE_TEXT); // 记忆语义:保留(72h 内继续兜底)
+    expect(service.getHandoffRuntime()).toEqual({ pending: null, inFlight: null, lastPregen: null });
+    expect('handoff' in service.getCompanionStatus().memory).toBe(false);
+
+    service.resetCompanion({ keepMemory: false });
+    expect(readStateFile().memory.handoff ?? null).toBeNull(); // 记忆整体清空 → 便签同去
   });
 });
 

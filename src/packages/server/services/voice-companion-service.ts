@@ -46,7 +46,7 @@ import { createSlowFiller } from '../voice/slow-filler.js';
 import { FILLER_RULE_GUIDANCE, checkFillerSafety, isFillerGuardEnabled } from '../voice/filler-guard.js';
 // W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
 import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
-// 任务39·F2/F3:最近轮次环缓冲(交接材料源)+ 交接便签预生成(纯函数;轮换前攒材料、后台出便签)。
+// 任务39·F2/F3/F4:最近轮次环缓冲(交接材料源)+ 交接便签预生成/认领渲染(纯函数)。
 import {
   appendRecentTurn,
   sanitizeRecentTurns,
@@ -54,9 +54,13 @@ import {
   shouldPregenHandoff,
   buildHandoffUserContent,
   cleanHandoffText,
+  handoffRenderable,
+  handoffObservation,
   HANDOFF_SYSTEM_PROMPT,
   HANDOFF_PREGEN_TIMEOUT_MS,
+  HANDOFF_TEXT_MAX_CHARS,
   type RecentTurn,
+  type HandoffNote,
   type HandoffPregenRuntime,
 } from '../voice/handoff.js';
 // 任务19:工具白名单/中立 cwd/effort —— spawn 档案唯一解析点(与常驻通道共用)。
@@ -154,6 +158,11 @@ export interface CompanionMemory {
   notes: CompanionMemoryNote[];
   updatedAt: number;
   droppedCount: number;
+  /**
+   * 任务39·F4:上段会话交接便签(轮换点认领时写入;渲染受「非本会话 + 72h」门控,
+   * 见 formatMemory)。未验证内容**不自动晋升**为长期 notes,只渲染 + 一条工作记忆。
+   */
+  handoff?: HandoffNote | null;
 }
 
 /**
@@ -346,6 +355,7 @@ const DEFAULT_MEMORY: CompanionMemory = {
   notes: [],
   updatedAt: 0,
   droppedCount: 0,
+  handoff: null,
 };
 
 const DEFAULT_STATE: VoiceCompanionState = {
@@ -537,6 +547,14 @@ function sanitizeMemory(raw: unknown): CompanionMemory {
     }
     if (typeof obj.updatedAt === 'number') memory.updatedAt = obj.updatedAt;
     if (typeof obj.droppedCount === 'number') memory.droppedCount = obj.droppedCount;
+    // 任务39·F4:交接便签容错(坏类型/空文本 → null;文本再防御性截断到 300 字)。
+    if (obj.handoff && typeof obj.handoff === 'object') {
+      const h = obj.handoff as Record<string, unknown>;
+      const text = typeof h.text === 'string' ? h.text.trim().slice(0, HANDOFF_TEXT_MAX_CHARS) : '';
+      if (text && typeof h.forSessionId === 'string' && typeof h.at === 'number' && Number.isFinite(h.at)) {
+        memory.handoff = { text, forSessionId: h.forSessionId, at: h.at };
+      }
+    }
   }
   return memory;
 }
@@ -671,6 +689,9 @@ export function applyMemoryOps(
     notes: [...memory.notes],
     updatedAt: now,
     droppedCount: memory.droppedCount,
+    // 任务39·F4:交接便签随记忆透传(缺省不带键,旧用例逐字不变)——
+    // 否则任何一次 memoryOp 都会把便签悄悄洗掉。
+    ...(memory.handoff ? { handoff: memory.handoff } : {}),
   };
   let applied = 0;
 
@@ -1529,11 +1550,17 @@ async function consumeProjectClarification(
   };
 }
 
-function formatMemory(memory: CompanionMemory): string {
+function formatMemory(memory: CompanionMemory, opts?: { currentSessionId?: string | null; now?: number }): string {
   const parts: string[] = [];
   if (memory.summary.trim()) parts.push(`总结: ${memory.summary.trim()}`);
   if (memory.notes.length > 0) {
     parts.push(memory.notes.map((n) => `- [${n.id}] ${n.text}`).join('\n'));
+  }
+  // 任务39·F4:上段会话交接——仅新会话渲染(forSessionId 门控),72h 时效;
+  // 开关关则不渲染:留存的旧笔记不得改变 TC_VOICE_HANDOFF=0 下的提示词字节。
+  const handoff = memory.handoff ?? null;
+  if (handoff && isHandoffEnabled() && handoffRenderable(handoff, opts?.currentSessionId ?? null, opts?.now ?? Date.now())) {
+    parts.push(`【上段会话交接】(自动生成,可能不全)\n${handoff.text}`);
   }
   return parts.length > 0 ? parts.join('\n') : '(暂无)';
 }
@@ -1557,6 +1584,8 @@ export function buildCompanionSystemPrompt(input: {
   delegationHistory?: readonly DelegationDecision[];
   /** bossId → Boss 名,把委派史里的 bossId 显示成人名(缺省回退 bossId)。 */
   bossNames?: ReadonlyMap<string, string>;
+  /** 任务39·F4:当前会话 id(交接便签渲染门控用;缺省 null = 视作新会话)。 */
+  currentSessionId?: string | null;
 }): string {
   const { agentLines, totalAgents, truncated, memory } = input;
   const agentsBlock = agentLines.length > 0
@@ -1625,7 +1654,7 @@ ${CONTRACT_TEMPLATE}
 【时间注记】老板消息末尾会附一行【当前时间】(系统每回合注入,不是老板说的话);问到时间/日期/早晚以它为准,不要凭记忆或猜测。
 
 【长期记忆】
-${formatMemory(memory)}
+${formatMemory(memory, { currentSessionId: input.currentSessionId ?? null })}
 
 【agent 列表】(共 ${totalAgents} 个;其中标 [BOSS] 的才能用 send_to_agent 直接对话,其余 agent 仅供查询与状态了解,派活一律 delegate_to_boss;标 [BOSS] 的行内含其下属结构/忙闲与最近委派,团队整体忙不忙看这里)
 ${agentsBlock}
@@ -1902,7 +1931,7 @@ interface Hop1Outcome {
   elapsedMs: number;
 }
 
-function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePersonaConfig): string {
+function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePersonaConfig, currentSessionId: string | null): string {
   const agents = agentService.getAllAgents();
   let areas: DrawingArea[] = [];
   try {
@@ -1926,12 +1955,12 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
   }
   const { lines, total, truncated } = buildAgentSnapshotLines(agents, areas, delegationHistory, projectLines);
   // 体积告警(P9):记忆是仅次于 agent 快照的 prompt 变项,超阈值先提示清理。
-  const memoryChars = formatMemory(memory).length;
+  const memoryChars = formatMemory(memory, { currentSessionId }).length;
   if (memoryChars > MEMORY_WARN_CHARS) {
     log.warn(`[VoiceCompanion] 记忆注入体积偏大:${memoryChars} 字符 / ${memory.notes.length} 条笔记(阈值 ${MEMORY_WARN_CHARS}),建议清理`);
   }
   const bossNames = new Map<string, string>(agents.filter(isBossLikeAgent).map((a): [string, string] => [a.id, a.name]));
-  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, persona, delegationHistory, bossNames });
+  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, persona, delegationHistory, bossNames, currentSessionId });
 }
 
 /**
@@ -1947,7 +1976,7 @@ export function prewarmCompanion(): boolean {
   try {
     const cfg = loadServerConfig();
     const state = loadCompanionState();
-    const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona);
+    const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona, state.sessionId);
     return prewarmCompanionProcess({ systemPrompt, model: cfg.model, resumeId: state.sessionId });
   } catch (err) {
     log.warn(`[VoiceCompanion] 预热失败(静默): ${(err as Error).message}`);
@@ -1963,7 +1992,9 @@ async function runHop1(
   stream?: { onTextDelta?: (fullText: string) => void; signal?: AbortSignal },
 ): Promise<Hop1Outcome> {
   const started = Date.now();
-  const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona);
+  // 任务39·F4:此处 state.sessionId 已是本回合实际会话(轮换后为 null)→ 交接
+  // 便签只在新会话的提示词里渲染(本会话不看到描述自己的便签)。
+  const systemPrompt = buildSystemPromptFromWorld(state.memory, cfg.persona, state.sessionId);
   // 体积打点(P5):agent 快照是 prompt 的最大变项,超预期先看这里。
   log.log(`[VoiceCompanion] system prompt ${systemPrompt.length} 字符`);
 
@@ -2696,9 +2727,25 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       const hadSession = !!state.sessionId;
       const personaChangedFromRecorded = state.personaKey != null && state.personaKey !== personaKey;
       // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
-      // 任务18:上下文到阈值(缺省 80%)同样走此路径 = 压缩 v1「摘要续跑」。
+      // 任务18:上下文到阈值同样走此路径 = 压缩 v1「摘要续跑」。
+      // 任务39·F4:轮换前先认领交接便签——只认「本会话」的待收笔记(开关关则不认领);
+      // 认领文本即 summarizeSession 的摘要素材(新会话的工作记忆起点);未命中 → 降级
+      // 现状(summary 原样,旧笔记保留继续兜底)。
       if (state.sessionId) {
-        await getJarvisMemory().engine.summarizeSession({ sessionId: state.sessionId, summary: state.memory.summary });
+        const claim = isHandoffEnabled() && handoffRuntime.pending?.forSessionId === state.sessionId
+          ? handoffRuntime.pending
+          : null;
+        if (claim) {
+          state.memory.handoff = { text: claim.text, forSessionId: claim.forSessionId, at: claim.at };
+          handoffRuntime.pending = null;
+          log.log(`[VoiceCompanion] 交接笔记已认领(${Date.now() - claim.at}ms 前生成, ${claim.text.length} 字)`);
+        } else if (isHandoffEnabled()) {
+          log.log('[VoiceCompanion] 交接笔记未及生成(降级现状)');
+        }
+        await getJarvisMemory().engine.summarizeSession({
+          sessionId: state.sessionId,
+          summary: claim?.text ?? state.memory.summary,
+        });
       }
       await getJarvisMemory().engine.sweep();
       resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
@@ -2876,6 +2923,11 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
             compactPercent: Math.round(cfg.contextCompactPercent * 100),
             // 任务39:绝对 token 闸口(0 = 关);列进采样便于 ⑭ 观测阈值命中分布。
             compactTokens: cfg.contextCompactTokens || undefined,
+            // 任务39·F4:本回合交接状态(none/pending/attached/stale;开关关不给字段,
+            // 回退档采样与接入前逐字一致)——供 ⑮ 标定认领率与 72h 时效命中。
+            handoff: isHandoffEnabled()
+              ? handoffObservation(state.memory.handoff ?? null, handoffRuntime.pending, state.sessionId, Date.now())
+              : undefined,
           },
         });
         // 任务39·F3:跨过预备线(触发线−0.1)即后台预生成交接便签——
@@ -3428,7 +3480,13 @@ export function getCompanionStatus(): {
     sessionStartedAt: state.sessionStartedAt,
     lastUsedAt: state.lastUsedAt,
     model: cfg.model,
-    memory: state.memory,
+    // 任务39·F4:memory.handoff 不出状态口(⑨ 兼容:响应不新增字段)。
+    memory: {
+      summary: state.memory.summary,
+      notes: state.memory.notes,
+      updatedAt: state.memory.updatedAt,
+      droppedCount: state.memory.droppedCount,
+    },
     context: state.context ?? null,
     residentPid: getCompanionProcessInfo()?.pid ?? null,
   };
@@ -3442,6 +3500,9 @@ export function resetCompanion(options: { keepMemory?: boolean } = {}): void {
   state.turns = 0;
   state.context = null; // 任务18:占用快照随重置清零
   state.recentTurns = []; // 任务39·F2:环缓冲随重置清空(keepMemory 与否都清——它是会话素材,不是记忆)
+  // 任务39·F4:预生成内存态必清(keepMemory 与否);memory.handoff 走记忆语义——
+  // keepMemory=false 时随 DEFAULT_MEMORY 清空,true 时保留(72h 内继续兜底)。
+  clearHandoffRuntime();
   if (!options.keepMemory) state.memory = { ...structuredClone(DEFAULT_MEMORY) };
   saveCompanionState(state);
   resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）一并清空
