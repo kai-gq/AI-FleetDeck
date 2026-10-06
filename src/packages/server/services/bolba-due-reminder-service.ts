@@ -123,6 +123,11 @@ export function resetBolbaDueReminderStateForTests(): void {
   reminderQueue = null;
 }
 
+/** W13 前置：PREPARE flush 接线用——返回进程内队列（尚未扫描过则 null）。 */
+export function getBolbaDueReminderQueue(): SignalQueue | null {
+  return reminderQueue;
+}
+
 // ─── 投递端口（复用 vcs 通道；STORE 不假装上屏） ───
 
 /** 四档投递端口：SPEAK/notice 走 logProactiveBroadcast；PREPARE/STORE 只登记 system_log。 */

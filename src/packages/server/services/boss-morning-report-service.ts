@@ -372,6 +372,11 @@ export function resetBossMorningReportStateForTests(): void {
   morningReportQueue = null;
 }
 
+/** W13 前置：PREPARE flush 接线用——返回进程内队列（尚未生成过晨报则 null）。 */
+export function getBossMorningReportQueue(): SignalQueue | null {
+  return morningReportQueue;
+}
+
 // ─── 🟡⑨ 埋点（category='system' + source/body.cat 本模块自有；不改任何枚举/不改别人文件） ───
 
 interface MorningReportLogFields {
