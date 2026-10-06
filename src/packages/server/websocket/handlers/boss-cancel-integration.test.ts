@@ -48,6 +48,7 @@ vi.mock('../../services/voice-companion-service.js', async (importOriginal) => {
 });
 
 import {
+  ACTIVE_DELEGATION_REBUILD_TTL_MS,
   activeDelegations,
   cancelDelegation,
   clearDelegation,
@@ -78,6 +79,15 @@ function readDecision(taskCommand: string): DelegationDecision {
   const found = Object.values(raw.histories).flat().find((d) => d.userCommand === taskCommand);
   if (!found) throw new Error(`decision not found in delegation-history.json: ${taskCommand}`);
   return found;
+}
+
+/** 把沙箱委派史里指定命令的决策时间戳调老（模拟超重建 TTL 的旧决策；B7 重建会跳过）。 */
+function ageDecision(taskCommand: string, ageMs: number): void {
+  const raw = JSON.parse(fs.readFileSync(historyFile, 'utf8')) as { histories: Record<string, DelegationDecision[]> };
+  const found = Object.values(raw.histories).flat().find((d) => d.userCommand === taskCommand);
+  if (!found) throw new Error(`decision not found in delegation-history.json: ${taskCommand}`);
+  found.timestamp = Date.now() - ageMs;
+  fs.writeFileSync(historyFile, JSON.stringify(raw));
 }
 
 function delegationRows(): Array<Record<string, unknown>> {
@@ -160,6 +170,9 @@ describe('任务16·⑬ 撤回执行链 handler 级整合（L2）', () => {
     parseBossDelegation('boss-1', '主管', delegationBlock('撤回', ['agent-c1']), broadcastMock);
     await flush();
     const d = readDecision('撤回任务 1');
+    // HC-B7：taskId 随决策落盘（重启重建追踪的链路钥匙）
+    expect(d.taskId).toMatch(/^task-/);
+    expect(getBossForSubordinate('agent-c1')?.taskId).toBe(d.taskId);
     expect(readDecision('撤回任务 1').taskCard?.status).toBe('running');
     expect(getBossForSubordinate('agent-c1')?.decisionId).toBe(d.id);
     expect(listPendingReceipts().some((r) => r.targetAgentId === 'agent-c1')).toBe(true);
@@ -355,6 +368,9 @@ describe('任务16·⑬ 撤回执行链 handler 级整合（L2）', () => {
     await flush();
     const d = readDecision('残留任务 1');
     const quotaTaskId = getDelegationQuotaSnapshot().activeIds[0];
+    // B7 之后，重启会从历史重建追踪；tracking 模式的现实来源是重建会跳过的旧决策
+    // （如超 24h TTL）→ 调老决策时间戳，保持本用例「追踪空、卡片在」的场景真实可达。
+    ageDecision('残留任务 1', ACTIVE_DELEGATION_REBUILD_TTL_MS + 60_000);
     clearDelegation('agent-c1'); // 模拟进程重启：追踪丢失、卡片仍在 running
     expect(getBossForSubordinate('agent-c1')).toBeUndefined();
 

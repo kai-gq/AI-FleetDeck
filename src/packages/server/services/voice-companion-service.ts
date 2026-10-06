@@ -1069,6 +1069,7 @@ async function collectCancelCandidates(): Promise<{ live: CancelCandidate[]; his
   const agents = agentService.getAllAgents();
   const byId = new Map(agents.map((a) => [a.id, a]));
   const handler = await import('../websocket/handlers/boss-response-handler.js');
+  handler.ensureActiveDelegationsRebuilt(); // HC-B7：重启后首个候选读取前重建追踪（不重建则撤回看不到在办）
 
   const live: CancelCandidate[] = [];
   const seen = new Set<string>();

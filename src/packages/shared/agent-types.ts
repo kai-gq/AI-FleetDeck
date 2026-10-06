@@ -670,6 +670,8 @@ export interface DelegationDecision {
   alternativeAgents: string[];      // Other agents that were considered
   confidence: 'high' | 'medium' | 'low';
   status: 'pending' | 'sent' | 'completed' | 'failed';
+  /** 派发链路 taskId（HC-B7：随决策落盘，重启后据此重建 activeDelegations 追踪；旧记录无此字段 → 重建时 taskId 缺省，仅靠 decisionId 关联） */
+  taskId?: string;
   taskCard?: TaskCard;              // ⑦ 任务卡（旧记录无此字段，读取方按「无卡」处理）
   completion?: DelegationCompletion; // ⑧ 病历完成事件（任务11；旧记录无此字段 → 按「未完成」处理）
   userRating?: DelegationUserRating; // ⑧ 病历用户评价（任务11；旧记录无此字段）

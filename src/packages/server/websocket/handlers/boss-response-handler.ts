@@ -31,6 +31,7 @@ import {
   type QueuedDelegation,
 } from '../../services/delegation-quota-gate.js';
 import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
+import { loadDelegationHistory } from '../../data/index.js';
 
 const log = logger.ws;
 
@@ -54,10 +55,75 @@ export interface ActiveDelegation {
 
 export const activeDelegations = new Map<string, ActiveDelegation>();
 
+/** HC-B7：重建时效（超过 24h 的未完成史条目不再复活追踪，防陈旧候选污染） */
+export const ACTIVE_DELEGATION_REBUILD_TTL_MS = 24 * 60 * 60_000;
+/** 启动重建只做一次（首个读者前 lazily 执行；模式同 delegation-quota-gate） */
+let rebuiltActiveFromHistory = false;
+
+/**
+ * HC-B7：进程重启（tsx watch 热重启 / 崩溃恢复）清空内存 activeDelegations 后，从未完成
+ * 委派史重建运行期追踪——修复「重启孤儿收养不重建委派追踪 → 在办任务完成后完成漏斗失忆」
+ * （C4/CH-40：卡不迁 done、病历永停 sent、closed 行缺失、配额槽不释放）。
+ * - 过滤：status ∈ {pending, sent} 且无 completion 且卡不在终态（queued 归配额重建管，
+ *   done/cancelled 已终结）且 24h 内且下属 agent 仍存在；
+ * - 冲突：同一下属已有 live 条目时保留 live（不覆盖）；
+ * - 异常只告警不上抛（不拦断派活）；histories/force 供测试注入。
+ * - 已知残余（如实登记于 19·B HC-B7）：①无卡且被撤回过的旧决策（撤回不改 status、无卡可判）
+ *   会被重建，可能被完成漏斗误闭——B5 补齐产卡点后收敛；②旧版 send_boss_command 直派入口
+ *   （boss-service.delegateCommand，客户端无调用方）写下的 sent 决策若 24h 内也会被重建。
+ */
+export function ensureActiveDelegationsRebuilt(
+  histories?: Map<string, DelegationDecision[]>,
+  force = false
+): number {
+  if (rebuiltActiveFromHistory && !force) return 0;
+  rebuiltActiveFromHistory = true;
+  try {
+    const source = histories ?? loadDelegationHistory();
+    const now = Date.now();
+    const preExisting = new Set(activeDelegations.keys());
+    const candidates: DelegationDecision[] = [];
+    for (const decisions of source.values()) {
+      for (const decision of decisions) {
+        if (decision.status !== 'pending' && decision.status !== 'sent') continue;
+        if (decision.completion) continue;
+        const card = decision.taskCard;
+        if (card && (card.status === 'done' || card.status === 'cancelled' || card.status === 'queued')) continue;
+        if (now - decision.timestamp > ACTIVE_DELEGATION_REBUILD_TTL_MS) continue;
+        if (!agentService.getAgent(decision.selectedAgentId)) continue;
+        if (preExisting.has(decision.selectedAgentId)) continue;
+        candidates.push(decision);
+      }
+    }
+    // 同一下属多条未完成决策：按时间升序应用 → 较新覆盖较旧（与 live 单槽「后派覆盖」语义一致）
+    candidates.sort((a, b) => a.timestamp - b.timestamp);
+    let added = 0;
+    for (const decision of candidates) {
+      const card = decision.taskCard;
+      activeDelegations.set(decision.selectedAgentId, {
+        bossId: decision.bossId,
+        taskDescription: decision.userCommand,
+        ...(decision.taskId ? { taskId: decision.taskId } : {}),
+        decisionId: decision.id,
+        ...(card ? { taskCard: card } : {}),
+      });
+      added++;
+    }
+    if (added > 0) {
+      log.log(`[Delegation] rebuilt ${added} active delegation tracking(s) from history`);
+    }
+    return added;
+  } catch (err) {
+    log.warn(`[Delegation] active tracking rebuild skipped: ${err instanceof Error ? err.message : String(err)}`);
+    return 0;
+  }
+}
+
 /**
  * Get the boss ID for an active delegation (if any)
  */
 export function getBossForSubordinate(subordinateId: string): ActiveDelegation | undefined {
+  ensureActiveDelegationsRebuilt();
   return activeDelegations.get(subordinateId);
 }
 
@@ -94,6 +160,7 @@ export function completeDelegation(
   subordinateId: string,
   opts: CompleteDelegationOptions = {}
 ): void {
+  ensureActiveDelegationsRebuilt(); // HC-B7：首个完成入口前重建（跨重启完成也能走完成漏斗）
   const delegation = activeDelegations.get(subordinateId);
   // 任务15·B：配额释放所需的 taskId 必须在清理（delete）前快照
   const quotaTaskId = delegation?.taskId;
@@ -138,6 +205,7 @@ export function completeDelegation(
 export function resetBossDelegationStateForTests(): void {
   processedDelegations.clear();
   activeDelegations.clear();
+  rebuiltActiveFromHistory = false; // HC-B7：重建标志随解析器状态复位
   resetPendingReceiptsForTests(); // 任务08②：待回执登记随解析器状态一并复位
   resetDelegationQuotaGateForTests(); // 任务15·B：配额账本（含重建标志）随解析器状态复位
 }
@@ -418,6 +486,7 @@ function cancelQuotaSafely(input: Parameters<typeof cancelDelegationQuotaSlot>[0
  * 不做「停止确认回执」登记（下属停止确认依赖其下一轮输出，见任务16 报告登记项）。
  */
 export async function cancelDelegation(input: CancelDelegationInput): Promise<CancelDelegationOutcome> {
+  ensureActiveDelegationsRebuilt(); // HC-B7：撤回定位前重建（重启后的在办任务可撤）
   const at = input.at ?? Date.now();
   const outcome: CancelDelegationOutcome = { status: 'not-found', notified: false, cardMigrated: false };
 
@@ -939,6 +1008,8 @@ export function parseBossDelegation(
       // 任务 02：委派创建点生成 taskId（链路上下文已有则复用），回执/关闭埋点据此关联
       // 任务15·B：生成提前到闸门之前——配额账本按 taskId 记账（与完成入口同一把钥匙）
       const delegationTaskId = getTaskId() ?? newTaskId();
+      // HC-B7：taskId 随决策落盘——重启后从委派史重建追踪仍能还原 taskId 链路
+      decision.taskId = delegationTaskId;
 
       // ── 任务15·B ⑫ 全局并发配额准入（在落卡/落史之前判定；超预算 → queued）──
       // 本循环只处理 Boss 委派链路（秘书自留区不经 parseBossDelegation），scope='delegation' 计配。
