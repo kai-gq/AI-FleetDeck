@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "capturedAt": "2026-10-04T09:48:45.426Z",
-  "capturedFrom": "33dda02d",
+  "capturedAt": "2026-10-06T04:08:27.944Z",
+  "capturedFrom": "a1141f97",
   "note": "Windows 环境型既有失败基线（判定权归本文件,详见 README.md）。白名单外新失败=阻塞;白名单内变绿=必须同步删除。",
   "entries": [
     {
@@ -180,54 +180,6 @@
     },
     {
       "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "detectRunner detects a Maven project (pom.xml + src/test) and picks the module root",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "detectRunner does not offer a run for a non-test file, nor a test file outside src/test",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "detectRunner returns not testable for a plain temp directory",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "detectRunner scopes to a single class when a test file under src/test is targeted",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "findCucumberRunner picks the runner that lists the feature (or its folder), preferring untagged fallbacks",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "phpunit detection detects a project with a phpunit dependency in composer.json",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "phpunit detection detects via phpunit.xml.dist even without the composer dep",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "phpunit detection does not detect a composer project without phpunit",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
       "test": "phpunit detection scopes to a single test file",
       "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
       "since": "2026-10-04"
@@ -246,31 +198,7 @@
     },
     {
       "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "scanTests includes Cucumber/TestNG runner classes as class-level runnables",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
       "test": "scanTests inventories test classes/methods under a Maven module",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "scanTests reports not testable (with an error) for a non-project folder",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "vitest detection detects a project with vitest in devDependencies",
-      "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "src/packages/server/services/test-runner-service.test.ts",
-      "test": "vitest detection does not detect a node project without vitest",
       "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
       "since": "2026-10-04"
     },
@@ -278,90 +206,6 @@
       "file": "src/packages/server/services/test-runner-service.test.ts",
       "test": "vitest detection scopes to a single test file",
       "reason": "POSIX /tmp 路径假设：mkdtemp '/tmp/trs-test-XXXXXX' ENOENT（17 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent Agent Status should have agent in idle status initially",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent Agent Status should report agent as not running before any command",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent sendCommand with valid agent should not throw when sending command to valid agent",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent sendCommand with valid agent should update agent status when command starts",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent Status Sync should handle sync for non-existent agent",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent Status Sync should sync agent status without error",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Claude Service with Agent Status Sync should sync all agents without error",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle command with special characters",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle disableTools parameter",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle empty command",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle forceNewSession parameter",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle systemPrompt parameter",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand edge cases should handle unicode command",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
-      "since": "2026-10-04"
-    },
-    {
-      "file": "tests/integration/claude-service.test.ts",
-      "test": "Stdin Messaging via Claude Service sendCommand when not running should attempt to start new session when agent is idle",
-      "reason": "Windows 无 /tmp：createAgent 抛 Directory does not exist: /tmp（POSIX 路径假设，14 例）",
       "since": "2026-10-04"
     }
   ]
