@@ -78,7 +78,7 @@ export function BolbaTasksSidebarView() {
   return (
     <div className="bolba-plugin-view">
       <div className="bolba-plugin-view__toolbar">
-        <div><Icon name="plant" size={14} /><strong>Bolba Tasks</strong></div>
+        <div><Icon name="plant" size={14} /><strong>{t('terminal:bolbaView.headerTitle', { defaultValue: 'Bolba Tasks' })}</strong></div>
         <button type="button" onClick={() => void refresh()} disabled={loading} title={t('common:buttons.refresh')}>
           <Icon name="arrow-clockwise" size={13} className={loading ? 'is-spinning' : undefined} />
         </button>

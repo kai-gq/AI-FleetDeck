@@ -2532,7 +2532,8 @@
     "eventOne": "1 个事件",
     "eventMany": "{{n}} 个事件",
     "noEvents": "该任务暂无事件记录。",
-    "openLink": "打开链接"
+    "openLink": "打开链接",
+    "headerTitle": "我的待办"
   },
   "bolbaRecommended": {
     "previewCount": "Bolba · AI 正在分析 {{n}} 条推荐…",
