@@ -1,11 +1,10 @@
 /**
  * jarvis-core · 感知层信号 · 公共类型与开关（任务 30，06-11 §5 / §12.1 P3）
  *
- * 本轮交付 5 路信号源 = 5 个独立模块、5 个独立开关、失败互不影响（§5 工程要点）：
+ * 本轮交付 6 路信号源 = 6 个独立模块、6 个独立开关、失败互不影响（§5 工程要点）：
  *   agent-state（Agent 状态）/ system-health（系统健康）/ project-events（项目事件）
- *   / time-context（时间上下文）/ memory-signals（记忆信号）。
- * 第 6 路 user-behavior（用户行为/窗口焦点）整体延后（client 采集侵入 + 隐私 + 暂无
- * 消费场景，用户批准收敛；见报告「生产通道接线延后登记」）。
+ *   / time-context（时间上下文）/ memory-signals（记忆信号）/ user-behavior（用户
+ *   行为，经可注入端口读取上游活动账本；client 侧采集仍不在本层，见该源文件头）。
  *
  * 统一接口：`Sense.collect(now) → Promise<SenseReading>`（归一化 RawSignal 列表
  * 或安全缺省 + 降级记因）。**契约与 26 号 collectSignalsSafely 对齐：单个
@@ -28,21 +27,23 @@ import type { RawSignal } from '../signal-queue.js';
 // 源名 / 类别 / 触发形态 / 开关
 // ============================================================================
 
-/** 五路源名（日志/开关/观测用；user-behavior 整体延后，不在本轮枚举内）。 */
+/** 六路源名（日志/开关/观测用）。 */
 export type SenseName =
   | 'agent-state'
   | 'system-health'
   | 'project-events'
   | 'time-context'
-  | 'memory-signals';
+  | 'memory-signals'
+  | 'user-behavior';
 
-/** 规范顺序（任务 ④ 清单顺序，去延后的 user-behavior；聚合摘要按此序输出）。 */
+/** 规范顺序（任务 ④ 清单顺序；聚合摘要按此序输出）。 */
 export const SENSE_NAMES: readonly SenseName[] = [
   'agent-state',
   'system-health',
   'project-events',
   'time-context',
   'memory-signals',
+  'user-behavior',
 ];
 
 /** 源名 → 09·A SignalSource 类别（归一化 source 字段，一一对应）。 */
@@ -52,6 +53,7 @@ export const SENSE_SIGNAL_SOURCES: Readonly<Record<SenseName, SignalSource>> = {
   'project-events': 'project',
   'time-context': 'time',
   'memory-signals': 'memory',
+  'user-behavior': 'user',
 };
 
 /** 触发形态（06-11 §5）：事件型允许即时唤醒；心跳型只在对账时跑；+ 兼有。 */
@@ -63,6 +65,7 @@ export const SENSE_TRIGGERS: Readonly<Record<SenseName, SenseTrigger>> = {
   'project-events': 'event',
   'time-context': 'heartbeat',
   'memory-signals': 'heartbeat+event',
+  'user-behavior': 'heartbeat',
 };
 
 /** 每源一个启用环境变量（缺省开；'0'/'off'/'false' 关）。 */
@@ -72,6 +75,7 @@ export const SENSE_ENV_KEYS: Readonly<Record<SenseName, string>> = {
   'project-events': 'TC_JARVIS_SENSE_PROJECT_EVENTS',
   'time-context': 'TC_JARVIS_SENSE_TIME_CONTEXT',
   'memory-signals': 'TC_JARVIS_SENSE_MEMORY_SIGNALS',
+  'user-behavior': 'TC_JARVIS_SENSE_USER_BEHAVIOR',
 };
 
 /**

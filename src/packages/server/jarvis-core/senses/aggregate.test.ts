@@ -1,9 +1,10 @@
 /**
- * jarvis-core · 感知层聚合与故障隔离单测（任务 30 ⑥ 验收）
+ * jarvis-core · 感知层聚合与故障隔离单测（任务 30 ⑥ 验收；第 6 路补齐后）
  *
- * 覆盖：五源齐采的归一化形状（09·A Signal）、单源 throws / 超时 / 畸形读数 /
+ * 覆盖：六源齐采的归一化形状（09·A Signal）、单源 throws / 超时 / 畸形读数 /
  * 单条畸形信号 → 只该源降级、其余源正常；关闭源零采集；注入钩子/日志抛错也不破坏
- * 「聚合永不抛出」；聚合结果可直接入 SignalQueue 判定链路。
+ * 「聚合永不抛出」；聚合结果可直接入 SignalQueue 判定链路；默认装配（第 6 路
+ * user-behavior 传端口才追加，向后兼容）。
  * 证据等级 L1（mock 注入；真链路未跑）。
  */
 
@@ -15,12 +16,14 @@ import type { JarvisLogger } from '../executors.js';
 import {
   collectSensesSafely,
   createDefaultSenses,
+  DEFAULT_SENSE_NAMES,
 } from './aggregate.js';
 import { createAgentStateSense } from './agent-state.js';
 import { createSystemHealthSense } from './system-health.js';
 import { createProjectEventsSense } from './project-events.js';
 import { createTimeContextSense } from './time-context.js';
 import { createMemorySignalsSense } from './memory-signals.js';
+import { createUserBehaviorSense } from './user-behavior.js';
 import {
   SENSE_NAMES,
   SENSE_SIGNAL_SOURCES,
@@ -55,8 +58,12 @@ function fakeSense(
   };
 }
 
-/** 五源齐采的默认 mock 组合（各产 1 条合法信号）。 */
-function fiveHealthySenses(): Sense[] {
+/** 六源齐采的默认 mock 组合（各产 1 条合法信号）。 */
+function sixHealthySenses(): { senses: Sense[]; setUserActivityAt: (at: number | null) => void } {
+  // user-behavior：基线前已离开 2h（基线记「离开」，正式采集前把活动拨到「刚回来」）。
+  // 回来是输入类活动（没说话）——语音回来的 ≥2h 长离开按分工归 time-context，本源不产。
+  let userActivityAt: number | null = THU_10AM - 2 * 60 * 60_000;
+  const userSpeechAt: number | null = null;
   const agent = createAgentStateSense({
     logger: silentLogger,
     port: {
@@ -84,21 +91,31 @@ function fiveHealthySenses(): Sense[] {
     logger: silentLogger,
     port: { read: () => [{ kind: 'due', itemId: 't13' }] },
   });
-  return [agent, system, project, time, memory];
+  const user = createUserBehaviorSense({
+    read: () => ({ lastActivityAt: userActivityAt, lastSpeechAt: userSpeechAt }),
+  });
+  return {
+    senses: [agent, system, project, time, memory, user],
+    setUserActivityAt: (at) => {
+      userActivityAt = at;
+    },
+  };
 }
 
-describe('聚合：五源齐采与归一化形状', () => {
-  it('五源各产 1 条 → 归一化为 09·A Signal（source/ts/dedupeKey/顺序齐备）', async () => {
-    const senses = fiveHealthySenses();
-    // 预跑基线（agent/time 首次只建基线；正式采集前先喂一轮）
+describe('聚合：六源齐采与归一化形状', () => {
+  it('六源各产 1 条 → 归一化为 09·A Signal（source/ts/dedupeKey/顺序齐备）', async () => {
+    const { senses, setUserActivityAt } = sixHealthySenses();
+    // 预跑基线（agent/time/user 首次只建基线；正式采集前先喂一轮）
     await senses[0]!.collect(THU_10AM);
     await senses[3]!.collect(THU_10AM);
+    await senses[5]!.collect(THU_10AM);
+    setUserActivityAt(THU_1PM - 30_000); // 用户 30 秒前刚有活动 → 正式采集报「回来」
     const result = await collectSensesSafely(senses, { now: THU_1PM, logger: silentLogger });
 
     expect(result.failures).toEqual([]);
     expect(result.degraded).toBe(false);
-    expect(result.signals).toHaveLength(5);
-    expect(result.signals.map((s) => s.source)).toEqual(['agent', 'system', 'project', 'time', 'memory']);
+    expect(result.signals).toHaveLength(6);
+    expect(result.signals.map((s) => s.source)).toEqual(['agent', 'system', 'project', 'time', 'memory', 'user']);
     for (const signal of result.signals) {
       expect(typeof signal.kind).toBe('string');
       expect(signal.ts).toBe(THU_1PM);
@@ -120,19 +137,22 @@ describe('聚合：五源齐采与归一化形状', () => {
       'project_test_failed',
       'time_period_changed',
       'memory_task_due',
+      'user_returned',
     ]);
   });
 
   it('聚合结果可直接进 SignalQueue 判定链路（归一化形状可被消费）', async () => {
-    const senses = fiveHealthySenses();
+    const { senses, setUserActivityAt } = sixHealthySenses();
     await senses[0]!.collect(THU_10AM);
     await senses[3]!.collect(THU_10AM);
+    await senses[5]!.collect(THU_10AM);
+    setUserActivityAt(THU_1PM - 30_000);
     const result = await collectSensesSafely(senses, { now: THU_1PM, logger: silentLogger });
 
     const queue = new SignalQueue({ now: THU_1PM, logger: silentLogger });
     for (const signal of result.signals) queue.enqueue(signal);
     const consumed = queue.consumeAll();
-    expect(consumed).toHaveLength(5);
+    expect(consumed).toHaveLength(6);
     for (const item of consumed) {
       expect(['SPEAK', 'PREPARE', 'STORE', 'SILENT']).toContain(item.decision.tier);
       expect(item.signal.ts).toBe(THU_1PM);
@@ -290,9 +310,9 @@ describe('聚合：独立开关（关闭 = 零采集零产出零报错）', () =
     expect(summary.degraded).toBe(false);
   });
 
-  it('默认五源装配：源名/顺序齐备，未接端口 → 逐源 port_not_wired（整体仍不上抛）', async () => {
+  it('默认装配（不传 userBehaviorPort）：五源向后兼容，未接端口 → 逐源 port_not_wired', async () => {
     const senses = createDefaultSenses({ logger: silentLogger });
-    expect(senses.map((s) => s.name)).toEqual([...SENSE_NAMES]);
+    expect(senses.map((s) => s.name)).toEqual([...SENSE_NAMES].filter((name) => name !== 'user-behavior'));
     expect(senses).toHaveLength(5);
     expect(senses.every((s) => s.enabled)).toBe(true);
 
@@ -301,8 +321,33 @@ describe('聚合：独立开关（关闭 = 零采集零产出零报错）', () =
     expect(result.failures).toEqual([]); // 未接线是计划内降级，不是读取失败
     expect(result.readings.every((r) => r.degraded && r.degradeReason === 'port_not_wired')).toBe(true);
     expect(result.degraded).toBe(true);
-    // 信号源类别严格对应 09·A 六类之五
+    // 信号源类别严格对应 09·A 六类之五（第 6 路未接线不装配）
     expect(result.readings.map((r) => r.source)).toEqual(['agent', 'system', 'project', 'time', 'memory']);
+  });
+
+  it('传入 userBehaviorPort → 追加第 6 路（顺序 = DEFAULT_SENSE_NAMES），独立采集不降级', async () => {
+    const senses = createDefaultSenses({
+      logger: silentLogger,
+      userBehaviorPort: { read: () => ({ lastActivityAt: THU_1PM, lastSpeechAt: THU_1PM }) },
+    });
+    expect(senses.map((s) => s.name)).toEqual([...DEFAULT_SENSE_NAMES]);
+    expect(senses).toHaveLength(6);
+    const user = senses[5]!;
+    expect(user.name).toBe('user-behavior');
+    expect(user.source).toBe('user');
+    expect(user.trigger).toBe('heartbeat');
+    expect(user.enabled).toBe(true);
+
+    // 首次采集只建基线（在场 → 不产信号），且不降级
+    const result = await collectSensesSafely([user], { now: THU_1PM, logger: silentLogger });
+    expect(result.failures).toEqual([]);
+    expect(result.signals).toEqual([]);
+    expect(result.readings[0]).toMatchObject({
+      name: 'user-behavior',
+      collected: true,
+      degraded: false,
+      signalCount: 0,
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * jarvis-core · 感知层五源单测（任务 30 ⑥ 验收）
+ * jarvis-core · 感知层六源单测（任务 30 ⑥ 验收；第 6 路 user-behavior 补齐后）
  *
  * 覆盖：各源 mock 注入（正常路径/首次基线/畸形数据/端口抛错/端口未接）、
  * 每源独立开关（配置入参 + TC_JARVIS_SENSE_* 环境变量，关 = 不采集不产出不报错）、
@@ -14,6 +14,7 @@ import { createSystemHealthSense, type SystemHealthProbe, type SystemHealthPort 
 import { createProjectEventsSense, type ProjectEventInput, type ProjectEventsPort } from './project-events.js';
 import { createTimeContextSense, periodOfMinutes, readTimeContext, type TimeContextPort } from './time-context.js';
 import { createMemorySignalsSense, type MemorySignalInput, type MemorySignalsPort } from './memory-signals.js';
+import { createUserBehaviorSense, type UserBehaviorPort } from './user-behavior.js';
 import { SENSE_ENV_KEYS, SENSE_NAMES, isSenseEnabled, type Sense } from './types.js';
 
 const silentLogger: JarvisLogger = { log: () => {}, debug: () => {}, warn: () => {}, error: () => {} };
@@ -46,8 +47,15 @@ function expectSignalShape(
 // ============================================================================
 
 describe('感知层公共开关（types）', () => {
-  it('五源规范清单；环境变量缺省开、0/off/false 关', () => {
-    expect(SENSE_NAMES).toEqual(['agent-state', 'system-health', 'project-events', 'time-context', 'memory-signals']);
+  it('六源规范清单；环境变量缺省开、0/off/false 关', () => {
+    expect(SENSE_NAMES).toEqual([
+      'agent-state',
+      'system-health',
+      'project-events',
+      'time-context',
+      'memory-signals',
+      'user-behavior',
+    ]);
     for (const name of SENSE_NAMES) {
       const key = SENSE_ENV_KEYS[name];
       expect(key.startsWith('TC_JARVIS_SENSE_')).toBe(true);
@@ -481,10 +489,10 @@ describe('信号源 memory-signals', () => {
 });
 
 // ============================================================================
-// 契约：五源 collect 永不抛出（含注入 logger 抛错的病态场景）
+// 契约：六源 collect 永不抛出（含注入 logger 抛错的病态场景）
 // ============================================================================
 
-describe('五源「永不上抛」契约', () => {
+describe('六源「永不上抛」契约', () => {
   it('端口抛错 + logger 全抛错 → collect 仍返回安全缺省', async () => {
     const hostileLogger: JarvisLogger = {
       log: () => {
@@ -506,6 +514,11 @@ describe('五源「永不上抛」契约', () => {
       createProjectEventsSense({ port: { poll: () => Promise.reject(new Error('x')) }, logger: hostileLogger }),
       createTimeContextSense({ port: { lastUserSpeechAt: () => Promise.reject(new Error('x')) }, logger: hostileLogger }),
       createMemorySignalsSense({ port: { read: () => Promise.reject(new Error('x')) }, logger: hostileLogger }),
+      createUserBehaviorSense({
+        read: () => {
+          throw new Error('x');
+        },
+      } satisfies UserBehaviorPort),
     ];
     for (const sense of senses) {
       const reading = await sense.collect(THU_10AM);

@@ -31,12 +31,13 @@ import {
   type SenseName,
   type SenseTrigger,
 } from './types.js';
-// 六源工厂（user-behavior 整体延后，不在本轮装配）
+// 六源工厂（user-behavior 传端口才装配，见 createDefaultSenses）
 import { createAgentStateSense, type AgentStatePort } from './agent-state.js';
 import { createSystemHealthSense, type SystemHealthPort } from './system-health.js';
 import { createProjectEventsSense, type ProjectEventsPort } from './project-events.js';
 import { createTimeContextSense, type TimeContextPort } from './time-context.js';
 import { createMemorySignalsSense, type MemorySignalsPort } from './memory-signals.js';
+import { createUserBehaviorSense, type UserBehaviorPort } from './user-behavior.js';
 
 // ============================================================================
 // 类型
@@ -224,7 +225,7 @@ export async function collectSensesSafely(
 }
 
 // ============================================================================
-// 默认装配（5 源；接线层可覆盖各端口）
+// 默认装配（5 源 + 可选第 6 路 user-behavior；接线层可覆盖各端口）
 // ============================================================================
 
 export interface DefaultSensesOptions {
@@ -237,14 +238,16 @@ export interface DefaultSensesOptions {
   projectEventsPort?: ProjectEventsPort;
   timeContextPort?: TimeContextPort;
   memorySignalsPort?: MemorySignalsPort;
+  /** 第 6 路用户行为端口；不传则不注册该源（保持既有五源装配的向后兼容）。 */
+  userBehaviorPort?: UserBehaviorPort;
 }
 
 /**
- * 默认五源装配（源顺序 = SENSE_NAMES）。端口缺省 = 各源自行登记「接线延后」；
- * 生产接线层可就地覆盖任一端口，不动源模块。
+ * 默认装配（源顺序 = SENSE_NAMES 前五路 + 可选 user-behavior）。端口缺省 = 各源自行
+ * 登记「接线延后」；生产接线层可就地覆盖任一端口，不动源模块。
  */
 export function createDefaultSenses(options: DefaultSensesOptions = {}): Sense[] {
-  return [
+  const senses: Sense[] = [
     createAgentStateSense({
       logger: options.logger,
       env: options.env,
@@ -256,13 +259,16 @@ export function createDefaultSenses(options: DefaultSensesOptions = {}): Sense[]
     createTimeContextSense({ logger: options.logger, env: options.env, port: options.timeContextPort }),
     createMemorySignalsSense({ logger: options.logger, env: options.env, port: options.memorySignalsPort }),
   ];
+  // 第 6 路：只有接线层提供端口才装配（活动账本适配器由主控注入）。
+  if (options.userBehaviorPort) senses.push(createUserBehaviorSense(options.userBehaviorPort));
+  return senses;
 }
 
 /** 规范源顺序的只读快照（对外暴露，便于接线层/测试断言覆盖完整）。 */
 export const DEFAULT_SENSE_NAMES = [...SENSE_NAMES] as readonly SenseName[];
 
-/** 五源名 → 类别映射（只读再导出，接线层免二次 import types）。 */
+/** 六源名 → 类别映射（只读再导出，接线层免二次 import types）。 */
 export const DEFAULT_SENSE_SOURCES = { ...SENSE_SIGNAL_SOURCES } as Readonly<Record<SenseName, SignalSource>>;
 
-/** 五源名 → 触发形态映射（只读再导出）。 */
+/** 六源名 → 触发形态映射（只读再导出）。 */
 export const DEFAULT_SENSE_TRIGGERS = { ...SENSE_TRIGGERS } as Readonly<Record<SenseName, SenseTrigger>>;
