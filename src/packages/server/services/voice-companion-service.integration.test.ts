@@ -34,6 +34,8 @@ import * as bossService from './boss-service.js';
 import type { DelegationCompletion, DelegationDecision, DelegationUserRating } from '../../shared/agent-types.js';
 // 任务14·⑪:项目路由集成用例需要可变区域夹具(DrawingArea)
 import type { DrawingArea } from '../../shared/common-types.js';
+// 垫话 v2:静态默认档的池句断言(本文件既有 W5/C18/C21 用例走 llm 档,见 beforeEach)。
+import { STATIC_FILLER_PHRASES } from '../voice/filler-phrases.js';
 
 // ============================================================================
 // 假 claude 子进程
@@ -312,6 +314,10 @@ beforeEach(() => {
   vi.stubEnv('TC_VOICE_HANDOFF', '0');
   // 任务19:档案模块的 MCP 源固定到夹具(缺省档 allowlist;断言不依赖真实用户配置)。
   vi.stubEnv('TC_VOICE_MCP_SOURCE', mcpFixturePath);
+  // 垫话 v2(2026-10-06):本文件既有垫话用例(W5/C18/C21)全部针对 llm 动态档的行为
+  // (生成 spawn / 提示词 / 护栏重生成),统一钉 llm 保持断言逐字不变;
+  // 静态默认档另设「静态垫话」用例(其内自行 stubEnv 覆盖)与 filler-phrases.test.ts。
+  vi.stubEnv('TC_VOICE_FILLER_MODE', 'llm');
 });
 
 afterEach(() => {
@@ -2044,6 +2050,51 @@ describe('W5 慢档续垫:hop1 首字节即取消(双垫加固)', () => {
     } finally {
       logSpy.mockRestore();
     }
+  });
+});
+
+// ============================================================================
+// 静态垫话(垫话 v2 默认档,2026-10-06)
+//
+// 动机:动态生成句「假/前言不搭」三根因 —— ①拿半句 partial 生成 ②输入无上下文
+// ③提示词逼模型换说法带话题。静态档从场景无关短池选句(voice/filler-phrases.ts),
+// 不读 partial、不喂上下文、不让模型造句;池句全过 filler-guard(专测锁定)。
+// llm 动态档保留为 TC_VOICE_FILLER_MODE=llm 实验开关(上方 W5/C18/C21 用例即该档)。
+// ============================================================================
+
+describe('静态垫话:池内选句、零生成 spawn、连续不重样', () => {
+  it('慢回合从池内选句经 pre 通道吐出(无垫话 spawn);下一回合避开上一句', async () => {
+    vi.stubEnv('TC_VOICE_FILLER_MODE', 'static');
+    writeConfig({ brain: { ...DEFAULT_TEST_CONFIG.brain, slowFiller: { enabled: true, armMs: 500, emitMs: 1_000 } } });
+
+    const sentences: Array<{ text: string; pre: boolean }> = [];
+    const first = startProcess('帮我看看今天的安排', {
+      onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+    });
+    await waitSpawn(1);
+    await waitFor(() => sentences.some((s) => s.pre), '回合1 静态垫话吐出', 3_000);
+    const phrase1 = sentences.find((s) => s.pre)?.text ?? '';
+    expect(STATIC_FILLER_PHRASES).toContain(phrase1);
+    expect(spawnCalls).toHaveLength(1); // 静态档零生成:全程只有 hop1,没有垫话 spawn
+
+    await completeWith(spawnCalls[0]!.child, contractText({ action: 'general_response', responseToUser: '今天三件事。' }));
+    const r1 = await first;
+    expect(r1.response).toBe('今天三件事。'); // 回合正常收尾(非流式档:客户端按 response 整段补播)
+
+    // 第二回合(同档同样慢):选句须避开最近用过的(环缓冲保留 3 条)。
+    sentences.length = 0;
+    const second = startProcess('再帮我排一下优先级', {
+      onSentence: (s, meta) => sentences.push({ text: s, pre: !!meta?.pre }),
+    });
+    await waitSpawn(2);
+    await waitFor(() => sentences.some((s) => s.pre), '回合2 静态垫话吐出', 3_000);
+    const phrase2 = sentences.find((s) => s.pre)?.text ?? '';
+    expect(STATIC_FILLER_PHRASES).toContain(phrase2);
+    expect(phrase2).not.toBe(phrase1); // 「别连续同款」
+
+    await completeWith(spawnCalls[1]!.child, contractText({ action: 'general_response', responseToUser: '排好了。' }));
+    await second;
+    expect(spawnCalls).toHaveLength(2); // 两个 hop1,零垫话生成
   });
 });
 

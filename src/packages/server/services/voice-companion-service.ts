@@ -46,6 +46,9 @@ import { createSlowFiller } from '../voice/slow-filler.js';
 import { FILLER_RULE_GUIDANCE, checkFillerSafety, isFillerGuardEnabled } from '../voice/filler-guard.js';
 // W7 垫话预生成:说话期间的流式 partial 即触发垫话生成,密封后回合零等待取用。
 import { createFillerPregen, type FillerPregenTake } from '../voice/filler-pregen.js';
+// 垫话 v2 静态池:默认档垫话改为池内选句(不读半句 partial、不让模型造句);
+// 动态生成降级为 TC_VOICE_FILLER_MODE=llm 实验档。
+import { isStaticFillerMode, pickStaticFiller } from '../voice/filler-phrases.js';
 // 任务39·F2/F3/F4:最近轮次环缓冲(交接材料源)+ 交接便签预生成/认领渲染(纯函数)。
 import {
   appendRecentTurn,
@@ -2274,10 +2277,12 @@ async function runHop2(
 }
 
 // ============================================================================
-// W5 慢档续垫:一次性生成一句安抚垫话(不碰常驻进程、不污染主会话)
+// W5 慢档续垫:垫话 —— 默认档 = 静态池选句(voice/filler-phrases.ts);
+// TC_VOICE_FILLER_MODE=llm 时为旧「一次性生成」档(不碰常驻进程、不污染主会话)
 // ============================================================================
 
-/** 垫话系统提示词(C18):顺着老板这句话的内容接(别答非所问)、像熟人随口应声、每次换说法。
+/** 垫话系统提示词(C18;**仅 llm 实验档使用**,默认静态档不进模型)。
+ *  顺着老板这句话的内容接(别答非所问)、像熟人随口应声、每次换说法。
  *  只给按类别的示样句式,**不给整句通用示例** —— 模型会逐字照抄示例(C17 教训:「好嘞,我捋捋」
  *  被原样搬出,听着又假又雷同);去掉可抄的整句后,多样性由服务端 recentFillerPhrases 记忆注入(见下)。与主提示词隔离。 */
 const SLOW_FILLER_SYSTEM_PROMPT = [
@@ -2292,7 +2297,8 @@ const SLOW_FILLER_SYSTEM_PROMPT = [
   '- 不要 emoji、引号、解释;直接输出这一句话本身,不要任何多余内容。',
 ].join('\n');
 
-/** C18:最近实际产出的垫话(环缓冲,保留 3 条,进程级)—— 注入下一次生成,强制换说法。
+/** C18:最近实际产出的垫话(环缓冲,保留 3 条,进程级)。
+ *  双用途:静态档 = 选句排除集(「别连续同款」);llm 档 = 注入下一次生成,强制换说法。
  *  为什么放服务端:提示词给整句示例会被照抄(C17),不给又容易句式雷同;
  *  把「刚应过什么」当事实喂回去,比任何措辞约束都直接。 */
 const recentFillerPhrases: string[] = [];
@@ -2338,10 +2344,18 @@ function finalFillerGate(text: string | null): string | null {
   return null;
 }
 
-/** 生成一句垫话;任何失败(超时/中止/跑偏/空)一律 null(调用方静默)。
- *  C21:清洗后过 `checkFillerSafety`(承诺类硬闸);违规回灌负例 + 注入原因重生成一次
- *  (独立 4s 上限),仍违规 → null(静默:少句垫话,绝不食言)。 */
+/** 取一句垫话。默认静态档:池内选句(排除最近 3 句)——零生成、零延迟,且天然绕开
+ *  「半句 partial 输入 / 无上下文 / 模型造句」三条「假」的根因;就绪提前到 partial 时刻,
+ *  预合成受益更早(不变式:池句全过 filler-guard,见 filler-phrases.test.ts)。
+ *
+ *  llm 实验档(TC_VOICE_FILLER_MODE=llm):旧「一次性生成」——任何失败(超时/中止/跑偏/空)
+ *  一律 null(调用方静默);C21:清洗后过 `checkFillerSafety`(承诺类硬闸);违规回灌负例 +
+ *  注入原因重生成一次(独立 4s 上限),仍违规 → null(静默:少句垫话,绝不食言)。 */
 async function generateSlowFillerPhrase(userText: string, model: string, signal?: AbortSignal): Promise<string | null> {
+  if (isStaticFillerMode()) {
+    return acceptFiller(pickStaticFiller({ exclude: recentFillerPhrases }));
+  }
+
   const recentHint = recentFillerPhrases.length
     ? `\n(最近你已经应过:${recentFillerPhrases.map((p) => `「${p}」`).join('')}——这次换个说法,别重样。)`
     : '';
@@ -2403,7 +2417,8 @@ const fillerPregen = createFillerPregen({
   log: (line) => log.log(`[VoiceCompanion] ${line}`),
 });
 
-/** 流式 partial 到达(WS 通道调用):达阈值触发一次性预生成;就绪即经 onHint 推给客户端预合成。 */
+/** 流式 partial 到达(WS 通道调用):达阈值触发一次性预生成;就绪即经 onHint 推给客户端预合成。
+ *  静态档选句为同步完成 → hint 在首个达阈值 partial 后即刻推出(比 llm 档早 ~2s,预合成窗口更宽)。 */
 export function noteFillerPartialForPregen(partial: string, onHint: (text: string) => void): void {
   // 每次 partial 同步读一次配置:文件很小、partial 频率低(每秒几条),换来开关即时生效。
   const cfg = loadServerConfig();
