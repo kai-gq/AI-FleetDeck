@@ -666,6 +666,17 @@ describe('buildCompanionSystemPrompt — 三态边界与派活路径(改①)', (
     expect(prompt).toContain('零对象指令');
     expect(prompt).toContain('立即用一句最短反问');
     expect(prompt).toContain('不猜、不穷举可能性');
+    // HC-B1 无指认对象必须澄清(#1081/#1092 裸「收到。」):对象对不上号时不许空 ack 蒙混
+    expect(prompt).toContain('对不上号');
+    expect(prompt).toContain('不许用「收到。」「好。」这类空应声蒙混');
+    expect(prompt).toContain('零动作的空 ack 最误导');
+  });
+
+  it('会话记忆如实(H6-2 防编造):「刚才说到哪了」只依据真实素材,无素材如实说没带上', () => {
+    const prompt = buildCompanionSystemPrompt(base());
+    expect(prompt).toContain('【会话记忆如实】');
+    expect(prompt).toContain('如实说这轮没带上、请老板起个头');
+    expect(prompt).toContain('绝不编造「最近话题」或没发生过的约定');
   });
 
   it('系统事件定界标记为不可口述的 ⟦系统事件⟧,且明示语音转写不会产生它(任务35 协议安全化)', () => {
