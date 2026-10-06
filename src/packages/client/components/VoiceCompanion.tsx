@@ -34,6 +34,8 @@ import { createUserActivityReporter, type UserActivityReporterHandle } from '../
 import { preloadTtsAudio } from '../voice/ttsPreload';
 import { loadBroadcastGatesSettings, toGatesConfig } from '../voice/proactiveGatesSettings';
 import { subscribeTaskReceipt } from '../voice/taskReceiptBus';
+import { store } from '../store';
+import { executeOpenCommand, matchOpenCommand } from '../voice/openCommand';
 import '../styles/components/voice-companion.scss';
 
 const LEADER_KEY = 'tide:voice-companion:leader';
@@ -276,15 +278,32 @@ export function VoiceCompanion({ className }: { className?: string }) {
     }
   }, [pushEntry, runStreamSafely, errorTextFor]);
 
+  /**
+   * 「打开X」本地直达(voice/openCommand):语音终稿在进大脑之前先过固定触发。
+   * 命中 → 直接打开面板 + 出声确认,不进 queueRef(不送大脑);未命中 → false,原链路。
+   */
+  const tryOpenCommand = useCallback(
+    (text: string): boolean => {
+      const cmd = matchOpenCommand(text, store.getState().agents.values());
+      if (!cmd) return false;
+      const ack = executeOpenCommand(cmd);
+      pushEntry('assistant', ack);
+      enqueueSpeech(ack, speechLangFor(ack));
+      return true;
+    },
+    [pushEntry, enqueueSpeech],
+  );
+
   const submitText = useCallback(
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       pushEntry('user', trimmed);
+      if (tryOpenCommand(trimmed)) return; // 「打开X」本地直达:不进大脑
       queueRef.current.push(trimmed);
       void drainQueue();
     },
-    [pushEntry, drainQueue],
+    [pushEntry, tryOpenCommand, drainQueue],
   );
 
   // ---- 聆听管线 ----
@@ -303,6 +322,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       // 手动提交回放的同一文本已上屏过,不再重复 push(P11)
       if (!meta.fromPending) pushEntry('user', text);
       if (!meta.submit) return; // 仅上屏:等用户点「提交」或说结束词
+      if (tryOpenCommand(text)) return; // 「打开X」本地直达:不进大脑
       queueRef.current.push(text);
       void drainQueue();
     },

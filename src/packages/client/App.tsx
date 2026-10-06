@@ -778,6 +778,11 @@ function AppContent() {
       bossSpawnModal.open();
     };
 
+    // 语音「打开指挥官」直达(voice/openCommand):与键盘 Tab 同语义,直接开
+    const handleOpenCommanderView = () => {
+      commanderModal.open();
+    };
+
     window.addEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
     window.addEventListener('tide:open-boss-spawn-modal', handleOpenBossSpawnModal as EventListener);
     window.addEventListener('tide:building-action', handleBuildingAction as EventListener);
@@ -785,6 +790,7 @@ function AppContent() {
     window.addEventListener('tide:building-create', handleBuildingCreate as EventListener);
     window.addEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
     window.addEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
+    window.addEventListener('tide:open-commander', handleOpenCommanderView);
     return () => {
       window.removeEventListener('tide:open-spawn-modal', handleOpenSpawnModal as EventListener);
       window.removeEventListener('tide:open-boss-spawn-modal', handleOpenBossSpawnModal as EventListener);
@@ -793,8 +799,9 @@ function AppContent() {
       window.removeEventListener('tide:building-create', handleBuildingCreate as EventListener);
       window.removeEventListener('tide:open-iframe-modal', handleOpenIframeModal as EventListener);
       window.removeEventListener('tide:open-agent-edit', handleOpenAgentEdit as EventListener);
+      window.removeEventListener('tide:open-commander', handleOpenCommanderView);
     };
-  }, [spawnModal, bossSpawnModal, buildingModal, agentEditModal]);
+  }, [spawnModal, bossSpawnModal, buildingModal, agentEditModal, commanderModal]);
 
   // Check if in drawing mode
   const isDrawingMode = activeTool === 'rectangle' || activeTool === 'circle';
