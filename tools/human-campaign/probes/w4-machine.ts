@@ -396,7 +396,7 @@ const hc40: ProbeDef = {
     '--stage=verify：断 agent 存活 + isDetached!=true + 同 taskId reported/closed 落盘 + 无重复拆解',
     '--stage=cleanup：stop agent + 删状态',
   ],
-  assertionDocs: ['prep：delegated 行 + 状态落盘 + 当时未 reported', 'verify：agent 存活且未被丢弃', 'verify：任务完成后 reported/closed 出现（输出重接）', 'cleanup：状态删除'],
+  assertionDocs: ['prep：delegated 行 + 状态落盘 + 当时未 reported', 'verify：agent 存活且未被丢弃', 'verify：任务完成后 reported/closed 出现（机器层同 taskId + 消息层到达）', 'cleanup：状态删除'],
   prereqIds: ['serverReachable', 'companionAvailable', 'campaignEnv'],
   run: async (ctx) => {
     const stage = ctx.options.stage;
@@ -460,10 +460,19 @@ const hc40: ProbeDef = {
         Math.max(ctx.options.reportWaitMs, 300_000),
       );
       const reportedRow = done?.[0];
-      assertions.push(assertThat('hc40-reconnected', '任务跨重启完成（reported/closed 落盘=输出重接）', !!reportedRow,
-        '≥1', reportedRow ? `phase=${bodyString(reportedRow, 'phase')} id=${reportedRow.id}` : '超时未见（输出未重接？）',
+      // 消息层重接（与 taskId 无关）：taskId/decisionId 仅派活进程内可达（任务 02 登记限制），
+      // 跨重启行可能断链但仍到达——两层分开断言，避免「断链」被误读成「消息未重接」。
+      const windowRows = delegationRows(ctx, st.startedAt, 0);
+      const msgFlow = windowRows.filter((e) => ['reported', 'closed'].includes(bodyString(e, 'phase') ?? '')
+        && (bodyString(e, 'fromAgentId') === st.subAgentId || bodyString(e, 'toAgentId') === st.subAgentId));
+      assertions.push(assertThat('hc40-reconnected', '任务跨重启完成（reported/closed 落盘=输出重接，同 taskId）', !!reportedRow,
+        '≥1', reportedRow ? `phase=${bodyString(reportedRow, 'phase')} id=${reportedRow.id}`
+          : msgFlow.length > 0 ? `taskId 匹配 0；消息层到达 ${msgFlow.length} 行（taskId 断链，#${msgFlow[0]!.id}）` : '超时未见（输出未重接？）',
         reportedRow ? [entryEvidence(reportedRow, ['phase', 'status', 'taskId', 'summary'], 120)] : []));
-      const allForTask = delegationRows(ctx, st.startedAt, 0).filter((e) => e.taskId === st.taskId);
+      assertions.push(assertThat('hc40-msg-flow', '消息层重接（窗口内该下属 reported/closed 行，taskId 无关）', msgFlow.length >= 1,
+        '≥1', msgFlow.length >= 1 ? `n=${msgFlow.length}（taskId 匹配 ${reportedRow ? 1 : 0}）` : '0',
+        msgFlow.length > 0 ? [entryEvidence(msgFlow[msgFlow.length - 1]!, ['phase', 'status', 'fromAgentId', 'toAgentId'], 100)] : []));
+      const allForTask = windowRows.filter((e) => e.taskId === st.taskId);
       const delegatedCount = allForTask.filter((e) => bodyString(e, 'phase') === 'delegated').length;
       assertions.push(assertThat('hc40-no-dup', '无重复拆解（同 taskId delegated 行 =1）', delegatedCount === 1, '1', String(delegatedCount)));
       const procRows = queryRows(ctx, { category: 'system', source: 'process', since: st.startedAt }, 0);
@@ -473,7 +482,7 @@ const hc40: ProbeDef = {
         notes: [
           `时间线：prep 派活=${new Date(st.startedAt).toISOString()}；prep 结束=${new Date(st.prepDoneAt).toISOString()}；reported=${reportedRow ? new Date(reportedRow.ts).toISOString() : '—'}（prep 后 ${deltaMs !== undefined ? (deltaMs / 1000).toFixed(1) + 's' : '—'}）`,
           `process 行（重启面）：${procRows.length} 条；phases=${procRows.map((e) => String(e.body?.phase ?? '?')).slice(0, 8).join(',') || '（无）'}`,
-          '口径说明：reported 在重启后的 verify 阶段观测；若用户在 prep 后 >150s 才重启，任务可能先于重启完成（时间线留存备核）。',
+          '口径说明：reported 在重启后的 verify 阶段观测；hc40-reconnected=机器层关联（同 taskId，taskId 仅派活进程内可达·任务 02 登记限制），hc40-msg-flow=消息层到达（与 taskId 无关）；若用户在 prep 后 >150s 才重启，任务可能先于重启完成（时间线留存备核）。',
         ],
         observed: observedSummary(allForTask),
       };
