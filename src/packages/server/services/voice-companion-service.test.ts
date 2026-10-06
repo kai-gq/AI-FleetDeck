@@ -309,6 +309,16 @@ describe('resolveDispatchRoute — 全走 Boss 不变式(改①)', () => {
 });
 
 describe('applyMemoryOps', () => {
+  /** 直插既有笔记(绕过 add 的时间戳/上限逻辑,便于构造匹配矩阵)。 */
+  function seedNotes(entries: Array<{ id: string; text: string }>): CompanionMemory {
+    return {
+      summary: '',
+      notes: entries.map((e, i) => ({ ...e, createdAt: i + 1, source: 'user' as const })),
+      updatedAt: 0,
+      droppedCount: 0,
+    };
+  }
+
   it('adds a note and dedupes identical text', () => {
     const { memory, applied } = applyMemoryOps(emptyMemory(), [
       { op: 'add', text: '叫我老板' },
@@ -370,7 +380,8 @@ describe('applyMemoryOps', () => {
       { op: 'add', applied: true, droppedCount: 0 },
       { op: 'add', applied: false },
       { op: 'add', applied: false },
-      { op: 'remove', applied: false },
+      // A13/H6-1:remove 明细扩展 id/reason(可选字段);add/setSummary 明细逐字不变。
+      { op: 'remove', applied: false, id: 'nope', reason: 'not_found' },
       { op: 'setSummary', applied: true },
     ]);
   });
@@ -383,6 +394,121 @@ describe('applyMemoryOps', () => {
     expect(details).toEqual([{ op: 'add', applied: true, droppedCount: 1 }]);
     expect(out.droppedCount).toBe(1);
     expect(out.notes).toHaveLength(2);
+  });
+
+  // ==========================================================================
+  // A13/H6-1 · remove.id 未命中时的文本兜底
+  //
+  // 事故形态:模型把笔记**文本**填进 remove.id → 按 id 严格过滤查无 → 静默不删,
+  // 而同回合回话已说「已经撤了」= 假成功。兜底只在 id 未命中时生效,且宁缺毋滥
+  // (仅唯一命中才删;多命中/0 命中都不删,并在 details 里给出 reason)。
+  // ==========================================================================
+
+  it('A13-1 id 精确命中 → 删,matchedBy=id(原路径行为不变)', () => {
+    const memory = seedNotes([{ id: 'm1', text: '喜好A' }, { id: 'm2', text: '喜好B' }]);
+    const { memory: out, applied, details } = applyMemoryOps(memory, [{ op: 'remove', id: 'm1' }], 40, 2000);
+    expect(applied).toBe(1);
+    expect(out.notes.map((n) => n.id)).toEqual(['m2']);
+    expect(details).toEqual([{ op: 'remove', applied: true, id: 'm1', matchedBy: 'id' }]);
+  });
+
+  it('A13-2 id 未命中 + 文本精确唯一(归一化:空白折叠/大小写)→ 删,matchedBy=text', () => {
+    const memory = seedNotes([{ id: 'm1', text: '老板喜欢简洁汇报' }, { id: 'm2', text: '以后用中文' }]);
+    const { memory: out, applied, details } = applyMemoryOps(
+      memory,
+      [{ op: 'remove', id: '  老板喜欢简洁汇报  ' }],
+      40,
+      2000,
+    );
+    expect(applied).toBe(1);
+    expect(out.notes.map((n) => n.id)).toEqual(['m2']);
+    expect(details).toEqual([{ op: 'remove', applied: true, id: '  老板喜欢简洁汇报  ', matchedBy: 'text' }]);
+
+    const latin = seedNotes([{ id: 'm1', text: 'Use JSON' }]);
+    const { applied: a2 } = applyMemoryOps(latin, [{ op: 'remove', id: 'use   json' }], 40, 2000);
+    expect(a2).toBe(1);
+  });
+
+  it('A13-3 id 未命中 + 双向包含唯一 → 删(两个方向都覆盖)', () => {
+    // 方向一:笔记文本包含该串(模型截取片段)
+    const a = seedNotes([{ id: 'm1', text: '老板要求汇报先说结论再展开' }, { id: 'm2', text: '无关条目' }]);
+    const r1 = applyMemoryOps(a, [{ op: 'remove', id: '先说结论' }], 40, 2000);
+    expect(r1.applied).toBe(1);
+    expect(r1.memory.notes.map((n) => n.id)).toEqual(['m2']);
+    expect(r1.details[0]).toMatchObject({ applied: true, matchedBy: 'text' });
+    // 方向二:该串包含笔记文本(模型带上了前后缀)
+    const b = seedNotes([{ id: 'm1', text: '先说结论' }, { id: 'm2', text: '无关条目' }]);
+    const r2 = applyMemoryOps(b, [{ op: 'remove', id: '就是提醒你一下,先说结论,别的没了' }], 40, 2000);
+    expect(r2.applied).toBe(1);
+    expect(r2.memory.notes.map((n) => n.id)).toEqual(['m2']);
+    expect(r2.details[0]).toMatchObject({ applied: true, matchedBy: 'text' });
+  });
+
+  it('A13-4 文本兜底 0 命中 → 不删,reason=not_found(原对象返回)', () => {
+    const memory = seedNotes([{ id: 'm1', text: '老板喜欢简洁' }]);
+    const { memory: out, applied, details } = applyMemoryOps(memory, [{ op: 'remove', id: '压根不存在的内容' }], 40, 2000);
+    expect(applied).toBe(0);
+    expect(out).toBe(memory);
+    expect(details).toEqual([{ op: 'remove', applied: false, id: '压根不存在的内容', reason: 'not_found' }]);
+  });
+
+  it('A13-5 文本多命中(精确重复 / 包含多义)→ 都不删,reason=ambiguous', () => {
+    // 两条完全同文 → 精确多命中
+    const dup = seedNotes([{ id: 'm1', text: '叫我老板' }, { id: 'm2', text: '叫我老板' }]);
+    const r1 = applyMemoryOps(dup, [{ op: 'remove', id: '叫我老板' }], 40, 2000);
+    expect(r1.applied).toBe(0);
+    expect(r1.memory.notes).toHaveLength(2);
+    expect(r1.details).toEqual([{ op: 'remove', applied: false, id: '叫我老板', reason: 'ambiguous' }]);
+    // 一个片段包含于多条 → 包含多命中
+    const loose = seedNotes([{ id: 'm1', text: '老板喜欢简洁汇报' }, { id: 'm2', text: '老板喜欢用中文' }]);
+    const r2 = applyMemoryOps(loose, [{ op: 'remove', id: '老板喜欢' }], 40, 2000);
+    expect(r2.applied).toBe(0);
+    expect(r2.memory.notes).toHaveLength(2);
+    expect(r2.details[0]).toMatchObject({ applied: false, reason: 'ambiguous' });
+  });
+
+  it('A13-6 空串/纯空白 id → 不触发兜底,不动任何笔记,reason=empty_id', () => {
+    const memory = seedNotes([{ id: 'm1', text: '老板喜欢简洁' }]);
+    for (const id of ['', '   ']) {
+      const { memory: out, applied, details } = applyMemoryOps(memory, [{ op: 'remove', id }], 40, 2000);
+      expect(applied).toBe(0);
+      expect(out).toBe(memory);
+      expect(details).toEqual([{ op: 'remove', applied: false, id, reason: 'empty_id' }]);
+    }
+  });
+
+  it('A13-7 极短 id(<2 字符)只做精确匹配,不做包含', () => {
+    // 'a' 是 'a计划' 的子串,但短串禁用包含 → 不删
+    const memory = seedNotes([{ id: 'm1', text: 'a计划' }]);
+    const r1 = applyMemoryOps(memory, [{ op: 'remove', id: 'a' }], 40, 2000);
+    expect(r1.applied).toBe(0);
+    expect(r1.memory.notes).toHaveLength(1);
+    expect(r1.details[0]).toMatchObject({ applied: false, reason: 'not_found' });
+    // 精确匹配(归一化后相等)仍生效
+    const exact = seedNotes([{ id: 'm1', text: 'A' }]);
+    const r2 = applyMemoryOps(exact, [{ op: 'remove', id: 'a' }], 40, 2000);
+    expect(r2.applied).toBe(1);
+    expect(r2.details[0]).toMatchObject({ applied: true, matchedBy: 'text' });
+  });
+
+  it('A13-8 id 精确命中时绝不触发文本匹配(不误删同文本的其它条)', () => {
+    const memory = seedNotes([{ id: 'alpha', text: '甲' }, { id: 'beta', text: 'alpha' }]);
+    const { memory: out, applied, details } = applyMemoryOps(memory, [{ op: 'remove', id: 'alpha' }], 40, 2000);
+    expect(applied).toBe(1);
+    expect(out.notes.map((n) => n.id)).toEqual(['beta']); // 删的是 id=alpha,不是 text=alpha 的 beta
+    expect(details[0]).toMatchObject({ applied: true, matchedBy: 'id' });
+  });
+
+  it('A13-9 整行「- [id] 文本」:[] 内是原 id → 按 id 删;[] 不是 id → 用剩余文本兜底', () => {
+    const memory = seedNotes([{ id: 'm1', text: '老板喜欢简洁' }, { id: 'm2', text: '以后用中文' }]);
+    const r1 = applyMemoryOps(memory, [{ op: 'remove', id: '- [m1] 老板喜欢简洁' }], 40, 2000);
+    expect(r1.applied).toBe(1);
+    expect(r1.memory.notes.map((n) => n.id)).toEqual(['m2']);
+    expect(r1.details[0]).toMatchObject({ applied: true, matchedBy: 'id' });
+    const r2 = applyMemoryOps(memory, [{ op: 'remove', id: '- [已失效的id] 以后用中文' }], 40, 2000);
+    expect(r2.applied).toBe(1);
+    expect(r2.memory.notes.map((n) => n.id)).toEqual(['m1']);
+    expect(r2.details[0]).toMatchObject({ applied: true, matchedBy: 'text' });
   });
 });
 

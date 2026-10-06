@@ -303,6 +303,12 @@ export interface MemoryOpDetail {
   applied: boolean;
   /** add 生效时，为腾位置裁剪掉的旧笔记条数（计入 droppedCount） */
   droppedCount?: number;
+  /** remove：模型给出的 remove.id 原值（未命中时告警/复盘定位用,如 A13）。 */
+  id?: string;
+  /** remove 生效时的命中方式：id=按 id 精确命中；text=id 未命中后按文本兜底命中。 */
+  matchedBy?: 'id' | 'text';
+  /** remove 未生效原因：empty_id=id 为空/纯空白；not_found=id 与文本兜底均未命中；ambiguous=文本多命中（宁缺毋滥不删）。 */
+  reason?: 'empty_id' | 'not_found' | 'ambiguous';
 }
 
 export interface MemoryOpsLogFields {

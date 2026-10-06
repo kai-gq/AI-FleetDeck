@@ -717,6 +717,63 @@ describe('G2 记忆与人设', () => {
       warnSpy.mockRestore();
     }
   });
+
+  // ---- A13/H6-1:remove.id 误填笔记文本(事故形态)与未命中的如实可见 ----
+
+  it('G2-4(A13/H6-1) remove.id 填了笔记文本:按文本兜底删掉,不再假成功', async () => {
+    writeState({
+      sessionId: 'sess-mem', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+      memory: {
+        summary: '',
+        notes: [
+          { id: 'mkeep', text: '以后用中文', createdAt: 1, source: 'user' },
+          { id: 'mtarget', text: '老板喜欢简洁汇报', createdAt: 2, source: 'user' },
+        ],
+        updatedAt: 1, droppedCount: 0,
+      },
+    });
+    const p = startProcess('把喜欢简洁那条忘了吧');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'general_response',
+      responseToUser: '好,撤了。',
+      memoryOps: [{ op: 'remove', id: '老板喜欢简洁汇报' }], // 模型把文本当 id(事故形态)
+    }));
+
+    const r = await p;
+    expect(r.response).toBe('好,撤了。');
+    expect(r.memoryOpsApplied).toBe(1);
+    expect(readStateFile().memory.notes.map((n) => n.text)).toEqual(['以后用中文']);
+  });
+
+  it('G2-5(A13/H6-1) remove 未命中任何笔记 → 不静默:logger.warn 如实告警且笔记不动', async () => {
+    const warnSpy = vi.spyOn(logger.server, 'warn');
+    try {
+      writeState({
+        sessionId: 'sess-mem', sessionStartedAt: Date.now(), turns: 1, personaKey: 'doubao',
+        memory: {
+          summary: '',
+          notes: [{ id: 'mkeep', text: '以后用中文', createdAt: 1, source: 'user' }],
+          updatedAt: 1, droppedCount: 0,
+        },
+      });
+      const p = startProcess('忘掉那条压根不存在的');
+      const call = await waitSpawn(1);
+      await completeWith(call.child, contractText({
+        action: 'general_response',
+        responseToUser: '好,撤了。',
+        memoryOps: [{ op: 'remove', id: '压根不存在的条目' }],
+      }));
+
+      const r = await p;
+      expect(r.memoryOpsApplied).toBe(0);
+      expect(readStateFile().memory.notes.map((n) => n.text)).toEqual(['以后用中文']);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('记忆删除未命中'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('id=压根不存在的条目'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 // ============================================================================
