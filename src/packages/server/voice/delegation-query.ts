@@ -485,6 +485,14 @@ export function buildCancelNoneResponse(): string {
   return '现在没有可以撤回的在办任务。';
 }
 
+/**
+ * 撤回窗口等待超时话术（B4）：用户刚交办、主管回合还在拆解（dispatched→delegated 窗口），
+ * 此刻没有任何候选可撤 —— 如实说「还没派下来」，不说「没有在办任务」（与事实不符）。
+ */
+export function buildCancelPendingDispatchResponse(): string {
+  return '刚交给主管的那条还在安排,没落到人头上——这会儿撤不着。过几秒再喊一次「撤回」就行。';
+}
+
 // ─── ⑧ 评价自然语言入口（任务16 收官：承接任务11 回写 API） ───
 
 export type RatingPolarity = 'satisfied' | 'unsatisfied' | 'unknown';

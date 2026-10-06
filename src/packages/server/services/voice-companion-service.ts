@@ -125,15 +125,20 @@ import {
   pickRecentDelegations,
   planQueryRoute,
   // 任务16·⑬ 撤回/评价纯逻辑(目标解析/反问消费/评价极性/话术)
+  buildCancelClarifyQuestion,
   buildCancelNoneResponse,
+  buildCancelPendingDispatchResponse,
   buildNoRatingTargetResponse,
   buildRatingConfirmResponse,
   buildRatingTargetQuestion,
   consumeCancelClarifyAnswer,
+  isActionableCancelState,
   planCancelAction,
   parseRatingPolarity,
   pickLatestUnratedCompletion,
+  rankCancelCandidates,
   type CancelCandidate,
+  type CancelPlan,
   type QueryChainLogInput,
   type SubordinateQueryEntry,
 } from '../voice/delegation-query.js';
@@ -1044,6 +1049,42 @@ export function resolveDispatchRoute<T extends DispatchTargetAgent>(
 export const CANCEL_CLARIFY_TTL_MS = 10 * 60_000;
 /** 委派史兜底候选上限(仅做 done 拒撤/重启残留判定,不深追溯)。 */
 export const CANCEL_HISTORY_MAX = 20;
+/** B4 撤回窗口等待:轮询间隔。 */
+export const CANCEL_WAIT_POLL_MS = 500;
+/** B4 撤回窗口等待:默认上限(env TC_VOICE_CANCEL_WAIT_MS,0 = 关)。 */
+export const CANCEL_WAIT_DEFAULT_MS = 10_000;
+
+/**
+ * B4/B5：最近一次「交给主管」的派活缓存（vcs 派发成功后写入；{@link LAST_BOSS_DISPATCH_TTL_MS} 内有效）。
+ * - B4：撤回落在 dispatched→delegated 的秒级窗口（主管回合还没拆解完，无候选）时，
+ *   借此识别「刚交办」并做有界等待（{@link waitFreshDispatchCandidate}）；
+ * - B5：主管的委派决策漏填 taskCard.projectId 时，由此回填路由侧项目（与 14·B 别名表同 id 空间）。
+ */
+export interface LastBossDispatch {
+  bossId: string;
+  at: number;
+  projectId?: string;
+  taskId?: string;
+}
+export const LAST_BOSS_DISPATCH_TTL_MS = 120_000;
+let lastBossDispatch: LastBossDispatch | null = null;
+
+/** 记录一次对主管的派发（vcs 派发成功点调用，供 B4/B5 消费）。 */
+export function recordLastBossDispatch(entry: LastBossDispatch): void {
+  lastBossDispatch = entry;
+}
+
+/** 取 TTL 内最近一次对主管的派发（过期返回 null；不主动清理，下次写入覆盖）。 */
+export function getLastBossDispatch(): LastBossDispatch | null {
+  if (!lastBossDispatch) return null;
+  if (Date.now() - lastBossDispatch.at > LAST_BOSS_DISPATCH_TTL_MS) return null;
+  return lastBossDispatch;
+}
+
+/** 清空派发缓存（测试隔离）。 */
+export function resetLastBossDispatchForTests(): void {
+  lastBossDispatch = null;
+}
 
 interface PendingCancelClarification {
   question: string;
@@ -1126,6 +1167,56 @@ async function collectCancelCandidates(): Promise<{ live: CancelCandidate[]; his
     if (history.length >= CANCEL_HISTORY_MAX) break;
   }
   return { live, history };
+}
+
+/** B4 等待预算:env TC_VOICE_CANCEL_WAIT_MS,默认 {@link CANCEL_WAIT_DEFAULT_MS};0 = 关闭(B4 整段回退旧行为)。 */
+function cancelWaitBudgetMs(): number {
+  const raw = Number(process.env.TC_VOICE_CANCEL_WAIT_MS ?? String(CANCEL_WAIT_DEFAULT_MS));
+  return Number.isFinite(raw) ? Math.max(0, raw) : CANCEL_WAIT_DEFAULT_MS;
+}
+
+/**
+ * B4：撤回窗口等待——「刚交给主管、委派还没落地」时轮询新候选（每 {@link CANCEL_WAIT_POLL_MS}，
+ * 有界 TC_VOICE_CANCEL_WAIT_MS，默认 {@link CANCEL_WAIT_DEFAULT_MS}）。只认快照后新出现、
+ * 且属于该主管(bossId)的可撤候选，并按用户原话匹配（复用 rankCancelCandidates 词面逻辑）：
+ * 唯一 → match；多个 → ask；超时/环境关闭(0)/信号中断 → null（信号中断抛 abort 语义）。
+ * 新候选都不匹配原话时继续等（主管这回合可能先安排了别的活）。
+ */
+async function waitFreshDispatchCandidate(
+  text: string,
+  initialLive: readonly CancelCandidate[],
+  initialHistory: readonly CancelCandidate[],
+  dispatch: LastBossDispatch,
+  signal?: AbortSignal,
+): Promise<CancelPlan | null> {
+  const waitMs = cancelWaitBudgetMs();
+  if (waitMs <= 0) return null;
+  const initialIds = new Set(
+    [...initialLive, ...initialHistory]
+      .map((c) => c.decisionId)
+      .filter((id): id is string => !!id),
+  );
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, CANCEL_WAIT_POLL_MS));
+    if (signal?.aborted) throw new VoiceCompanionAbortedError();
+    const { live, history } = await collectCancelCandidates();
+    const fresh = [...live, ...history].filter(
+      (c) =>
+        c.bossId === dispatch.bossId &&
+        !!c.decisionId &&
+        !initialIds.has(c.decisionId) &&
+        isActionableCancelState(c.state),
+    );
+    if (fresh.length === 0) continue;
+    const ranked = rankCancelCandidates(text, fresh);
+    if (ranked.length === 1) return { kind: 'match', candidate: ranked[0] };
+    if (ranked.length > 1) {
+      return { kind: 'ask', question: buildCancelClarifyQuestion(ranked), candidates: ranked };
+    }
+    // ranked 为空：新候选与用户原话对不上 → 继续等（见函数注释）
+  }
+  return null;
 }
 
 /** 撤回结论 → 确定性播报话术(done 拒撤/重复撤回/未送达都如实说,不硬造成功)。 */
@@ -3129,6 +3220,16 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         taskId,
         sessionId: state.sessionId ?? undefined,
       });
+      // HC-B4/B5：记最近一次「交给主管」的派活（TTL 120s）——B4 撤回窗口等待 +
+      // B5 委派决策 taskCard.projectId 回填共用；只在目标确实是主管时记（普通 agent 不会产出委派决策）。
+      if (isBossLikeAgent(target)) {
+        recordLastBossDispatch({
+          bossId: target.id,
+          at: Date.now(),
+          ...(route.projectRouting?.projectId ? { projectId: route.projectRouting.projectId } : {}),
+          taskId,
+        });
+      }
       // 任务14·⑪ ⑪ 观测（仅 delegate_to_boss）：登记三层结果/最终 Boss/是否回落首选；
       // 命中携带 projectId → 记会话最近提及（消歧② 输入）。
       if (contract.action === 'delegate_to_boss' && isProjectRoutingEnabled()) {
@@ -3291,7 +3392,19 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       const cancelStarted = Date.now();
       speech.discardHop1();
       const { live, history } = await collectCancelCandidates();
-      const plan = planCancelAction({ text, live, history });
+      let plan = planCancelAction({ text, live, history });
+      // HC-B4：撤回落在「已交给主管、主管回合还没拆解完」的窗口(dispatched→delegated ~秒级)时
+      // 此刻没有任何候选——有界等待主管的委派落地再撤；超时不再说「没有在办任务」(与事实不符)。
+      let waitedOnDispatch = false;
+      if (plan.kind === 'none') {
+        const dispatch = getLastBossDispatch();
+        // env 关闭(0)时整段回退旧行为:不等待、仍播旧话术（0 = B4 功能关）。
+        if (dispatch && cancelWaitBudgetMs() > 0) {
+          waitedOnDispatch = true;
+          const fresh = await waitFreshDispatchCandidate(text, live, history, dispatch, opts.signal);
+          if (fresh) plan = fresh;
+        }
+      }
       if (plan.kind === 'ask') {
         pendingCancel = {
           question: plan.question,
@@ -3313,7 +3426,18 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         return finish(result);
       }
       if (plan.kind === 'none') {
-        result.response = buildCancelNoneResponse();
+        result.response = waitedOnDispatch ? buildCancelPendingDispatchResponse() : buildCancelNoneResponse();
+        if (waitedOnDispatch) {
+          logDelegation({
+            phase: 'cancelled',
+            channel: 'voice-companion',
+            status: 'pending-dispatch',
+            initiator: 'user',
+            reason: truncate(text, 80),
+            taskId,
+            sessionId: state.sessionId ?? undefined,
+          });
+        }
         result.secondHopMs = Date.now() - cancelStarted;
         return finish(result);
       }

@@ -224,8 +224,14 @@ beforeEach(() => {
   sendCommandMock.mockImplementation(async () => {});
   fs.rmSync(stateFilePath, { force: true });
   fs.rmSync(delegationHistoryPath, { force: true });
+  // 数据层 safeReadJsonSync 有 .bak 兜底(主文件缺失时从备份恢复并写回主文件)——
+  // 沙箱隔离必须连备份一起清,否则上一用例的委派史会在下一用例「起死回生」
+  // （B4 窗口测试正是在此翻红:test ① 的 d-fresh 经 .bak 复活成 live 候选）。
+  fs.rmSync(`${delegationHistoryPath}.bak`, { force: true });
+  fs.rmSync(`${delegationHistoryPath}.tmp`, { force: true });
   service.resetProjectRoutingSession();
   service.resetCancelClarificationSession();
+  service.resetLastBossDispatchForTests(); // HC-B4：模块级派发缓存跨用例复位
   handler.resetBossDelegationStateForTests(); // 追踪/回执/配额账本全复位
   bossService.init();
   writeConfig();
@@ -279,6 +285,7 @@ function startProcess(text: string, opts: VoiceProcessOptions = {}): Promise<Voi
 interface TestContract {
   action: string;
   responseToUser?: string;
+  messageToAgent?: string;
 }
 
 function contractText(c: TestContract): string {
@@ -287,7 +294,7 @@ function contractText(c: TestContract): string {
     responseToUser: c.responseToUser ?? '',
     targetAgentId: null,
     targetAgentName: null,
-    messageToAgent: '',
+    messageToAgent: c.messageToAgent ?? '',
     delivery: 'queue',
     query: '',
     bolbaTask: '',
@@ -650,5 +657,84 @@ describe('任务16·⑬ rate_delegation 分支（承接任务11 评价回写）'
     expect(r.response).toBe('最近没有已完成、还没评价的任务。');
     expect(lastDecisionOnDisk('d-rated')?.ratedAt).toBe(4_500); // 未被覆盖
     expect(lastDecisionOnDisk('d-failed')?.userRating).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// HC-B4：撤回窗口等待（「刚交给主管、委派还没落地」的秒级空档）
+// ============================================================================
+
+describe('HC-B4：撤回窗口等待（dispatched→delegated 空档）', () => {
+  /** 交办回合：delegate_to_boss 派发给主管（记录 lastBossDispatch = B4 窗口识别依据）。 */
+  async function delegateRound(n: number, message: string): Promise<void> {
+    const p = startProcess(message);
+    const call = await waitSpawn(n);
+    await completeWith(call.child, contractText({ action: 'delegate_to_boss', responseToUser: '好。', messageToAgent: message }));
+    const r = await p;
+    expect(r.action).toBe('delegate_to_boss');
+    sendCommandMock.mockClear(); // 派发给主管的调用不计入撤回轮断言
+  }
+
+  it('窗口内主管拆解落地 → 有界等来新委派并正常撤回（替代「没有在办任务」）', async () => {
+    vi.stubEnv('TC_VOICE_CANCEL_WAIT_MS', '5000');
+    await delegateRound(1, '让团队把调研竞品做一下');
+    expect(service.getLastBossDispatch()).toMatchObject({ bossId: 'b1' });
+
+    const started = Date.now();
+    const p2 = startProcess('把调研竞品撤了');
+    const c2 = await waitSpawn(2);
+    await completeWith(c2.child, contractText({ action: 'cancel_delegation', responseToUser: '好。' }));
+    // 此刻主管还没拆解完（无候选）→ 300ms 后委派落地（seedHistory+seedLive 同真实「决策产出」形态）
+    await new Promise((r) => setTimeout(r, 300));
+    seedHistory([decision({ id: 'd-fresh', userCommand: '调研竞品', taskCard: taskCard({ objective: '调研竞品', status: 'running' }) })]);
+    seedLive('a-mei', { decisionId: 'd-fresh', taskId: 't-fresh', card: taskCard({ objective: '调研竞品', status: 'running' }) });
+    const r2 = await p2;
+
+    expect(r2.action).toBe('cancel_delegation');
+    expect(r2.response).toBe('好,已撤回「小美」的「调研竞品」。已通知小美停手。');
+    expect(r2.targetAgent).toEqual({ id: 'a-mei', name: '小美' });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(450); // 判别性：走了有界等待（首次轮询 500ms 起跳）
+    expect(sendCommandMock.mock.calls.map((c) => c[0])).toEqual(['a-mei']);
+    expect(handler.activeDelegations.has('a-mei')).toBe(false);
+    expect(lastDecisionOnDisk('d-fresh')?.taskCard?.status).toBe('cancelled');
+    const audit = cancelAuditRows('a-mei').filter((row) => row.message === '调研竞品');
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ status: 'cancelled-running', notified: true });
+  });
+
+  it('窗口内始终无落地 → 超时如实说「还在安排」+ pending-dispatch 审计，不硬说没有在办', async () => {
+    vi.stubEnv('TC_VOICE_CANCEL_WAIT_MS', '600');
+    await delegateRound(1, '让团队把周报整理一下');
+
+    const p2 = startProcess('把周报撤了');
+    const c2 = await waitSpawn(2);
+    await completeWith(c2.child, contractText({ action: 'cancel_delegation', responseToUser: '好。' }));
+    const r2 = await p2;
+
+    expect(r2.action).toBe('cancel_delegation');
+    expect(r2.response).toBe('刚交给主管的那条还在安排,没落到人头上——这会儿撤不着。过几秒再喊一次「撤回」就行。');
+    expect(r2.targetAgent).toBeUndefined();
+    expect(sendCommandMock).not.toHaveBeenCalled();
+    const audit = delegationRows().filter((body) => body.phase === 'cancelled' && body.status === 'pending-dispatch');
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ initiator: 'user', reason: '把周报撤了', channel: 'voice-companion' });
+  });
+
+  it('等待开关关闭（TC_VOICE_CANCEL_WAIT_MS=0）→ 不等待、立即旧话术，零审计', async () => {
+    vi.stubEnv('TC_VOICE_CANCEL_WAIT_MS', '0');
+    await delegateRound(1, '让团队把竞品分析做一下');
+
+    const started = Date.now();
+    const pendingBefore = delegationRows().filter((body) => body.status === 'pending-dispatch').length;
+    const p2 = startProcess('把竞品分析撤了');
+    const c2 = await waitSpawn(2);
+    await completeWith(c2.child, contractText({ action: 'cancel_delegation', responseToUser: '好。' }));
+    const r2 = await p2;
+
+    expect(r2.response).toBe('现在没有可以撤回的在办任务。'); // 0 = 整段回退旧行为
+    expect(Date.now() - started).toBeLessThan(450);
+    // system_log 跨用例累计（超时用例已留过 pending-dispatch 行）→ 按「无新增」断言
+    expect(delegationRows().filter((body) => body.status === 'pending-dispatch')).toHaveLength(pendingBefore);
+    expect(sendCommandMock).not.toHaveBeenCalled();
   });
 });
