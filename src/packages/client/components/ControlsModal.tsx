@@ -456,6 +456,50 @@ export function ControlsModal({ isOpen, onClose }: ControlsModalProps) {
                   </div>
                 </div>
               )}
+
+              {/* 语音「打开X」直达指令(voice/openCommand.ts:命中即本地打开、不进大脑) */}
+              {(expandedContext === 'all' || expandedContext === 'global') && (
+                <div className="shortcuts-context-group">
+                  {expandedContext === 'all' && (
+                    <div className="shortcuts-context-header">
+                      <span className="shortcuts-context-label">
+                        {t('terminal:controlsModal.voiceOpenTitle', { defaultValue: 'Voice "Open" Commands' })}
+                      </span>
+                      <span className="shortcuts-context-description">
+                        {t('terminal:controlsModal.voiceOpenDescription', {
+                          defaultValue: 'Say "open <agent name>" to jump straight to that agent. Handled locally — no brain round-trip; anything unmatched is processed as usual.',
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  <div className="shortcuts-grid">
+                    <div className="shortcut-item">
+                      <div className="shortcut-item-info">
+                        <span className="shortcut-item-name">
+                          {t('terminal:controlsModal.voiceOpenAgentName', { defaultValue: 'Open <agent name>' })}
+                        </span>
+                        <span className="shortcut-item-description">
+                          {t('terminal:controlsModal.voiceOpenAgentDesc', {
+                            defaultValue: 'Opens that agent\'s terminal panel directly, e.g. 打开小陈 / 打开主管',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="shortcut-item">
+                      <div className="shortcut-item-info">
+                        <span className="shortcut-item-name">
+                          {t('terminal:controlsModal.voiceOpenCommanderName', { defaultValue: 'Open commander' })}
+                        </span>
+                        <span className="shortcut-item-description">
+                          {t('terminal:controlsModal.voiceOpenCommanderDesc', {
+                            defaultValue: 'Opens the commander view, e.g. 打开指挥官',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

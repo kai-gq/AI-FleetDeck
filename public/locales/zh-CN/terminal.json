@@ -3272,7 +3272,13 @@
   },
   "controlsModal": {
     "agentShortcutsTitle": "智能体终端快捷键",
-    "agentShortcutsDescription": "用于打开 guake 终端的各智能体全局快捷键"
+    "agentShortcutsDescription": "用于打开 guake 终端的各智能体全局快捷键",
+    "voiceOpenTitle": "语音直达指令",
+    "voiceOpenDescription": "说「打开+名字」直接打开对应面板,本地直达、不经过大脑;其余话照常进大脑。",
+    "voiceOpenAgentName": "打开 <智能体名>",
+    "voiceOpenAgentDesc": "例:打开小陈、打开主管——直接打开该智能体的终端面板",
+    "voiceOpenCommanderName": "打开指挥官",
+    "voiceOpenCommanderDesc": "打开指挥官视图"
   },
   "agentPanel": {
     "contextTitle": "上下文：已用 {{percent}}%（{{used}} / {{total}}）"
