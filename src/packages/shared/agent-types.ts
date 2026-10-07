@@ -526,6 +526,13 @@ export interface Agent {
   // untouched. Intended for chatty agents you still want to watch.
   soundsMuted?: boolean;
 
+  // 待岗（Standby）：用户手动的可逆停用态。置位时进程被停止、所有派发/命令
+  // 通路拒绝（见 server/services/agent-standby.ts），但档案、会话与层级都保留；
+  // 仅用户可从面板恢复。刻意做成布尔标志而非新 AgentStatus 值——status 是运行时
+  // 计算态（启动时会被重置），标志不会被 runtime sync 覆盖。
+  // 只存 true 或省略，不写 false（避免 agents.json 抖动）。
+  standby?: boolean;
+
   // Auto-collapse: when enabled, the agent's context is collapsed (/compact runs,
   // waiting for idle if busy) on a recurring cron schedule. Intended for unattended
   // agents (slack channels, log-supervising cronjobs) whose context grows indefinitely.
@@ -689,6 +696,7 @@ export interface SubordinateContext {
   contextPercent: number;            // Context usage percentage
   tokensUsed: number;
   profile?: AgentProfileCard;        // B1 人事档案卡（任务18·B1；旧调用方无此字段 → 按无卡处理）
+  standby?: boolean;                 // 待岗标志：不参与派活，缺人时由 Boss 向用户请示
 }
 
 // ============================================================================

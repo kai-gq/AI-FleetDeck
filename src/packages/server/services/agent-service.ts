@@ -305,6 +305,8 @@ export function initAgents(): void {
         grokModel: sanitizeGrokModel(stored.grokModel),
         piModel: sanitizePiModel(stored.piModel),
         piModelProvider: stored.piModelProvider,
+        // 待岗标志：仅接受严格 true（脏值/旧数据一律归 falsy），启动重置只碰 status 不碰它
+        standby: stored.standby === true ? true : undefined,
         // Boss field - fallback to checking class for backward compatibility
         isBoss: stored.isBoss ?? stored.class === 'boss',
       };

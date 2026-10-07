@@ -227,6 +227,54 @@ describe('agent-service context limits', () => {
     expect(updated?.trackingStatus).toBe('can-clear-context');
   });
 
+  describe('standby flag', () => {
+    it('restores a persisted standby flag on initAgents (status still resets to idle)', async () => {
+      mockLoadAgents.mockReturnValue([
+        { id: 'standby-1', name: 's1', class: 'default', status: 'working', cwd: '/tmp/project', provider: 'claude', standby: true },
+        { id: 'normal-1', name: 'n1', class: 'default', status: 'idle', cwd: '/tmp/project', provider: 'claude' },
+        { id: 'dirty-1', name: 'd1', class: 'default', status: 'idle', cwd: '/tmp/project', provider: 'claude', standby: 'yes' },
+      ]);
+
+      const agentService = await import('./agent-service.js');
+      agentService.initAgents();
+
+      expect(agentService.getAgent('standby-1')?.standby).toBe(true);
+      // 启动重置只碰 status，不碰待岗标志
+      expect(agentService.getAgent('standby-1')?.status).toBe('idle');
+      expect(agentService.getAgent('normal-1')?.standby).toBeUndefined();
+      // 脏值（非严格 true）按未待岗处理
+      expect(agentService.getAgent('dirty-1')?.standby).toBeUndefined();
+    });
+
+    it('emits a non-quiet updated event when the standby flag toggles', async () => {
+      mockLoadAgents.mockReturnValue([
+        { id: 'sb-2', name: 'sb2', class: 'default', status: 'idle', cwd: '/tmp/project', provider: 'claude' },
+      ]);
+
+      const agentService = await import('./agent-service.js');
+      agentService.initAgents();
+
+      // emit 传的是活引用——必须在本回调里当场取值，否则第二次 update 会改写第一次的记录
+      const events: Array<{ standby: boolean | undefined; quiet: boolean | undefined }> = [];
+      const unsubscribe = agentService.subscribe((event, agent, meta) => {
+        if (event === 'updated' && typeof agent !== 'string') {
+          events.push({ standby: agent.standby, quiet: meta?.quiet });
+        }
+      });
+
+      agentService.updateAgent('sb-2', { standby: true });
+      // 恢复走 standby: undefined —— JSON 落盘时该键直接消失
+      agentService.updateAgent('sb-2', { standby: undefined });
+      unsubscribe();
+
+      expect(events).toHaveLength(2);
+      expect(events[0].standby).toBe(true);
+      expect(events[0].quiet).toBe(false);
+      expect(events[1].standby).toBeUndefined();
+      expect(events[1].quiet).toBe(false);
+    });
+  });
+
   it('prefers Codex estimated_token_count from the TUI log over rollout last_token_usage', async () => {
     mockLoadAgents.mockReturnValue([]);
     mockReaddirSync.mockImplementation(((rootDir: string) => {

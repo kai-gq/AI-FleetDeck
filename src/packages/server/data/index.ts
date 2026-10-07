@@ -91,6 +91,8 @@ export interface StoredAgent {
   autoCollapseCron?: string;  // 5-field cron expression
   autoCollapseTz?: string;    // IANA timezone for the cron
   autoCollapsePrompt?: string; // Prompt sent to the agent after each scheduled collapse completes
+  // 待岗（用户手动的可逆停用）：只存 true 或省略（见 shared/agent-types.ts Agent.standby）
+  standby?: boolean;
   // Boss-specific fields
   isBoss?: boolean;           // True if this agent is a boss
   subordinateIds?: string[];  // Only for boss agents
@@ -230,6 +232,7 @@ function toStoredAgents(agents: Agent[]): StoredAgent[] {
     autoCollapseCron: agent.autoCollapseCron,
     autoCollapseTz: agent.autoCollapseTz,
     autoCollapsePrompt: agent.autoCollapsePrompt,
+    standby: agent.standby,
     isBoss: agent.isBoss,
     subordinateIds: agent.subordinateIds,
     bossId: agent.bossId,
