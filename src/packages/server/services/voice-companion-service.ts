@@ -3356,6 +3356,18 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
           ...(route.projectRouting?.projectId ? { projectId: route.projectRouting.projectId } : {}),
           taskId,
         });
+        // 任务40：登记「最近一次秘书→主管派活」快照 —— 主管链路收口时交付上行回执
+        //（「已回复」/「已办结」，复用 08 task_receipt 通道 + 09 闸门播报）；开关关闭零记账。
+        // 派发失败（上方 await deliverToAgent 抛出）自然走不到这里；纯内存登记不打断主链路。
+        if (isBossUplinkReceiptEnabled()) {
+          registerBossUplinkReceipt({
+            bossId: target.id,
+            taskSummary: text,
+            ...(route.projectRouting?.projectId ? { projectId: route.projectRouting.projectId } : {}),
+            taskId,
+            ...(state.sessionId ? { sessionId: state.sessionId } : {}),
+          });
+        }
       }
       // 任务14·⑪ ⑪ 观测（仅 delegate_to_boss）：登记三层结果/最终 Boss/是否回落首选；
       // 命中携带 projectId → 记会话最近提及（消歧② 输入）。

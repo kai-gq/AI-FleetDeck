@@ -31,6 +31,7 @@ import { logEvent } from '../../data/system-log.js';
 import { aliasesForProject, loadAliasTable } from '../../jarvis-core/projects/aliases.js';
 import { createLogger } from '../../utils/logger.js';
 import { matchPendingReceipt } from './pending-receipt-registry.js';
+import type { PendingBossUplink } from './boss-uplink-receipt-registry.js';
 
 const log = createLogger('TaskReceipt');
 
@@ -211,6 +212,126 @@ export function notifyTaskCompletion(input: TaskReceiptInput): TaskReceiptOutcom
     };
   } catch (err) {
     log.warn('[任务08②] 回执播报管线异常（已忽略，主链路不受影响）:', err);
+    return { ...FALLBACK_OUTCOME };
+  }
+}
+
+// ============================================================================
+// 任务40：秘书↔主管上行回执（「已回复」/「已办结」——复用同一判断层/广播/埋点模式）
+// ============================================================================
+
+/** T1 回合末句摘录显示长度（初值非实测最优，待 L3 标定）。 */
+export const MAX_TURN_TAIL_LENGTH = 40;
+
+/** 尾摘清洗：空白压缩 + 取结尾 ≤40 字（截断时前缀 … 表明由来），空文本舍弃。 */
+function truncateTurnTail(text: string | undefined): string | undefined {
+  const clean = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (!clean) return undefined;
+  return clean.length > MAX_TURN_TAIL_LENGTH ? `…${clean.slice(-MAX_TURN_TAIL_LENGTH)}` : clean;
+}
+
+export interface BossUplinkReceiptInput {
+  bossId: string;
+  /** 可得则传（runtime-listeners 从 agentService）；缺省回退 id 前 8 位。 */
+  agentName?: string;
+  /** 触发时消费的登记快照（consumeBossUplinkReceipt 返回值）。 */
+  entry: PendingBossUplink;
+  /** T1 主管回合闭包（「已回复」）/ T2 链路收口（「已办结」）——动词按触发点区分。 */
+  trigger: 'turn-close' | 'subordinate-complete';
+  /** T1 回合末句素材（此处清洗 + 截尾；T2 忽略）。 */
+  turnTextTail?: string;
+  at?: number;
+  /** 转发出口（服务端→客户端）；缺省不转发（仍过判断层 + 落埋点）。 */
+  broadcast?: ((message: ServerMessage) => void) | null;
+}
+
+/**
+ * 上行回执统一入口（触发点：runtime-listeners T1 回合闭包 / T2 链路收口）。
+ * 永不抛出；返回本次判定结果供调用方/测试断言。与 notifyTaskCompletion 同判断层/同闸门状态。
+ */
+export function notifyBossUplinkCompletion(input: BossUplinkReceiptInput): TaskReceiptOutcome {
+  try {
+    const at = input.at ?? Date.now();
+    const name = input.agentName || input.bossId.slice(0, 8);
+    // 任务14·B：前缀【项目别名】（登记快照 entry.projectId；别名不可得 → 不加前缀、不占位）
+    const projectAlias = resolveProjectAlias(input.entry.projectId);
+    const projectPrefix = projectAlias ? `【${projectAlias}】` : '';
+    const tail = input.trigger === 'turn-close' ? truncateTurnTail(input.turnTextTail) : undefined;
+    const verb = input.trigger === 'turn-close' ? '已回复' : '已办结';
+    const text = `${projectPrefix}${name} ${verb}:${input.entry.taskSummary}${tail ? `——${tail}` : ''}`;
+    // 稳定幂等键：一次派活一条（秘书侧 taskId；无 taskId 回退 @ts 唯一键）
+    const dedupeKey = `boss-uplink:${input.bossId}:${input.entry.taskId ?? `@${at}`}`;
+
+    // 评分子项与成功完成同常量（观测口径统一；不新增 kind —— 复用既有评分与客户端 kind 映射）
+    const signal: Signal = {
+      source: 'agent',
+      kind: 'agent_completed',
+      ts: at,
+      dedupeKey,
+      text,
+      urgency: 60,
+      relevance: 70,
+      certainty: 95,
+    };
+
+    refreshGatesDay(at);
+    gatesState = { ...gatesState, now: at, config: DEFAULT_GATES_CONFIG, env: {} };
+    const decision = decideBroadcast(signal, gatesState);
+    advanceGates(decision);
+
+    const forwarded = decision.tier !== 'SILENT' && typeof input.broadcast === 'function';
+    if (forwarded && input.broadcast) {
+      input.broadcast({
+        type: 'task_receipt',
+        payload: {
+          agentId: input.bossId,
+          agentName: input.agentName,
+          success: true,
+          matched: true,
+          taskId: input.entry.taskId,
+          taskSummary: input.entry.taskSummary,
+          text,
+          at,
+          source: 'runtime',
+          dedupeKey,
+          observed: { tier: decision.tier, reason: decision.reason, score: decision.score },
+        },
+      } as ServerMessage);
+    }
+
+    // 🔴② 观测点：上行回执（与下属层同 phase 'receipt'，body 以 uplink:'boss' + trigger 区分子类）
+    logEvent('delegation', {
+      ts: at,
+      source: 'boss',
+      agentId: input.bossId,
+      taskId: input.entry.taskId,
+      body: {
+        cat: 'delegation',
+        phase: 'receipt',
+        matched: true,
+        duplicate: decision.duplicate,
+        success: true,
+        entry: 'runtime',
+        uplink: 'boss',
+        trigger: input.trigger,
+        tier: decision.tier,
+        reason: decision.reason,
+        score: decision.score,
+        forwarded,
+        dedupeKey,
+      },
+    });
+
+    return {
+      matched: true,
+      duplicate: decision.duplicate,
+      tier: decision.tier,
+      reason: decision.reason,
+      score: decision.score,
+      forwarded,
+    };
+  } catch (err) {
+    log.warn('[任务40] 上行回执播报管线异常（已忽略，主链路不受影响）:', err);
     return { ...FALLBACK_OUTCOME };
   }
 }

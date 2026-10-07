@@ -11,7 +11,16 @@ import { agentService, runtimeService } from '../../services/index.js';
 import { logDelegation, logResourceUsage, logSecurity, logSkill, previewToolInput } from '../../services/activity-log.js';
 import { logger, formatToolActivity } from '../../utils/index.js';
 import { parseBossDelegation, parseBossSpawn, getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
-import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
+import { notifyTaskCompletion, notifyBossUplinkCompletion } from '../handlers/task-receipt-notifier.js';
+// 任务40：秘书↔主管上行回执链（登记簿 + 就绪判定；交付胶水见 scheduleBossTurnClosure/maybeFireBossUplink）
+import {
+  canFireBossUplink,
+  collectBossUplinkState,
+  consumeBossUplinkReceipt,
+  hasBossUplinkReceipt,
+  isBossUplinkReceiptEnabled,
+  peekBossUplinkReceipt,
+} from '../handlers/boss-uplink-receipt-registry.js';
 import { startWatching as startJsonlWatching, stopWatching as stopJsonlWatching, isWatching as isJsonlWatching, getSubagentsDir } from '../../services/subagent-jsonl-watcher.js';
 import { getBackgroundTasksForAgent, onBackgroundTasksChanged } from '../../services/background-tasks.js';
 import { registerBashToolCall, completeBashToolCall, clearBashToolCalls } from '../../services/bash-toolcall-registry.js';
@@ -465,12 +474,16 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
     if (event.type === 'step_complete') {
       const agent = agentService.getAgent(agentId);
-      if (agent?.isBoss || agent?.class === 'boss') {
+      const bossTurn = !!(agent?.isBoss || agent?.class === 'boss');
+      // 任务40 T1：回合末句素材（闭包复核通过后作为「已回复」尾摘；不额外复制文本）
+      let bossTurnTail: string | undefined;
+      if (bossTurn) {
         // Use accumulated text from the full turn (covers delegation blocks emitted
         // before tool calls), falling back to resultText for simpler responses.
         const accumulated = bossAccumulatedText.get(agentId);
         const textForParsing = accumulated || event.resultText;
         bossAccumulatedText.delete(agentId);
+        bossTurnTail = textForParsing || undefined;
         if (textForParsing) {
           parseBossDelegation(agentId, agent.name, textForParsing, ctx.broadcast);
           parseBossSpawn(agentId, agent.name, textForParsing, ctx.broadcast, ctx.sendActivity);
@@ -496,6 +509,8 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         // HC-B6：stdin 常驻模式回合结束进程不退出、'complete' 不触发 —— 延迟判定补走完成漏斗。
         // 子代理 step_complete 不代表父代理回合结束，跳过（parentToolUseId 已在上面过滤）。
         scheduleTurnCompleteClosure(agentId);
+        // 任务40 T1：主管回合闭包 → 上行回执（boss 自身不进 scheduleTurnCompleteClosure，此处补 boss 分支）
+        if (bossTurn) scheduleBossTurnClosure(agentId, bossTurnTail);
       }
     }
 
@@ -714,6 +729,10 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         broadcast: ctx.broadcast,
       });
     }
+
+    // 任务40 T2：下属完成 → 链路收口检查 → 「已办结」上行回执（紧随下属回执之后；
+    // 此刻该下属登记已被上游回执匹配、其委派刚 completeDelegation 清出，谓词反映真实收口）。
+    if (delegation) maybeFireBossUplink(delegation.bossId, 'subordinate-complete');
   }
 
   /**
@@ -745,6 +764,68 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
       log.log(`[COMPLETE] step_complete closure for agent ${agentId} (decisionId=${decisionId}, success=${success}) — stdin-reuse turn ended without 'complete' event`);
       handleSubordinateCompletion(agentId, success, 'turn-complete');
     }, TURN_COMPLETE_CLOSE_DELAY_MS);
+  }
+
+  /**
+   * 任务40 T1：主管回合闭包 → 上行回执交付（「已回复」）。与 HC-B6 同款延迟复核 ——
+   * boss 自身回合不进 scheduleTurnCompleteClosure（getBossForSubordinate 早退），此处补 boss 分支。
+   * 复核（任一不满足即跳过，宁缺勿误报「办结」）：
+   *  - 登记仍在且未被刷新（registeredAt 未变 —— 闭包窗内新派活会覆盖登记，防误消费）；
+   *  - turnState 已回到 waiting_for_input；provider 非 codex/opencode（同 B6 边界）；
+   *  - 无后台任务（其通知会唤新回合）；agent 非忙态；
+   *  - error 态不交付（失败面由 09·B 的 agent_failed 播报覆盖，不误报「已回复」）。
+   */
+  function scheduleBossTurnClosure(bossId: string, turnTail?: string): void {
+    if (!isBossUplinkReceiptEnabled()) return;
+    const snapshot = peekBossUplinkReceipt(bossId);
+    if (!snapshot) return;
+    const registeredAt = snapshot.registeredAt;
+    setTimeout(() => {
+      if (!isBossUplinkReceiptEnabled()) return;
+      const entry = peekBossUplinkReceipt(bossId);
+      if (!entry || entry.registeredAt !== registeredAt) return; // 已消费 / 闭包窗内换新派活
+      const agent = agentService.getAgent(bossId);
+      const provider = agent?.provider ?? 'claude';
+      if (provider === 'codex' || provider === 'opencode') return;
+      if (runtimeService.getTurnStateForAgent(bossId) !== 'waiting_for_input') return; // 新回合已在跑
+      if (getBackgroundTasksForAgent(bossId).length > 0) return;
+      if (agent && (agent.status === 'working' || agent.status === 'waiting' || agent.status === 'waiting_permission')) return;
+      if (agent?.status === 'error') return; // 任务40：error 态宁缺勿误报
+      maybeFireBossUplink(bossId, 'turn-close', turnTail);
+    }, TURN_COMPLETE_CLOSE_DELAY_MS);
+  }
+
+  /**
+   * 任务40：上行回执交付胶水（T1 回合闭包 / T2 链路收口，谁先满足谁交付；全同步、无 await）。
+   * 就绪 = 无在飞委派 ∧ 无未匹配下属回执（链路真收口）；不满足时**不消费**，留待下次触发/TTL 清扫。
+   * T2（下属完成）追加：主管回合仍 processing 时不抢跑 —— 主管自身收尾回合会由 T1 交付。
+   */
+  function maybeFireBossUplink(
+    bossId: string,
+    trigger: 'turn-close' | 'subordinate-complete',
+    turnTail?: string,
+  ): void {
+    try {
+      if (!isBossUplinkReceiptEnabled()) return;
+      if (!hasBossUplinkReceipt(bossId)) return;
+      if (trigger === 'subordinate-complete' && runtimeService.getTurnStateForAgent(bossId) === 'processing') return;
+      if (!canFireBossUplink(collectBossUplinkState(bossId))) return;
+      const entry = consumeBossUplinkReceipt(bossId); // 消费即删：一次派活至多一条上行回执
+      if (!entry) return;
+      const agent = agentService.getAgent(bossId);
+      notifyBossUplinkCompletion({
+        bossId,
+        agentName: agent?.name,
+        entry,
+        trigger,
+        turnTextTail: turnTail,
+        at: Date.now(),
+        broadcast: ctx.broadcast,
+      });
+    } catch (err) {
+      // 回执链路 best-effort：任何异常不影响主链路
+      log.warn(`[任务40] 上行回执交付异常（已忽略）: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   runtimeService.on('complete', (agentId, success) => {

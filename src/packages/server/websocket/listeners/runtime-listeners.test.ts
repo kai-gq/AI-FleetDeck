@@ -38,6 +38,8 @@ vi.mock('../handlers/boss-response-handler.js', () => ({
   parseBossSpawn: vi.fn(),
   getBossForSubordinate: vi.fn(),
   completeDelegation: vi.fn(),
+  // 任务40：registry 的 collectBossUplinkState 读在飞委派列表（测试默认无在飞）
+  listActiveDelegations: vi.fn(() => []),
 }));
 
 vi.mock('../handlers/task-receipt-notifier.js', () => ({
@@ -48,6 +50,15 @@ vi.mock('../handlers/task-receipt-notifier.js', () => ({
     reason: 'low_relevance',
     score: 0,
     forwarded: false,
+  })),
+  // 任务40：上行回执交付（断言见「任务40」describe）
+  notifyBossUplinkCompletion: vi.fn(() => ({
+    matched: true,
+    duplicate: false,
+    tier: 'PREPARE',
+    reason: 'batched',
+    score: 70,
+    forwarded: true,
   })),
 }));
 
@@ -88,8 +99,14 @@ vi.mock('../../services/bash-toolcall-registry.js', () => ({
 
 import { setupRuntimeListeners } from './runtime-listeners.js';
 import { agentService, runtimeService } from '../../services/index.js';
-import { getBossForSubordinate, completeDelegation } from '../handlers/boss-response-handler.js';
-import { notifyTaskCompletion } from '../handlers/task-receipt-notifier.js';
+import { getBossForSubordinate, completeDelegation, listActiveDelegations } from '../handlers/boss-response-handler.js';
+import { notifyTaskCompletion, notifyBossUplinkCompletion } from '../handlers/task-receipt-notifier.js';
+import {
+  hasBossUplinkReceipt,
+  registerBossUplinkReceipt,
+  resetBossUplinksForTests,
+} from '../handlers/boss-uplink-receipt-registry.js';
+import { registerPendingReceipt, resetPendingReceiptsForTests } from '../handlers/pending-receipt-registry.js';
 import { logSkill, logDelegation } from '../../services/activity-log.js';
 import { getBackgroundTasksForAgent } from '../../services/background-tasks.js';
 
@@ -282,6 +299,177 @@ describe('HC-B6：step_complete 延迟闭包（stdin 常驻模式回合结束补
     expect(vi.mocked(getBossForSubordinate)).toHaveBeenCalledTimes(1); // 仅调度期读取，未安排延迟复核
     expect(completeDelegation).not.toHaveBeenCalled();
     expect(notifyTaskCompletion).not.toHaveBeenCalled();
+  });
+});
+
+describe('任务40：上行回执链接线（T1 回合闭包 / T2 链路收口）', () => {
+  const broadcast = vi.fn();
+  const sendActivity = vi.fn();
+  const bossAgent = { id: 'boss-1', name: 'Jarvis', isBoss: true, status: 'idle', provider: 'claude' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.mocked(runtimeService.getTurnStateForAgent).mockReturnValue('waiting_for_input');
+    vi.mocked(getBackgroundTasksForAgent).mockReturnValue([]);
+    vi.mocked(listActiveDelegations).mockReturnValue([]);
+    resetBossUplinksForTests();
+    resetPendingReceiptsForTests();
+    setupRuntimeListeners({ broadcast, sendActivity });
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '把官网文案改好', taskId: 't-40', registeredAt: Date.now() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    resetBossUplinksForTests();
+    resetPendingReceiptsForTests();
+  });
+
+  it('T1 主管自办：回合闭包（2500ms 复核通过）→ 交付「已回复」上行回执（尾摘=回合末句）+ 消费即删', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: '文案已经改好了，等你验收' });
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled(); // 延迟窗内不交付
+
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).toHaveBeenCalledTimes(1);
+    expect(notifyBossUplinkCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bossId: 'boss-1',
+        agentName: 'Jarvis',
+        trigger: 'turn-close',
+        turnTextTail: '文案已经改好了，等你验收',
+        broadcast,
+        entry: expect.objectContaining({ taskSummary: '把官网文案改好', taskId: 't-40' }),
+      }),
+    );
+    expect(hasBossUplinkReceipt('boss-1')).toBe(false); // 消费即删
+  });
+
+  it('T1 链路有在飞委派 → 不消费不交付（留待 T2 收口）', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+    vi.mocked(listActiveDelegations).mockReturnValue([
+      { subordinateId: 'agent-1', bossId: 'boss-1', taskDescription: 'x' },
+    ] as any);
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: '我已经安排下去了' });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true); // 未消费，留待收口/下次触发
+  });
+
+  it('T1 有未匹配下属回执 → 不消费（链路未收口）', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+    registerPendingReceipt({ targetAgentId: 'agent-2', bossId: 'boss-1', taskSummary: '别的活' });
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true);
+  });
+
+  it('T1 复核时新回合已在跑（turnState=processing）→ 不交付（不能把新回合误判为结束）', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+    vi.mocked(runtimeService.getTurnStateForAgent).mockReturnValue('processing');
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true);
+  });
+
+  it('T1 后台任务未结束 / error 态 → 不交付（宁缺勿误报）', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+    vi.mocked(getBackgroundTasksForAgent).mockReturnValue([{ toolUseId: 'bg-1' }] as any);
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    vi.advanceTimersByTime(2500);
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+
+    // 后台任务结束，但 agent 落 error 态：仍不交付（失败面由 09·B 播报覆盖）
+    vi.mocked(getBackgroundTasksForAgent).mockReturnValue([]);
+    vi.mocked(agentService.getAgent).mockReturnValue({ ...bossAgent, status: 'error' } as any);
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    vi.advanceTimersByTime(2500);
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true);
+  });
+
+  it('T1 闭包窗内新派活（registeredAt 刷新）→ 旧判定退出，不误消费新登记', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '新的派活', taskId: 't-41', registeredAt: Date.now() + 100 });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true); // 新登记仍在，未被旧闭包消费
+  });
+
+  it('T1 开关 TC_VOICE_BOSS_RECEIPT=0 → 调度入口早退（零交付）', () => {
+    vi.stubEnv('TC_VOICE_BOSS_RECEIPT', '0');
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+
+    eventListener()('boss-1', { type: 'step_complete', resultText: 'ok' });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true); // 触发侧零消费（登记侧由 vcs 同开关挡）
+  });
+
+  it('T1 子代理 step_complete（parentToolUseId）→ 不调度（不代表父回合结束）', () => {
+    vi.mocked(agentService.getAgent).mockReturnValue(bossAgent as any);
+
+    eventListener()('boss-1', { type: 'step_complete', parentToolUseId: 'tu-1', resultText: '子代理输出' });
+    vi.advanceTimersByTime(2500);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true);
+  });
+
+  it('T2 转委派收口：下属完成（委派存在）→ 交付「已办结」+ 消费即删（重复完成不重播）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue({ bossId: 'boss-1', taskDescription: '发版', taskId: 't-1' } as any);
+    vi.mocked(agentService.getAgent).mockImplementation((id: string) =>
+      (id === 'boss-1' ? bossAgent : { id: 'agent-1', name: 'Builder One', status: 'idle' }) as any,
+    );
+
+    completeListener()('agent-1', true);
+
+    expect(notifyBossUplinkCompletion).toHaveBeenCalledTimes(1);
+    expect(notifyBossUplinkCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ bossId: 'boss-1', agentName: 'Jarvis', trigger: 'subordinate-complete', broadcast }),
+    );
+    expect(hasBossUplinkReceipt('boss-1')).toBe(false);
+
+    // 重复完成事件（第二入口/重复触发）→ 消费即删，不再交付
+    completeListener()('agent-1', true);
+    expect(notifyBossUplinkCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('T2 主管回合仍 processing → 不抢跑（留给 T1 收尾交付）', () => {
+    vi.mocked(getBossForSubordinate).mockReturnValue({ bossId: 'boss-1', taskDescription: '发版', taskId: 't-1' } as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Builder One' } as any);
+    vi.mocked(runtimeService.getTurnStateForAgent).mockReturnValue('processing');
+
+    completeListener()('agent-1', true);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
+    expect(hasBossUplinkReceipt('boss-1')).toBe(true); // 未消费，留待 T1
+  });
+
+  it('T2 无上行登记（boss 自办已交付/未派活）的下属完成 → 零交付（既有链路零感知）', () => {
+    resetBossUplinksForTests(); // 清掉 beforeEach 的登记
+    vi.mocked(getBossForSubordinate).mockReturnValue({ bossId: 'boss-1', taskDescription: '发版', taskId: 't-1' } as any);
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Builder One' } as any);
+
+    completeListener()('agent-1', true);
+
+    expect(notifyBossUplinkCompletion).not.toHaveBeenCalled();
   });
 });
 

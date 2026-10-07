@@ -60,9 +60,17 @@ vi.mock('../../services/custom-class-service.js', () => ({
 // ⑥3 接缝：spy 保留真实实现，单测里 mockReturnValueOnce 让判断层返回「沉默」
 vi.mock('../../../shared/broadcast-gates.js', { spy: true });
 
-import { parseBossDelegation, resetBossDelegationStateForTests } from './boss-response-handler.js';
-import { notifyTaskCompletion, resetTaskReceiptNotifierForTests } from './task-receipt-notifier.js';
-import { registerPendingReceipt, pendingReceiptCount } from './pending-receipt-registry.js';
+import { parseBossDelegation, resetBossDelegationStateForTests, clearDelegation } from './boss-response-handler.js';
+import { notifyTaskCompletion, notifyBossUplinkCompletion, resetTaskReceiptNotifierForTests } from './task-receipt-notifier.js';
+import { registerPendingReceipt, pendingReceiptCount, resetPendingReceiptsForTests } from './pending-receipt-registry.js';
+import {
+  canFireBossUplink,
+  collectBossUplinkState,
+  consumeBossUplinkReceipt,
+  hasBossUplinkReceipt,
+  registerBossUplinkReceipt,
+  resetBossUplinksForTests,
+} from './boss-uplink-receipt-registry.js';
 import { decideBroadcast } from '../../../shared/broadcast-gates.js';
 import { closeEventDb, initEventDb } from '../../data/event-db.js';
 import { querySystemLog } from '../../data/system-log.js';
@@ -368,5 +376,201 @@ describe('任务14·B 回执项目前缀：登记 projectId → 14·A 别名表 
 
     expect(outcome).toMatchObject({ matched: false, forwarded: true });
     expect(lastReceiptBroadcast(broadcast).payload.text).toBe('【项目b组】Flyer Nine 完成任务');
+  });
+
+  it('任务40 上行回执（T2）：登记快照 projectId → 前缀【别名】', () => {
+    writeAliasTable([{ alias: '项目b组', projectId: 'proj-b' }]);
+    resetBossUplinksForTests();
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '发布新版本', projectId: 'proj-b', taskId: 't-46', registeredAt: AT });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+
+    const broadcast = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'subordinate-complete',
+      at: AT,
+      broadcast,
+    });
+    expect(lastReceiptBroadcast(broadcast).payload.text).toBe('【项目b组】Jarvis 已办结:发布新版本');
+  });
+});
+
+// ============================================================================
+// 任务40：上行回执链（登记 → 就绪判定 → 消费 → 「已回复/已办结」task_receipt）
+// ============================================================================
+
+describe('任务40 上行回执链：就绪判定 → 消费 → task_receipt + 🔴② 埋点（uplink:boss）', () => {
+  beforeAll(() => {
+    initEventDb();
+  });
+
+  afterAll(() => {
+    closeEventDb();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetBossDelegationStateForTests(); // 含下属层待回执复位
+    resetTaskReceiptNotifierForTests(AT);
+    resetBossUplinksForTests();
+    resetPendingReceiptsForTests();
+    receiptBaselineId = Math.max(0, ...receiptRows().map(({ id }) => id));
+  });
+
+  it('T1 主管自办：无在飞无未匹配 → 消费交付「已回复:{摘要}——{尾摘}」+ 幂等键 + 埋点 + 消费即删', () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '把官网文案改好', taskId: 't-40', registeredAt: AT });
+
+    // 就绪判定（链路真收口）→ 消费（触发侧语义 = maybeFireBossUplink 的同步核心）
+    expect(canFireBossUplink(collectBossUplinkState('boss-1'))).toBe(true);
+    const entry = consumeBossUplinkReceipt('boss-1', AT);
+    expect(entry).toBeTruthy();
+
+    const broadcast = vi.fn();
+    const outcome = notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry: entry!,
+      trigger: 'turn-close',
+      turnTextTail: '文案已经改好了，等你验收',
+      at: AT,
+      broadcast,
+    });
+
+    expect(outcome).toMatchObject({ matched: true, duplicate: false, tier: 'PREPARE', forwarded: true });
+    const message = lastReceiptBroadcast(broadcast);
+    expect(message.payload).toMatchObject({
+      agentId: 'boss-1',
+      agentName: 'Jarvis',
+      success: true,
+      matched: true,
+      taskId: 't-40',
+      source: 'runtime',
+    });
+    expect(message.payload.text).toBe('Jarvis 已回复:把官网文案改好——文案已经改好了，等你验收');
+    expect(message.payload.dedupeKey).toBe('boss-uplink:boss-1:t-40');
+
+    const rows = newReceiptRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ uplink: 'boss', trigger: 'turn-close', matched: true, forwarded: true });
+    expect(hasBossUplinkReceipt('boss-1', AT)).toBe(false); // 消费即删
+  });
+
+  it('T2 转委派收口：链路在飞时不交付不消费；委派清出 + 下属回执匹配后 → 「已办结:{摘要}」+ 消费一次性', async () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '发布新版本', taskId: 't-41', registeredAt: AT });
+    await delegateViaBoss('发版任务'); // boss-1 → agent-1：在飞委派 + 未匹配下属回执
+
+    // 链路未收口：不交付、不消费（留待收口/下次触发）
+    expect(canFireBossUplink(collectBossUplinkState('boss-1'))).toBe(false);
+    expect(hasBossUplinkReceipt('boss-1', AT)).toBe(true);
+
+    // 下属完成：回执匹配 + 委派收口（完成漏斗 clearDelegation 环节的等价物）
+    notifyTaskCompletion({
+      subordinateId: 'agent-1',
+      agentName: 'Builder One',
+      success: true,
+      source: 'runtime',
+      at: AT,
+      broadcast: vi.fn(),
+    });
+    clearDelegation('agent-1');
+
+    expect(canFireBossUplink(collectBossUplinkState('boss-1'))).toBe(true);
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    const broadcast = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'subordinate-complete',
+      at: AT,
+      broadcast,
+    });
+
+    expect(lastReceiptBroadcast(broadcast).payload.text).toBe('Jarvis 已办结:发布新版本');
+    expect(consumeBossUplinkReceipt('boss-1', AT)).toBeUndefined(); // 第二次触发早退（消费即删）
+  });
+
+  it('⑥3 判断层沉默 → 无广播、埋点 forwarded:false（客户端无音频路径）', () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '改文案', taskId: 't-42', registeredAt: AT });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    const broadcast = vi.fn();
+    vi.mocked(decideBroadcast).mockReturnValueOnce({
+      tier: 'SILENT',
+      reason: 'low_relevance',
+      score: 40,
+      disruption: 20,
+      budget: 10,
+      duplicate: false,
+      delta: { seenKeysToAdd: [], dailySpokenDelta: 0, instantSpeechDelta: 0 },
+    });
+
+    const outcome = notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'subordinate-complete',
+      at: AT,
+      broadcast,
+    });
+
+    expect(outcome).toMatchObject({ matched: true, tier: 'SILENT', forwarded: false });
+    expect(broadcast).not.toHaveBeenCalled();
+    const rows = newReceiptRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ uplink: 'boss', tier: 'SILENT', forwarded: false });
+  });
+
+  it('判断层异常 → FALLBACK_OUTCOME 静默降级（回执链路 best-effort，绝不打断主链路）', () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '改文案', taskId: 't-43', registeredAt: AT });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    vi.mocked(decideBroadcast).mockImplementationOnce(() => {
+      throw new Error('boom');
+    });
+
+    const outcome = notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'turn-close',
+      at: AT,
+      broadcast: vi.fn(),
+    });
+    expect(outcome).toMatchObject({ matched: false, tier: 'SILENT', forwarded: false });
+  });
+
+  it('T1 尾摘清洗：空白压缩 + >40 字取结尾（前缀 … 表明由来）；空白尾摘舍弃', () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '改文案', taskId: 't-44', registeredAt: AT });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    const broadcast = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'turn-close',
+      turnTextTail: `多行\n文本   带空白${'末'.repeat(50)}`,
+      at: AT,
+      broadcast,
+    });
+    const text = lastReceiptBroadcast(broadcast).payload.text;
+    expect(text).not.toContain('\n');
+    expect(text).toContain('——…');
+    expect(text.endsWith('末'.repeat(40))).toBe(true);
+
+    // 空白尾摘（压缩后为空）→ 无 —— 段（另一 boss 登记，避免幂等键撞车）
+    registerBossUplinkReceipt({ bossId: 'boss-2', taskSummary: '第二件', taskId: 't-45', registeredAt: AT });
+    const entry2 = consumeBossUplinkReceipt('boss-2', AT)!;
+    const broadcast2 = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-2',
+      agentName: 'Vision',
+      entry: entry2,
+      trigger: 'turn-close',
+      turnTextTail: '   \n  ',
+      at: AT,
+      broadcast: broadcast2,
+    });
+    expect(lastReceiptBroadcast(broadcast2).payload.text).toBe('Vision 已回复:第二件');
   });
 });
