@@ -117,7 +117,7 @@ export function piThinkingLevelForEffort(effort: string): string {
 }
 
 /** True when the file at `p` is the real pi coding agent entrypoint. */
-function isPiCodingAgentBinary(p: string): boolean {
+export function isPiCodingAgentBinary(p: string): boolean {
   try {
     const real = fs.realpathSync(p);
     if (real.includes('pi-coding-agent')) return true;
