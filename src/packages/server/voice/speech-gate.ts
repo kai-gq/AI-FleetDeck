@@ -15,7 +15,11 @@
  *   产出,hop1 的 responseToUser 一律丢弃(显式 GateAction 成员,不借别名);
  * - 任务16·⑬:cancel_delegation / rate_delegation 的结果同样由服务端确定性产出
  *   (撤回结论/评价确认),hop1 话术一律丢弃(显式 GateAction 成员);
- * - general_response / list_agents 一旦 action 确定就即时放行(低延迟路径)。
+ * - list_agents 的名单由服务端实时兜底(buildAgentListFallback)确定性产出
+ *   (快照冻结于 spawn,模型报的忙闲可能过期),hop1 话术一律丢弃 ——
+ *   2026-10-07 修正:此前走即时放行,模型话术先出声,回合收尾最终回复换成
+ *   兜底文本后,客户端 final 对账(已播≠最终)又整段重播,一次提问听两遍;
+ * - general_response 一旦 action 确定就即时放行(低延迟路径)。
  */
 
 export type GateAction =
@@ -49,15 +53,19 @@ export interface SentenceMeta {
  * 延迟裁决类动作:hop1 话术先缓冲,等显式 release/discard。
  * - 派发类:派发成功才放行;
  * - query_agent_output:确认要跑 hop2 时放行(带 pre 标记的过渡话术)。
- * 注意:list_agents 不在其中 —— 它慢在模型 TTFT,缓冲只会推迟出声。
+ * 注意:list_agents 不在其中 —— 它归入静默丢弃(名单由服务端实时兜底整段播报)。
  */
 export function isDeferredGateAction(action: GateAction): boolean {
   return isDispatchGateAction(action) || action === 'query_agent_output';
 }
 
-/** 静默丢弃类动作:hop1 话术由服务端确定性产出/无话可说,一律不出声。 */
+/**
+ * 静默丢弃类动作:hop1 话术由服务端确定性产出/无话可说,一律不出声。
+ * list_agents 于 2026-10-07 由「即时放行」改归此类:恒接管后流式文本与最终
+ * 兜底名单必然不同,客户端 final 对账会整段重播 → 一次提问听两遍。
+ */
 const SILENT_GATE_ACTIONS: ReadonlySet<GateAction> = new Set([
-  'noop', 'analyze_logs',
+  'noop', 'analyze_logs', 'list_agents',
   'query_bolba_tasks', 'create_bolba_task', 'complete_bolba_task', 'reopen_bolba_task',
   'cancel_delegation', 'rate_delegation',
 ]);
@@ -86,7 +94,7 @@ export class SpeechGate {
 
   /**
    * action 已解析(流式扫描通常远早于契约解析完成)。
-   * general/list → 立即放行缓冲;静默丢弃类 → 清空;延迟裁决类 → 继续等 release/discard。
+   * general → 立即放行缓冲;静默丢弃类(含 list_agents)→ 清空;延迟裁决类 → 继续等 release/discard。
    */
   setAction(action: GateAction): void {
     this.mode = action;

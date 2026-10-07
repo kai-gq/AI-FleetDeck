@@ -1931,6 +1931,25 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).not.toContain('空闲');
   });
 
+  it('G6-9d list_agents 话术静默:模型流式文本不出声,由最终回复整段补播(一问两答回归钉)', async () => {
+    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle' });
+    const sentences: string[] = [];
+    const p = startProcess('现在谁有空', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'list_agents',
+      responseToUser: '闲人一堆,小美现在空着。',
+    }), { via: 'delta' });
+
+    const r = await p;
+    // 静默门:hop1 话术一字不出(否则它先被播出,回合收尾客户端 final 对账
+    // 发现已播≠最终回复,又把兜底名单整段重播 → 一次提问听两遍);
+    // spoke 缺省(仅出声才置 true)→ 客户端按 result.response 整段补播一次。
+    expect(sentences).toEqual([]);
+    expect(r.spoke).toBeUndefined();
+    expect(r.response.length).toBeGreaterThan(0);
+  });
+
   it('G6-10 streams general_response sentences as soon as they complete', async () => {
     const sentences: string[] = [];
     const p = startProcess('聊两句', { onSentence: (s) => sentences.push(s) });
