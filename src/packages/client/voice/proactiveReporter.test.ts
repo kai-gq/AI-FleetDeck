@@ -22,6 +22,7 @@ import {
   type ProactiveSource,
 } from './proactiveReporter';
 import { DEFAULT_GATES_CONFIG, computeRelevanceScore, decideBroadcast } from '../../shared/broadcast-gates';
+import { clearStandbyRequests, markStandbyRequest } from '../store/standbyRequests';
 import type { AgentStatus } from '../../shared/types';
 
 const NAMES = new Map([
@@ -51,6 +52,29 @@ describe('diffSnapshots', () => {
     expect(events[0].text).toContain('小美');
     expect(events[0].text).toContain('完成任务');
     expect(events[0].text).toContain('登录页');
+  });
+
+  it('待岗(standby)停机不算完成:是用户下线,不是干完了', () => {
+    const events = diffSnapshots(
+      snap({ a: { status: 'working', taskLabel: '登录页' } }),
+      snap({ a: { status: 'idle', taskLabel: '登录页', standby: true } }),
+      'important',
+      1000,
+      NAMES,
+    );
+    expect(events).toHaveLength(0);
+  });
+
+  it('待岗只抑制「完成」:待岗中的报错/提问照报', () => {
+    const failed = diffSnapshots(
+      snap({ a: { status: 'working', standby: true } }),
+      snap({ a: { status: 'error', standby: true, lastError: '构建失败' } }),
+      'important',
+      1000,
+      NAMES,
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0].kind).toBe('failed');
   });
 
   it('reports →error as failed with a truncated lastError', () => {
@@ -168,7 +192,7 @@ describe('formatEvents', () => {
 
 describe('createProactiveReporter', () => {
   interface Ctl {
-    agents: Map<string, { name: string; status: AgentStatus; taskLabel?: string; lastError?: string }>;
+    agents: Map<string, { name: string; status: AgentStatus; taskLabel?: string; lastError?: string; standby?: boolean }>;
     listeners: Set<() => void>;
   }
   let ctl: Ctl;
@@ -182,6 +206,7 @@ describe('createProactiveReporter', () => {
     ctl = { agents: new Map(), listeners: new Set() };
     submitted = [];
     busy = false;
+    clearStandbyRequests();
   });
 
   afterEach(() => {
@@ -240,6 +265,48 @@ describe('createProactiveReporter', () => {
     expect(submitted).toHaveLength(1);
     expect(submitted[0]).toContain('① 小美 完成任务');
     expect(submitted[0]).toContain('② 阿强 出错');
+
+    reporter.stop();
+  });
+
+  it('待岗手势兜底:本标签页刚点的待岗,先到的那条 working→idle(标记未落地)也不报完成', () => {
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '登录页' });
+    const reporter = makeReporter();
+    reporter.start();
+    vi.advanceTimersByTime(600);
+    fire();
+
+    // 用户点「设为待岗」→ 本地手势;服务端先广播 idle,标记要等下一次广播才来
+    markStandbyRequest('a');
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(0);
+
+    // 同一 agent 后续的真实完成(手势已过期)照常报
+    vi.advanceTimersByTime(16_000);
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1);
+
+    reporter.stop();
+  });
+
+  it('待岗标记随快照进来时同样不报完成(与 diffSnapshots 同口径)', () => {
+    ctl.agents.set('a', { name: '小美', status: 'working', taskLabel: '登录页' });
+    const reporter = makeReporter();
+    reporter.start();
+    vi.advanceTimersByTime(600);
+    fire();
+
+    ctl.agents.set('a', { name: '小美', status: 'idle', taskLabel: '登录页', standby: true });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(0);
 
     reporter.stop();
   });

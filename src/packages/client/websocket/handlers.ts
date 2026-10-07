@@ -5,6 +5,7 @@
 import type { Agent, ServerMessage, DelegationDecision, CustomAgentClass, Subagent } from '../../shared/types';
 import { store } from '../store';
 import { noteServerTimestamp, serverNow } from '../store/outputs';
+import { wasStandbyJustRequested } from '../store/standbyRequests';
 import { perf } from '../utils/profiling';
 import { debugLog } from '../services/agentDebugger';
 import { cb } from './callbacks';
@@ -197,8 +198,11 @@ export function handleServerMessage(message: ServerMessage): void {
 
       if (statusChanged && previousAgent?.status === 'working' && updatedAgent.status === 'idle') {
         // An agent just finished its work — play the completion cue (unless
-        // the user muted this agent).
-        if (agentIsAudible(updatedAgent.id)) {
+        // the user muted this agent). A standby (待岗) stop is user-initiated,
+        // so it stays silent: the flag rides on this update, and the stop's
+        // own earlier idle broadcast (flag not yet set) is caught by the
+        // local standby gesture recorded in this tab.
+        if (updatedAgent.standby !== true && !wasStandbyJustRequested(updatedAgent.id) && agentIsAudible(updatedAgent.id)) {
           playCompletionSound(soundLevel(), store.getSettings().toneCompletion);
         }
         // A /compact turn just ended. The tracked counters still hold the

@@ -107,6 +107,17 @@ describe('信号源 agent-state（快照 diff）', () => {
     expect(reading.degraded).toBeUndefined();
   });
 
+  it('待岗(standby)停机不算完成：用户主动下线，不报 agent_completed', async () => {
+    const { port } = queuedPort([
+      { a1: { name: '小美', status: 'working', taskLabel: '登录页' } },
+      { a1: { name: '小美', status: 'idle', taskLabel: '登录页', standby: true } },
+    ]);
+    const sense = createAgentStateSense({ port, logger: silentLogger });
+    await sense.collect(THU_10AM);
+    const reading = await sense.collect(THU_10AM + 1_000);
+    expect(reading.signals).toHaveLength(0);
+  });
+
   it('→error / lastError 更新报错；→waiting_permission 报等待授权且 timeSensitive', async () => {
     const { port } = queuedPort([
       { a1: { name: '阿强', status: 'working' }, a2: { name: '小美', status: 'working' } },

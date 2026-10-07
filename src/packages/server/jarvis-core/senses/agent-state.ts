@@ -3,10 +3,11 @@
  *
  * 采集方式：复用现有「快照 diff」语义（只读参照 client/voice/proactiveReporter.ts:
  * diffSnapshots / signalForEvent；本模块在服务端重写纯函数，不 import client/**）：
- *   working → idle            = 完成
+ *   working → idle            = 完成（待岗 standby 引起的例外，见下）
  *   → error / lastError 更新  = 报错
  *   → waiting / waiting_permission = 提问（等你授权才能继续，标 timeSensitive）
  *   scope='all' 时 working 换任务也报
+ * 待岗(standby)：用户主动停用，停止造成的 working→idle 不算完成（与 client 同口径）。
  * 首次采集只建立基线（启动前的状态不产生事件，与既有上报器同口径）。
  *
  * 触发：事件型（允许接线层即时唤醒）。
@@ -38,6 +39,8 @@ export interface AgentStateEntry {
   status: string;
   taskLabel?: string;
   lastError?: string;
+  /** 待岗(standby)：用户主动停用。待岗引起的 working→idle 是「被停」而非「干完了」。 */
+  standby?: boolean;
 }
 
 /** 快照输入：Map（同 client）或普通对象；未知形态按畸形处理。 */
@@ -107,6 +110,7 @@ function normalizeAgentSnapshot(raw: unknown): NormalizedSnapshot {
       name: toNonEmptyString(entry.name),
       taskLabel: toNonEmptyString(entry.taskLabel),
       lastError: toNonEmptyString(entry.lastError),
+      standby: entry.standby === true, // 只认显式 true：缺字段/脏值都按未待岗
     });
   }
   return { entries, malformedCount };
@@ -139,7 +143,10 @@ export function diffAgentSnapshots(
 
     if (before.status !== cur.status) {
       if (cur.status === 'idle' && before.status === 'working') {
-        events.push({ at: now, kind: 'completed', agentId: id, text: `${name} 完成任务${cur.taskLabel ? `:${cur.taskLabel}` : ''}` });
+        // 待岗停机 = 用户主动下线，不是「任务完成」——不报（与 client 同口径）。
+        if (!cur.standby) {
+          events.push({ at: now, kind: 'completed', agentId: id, text: `${name} 完成任务${cur.taskLabel ? `:${cur.taskLabel}` : ''}` });
+        }
         continue;
       }
       if (cur.status === 'error') {

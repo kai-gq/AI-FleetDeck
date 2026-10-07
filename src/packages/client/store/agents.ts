@@ -10,6 +10,7 @@ import type { StoreState, Activity } from './types';
 import { perf } from '../utils/profiling';
 import { apiUrl, authFetch } from '../utils/storage';
 import { evictHistoryCache } from '../components/ClaudeOutputPanel/useHistoryLoader';
+import { markStandbyRequest } from './standbyRequests';
 
 type AgentWithShortcut = Agent & { shortcut?: string };
 
@@ -737,6 +738,9 @@ export function createAgentActions(
     },
 
     setAgentStandby(agentId: string, standby: boolean): void {
+      // 记一笔本地手势:停止过程会先广播一次 idle,那一刻服务端标记还没落地,
+      // 完成提示音/语音汇报要知道「这是用户停的,不是干完了」(见 standbyRequests)。
+      if (standby) markStandbyRequest(agentId);
       getSendMessage()?.({
         type: 'set_agent_standby',
         payload: { agentId, standby },

@@ -4,6 +4,8 @@
  * 订阅 store(零改作者文件),对 agents 做「快照 diff」:
  *   - working → idle = 完成;→ error / 新 lastError = 报错;
  *   → waiting/waiting_permission = 提问;taskLabel 变化(scope=all 时)= 换任务。
+ * 例外:待岗(standby)停机是用户主动下线,不算完成——快照带 standby 标记直接跳过;
+ * 停止过程先广播 idle、标记后落地的那条,由本标签页的待岗手势记录兜底(standbyRequests)。
  * 事件先入队,静默窗口(默认 45s)去抖合并;flush 需要「非 busy」(聆听/转写/
  * 思考/播报中不插话,推迟到静默窗口后再试);另有定时巡查兜底(默认 30 分钟,
  * 仅在有事件时提前 flush,无事不打扰)。合并文本形如:
@@ -29,6 +31,7 @@
  */
 
 import { store } from '../store';
+import { wasStandbyJustRequested } from '../store/standbyRequests';
 import type { AgentStatus } from '../../shared/types';
 import {
   DEFAULT_GATES_CONFIG,
@@ -47,11 +50,16 @@ import {
   type Signal,
 } from '../../shared/broadcast-gates';
 
-/** 单个 agent 的两个关键字段(status + taskLabel)与错误串。 */
+/** 单个 agent 的关键字段(status + taskLabel)、错误串与待岗标记。 */
 export interface AgentSnapshotEntry {
   status: AgentStatus;
   taskLabel: string;
   lastError: string;
+  /**
+   * 待岗(standby):用户主动停用。待岗引起的 working→idle 是「被停」而非
+   * 「干完了」,不算完成事件。
+   */
+  standby?: boolean;
 }
 
 export type AgentSnapshot = Map<string, AgentSnapshotEntry>;
@@ -145,7 +153,10 @@ export function diffSnapshots(
 
     if (before.status !== cur.status) {
       if (cur.status === 'idle' && before.status === 'working') {
-        events.push({ at: now, kind: 'completed', agentId: id, text: `${name} 完成任务${cur.taskLabel ? `:${cur.taskLabel}` : ''}` });
+        // 待岗停机 = 用户主动下线,不是「任务完成」——不播报。
+        if (!cur.standby) {
+          events.push({ at: now, kind: 'completed', agentId: id, text: `${name} 完成任务${cur.taskLabel ? `:${cur.taskLabel}` : ''}` });
+        }
         continue;
       }
       if (cur.status === 'error') {
@@ -228,7 +239,7 @@ export function signalForEvent(event: ProactiveEvent): Signal {
 
 /** agent 数据源(默认接 store;单测注入桩,避免拉起真实 store)。 */
 export interface ProactiveSource {
-  agents: () => Map<string, { name: string; status: AgentStatus; taskLabel?: string; lastError?: string }>;
+  agents: () => Map<string, { name: string; status: AgentStatus; taskLabel?: string; lastError?: string; standby?: boolean }>;
   subscribe: (listener: () => void) => () => void;
 }
 
@@ -333,6 +344,7 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
         status: agent.status,
         taskLabel: agent.taskLabel ?? '',
         lastError: agent.lastError ?? '',
+        standby: agent.standby === true,
       });
     }
     return map;
@@ -579,9 +591,11 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
     for (const [id, cur] of next) {
       if (cur.status === 'working' && snapshot.get(id)?.status !== 'working') receiptCoverage.delete(id);
     }
-    const fresh = diffSnapshots(snapshot, next, options.scope, now, names()).filter(
-      (e) => !consumeReceiptCoverage(e, now),
-    );
+    const fresh = diffSnapshots(snapshot, next, options.scope, now, names())
+      .filter((e) => !consumeReceiptCoverage(e, now))
+      // 待岗停机兜底:停止过程会先广播一次 idle(标记尚未落地),那一次的
+      // working→idle 也可能是「用户刚点的待岗」。本标签页的手势记录能认出它。
+      .filter((e) => !(e.kind === 'completed' && wasStandbyJustRequested(e.agentId, now)));
     snapshot = next;
     if (fresh.length === 0) return;
     const { queued } = admitEvents(fresh, now, 'diff');
