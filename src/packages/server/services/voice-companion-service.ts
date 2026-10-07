@@ -149,6 +149,8 @@ import {
 } from '../voice/delegation-query.js';
 import { getDelegationQuotaSnapshot } from './delegation-quota-gate.js';
 import type { CancelDelegationOutcome } from '../websocket/handlers/boss-response-handler.js';
+// 任务40 办结主动汇报：派活成功时登记「最近一次秘书→主管派活」（上行回执链登记簿）
+import { isBossUplinkReceiptEnabled, registerBossUplinkReceipt } from '../websocket/handlers/boss-uplink-receipt-registry.js';
 
 const log = logger.server;
 
