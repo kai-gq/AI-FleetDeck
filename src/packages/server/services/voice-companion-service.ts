@@ -92,6 +92,8 @@ import {
 } from './activity-log.js';
 import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-context.js';
 import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
+// 任务32 人格层：核心身份（固定）常驻 + 关系模型（可演化）——纯逻辑全在 jarvis-core/persona/**（本文件只做接线）
+import { buildPersonaInjection, isPersonaEnabled, recordPersonaSession } from '../jarvis-core/persona/index.js';
 import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
 import { logEvent } from '../data/system-log.js';
 // 任务14·⑪ 项目感知与路由：纯逻辑全在 jarvis-core/projects/**（本文件只做接线）。
@@ -1768,6 +1770,10 @@ export function buildCompanionSystemPrompt(input: {
   bossNames?: ReadonlyMap<string, string>;
   /** 任务39·F4:当前会话 id(交接便签渲染门控用;缺省 null = 视作新会话)。 */
   currentSessionId?: string | null;
+  /** 任务32 人格层:核心身份块(不可变,always-on;缺省/空 → 不注段,与旧版逐字一致)。 */
+  personaCoreBlock?: string;
+  /** 任务32 人格层:关系模型块(可演化;缺省/空 → 不注段)。 */
+  relationshipBlock?: string;
 }): string {
   const { agentLines, totalAgents, truncated, memory } = input;
   const agentsBlock = agentLines.length > 0
@@ -1779,12 +1785,16 @@ export function buildCompanionSystemPrompt(input: {
     input.persona?.preset ?? DEFAULT_PERSONA_ID,
     input.persona?.custom,
   );
+  // 任务32 人格层注入:核心身份(固定)+ 关系模型(可演化)。空 → 尾缀为空串,与旧版逐字一致。
+  const personaSection = input.personaCoreBlock
+    ? `\n\n【身份(固定)】\n${input.personaCoreBlock}${input.relationshipBlock ? `\n\n【关系模型】\n${input.relationshipBlock}` : ''}`
+    : '';
 
   return `你是 Tide Commander(多 AI agent 指挥台)的语音伙伴,代号「秘书」。老板通过语音和你说话;你负责:聊天、把任务交给团队主管(Boss)安排、查询 agent 的进展与产出、记住老板的长期偏好。
 
 【背景】这是真实的生产使用场景,不是评测、演示或考试:没有评分人,也不存在「期望输出」。按真实情况和老板的实际需要办事,不要揣测「出题人想听什么」,更不要有应试心态。
 
-【人设】${personaStyle}
+【人设】${personaStyle}${personaSection}
 
 【输出格式】只输出一个 JSON 对象,不要 markdown、不要解释、不要代码块;严格按模板的字段顺序输出(action、responseToUser 在最前):
 ${CONTRACT_TEMPLATE}
@@ -2116,7 +2126,7 @@ interface Hop1Outcome {
   elapsedMs: number;
 }
 
-function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePersonaConfig, currentSessionId: string | null): string {
+export function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePersonaConfig, currentSessionId: string | null): string {
   const agents = agentService.getAllAgents();
   let areas: DrawingArea[] = [];
   try {
@@ -2145,7 +2155,21 @@ function buildSystemPromptFromWorld(memory: CompanionMemory, persona: VoicePerso
     log.warn(`[VoiceCompanion] 记忆注入体积偏大:${memoryChars} 字符 / ${memory.notes.length} 条笔记(阈值 ${MEMORY_WARN_CHARS}),建议清理`);
   }
   const bossNames = new Map<string, string>(agents.filter(isBossLikeAgent).map((a): [string, string] => [a.id, a.name]));
-  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, persona, delegationHistory, bossNames, currentSessionId });
+  // 任务32 人格层:开关缺省开;开关关 / 构建失败 → 不注段(与旧版逐字一致)。
+  // 会话计数幂等(sessionId null 不计数):同一会话的预热/每回合重复构词不重复计。
+  let personaCoreBlock: string | undefined;
+  let relationshipBlock: string | undefined;
+  if (isPersonaEnabled()) {
+    try {
+      const injection = buildPersonaInjection();
+      personaCoreBlock = injection.coreBlock;
+      relationshipBlock = injection.relationshipBlock;
+      recordPersonaSession(currentSessionId);
+    } catch (err) {
+      log.warn(`[VoiceCompanion] 人格层注入构建失败(不注段): ${(err as Error).message}`);
+    }
+  }
+  return buildCompanionSystemPrompt({ agentLines: lines, totalAgents: total, truncated, memory, persona, delegationHistory, bossNames, currentSessionId, personaCoreBlock, relationshipBlock });
 }
 
 /**
