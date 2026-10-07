@@ -174,6 +174,45 @@ describe('buildAgentSnapshotLines — Boss 卡片下属结构(任务06·③)', (
 });
 
 // ============================================================================
+// 待岗(standby)标注:语音侧不计入忙/闲,快照行/下属摘要点名;非待岗输出不变
+// ============================================================================
+
+describe('buildAgentSnapshotLines — 待岗(standby)标注', () => {
+  /** 与 world 同构,但 a3 待岗(状态仍是 idle —— 待岗 = 停用标志,不是新状态值)。 */
+  const standbyWorld: SnapshotAgent[] = [
+    { id: 'b1', name: '大当家', class: 'boss', isBoss: true, status: 'working', lastWorkedAt: 400, subordinateIds: ['a1', 'a2', 'a3'] },
+    { id: 'a1', name: '小美', class: 'builder', status: 'working', bossId: 'b1', lastWorkedAt: 200 },
+    { id: 'a2', name: '老王', class: 'builder', status: 'idle', bossId: 'b1', lastWorkedAt: 100 },
+    { id: 'a3', name: '阿强', class: 'builder', status: 'idle', bossId: 'b1', lastWorkedAt: 50, standby: true },
+  ];
+
+  it('待岗下属不算「忙/闲」:单独计数,条目名后标「·待岗」', () => {
+    const { lines } = buildAgentSnapshotLines(standbyWorld, []);
+    const boss = lines.find((l) => l.includes('大当家'))!;
+    expect(boss).toContain('下属(3): 1忙/1闲/1待岗');
+    expect(boss).toContain('阿强(idle·待岗)');
+    expect(boss).toContain('小美(working)');
+  });
+
+  it('待岗 agent 快照行带方括号标记;非待岗行零变化(防 prompt 抖动)', () => {
+    const { lines } = buildAgentSnapshotLines(standbyWorld, []);
+    const standbyLine = lines.find((l) => l.includes('id: a3'))!;
+    expect(standbyLine).toContain('[待岗:用户已停用,勿派活,需用户恢复]');
+    expect(standbyLine).not.toContain('[BOSS]');
+    expect(lines.find((l) => l.includes('id: a1'))!).not.toContain('待岗');
+    // Boss 本人在岗:自身无方括号标记(行内的「…/1待岗」来自下属摘要,是应有内容)
+    expect(lines.find((l) => l.includes('id: b1'))!).not.toContain('[待岗:用户已停用');
+  });
+
+  it('全员在岗(既有 world):忙/闲与条目格式逐字节同旧版', () => {
+    const { lines } = buildAgentSnapshotLines(world, worldAreas);
+    const boss1 = lines.find((l) => l.includes('大当家'))!;
+    expect(boss1).toContain('下属(2): 1忙/1闲');
+    expect(lines.join('\n')).not.toContain('待岗');
+  });
+});
+
+// ============================================================================
 // 委派史注入:镜像 subordinate-context-service:135 的 slice(0,5) 摘要
 // ============================================================================
 

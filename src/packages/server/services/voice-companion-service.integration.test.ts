@@ -113,6 +113,8 @@ interface MockAgent {
   lastAssignedTask?: string;
   lastError?: string;
   lastWorkedAt?: number;
+  /** 待岗(用户手动停用):语音侧不计入忙/闲,派发被确定性拒绝。 */
+  standby?: boolean;
 }
 
 const mockAgents: MockAgent[] = [];
@@ -1742,6 +1744,29 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r2.response).toBe('没找到这个 agent(幽灵)。');
   });
 
+  it('G6-4b 待岗目标拒派:不吃错误路径,整段确定性话术说明原因与恢复方式', async () => {
+    mockAgents.push({ id: 'b9', name: '大当家', class: 'boss', isBoss: true, status: 'idle', standby: true });
+    const sentences: string[] = [];
+    const p = startProcess('让大当家看日志', { onSentence: (s) => sentences.push(s) });
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({
+      action: 'send_to_agent',
+      targetAgentId: 'b9',
+      targetAgentName: '大当家',
+      messageToAgent: '看日志',
+      responseToUser: '已让大当家去看。',
+    }), { via: 'delta' });
+
+    const r = await p;
+    expect(sendCommandMock).not.toHaveBeenCalled(); // 不投递(底层守卫之外的前置拒绝)
+    expect(stopAgentMock).not.toHaveBeenCalled();    // 不打断
+    expect(sentences).toEqual([]);                   // 「已让X去做」不可信:流式缓冲丢弃
+    expect(r.spoke).toBeUndefined();
+    expect(r.response).toContain('大当家');
+    expect(r.response).toContain('待岗');
+    expect(r.response).toContain('恢复上岗');
+  });
+
   it('G6-5 falls back when messageToAgent is empty', async () => {
     mockAgents.push({ id: 'b4', name: '大当家', class: 'boss', isBoss: true, status: 'idle' });
     const sentences: string[] = [];
@@ -1877,6 +1902,33 @@ describe('G6 派发 / 第二跳 / 互斥 / 流式', () => {
     expect(r.response).toContain('2 个 agent');
     expect(r.response).toContain('1 个在忙:小美');
     expect(r.response).toContain('其余 1 个空闲');
+  });
+
+  it('G6-9b 待岗者不计入忙/闲,单独点名报出(「团队谁有空」排除待岗者)', async () => {
+    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'working' });
+    mockAgents.push({ id: 'a2', name: '阿强', class: 'claude', status: 'idle' });
+    mockAgents.push({ id: 'a3', name: '张豪年', class: 'claude', status: 'idle', standby: true });
+    const p = startProcess('现在谁有空');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'list_agents', responseToUser: '' }));
+
+    const r = await p;
+    expect(r.response).toContain('3 个 agent');
+    expect(r.response).toContain('1 个在忙:小美');
+    expect(r.response).toContain('其余 1 个空闲'); // 空闲只数在岗者(2 在岗 − 1 忙)
+    expect(r.response).toContain('另有 1 个待岗:张豪年,需你恢复');
+  });
+
+  it('G6-9c 全员待岗:如实报「全部待岗」,不报空闲', async () => {
+    mockAgents.push({ id: 'a1', name: '小美', class: 'claude', status: 'idle', standby: true });
+    mockAgents.push({ id: 'a2', name: '阿强', class: 'claude', status: 'idle', standby: true });
+    const p = startProcess('现在谁有空');
+    const call = await waitSpawn(1);
+    await completeWith(call.child, contractText({ action: 'list_agents', responseToUser: '' }));
+
+    const r = await p;
+    expect(r.response).toContain('全部待岗');
+    expect(r.response).not.toContain('空闲');
   });
 
   it('G6-10 streams general_response sentences as soon as they complete', async () => {

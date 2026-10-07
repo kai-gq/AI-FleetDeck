@@ -90,6 +90,8 @@ import {
   logSession,
   type MemoryOpDetail,
 } from './activity-log.js';
+// 待岗(standby)守卫:单一事实源(派发/主管/HTTP 通路共用同一判定,勿另写)。
+import { AGENT_ON_STANDBY, isOnStandby } from './agent-standby.js';
 import { ensureTaskId, runWithTrace, updateTraceContext } from '../utils/trace-context.js';
 import { createMemoryStack, type MemoryStack } from '../jarvis-core/memory/index.js';
 // 任务32 人格层：核心身份（固定）常驻 + 关系模型（可演化）——纯逻辑全在 jarvis-core/persona/**（本文件只做接线）
@@ -385,6 +387,14 @@ const DEFAULT_STATE: VoiceCompanionState = {
 
 /** Agent 状态里算「正在干活」(打断有代价)的三种。 */
 export const ACTIVE_AGENT_STATUSES = new Set(['working', 'waiting', 'waiting_permission']);
+
+/**
+ * 语音侧「忙」的统一口径:在岗(未待岗)且状态属于 ACTIVE_AGENT_STATUSES。
+ * 待岗者进程已停、恢复前派不了活 —— 既不算忙也不算闲,忙/闲统计一律走这里。
+ */
+function isAgentBusy(agent: { status: string; standby?: boolean }): boolean {
+  return !isOnStandby(agent) && ACTIVE_AGENT_STATUSES.has(agent.status);
+}
 
 const NOTES_MAX_TEXT = 300;
 const SUMMARY_MAX_TEXT = 1500;
@@ -899,6 +909,8 @@ export interface SnapshotAgent {
   lastError?: string;
   lastWorkedAt?: number;
   lastActivity?: number;
+  /** 待岗(用户手动停用,仅用户可恢复):恢复前勿派活;语音侧不计入忙/闲。 */
+  standby?: boolean;
 }
 
 /**
@@ -918,22 +930,27 @@ function formatSubordinateSummary(
     .map((id) => byId.get(id))
     .filter((s): s is SnapshotAgent => !!s && s.id !== boss.id);
 
-  const busy = subs.filter((s) => ACTIVE_AGENT_STATUSES.has(s.status)).length;
+  // 待岗者不算「忙/闲」(恢复前派不了活):单独计数,忙/闲分母只剩在岗者;
+  // 无人待岗时输出与旧版逐字节一致(防 prompt 抖动)。
+  const standbyCount = subs.filter((s) => isOnStandby(s)).length;
+  const busy = subs.filter((s) => isAgentBusy(s)).length;
   const ordered = [...subs].sort((a, b) => {
-    const ab = ACTIVE_AGENT_STATUSES.has(a.status) ? 0 : 1;
-    const bb = ACTIVE_AGENT_STATUSES.has(b.status) ? 0 : 1;
+    const ab = isAgentBusy(a) ? 0 : 1;
+    const bb = isAgentBusy(b) ? 0 : 1;
     if (ab !== bb) return ab - bb;
     return a.name.localeCompare(b.name);
   });
   const shown = ordered.slice(0, MAX_SNAPSHOT_SUBORDINATES).map((s) => {
     const areaNames = areasByAgent.get(s.id);
     const area = areaNames?.length ? `·${areaNames.join('、')}` : '';
-    return `${s.name}(${s.status}${area})`;
+    const standbyMark = isOnStandby(s) ? '·待岗' : '';
+    return `${s.name}(${s.status}${area}${standbyMark})`;
   });
   const rest = ordered.length - shown.length;
   if (rest > 0) shown.push(`…另${rest}人`);
 
-  return `下属(${subs.length}): ${busy}忙/${subs.length - busy}闲${shown.length ? ` — ${shown.join('、')}` : ''}`;
+  const standbyPart = standbyCount > 0 ? `/${standbyCount}待岗` : '';
+  return `下属(${subs.length}): ${busy}忙/${subs.length - busy - standbyCount}闲${standbyPart}${shown.length ? ` — ${shown.join('、')}` : ''}`;
 }
 
 /**
@@ -978,6 +995,8 @@ export function buildAgentSnapshotLines(
     const parts = [`- ${a.name} | id: ${a.id} | ${a.class ?? 'unknown'} | ${a.status}`];
     const isBoss = isBossLikeAgent(a);
     if (isBoss) parts.push('[BOSS]');
+    // 待岗标注(仅待岗时追加):秘书据此不派活、如实报「待岗」,非待岗行零变化。
+    if (isOnStandby(a)) parts.push('[待岗:用户已停用,勿派活,需用户恢复]');
     const agentAreas = areasByAgent.get(a.id);
     if (agentAreas?.length) parts.push(`[区域: ${agentAreas.join('、')}]`);
     if (isBoss) {
@@ -2653,16 +2672,33 @@ async function deliverToAgent(agent: Agent, message: string, delivery: Companion
   return interrupted;
 }
 
-/** list_agents 且模型没说人话时的确定性兜底汇报(不依赖模型)。 */
+/**
+ * list_agents 且模型没说人话时的确定性兜底汇报(不依赖模型)。
+ * 待岗者不计入「忙/闲」(恢复前派不了活):忙/闲只数在岗者,待岗单独点名报出。
+ */
 function buildAgentListFallback(): string {
   const agents = agentService.getAllAgents();
   if (agents.length === 0) return '现在还没有任何 agent。';
-  const working = agents.filter((a) => ACTIVE_AGENT_STATUSES.has(a.status));
-  const idleCount = agents.length - working.length;
+  const standbyList = agents.filter((a) => isOnStandby(a));
+  const active = agents.filter((a) => !isOnStandby(a));
+  const standbyNames = standbyList.slice(0, 4).map((a) => a.name).join('、');
+  const standbyMore = standbyList.length > 4 ? '等' : '';
+  if (active.length === 0) {
+    return `现有 ${agents.length} 个 agent,全部待岗(${standbyNames}${standbyMore})——需你先恢复上岗才能派活。`;
+  }
+  const working = active.filter((a) => isAgentBusy(a));
   const names = working.slice(0, 4).map((a) => a.name).join('、');
-  if (working.length === 0) return `现有 ${agents.length} 个 agent,都在空闲。`;
+  const standbyNote = standbyList.length > 0
+    ? `;另有 ${standbyList.length} 个待岗:${standbyNames}${standbyMore},需你恢复`
+    : '';
+  if (working.length === 0) {
+    return standbyList.length > 0
+      ? `现有 ${agents.length} 个 agent,在岗的 ${active.length} 个都空闲${standbyNote}。`
+      : `现有 ${agents.length} 个 agent,都在空闲。`;
+  }
   const more = working.length > 4 ? '等' : '';
-  return `现有 ${agents.length} 个 agent;${working.length} 个在忙:${names}${more};其余 ${idleCount} 个空闲。`;
+  const idleCount = active.length - working.length;
+  return `现有 ${agents.length} 个 agent;${working.length} 个在忙:${names}${more};其余 ${idleCount} 个空闲${standbyNote}。`;
 }
 
 // ============================================================================
@@ -3335,6 +3371,26 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       const target = route.agent;
       // 违规改道不携带打断语义:打断决定是针对被请求的普通 agent 做的,转到主管一律 queue。
       const delivery: CompanionDelivery = route.violation ? 'queue' : contract.delivery;
+      // 待岗(用户手动停用)拒派:底层 sendCommand 守卫同样会拦(AGENT_ON_STANDBY),
+      // 但那是抛错(500);这里与其他路由失败分支(no_boss 等)同型 —— 提前用整段
+      // 确定性话术说清「为什么没派出去、怎么恢复」,不投递、不打断、不登记回执。
+      if (isOnStandby(target)) {
+        speech.discardHop1();
+        result.response = `「${target.name}」正在待岗(已被用户停用),派不了活——需要你先在智能体面板把它恢复上岗,我才能安排。`;
+        logDelegation({
+          phase: 'failed',
+          channel: 'voice-companion',
+          toAgentId: target.id,
+          toAgentName: target.name,
+          message: contract.messageToAgent,
+          status: 'agent-on-standby',
+          error: AGENT_ON_STANDBY,
+          routedBy: contract.action,
+          taskId,
+          sessionId: state.sessionId ?? undefined,
+        });
+        return finish(result);
+      }
       let interrupted: boolean;
       try {
         interrupted = await deliverToAgent(target, contract.messageToAgent, delivery);
