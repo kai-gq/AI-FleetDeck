@@ -62,7 +62,11 @@ export function getCachedRuntimes(): RuntimeAvailabilityState {
  * is left untouched (unknown/old value keeps every dialog fail-open).
  */
 export function fetchRuntimes(refresh = false): Promise<RuntimeAvailabilityState> {
-  if (inFlight) return inFlight;
+  if (inFlight) {
+    // A plain request may share any in-flight one; a refresh must really
+    // reach the server with ?refresh=1, so wait the current one out first.
+    return refresh ? inFlight.then(() => fetchRuntimes(true)) : inFlight;
+  }
 
   inFlight = (async () => {
     try {
@@ -83,8 +87,12 @@ export function fetchRuntimes(refresh = false): Promise<RuntimeAvailabilityState
 
 export interface UseRuntimes {
   value: RuntimeAvailabilityState;
-  /** Re-probe the server (bypasses its 60s cache) — the "re-detect" affordance. */
-  refresh: () => void;
+  /**
+   * Re-probe the server (bypasses its 60s cache) — the "re-detect"
+   * affordance. Resolves once the new value is published; rejects when the
+   * request itself failed (the old value is kept either way).
+   */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -105,8 +113,8 @@ export function useRuntimes(): UseRuntimes {
 
   return {
     value,
-    refresh: () => {
-      fetchRuntimes(true).catch(() => {});
+    refresh: async () => {
+      await fetchRuntimes(true);
     },
   };
 }

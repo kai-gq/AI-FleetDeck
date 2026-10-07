@@ -354,7 +354,10 @@
     "runtimesRefreshTitle": "重新检测本机已安装的智能体 CLI",
     "modelAvailabilityNote": "能选≠一定接通——实际取决于该运行时 CLI 配置的账号与凭据。",
     "runtimeDetectionDegraded": "运行时检测结果不可靠，已显示全部运行时。",
-    "runtimeInUseUnavailable": "本机未检测到该运行时——因当前智能体正在使用而保留"
+    "runtimeInUseUnavailable": "本机未检测到该运行时——因当前智能体正在使用而保留",
+    "runtimesRefreshing": "检测中…",
+    "runtimesRefreshed": "已重新检测",
+    "runtimesRefreshFailed": "重新检测失败"
   },
   "overview": {
     "title": "智能体概览",

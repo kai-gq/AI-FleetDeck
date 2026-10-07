@@ -5,7 +5,7 @@
  * every dialog fail-open.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { hiddenProviders, useRuntimes } from '../api/runtimes';
 import { providerDisplayName } from '../../shared/agent-types';
@@ -16,11 +16,46 @@ interface RuntimeAvailabilityNoticeProps {
   keep?: AgentProvider | null;
 }
 
+const FEEDBACK_MS = 3000;
+
 export function RuntimeAvailabilityNotice({ keep }: RuntimeAvailabilityNoticeProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const runtimes = useRuntimes();
   const hidden = hiddenProviders(runtimes.value, keep);
   const degraded = runtimes.value.loaded && runtimes.value.degraded;
+
+  // Re-detect feedback: "checking…" while the probe runs, then a short-lived
+  // "re-detected" / "re-detect failed" so the click visibly does something
+  // even when the result is unchanged.
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<'ok' | 'fail' | null>(null);
+  const feedbackTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+  }, []);
+
+  const handleRefresh = async () => {
+    if (busy) return;
+    if (feedbackTimer.current !== null) {
+      window.clearTimeout(feedbackTimer.current);
+      feedbackTimer.current = null;
+    }
+    setBusy(true);
+    setFeedback(null);
+    let ok = true;
+    try {
+      await runtimes.refresh();
+    } catch {
+      ok = false;
+    }
+    setBusy(false);
+    setFeedback(ok ? 'ok' : 'fail');
+    feedbackTimer.current = window.setTimeout(() => {
+      feedbackTimer.current = null;
+      setFeedback(null);
+    }, FEEDBACK_MS);
+  };
 
   if (hidden.length === 0 && !degraded) return null;
 
@@ -43,13 +78,26 @@ export function RuntimeAvailabilityNotice({ keep }: RuntimeAvailabilityNoticePro
         type="button"
         className="spawn-select-btn"
         style={{ padding: '2px 10px' }}
-        onClick={runtimes.refresh}
+        onClick={handleRefresh}
+        disabled={busy}
         title={t('terminal:spawn.runtimesRefreshTitle', {
           defaultValue: 'Re-check which agent CLIs are installed on this machine',
         })}
       >
-        {t('terminal:spawn.runtimesRefresh', { defaultValue: 'Re-detect' })}
+        {busy
+          ? t('terminal:spawn.runtimesRefreshing', { defaultValue: 'Checking…' })
+          : t('terminal:spawn.runtimesRefresh', { defaultValue: 'Re-detect' })}
       </button>
+      {feedback === 'ok' && (
+        <span style={{ opacity: 0.75 }}>
+          {t('terminal:spawn.runtimesRefreshed', { defaultValue: 'Re-detected' })}
+        </span>
+      )}
+      {feedback === 'fail' && (
+        <span style={{ opacity: 0.75 }}>
+          {t('terminal:spawn.runtimesRefreshFailed', { defaultValue: 'Re-detect failed' })}
+        </span>
+      )}
     </div>
   );
 }
