@@ -10,6 +10,7 @@ import { providerDisplayName } from '../../../shared/types.js';
 import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA } from '../../../shared/agent-types.js';
 import { agentService, runtimeService, skillService, customClassService, bossService, permissionService } from '../../services/index.js';
 import { markInstructionsDirty } from '../../services/instruction-refresh.js';
+import { isOnStandby } from '../../services/agent-standby.js';
 import { createLogger } from '../../utils/index.js';
 import { ClaudeBackend, parseContextOutput } from '../../claude/backend.js';
 import { detectSessionProvider } from '../../claude/session-loader.js';
@@ -447,6 +448,58 @@ export async function handleStopAgent(
   ctx.sendActivity(payload.agentId, 'Operation cancelled');
 
   log.log(`Agent ${agent?.name || payload.agentId}: Stopped successfully, agent now idle`);
+}
+
+/**
+ * Handle set_agent_standby message - 待岗开关（用户手动的可逆停用）
+ * standby=true: cancel pending permissions, stop the process, THEN flag the
+ * agent. standby=false: clear the flag only — never auto-runs work.
+ * 「先停后打标」：中途崩溃最坏是「已停但未打标」，用户重试一次即可；
+ * 反序会出现「已打标但进程还在跑」，违背待岗=进程已停的定义。
+ */
+export async function handleSetAgentStandby(
+  ctx: HandlerContext,
+  payload: { agentId: string; standby: boolean }
+): Promise<void> {
+  const { agentId, standby } = payload;
+  const agent = agentService.getAgent(agentId);
+  if (!agent) {
+    log.error(` Agent not found: ${agentId}`);
+    return;
+  }
+
+  if (isOnStandby(agent) === standby) {
+    log.log(`Agent ${agent.name}: already ${standby ? 'on standby' : 'active'} - no-op`);
+    return;
+  }
+
+  if (standby) {
+    // Same stop semantics as handleStopAgent: resolve pending permissions first
+    // so the runner isn't left parked on a question while we kill the process.
+    const cancelledPermissions = permissionService.cancelRequestsForAgent(agentId);
+    for (const requestId of cancelledPermissions) {
+      ctx.broadcast({
+        type: 'permission_resolved',
+        payload: { requestId, approved: false },
+      });
+    }
+
+    await runtimeService.stopAgent(agentId);
+    agentService.updateAgent(agentId, {
+      status: 'idle',
+      currentTask: undefined,
+      currentTool: undefined,
+      standby: true,
+    });
+    ctx.sendActivity(agentId, 'Agent is on standby (待岗) — it will refuse all commands until the user restores it');
+    log.log(`Agent ${agent.name}: on standby — process stopped, flag set`);
+  } else {
+    // Restore is flag-only: the agent stays idle until a new command arrives;
+    // the interrupted task is never resumed automatically.
+    agentService.updateAgent(agentId, { standby: undefined });
+    ctx.sendActivity(agentId, 'Agent restored from standby (待岗) — idle and ready');
+    log.log(`Agent ${agent.name}: restored from standby`);
+  }
 }
 
 /**

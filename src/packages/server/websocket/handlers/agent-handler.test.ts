@@ -47,10 +47,10 @@ vi.mock('../../claude/session-loader.js', () => ({
   detectSessionProvider: vi.fn(() => 'claude'),
 }));
 
-import { agentService, runtimeService, skillService } from '../../services/index.js';
+import { agentService, runtimeService, skillService, permissionService } from '../../services/index.js';
 import { detectSessionProvider } from '../../claude/session-loader.js';
 import { consumeInstructionsDirty } from '../../services/instruction-refresh.js';
-import { handleClearContext, handleRestoreSession, handleUpdateAgentProperties } from './agent-handler.js';
+import { handleClearContext, handleRestoreSession, handleSetAgentStandby, handleUpdateAgentProperties } from './agent-handler.js';
 
 describe('Agent Handler', () => {
   beforeEach(() => {
@@ -323,5 +323,79 @@ describe('Agent Handler', () => {
     expect(updates).toBeDefined();
     expect(updates).not.toHaveProperty('skillIds');
     expect(updates).not.toHaveProperty('class');
+  });
+
+  describe('handleSetAgentStandby', () => {
+    const makeCtx = () => ({ sendActivity: vi.fn(), broadcast: vi.fn() }) as any;
+
+    it('待岗：取消待定权限 → 先停进程 → 再打标（stopAgent 先于 updateAgent{standby:true}）', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({ id: 'a1', name: 'Worker' } as any);
+      vi.mocked(permissionService.cancelRequestsForAgent).mockReturnValue(['perm-1']);
+      const ctx = makeCtx();
+
+      await handleSetAgentStandby(ctx, { agentId: 'a1', standby: true });
+
+      expect(permissionService.cancelRequestsForAgent).toHaveBeenCalledWith('a1');
+      expect(ctx.broadcast).toHaveBeenCalledWith({
+        type: 'permission_resolved',
+        payload: { requestId: 'perm-1', approved: false },
+      });
+      expect(runtimeService.stopAgent).toHaveBeenCalledWith('a1');
+      expect(agentService.updateAgent).toHaveBeenCalledWith('a1', expect.objectContaining({
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        standby: true,
+      }));
+      // 先停后打标：crash 窗口只能落在「已停未打标」（可重试），不能反序。
+      const stopOrder = vi.mocked(runtimeService.stopAgent).mock.invocationCallOrder[0];
+      const updateOrder = vi.mocked(agentService.updateAgent).mock.invocationCallOrder[0];
+      expect(stopOrder).toBeLessThan(updateOrder);
+      expect(ctx.sendActivity).toHaveBeenCalledWith('a1', expect.stringContaining('standby'));
+    });
+
+    it('待岗幂等：已待岗再次置待岗 = 零副作用', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({ id: 'a1', name: 'Worker', standby: true } as any);
+      const ctx = makeCtx();
+
+      await handleSetAgentStandby(ctx, { agentId: 'a1', standby: true });
+
+      expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+      expect(agentService.updateAgent).not.toHaveBeenCalled();
+      expect(ctx.sendActivity).not.toHaveBeenCalled();
+    });
+
+    it('恢复：只清标志（standby: undefined），不自动跑活', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({ id: 'a1', name: 'Worker', standby: true } as any);
+      const ctx = makeCtx();
+
+      await handleSetAgentStandby(ctx, { agentId: 'a1', standby: false });
+
+      // undefined（而非 false）：JSON.stringify 丢键，agents.json 保持干净，
+      // 同时与 true 的比较仍判为变化 → 走非 quiet 广播。
+      expect(agentService.updateAgent).toHaveBeenCalledWith('a1', { standby: undefined });
+      expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+      expect(ctx.sendActivity).toHaveBeenCalledWith('a1', expect.stringContaining('restored'));
+    });
+
+    it('恢复幂等：未待岗时恢复 = 零副作用', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({ id: 'a1', name: 'Worker' } as any);
+      const ctx = makeCtx();
+
+      await handleSetAgentStandby(ctx, { agentId: 'a1', standby: false });
+
+      expect(agentService.updateAgent).not.toHaveBeenCalled();
+      expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+    });
+
+    it('agent 不存在：安全早退', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue(undefined as any);
+      const ctx = makeCtx();
+
+      await handleSetAgentStandby(ctx, { agentId: 'ghost', standby: true });
+
+      expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+      expect(agentService.updateAgent).not.toHaveBeenCalled();
+    });
   });
 });

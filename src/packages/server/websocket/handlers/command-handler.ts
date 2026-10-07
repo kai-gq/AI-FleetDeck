@@ -9,6 +9,7 @@ import { agentService, runtimeService, skillService, customClassService } from '
 import { createLogger, getCommanderBaseUrl } from '../../utils/index.js';
 import { getAuthToken } from '../../auth/index.js';
 import { handleRequestContextStats } from './agent-handler.js';
+import { isOnStandby, standbyRefusalMessage } from '../../services/agent-standby.js';
 import { pluginManager } from '../../plugins/index.js';
 import type { HandlerContext } from './types.js';
 import type { ServerMessage } from '../../../shared/types.js';
@@ -319,6 +320,16 @@ export async function handleSendCommand(
 
   if (!agent) {
     log.error(` Agent not found: ${agentId}`);
+    return;
+  }
+
+  // On standby (待岗) the agent refuses every command. Refuse before ANY
+  // interception/echo side effect: the runtime layer also guards, but some
+  // callers (boss fire-and-forget below) never await it, so the rejection
+  // would sink into an unhandledRejection and the sender would see nothing.
+  if (isOnStandby(agent)) {
+    log.warn(`Agent ${agent.name}: send_command refused — on standby (待岗)`);
+    ctx.sendActivity(agentId, standbyRefusalMessage(agent));
     return;
   }
 

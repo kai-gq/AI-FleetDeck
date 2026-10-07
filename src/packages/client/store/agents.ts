@@ -118,6 +118,9 @@ export interface AgentActions {
   moveAgent(agentId: string, position: { x: number; y: number; z: number }): void;
   killAgent(agentId: string): void;
   stopAgent(agentId: string): void;
+  /** Reversible user-only deactivation (待岗): true stops the agent and makes
+   *  it refuse all commands; false restores it (no auto-resume). */
+  setAgentStandby(agentId: string, standby: boolean): void;
   clearContext(agentId: string): void;
   restoreSession(agentId: string, sessionId: string, cwd?: string): void;
   /** Restore a session onto a brand-new agent (server copies the config and
@@ -730,6 +733,13 @@ export function createAgentActions(
       getSendMessage()?.({
         type: 'stop_agent',
         payload: { agentId },
+      });
+    },
+
+    setAgentStandby(agentId: string, standby: boolean): void {
+      getSendMessage()?.({
+        type: 'set_agent_standby',
+        payload: { agentId, standby },
       });
     },
 

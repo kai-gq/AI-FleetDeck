@@ -1324,6 +1324,7 @@ class Store
   moveAgent(...args: Parameters<AgentActions['moveAgent']>) { return this.agentActions.moveAgent(...args); }
   killAgent(...args: Parameters<AgentActions['killAgent']>) { return this.agentActions.killAgent(...args); }
   stopAgent(...args: Parameters<AgentActions['stopAgent']>) { return this.agentActions.stopAgent(...args); }
+  setAgentStandby(...args: Parameters<AgentActions['setAgentStandby']>) { return this.agentActions.setAgentStandby(...args); }
   clearContext(...args: Parameters<AgentActions['clearContext']>) { return this.agentActions.clearContext(...args); }
   restoreSession(...args: Parameters<AgentActions['restoreSession']>) { return this.agentActions.restoreSession(...args); }
   restoreSessionToNewAgent(...args: Parameters<AgentActions['restoreSessionToNewAgent']>) { return this.agentActions.restoreSessionToNewAgent(...args); }

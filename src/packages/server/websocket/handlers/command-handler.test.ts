@@ -257,6 +257,23 @@ describe('Command Handler', () => {
       expect(runtimeService.sendCommand).not.toHaveBeenCalled();
     });
 
+    it('refuses commands to an agent on standby (待岗) with visible feedback and no echo side effects', async () => {
+      mockCtx.broadcast.mockClear();
+      mockCtx.sendActivity.mockClear();
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'sb-1', name: 'Standby One', class: 'default', status: 'idle', standby: true,
+      } as any);
+
+      await handleSendCommand(mockCtx, { agentId: 'sb-1', command: 'do the thing' }, mockBuildBossMessage);
+
+      expect(runtimeService.sendCommand).not.toHaveBeenCalled();
+      expect(mockBuildBossMessage).not.toHaveBeenCalled();
+      // 拒绝必须对发送方可见（Boss 通路 fire-and-forget，只靠底层守卫会沉日志）
+      expect(mockCtx.sendActivity).toHaveBeenCalledWith('sb-1', expect.stringContaining('standby'));
+      // 早退发生在拦截/回显之前：用户消息不产生 command_started 假象
+      expect(mockCtx.broadcast).not.toHaveBeenCalled();
+    });
+
     it('routes boss agent commands through buildBossMessage', async () => {
       vi.mocked(agentService.getAgent).mockReturnValue({
         id: 'boss-1', name: 'Boss', class: 'boss', isBoss: true, status: 'idle',

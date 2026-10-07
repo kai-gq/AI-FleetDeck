@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { agentService, runtimeService, bossMessageService, skillService } from '../services/index.js';
+import { isOnStandby, standbyRefusalMessage } from '../services/agent-standby.js';
 import { getClaudeProjectDir, loadAreas, saveAreas } from '../data/index.js';
 import { loadSession } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
@@ -385,6 +386,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       currentTask: agent.currentTask,
       currentTool: agent.currentTool,
       isProcessRunning: runtimeService.isAgentRunning(agent.id),
+      standby: agent.standby === true,
     }));
 
     res.json(statuses);
@@ -1413,6 +1415,17 @@ router.patch('/:id', (req: Request<{ id: string }>, res: Response) => {
     log.warn(`API attempted to modify sessionId for agent ${req.params.id} - blocked`);
   }
 
+  // standby（待岗）是用户专属开关：只有面板的 WS set_agent_standby 能切换。
+  // 不封堵的话，任何 agent（含 Boss 用 curl）都能靠 {"standby":false} 自我恢复。
+  if ('standby' in safeUpdates) {
+    log.warn(`API attempted to modify standby for agent ${req.params.id} - blocked`);
+    res.status(400).json({
+      error: 'standby can only be toggled from the agent panel by the user',
+      code: 'standby-user-only',
+    });
+    return;
+  }
+
   const existing = agentService.getAgent(req.params.id);
   if (safeUpdates.provider && existing && safeUpdates.provider !== (existing.provider ?? 'claude') && existing.sessionId) {
     res.status(409).json({
@@ -1821,6 +1834,11 @@ router.post('/:id/message', async (req: Request<{ id: string }>, res: Response) 
     const agent = agentService.getAgent(agentId);
     if (!agent) {
       res.status(404).json({ error: `Agent not found: ${agentId}` });
+      return;
+    }
+
+    if (isOnStandby(agent)) {
+      res.status(409).json({ error: standbyRefusalMessage(agent) });
       return;
     }
 

@@ -359,6 +359,17 @@ export interface StopAgentMessage extends WSMessage {
   };
 }
 
+// Toggle standby (待岗) — reversible user-only deactivation. standby=true stops
+// the agent and makes it refuse every command; false restores it (idle, no
+// auto-resume). Only the user's panel sends this; the REST API blocks it.
+export interface SetAgentStandbyMessage extends WSMessage {
+  type: 'set_agent_standby';
+  payload: {
+    agentId: string;
+    standby: boolean;
+  };
+}
+
 // Clear agent's context/session (force new session on next command)
 export interface ClearContextMessage extends WSMessage {
   type: 'clear_context';
@@ -1970,6 +1981,7 @@ export type ClientMessage =
   | MoveAgentMessage
   | KillAgentMessage
   | StopAgentMessage
+  | SetAgentStandbyMessage
   | ClearContextMessage
   | BrowserRegisterMessage
   | BrowserResultMessage
