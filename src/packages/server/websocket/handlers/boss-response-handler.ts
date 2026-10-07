@@ -31,6 +31,7 @@ import {
   type QueuedDelegation,
 } from '../../services/delegation-quota-gate.js';
 import { getLastBossDispatch, logProactiveBroadcast } from '../../services/voice-companion-service.js';
+import { isOnStandby, standbyRefusalMessage } from '../../services/agent-standby.js';
 import { appendDecisionToAssetLibrary } from '../../services/team-memory-service.js';
 import { loadDelegationHistory } from '../../data/index.js';
 
@@ -325,6 +326,42 @@ function dispatchQueuedDelegation(payload: QueuedDelegation): void {
     const taskId = payload.taskId ?? newTaskId();
     const bossName = agentService.getAgent(payload.bossId)?.name ?? payload.bossId;
     const targetAgent = agentService.getAgent(payload.selectedAgentId);
+    // 出队时目标可能已待岗（排队期间被用户下线）：拒绝并归还槽位。出队时槽位已归
+    // 出队者（onDelegationComplete 返回队首载荷），不归还整条 FIFO 静默断链——
+    // releaseQuotaSlotSafely 的返回值是下一个队首，递归续派（同 :225/:676 模式）。
+    // 本函数无 BroadcastFn，反馈走日志 + 播报通道；Boss 输出流侧由下一轮守卫兜住。
+    if (isOnStandby(targetAgent)) {
+      log.warn(`[quota] Dequeued task refused — ${payload.selectedAgentName} is on standby (待岗)`);
+      if (payload.taskCard) {
+        bossService.updateDelegationTaskCardStatus(payload.bossId, payload.decisionId, 'cancelled', {
+          at: Date.now(),
+          reason: 'target-on-standby',
+          subordinateId: payload.selectedAgentId,
+          taskId,
+        });
+      }
+      logProactiveBroadcast({
+        text: `[并发配额] 排队任务被拒绝：${payload.selectedAgentName} 已待岗（需用户恢复）——${summarizeQuotaText(payload.taskCommand)}`,
+        action: DELEGATION_QUOTA_ACTION,
+        taskId,
+      });
+      logDelegation({
+        phase: 'failed',
+        channel: 'boss',
+        fromAgentId: payload.bossId,
+        fromName: bossName,
+        toAgentId: payload.selectedAgentId,
+        toAgentName: payload.selectedAgentName,
+        message: payload.taskCommand,
+        status: 'failed',
+        error: 'target on standby (待岗)',
+        taskId,
+      });
+      const nextDequeued = releaseQuotaSlotSafely(taskId);
+      if (nextDequeued) dispatchQueuedDelegation(nextDequeued);
+      return;
+    }
+
     const customAgentConfig = targetAgent
       ? buildCustomAgentConfig(payload.selectedAgentId, targetAgent.class)
       : undefined;
@@ -640,30 +677,36 @@ export async function cancelDelegation(input: CancelDelegationInput): Promise<Ca
     const notifyStarted = Date.now();
     const bossName = bossId ? agentService.getAgent(bossId)?.name ?? bossId : '主管';
     const targetAgent = agentService.getAgent(targetSubordinateId);
-    const customAgentConfig = targetAgent
-      ? buildCustomAgentConfig(targetSubordinateId, targetAgent.class)
-      : undefined;
-    try {
-      await runtimeService.sendCommand(
-        targetSubordinateId,
-        buildCancelNotice({
-          bossName,
-          taskText: label || '(未记录任务)',
-          reason: input.reason,
-        }),
-        undefined,
-        undefined,
-        customAgentConfig,
-        { forceInterrupt: true }
-      );
-      outcome.notified = true;
-    } catch (err) {
-      outcome.notifyError = err instanceof Error ? err.message : String(err);
+    // 待岗 (standby) 目标：进程本就已停、撤回通知必被底层守卫拒绝——直接抑制，
+    // 不做无意义的投递与 stopAgent 降级（第 6 步追踪清理已完成，撤回语义完整）。
+    if (isOnStandby(targetAgent)) {
+      log.log(`[cancel] Cancel notice suppressed — ${targetAgent?.name ?? targetSubordinateId} is on standby (待岗)`);
+    } else {
+      const customAgentConfig = targetAgent
+        ? buildCustomAgentConfig(targetSubordinateId, targetAgent.class)
+        : undefined;
       try {
-        await runtimeService.stopAgent(targetSubordinateId);
-        outcome.stopFallbackUsed = true;
-      } catch (fallbackErr) {
-        outcome.notifyError += `; stopAgent failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`;
+        await runtimeService.sendCommand(
+          targetSubordinateId,
+          buildCancelNotice({
+            bossName,
+            taskText: label || '(未记录任务)',
+            reason: input.reason,
+          }),
+          undefined,
+          undefined,
+          customAgentConfig,
+          { forceInterrupt: true }
+        );
+        outcome.notified = true;
+      } catch (err) {
+        outcome.notifyError = err instanceof Error ? err.message : String(err);
+        try {
+          await runtimeService.stopAgent(targetSubordinateId);
+          outcome.stopFallbackUsed = true;
+        } catch (fallbackErr) {
+          outcome.notifyError += `; stopAgent failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`;
+        }
       }
     }
     outcome.notifyMs = Date.now() - notifyStarted;
@@ -762,6 +805,30 @@ function broadcastDelegationError(
   message: string
 ): void {
   broadcastBlockParseError(broadcast, bossId, bossName, 'Delegation', message);
+}
+
+/**
+ * 待岗 (standby) 拒绝的可视反馈：**不复用** broadcastDelegationError——其前缀
+ * 硬编码 "Delegation parse error"，会误导 Boss 去改 JSON。这里发明确的 refusal
+ * 进 Boss 自己的输出流（isDelegation:true 同族），Boss 由此知晓「目标待岗、
+ * 需用户恢复」而不是在解析层瞎猜。
+ */
+function broadcastDelegationRefusal(
+  broadcast: BroadcastFn,
+  bossId: string,
+  bossName: string,
+  message: string
+): void {
+  broadcast({
+    type: 'output',
+    payload: {
+      agentId: bossId,
+      text: `⏸ Delegation refused (${bossName}): ${message}`,
+      isStreaming: false,
+      timestamp: Date.now(),
+      isDelegation: true,
+    },
+  });
 }
 
 /**
@@ -1002,6 +1069,19 @@ export function parseBossDelegation(
       }
 
       const delegationJson = validated.payload;
+      // 待岗 (standby) 守卫：放在去重/配额/落史之前——拒绝零侧效应（不进去重表、
+      // 不扣配额、不进委派史、不落卡、不登记回执）。顺带把「agent id 不存在」也
+      // 显式拒绝：此前它会沉进 sendCommand 的 "Agent not found" 异常。
+      const delegationTarget = agentService.getAgent(delegationJson.selectedAgentId);
+      if (!delegationTarget || isOnStandby(delegationTarget)) {
+        const message = `block #${blockIndex + 1}, item #${itemIndex + 1}: ${!delegationTarget
+          ? `agent id "${delegationJson.selectedAgentId}" does not exist`
+          : standbyRefusalMessage(delegationTarget)}`;
+        log.warn(`Delegation refused from boss ${bossName}: ${message}`);
+        broadcastDelegationRefusal(broadcast, agentId, bossName, message);
+        continue;
+      }
+
       const dedupKey = `${agentId}:${delegationJson.selectedAgentId}:${delegationJson.taskCommand}`;
       if (processedDelegations.has(dedupKey)) {
         log.log(`Skipping duplicate delegation to ${delegationJson.selectedAgentName}: "${delegationJson.taskCommand.slice(0, 50)}..."`);

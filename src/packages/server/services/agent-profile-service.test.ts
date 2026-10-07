@@ -467,4 +467,34 @@ describe('B1 端到端：gatherSubordinateContext → buildBossContext 快照', 
     const noteLines = text!.split('\n').filter((l) => l.startsWith('- **Profile**:'));
     expect(noteLines.filter((l) => l.includes('观察中'))).toHaveLength(1); // 只标异常者
   });
+
+  it('待岗 (standby) 快照：仅待岗成员追加 Standby 标注行，非待岗成员状态行逐字不变', async () => {
+    // 用户在面板把 w1 设为待岗（mocks.agents 是 getSubordinates 的数据源，换引用即可）
+    mocks.agents.set('w1', { ...mocks.w1, standby: true });
+    try {
+      const contexts = await bossService.gatherSubordinateContext('boss-1');
+      expect(contexts.find((c) => c.id === 'w1')?.standby).toBe(true);
+      expect(contexts.find((c) => c.id === 'w2')?.standby).toBeUndefined(); // 非待岗不带字段（快照不抖）
+
+      const text = await buildBossContext('boss-1');
+      expect(text).toBeTruthy();
+      // 恰一行 Standby 标注，紧跟在待岗者的 Status 行之后
+      const standbyLines = text!.split('\n').filter((l) => l.includes('**Standby (待岗)**'));
+      expect(standbyLines).toHaveLength(1);
+      expect(standbyLines[0]).toContain('do NOT delegate');
+      expect(text).toContain('- **Status**: idle\n- **Standby (待岗)**:');
+
+      const w1Block = text!.slice(text!.indexOf('## Alpha Worker'), text!.indexOf('## Beta Worker'));
+      const w2Block = text!.slice(text!.indexOf('## Beta Worker'));
+      expect(w1Block).toContain('**Standby (待岗)**');
+      expect(w2Block).not.toContain('Standby');
+
+      // 非待岗成员的状态行与基线形态逐字一致（标注进不了别人的行）
+      const statusLines = text!.split('\n').filter((l) => l.startsWith('- **Status**:'));
+      expect(statusLines).toHaveLength(2);
+      expect(statusLines.every((l) => l === '- **Status**: idle')).toBe(true);
+    } finally {
+      mocks.agents.set('w1', mocks.w1);
+    }
+  });
 });

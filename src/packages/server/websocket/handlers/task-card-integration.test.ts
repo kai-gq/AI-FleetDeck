@@ -29,7 +29,8 @@ const h = vi.hoisted(() => {
 vi.mock('../../services/index.js', async () => {
   const realBoss = await vi.importActual<typeof import('../../services/boss-service.js')>('../../services/boss-service.js');
   return {
-    agentService: { getAgent: vi.fn(() => undefined) },
+    // 派发守卫（待岗/不存在）会解析目标 agent：默认给良性桩，按 id 区分。
+    agentService: { getAgent: vi.fn((id: string) => ({ id, name: id, class: 'builder' })) },
     runtimeService: { sendCommand: h.sendCommand },
     bossService: realBoss,
     workPlanService: {},

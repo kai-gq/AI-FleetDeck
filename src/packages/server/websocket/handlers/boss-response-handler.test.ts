@@ -50,6 +50,7 @@ vi.mock('../../services/custom-class-service.js', () => ({
 
 import { agentService, runtimeService, bossService } from '../../services/index.js';
 import { getLastBossCommand } from './command-handler.js';
+import { bossInstructions } from '../../data/builtin-skills/boss-instructions.js';
 
 describe('boss-response-handler parseBossDelegation', () => {
   const broadcast = vi.fn();
@@ -57,7 +58,10 @@ describe('boss-response-handler parseBossDelegation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetBossDelegationStateForTests();
-    vi.mocked(agentService.getAgent).mockReturnValue(undefined as any);
+    // 派发守卫（待岗/不存在）会解析目标 agent：默认给良性桩，单测按需覆盖。
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => ({
+      id, name: id, class: 'builder',
+    })) as any);
     vi.mocked(getLastBossCommand).mockReturnValue('fallback delegated task');
   });
 
@@ -122,6 +126,56 @@ More notes between blocks.
     expect(errorOutputs.length).toBe(2);
   });
 
+  it('standby 守卫：目标待岗 → refusal 输出 + 零派发/零落史/零去重登记', async () => {
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => (
+      id === 'sb-1'
+        ? { id, name: 'Standby One', class: 'builder', standby: true }
+        : { id, name: id, class: 'builder' }
+    )) as any);
+    const resultText = `\`\`\`delegation
+[{"selectedAgentId":"sb-1","selectedAgentName":"Standby One","taskCommand":"do it","reasoning":"x","confidence":"high"}]
+\`\`\``;
+
+    parseBossDelegation('boss-1', 'Boss', resultText, broadcast);
+    await Promise.resolve();
+
+    expect(runtimeService.sendCommand).not.toHaveBeenCalled();
+    expect(bossService.addDelegationToHistory).not.toHaveBeenCalled();
+
+    const refusalsOf = () => broadcast.mock.calls
+      .map((call) => call[0])
+      .filter((msg) => msg?.type === 'output' && typeof msg?.payload?.text === 'string' && msg.payload.text.includes('Delegation refused'));
+    expect(refusalsOf().length).toBe(1);
+    expect(refusalsOf()[0].payload.text).toContain('standby');
+    // 不复用 parse error 前缀：Boss 不会被误导去改 JSON
+    expect(refusalsOf()[0].payload.text).not.toContain('parse error');
+
+    // 重发同一块：仍被拒（证明拒绝路径没进去重表——否则第二次会被静默 skip）
+    parseBossDelegation('boss-1', 'Boss', resultText, broadcast);
+    await Promise.resolve();
+    expect(refusalsOf().length).toBe(2);
+  });
+
+  it('standby 守卫：不存在的 agent id 显式拒绝（不再沉进 sendCommand 异常）', async () => {
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => (
+      id === 'agent-ghost' ? undefined : { id, name: id, class: 'builder' }
+    )) as any);
+    const resultText = `\`\`\`delegation
+[{"selectedAgentId":"agent-ghost","selectedAgentName":"Ghost","taskCommand":"nobody home","reasoning":"x","confidence":"high"}]
+\`\`\``;
+
+    parseBossDelegation('boss-1', 'Boss', resultText, broadcast);
+    await Promise.resolve();
+
+    expect(runtimeService.sendCommand).not.toHaveBeenCalled();
+    expect(bossService.addDelegationToHistory).not.toHaveBeenCalled();
+    const refusals = broadcast.mock.calls
+      .map((call) => call[0])
+      .filter((msg) => msg?.type === 'output' && typeof msg?.payload?.text === 'string' && msg.payload.text.includes('Delegation refused'));
+    expect(refusals.length).toBe(1);
+    expect(refusals[0].payload.text).toContain('does not exist');
+  });
+
   it('任务卡(⑦):delegation 块携带 taskCard 时落 pending 卡 + 委托消息注入验收标准', async () => {
     const resultText = `\`\`\`delegation
 [{"selectedAgentId":"agent-1","selectedAgentName":"Builder One","taskCommand":"实现登录页","reasoning":"builder","confidence":"high","taskCard":{"objective":"实现登录页","acceptanceCriteria":["lint:types 通过","单测覆盖回退"],"dependencies":["设计稿 v2"],"priority":"P1","projectId":"proj-login","sourceProject":"proj-web"}}]
@@ -150,6 +204,14 @@ More notes between blocks.
 
     // 交付成功 → 🔴⑦ pending → running 迁移（异步 then 链）
     expect(bossService.updateDelegationTaskCardStatus).toHaveBeenCalledWith('boss-1', decision.id, 'running', expect.objectContaining({ subordinateId: 'agent-1' }));
+  });
+
+  it('内置技能规格守卫（待岗）：AGENT SELECTION 含 standby 规则；status API 描述含 standby 只读字段', () => {
+    const content = bossInstructions.content;
+    expect(content).toContain('NEVER pick an agent marked "Standby (待岗)"');
+    expect(content).toContain('auto-refused');
+    expect(content).toContain('restore someone from the agent panel');
+    expect(content).toContain('isProcessRunning, standby');
   });
 
   it('任务卡(⑦):格式错误只降级无卡,派活与委派史仍按纯文本完成(向后兼容)', async () => {

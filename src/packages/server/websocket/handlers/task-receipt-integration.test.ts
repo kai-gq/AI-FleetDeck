@@ -12,7 +12,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 vi.mock('../../services/index.js', () => ({
   agentService: {
-    getAgent: vi.fn(),
+    // 派发守卫（待岗/不存在）会解析目标 agent：默认给良性桩，按 id 区分。
+    getAgent: vi.fn((id: string) => ({ id, name: id, class: 'builder' })),
   },
   runtimeService: {
     sendCommand: vi.fn(() => Promise.resolve()),

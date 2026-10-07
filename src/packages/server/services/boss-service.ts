@@ -295,6 +295,7 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
       lastAssignedTask: sub.lastAssignedTask,
       contextPercent,
       tokensUsed,
+      ...(sub.standby === true ? { standby: true } : {}),
       ...(profile ? { profile } : {}),
     };
   }));
@@ -377,8 +378,15 @@ export async function delegateCommand(
   } catch (err) {
     log.error?.(' Delegation LLM failed, using fallback:', err);
 
-    // Fallback: ALWAYS prioritize idle agents over busy ones
-    const idleAgent = subordinates.find(s => s.status === 'idle') || subordinates[0];
+    // Fallback: ALWAYS prioritize idle agents over busy ones. 待岗 (standby)
+    // members never receive delegations — same rule as the prompt and the
+    // dispatch guard. All-standby is a legitimate dead end: surface it so the
+    // caller shows the boss a clear error instead of silently picking one.
+    const available = subordinates.filter(s => s.standby !== true);
+    if (available.length === 0) {
+      throw new Error(`All of boss ${boss.name}'s subordinates are on standby (待岗) — the user must restore at least one from the agent panel before delegating`);
+    }
+    const idleAgent = available.find(s => s.status === 'idle') || available[0];
 
     const fallbackDecision: DelegationDecision = {
       id: decisionId,
@@ -425,6 +433,7 @@ IMPORTANT: You MUST respond with ONLY a JSON object. No explanations, no markdow
 5. For general questions or status queries, pick any idle agent
 6. Assume the delegating boss can include enough repo paths, summaries, constraints, and handoff notes for another capable idle agent to pick up the task quickly
 7. Choose a working agent over an idle capable agent only when continuity is clearly critical and the interruption cost is justified
+8. **Never select an agent with standby:true** — they are deactivated (待岗) by the user and will refuse the task. If every agent is on standby, pick none: the boss must tell the user to restore someone from the agent panel
 
 ## Required Output Format (JSON only, no other text):
 {"selectedAgentId":"<agent id>","selectedAgentName":"<agent name>","reasoning":"<why this agent>","alternativeAgents":[],"confidence":"medium"}`;
@@ -440,6 +449,7 @@ function buildDelegationPrompt(command: string, contexts: SubordinateContext[]):
     lastAssignedTask: ctx.lastAssignedTask ? sanitizeUnicode(truncateOrEmpty(ctx.lastAssignedTask, 200)) : 'None',
     contextPercent: ctx.contextPercent,
     tokensUsed: ctx.tokensUsed,
+    ...(ctx.standby === true ? { standby: true } : {}),
   }));
 
   return DELEGATION_PROMPT

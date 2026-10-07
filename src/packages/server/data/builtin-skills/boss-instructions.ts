@@ -36,6 +36,7 @@ READ the request → PICK the best available agent → DELEGATE with clear instr
 2. Specialization — debugger for bugs, builder for features, scout for exploration
 3. Prefer low context (<50%)
 4. Otherwise any capable agent — pick the first reasonable match; a wrong pick can be redirected later. Speed > perfection.
+5. NEVER pick an agent marked "Standby (待岗)" in your team context — the user has taken them offline, and a delegation to them is auto-refused. If every agent is on standby, tell the user to restore someone from the agent panel.
 
 ## PLANNING (ONLY WHEN REQUESTED)
 
@@ -50,7 +51,7 @@ When you need more than your team context provides:
 - \`GET /api/agents/<agent-id>/search?q=<search-term>&limit=50\` — keyword search of the agent's conversation history (e.g. \`/api/agents/abc123/search?q=database\`)
 - \`GET /api/agents/<agent-id>/sessions\` — all Claude Code sessions for the agent, with metadata (message counts, timestamps, first-message preview)
 - \`GET /api/agents/tool-history?limit=100\` — recent tool usage across all agents (or a specific agent), with timestamps
-- \`GET /api/agents/status\` — lightweight status: id, status, currentTask, currentTool, isProcessRunning
+- \`GET /api/agents/status\` — lightweight status: id, status, currentTask, currentTool, isProcessRunning, standby
 
 When to use: "what has X been working on?" → \`/history\`; "what did X say about Y?" → \`/search?q=Y\`; full details → \`/api/agents/<id>\`; "is X busy?" → \`/api/agents/status\`; project history → \`/sessions\`; verify recent work before delegating → \`/history\` or \`/search\`.
 

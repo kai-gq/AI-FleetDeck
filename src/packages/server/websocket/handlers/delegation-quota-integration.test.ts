@@ -29,7 +29,8 @@ const h = vi.hoisted(() => {
 vi.mock('../../services/index.js', async () => {
   const realBoss = await vi.importActual<typeof import('../../services/boss-service.js')>('../../services/boss-service.js');
   return {
-    agentService: { getAgent: vi.fn(() => undefined) },
+    // 派发守卫（待岗/不存在）会解析目标 agent：默认给良性桩，按 id 区分。
+    agentService: { getAgent: vi.fn((id: string) => ({ id, name: id, class: 'builder' })) },
     runtimeService: { sendCommand: h.sendCommand },
     bossService: realBoss,
     workPlanService: {},
@@ -48,6 +49,7 @@ vi.mock('../../services/voice-companion-service.js', async (importOriginal) => {
 });
 
 import { completeDelegation, getBossForSubordinate, parseBossDelegation, resetBossDelegationStateForTests } from './boss-response-handler.js';
+import { agentService } from '../../services/index.js';
 import { listPendingReceipts } from './pending-receipt-registry.js';
 import * as bossService from '../../services/boss-service.js';
 import { logProactiveBroadcast } from '../../services/voice-companion-service.js';
@@ -244,6 +246,48 @@ describe('任务15·B ⑥1：全局并发配额 handler 级整合（L2）', () =
     h.resolveSend();
     await tick();
     expect(readDecision('串行任务 2').taskCard?.status).toBe('running');
+  });
+
+  it('出队时目标已待岗：拒绝 + 归还槽位 + FIFO 续派下一位（不断链）', async () => {
+    vi.stubEnv(DELEGATION_QUOTA_BUDGET_ENV, '1');
+    let sb2Standby = false;
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => ({
+      id, name: id, class: 'builder',
+      ...(id === 'agent-sb2' && sb2Standby ? { standby: true } : {}),
+    })) as any);
+
+    parseBossDelegation('boss-1', 'Boss', delegationBlock('断链', ['agent-sb1', 'agent-sb2', 'agent-sb3']), broadcastMock);
+    // 预算 1：A 派发、B/C 排队
+    expect(h.sendCommand).toHaveBeenCalledTimes(1);
+    expect(h.sendCommand.mock.calls[0][0]).toBe('agent-sb1');
+    const b = readDecision('断链任务 2');
+    const c = readDecision('断链任务 3');
+    expect(b.taskCard?.status).toBe('queued');
+
+    // 排队期间用户把 B 的目标下线 → 出队时必须拒绝且不得断链
+    sb2Standby = true;
+
+    // A 完成 → B 出队 → 待岗拒绝 → 归还槽位 → C 立即续派
+    completeDelegation('agent-sb1', { success: true, reason: 'report-task' });
+
+    expect(h.sendCommand.mock.calls.map((call) => call[0])).toEqual(['agent-sb1', 'agent-sb3']); // 从未派给 sb2
+    expect(getBossForSubordinate('agent-sb2')).toBeUndefined(); // 拒绝路径不登记追踪/回执
+    expect(getBossForSubordinate('agent-sb3')?.decisionId).toBe(c.id); // FIFO 不断链
+    expect(readDecision('断链任务 2').taskCard?.status).toBe('cancelled');
+    expect(taskCardStatusRows(b.id).map((row) => `${row.from}->${row.to}`)).toEqual([
+      'none->pending', 'pending->queued', 'queued->cancelled',
+    ]);
+    expect(taskCardStatusRows(b.id).at(-1)?.reason).toBe('target-on-standby');
+    // ⑩ 播报：拒绝可见（Boss 输出流侧由下一轮守卫兜住，这里走播报通道）
+    expect(broadcastMockRef.mock.calls.some((call) => call[0].text.includes('已待岗'))).toBe(true);
+    // 账本：B 不占槽（归还），C 占槽
+    const snap = getDelegationQuotaSnapshot();
+    expect(snap.queuedIds).toHaveLength(0);
+    expect(snap.activeIds).toHaveLength(1);
+
+    h.resolveSend();
+    await tick();
+    expect(readDecision('断链任务 3').taskCard?.status).toBe('running');
   });
 
   it('开关关闭（TC_JARVIS_DELEGATION_QUOTA=0）：旧直派行为，无排队无审计', () => {

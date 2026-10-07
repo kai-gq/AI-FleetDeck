@@ -128,9 +128,15 @@ export async function buildBossContext(bossId: string): Promise<string | null> {
     // 无卡（旧调用方/降级）→ 不输出该行，其余段逐字不变。
     const profileLine = ctx.profile ? `\n${renderAgentProfileLine(ctx.profile)}` : '';
 
+    // 待岗 (standby) 标注：仅在待岗时追加一行，非待岗输出逐字节不变（防快照抖动）。
+    // 让 Boss 在 TEAM 快照里直接看到「该成员被用户下线、不可派活、需用户恢复」。
+    const standbyLine = ctx.standby === true
+      ? '\n- **Standby (待岗)**: ⏸ deactivated by the user — do NOT delegate to this agent; only the user can restore them from the agent panel'
+      : '';
+
     return `## ${ctx.name}
 - **Agent ID**: \`${ctx.id}\`
-- **Status**: ${ctx.status}
+- **Status**: ${ctx.status}${standbyLine}
 - **Idle Time**: ${idleTime}
 - **Last Assigned Task**: ${lastTaskInfo}${profileLine}
 - **Context**: ${ctx.contextPercent}%${fileChangesSection}${conversationSection}`;

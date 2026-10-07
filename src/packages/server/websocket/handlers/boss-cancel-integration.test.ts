@@ -4,7 +4,7 @@
  * 场景：parseBossDelegation 真实派活（任务卡/回执/配额落账）→ cancelDelegation
  * 六态覆盖：running 撤回（通知投递 + 卡迁移 + 追踪/回执清理）、done 拒撤、
  * 重复撤回幂等、queued 撤回（不下发不派发）、running 释放带出队派发、
- * 通知失败 stopAgent 兜底、重启残留 tracking 模式。
+ * 通知失败 stopAgent 兜底、重启残留 tracking 模式、待岗目标抑制撤回通知。
  *
  * 真实参与：parseBossDelegation → 配额闸门（delegation-quota-gate 单例）→
  * bossService 落史/落卡（XDG 沙箱 delegation-history.json）→ completeDelegation
@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 
 const h = vi.hoisted(() => ({
-  agents: [] as Array<{ id: string; name: string; class?: string; isBoss?: boolean; status: string }>,
+  agents: [] as Array<{ id: string; name: string; class?: string; isBoss?: boolean; status: string; standby?: boolean }>,
   sendCommand: vi.fn(async (..._args: unknown[]) => {}),
   stopAgent: vi.fn(async (_agentId: string) => {}),
 }));
@@ -394,5 +394,43 @@ describe('任务16·⑬ 撤回执行链 handler 级整合（L2）', () => {
     expect(outcome.notified).toBe(false);
     expect(h.sendCommand).not.toHaveBeenCalled();
     expect(h.stopAgent).not.toHaveBeenCalled();
+  });
+
+  it('running 撤回目标已待岗：抑制撤回通知（不投递不停机），卡迁移/追踪清理/审计照常', async () => {
+    parseBossDelegation('boss-1', '主管', delegationBlock('待岗', ['agent-c1']), broadcastMock);
+    await flush();
+    const d = readDecision('待岗任务 1');
+    expect(getBossForSubordinate('agent-c1')?.decisionId).toBe(d.id);
+
+    // 派发后用户把目标下线（待岗）：进程已停，撤回通知必被底层守卫拒绝 → 抑制
+    const c1 = h.agents.find((a) => a.id === 'agent-c1')!;
+    c1.standby = true;
+
+    const outcome = await cancelDelegation({ subordinateId: 'agent-c1', bossId: 'boss-1', decisionId: d.id, initiator: 'user', reason: '下线了' });
+
+    expect(outcome.status).toBe('cancelled');
+    expect(outcome.cancelledFrom).toBe('running');
+    expect(outcome.notified).toBe(false);
+    expect(outcome.notifyError).toBeUndefined(); // 抑制 ≠ 投递失败：不误报错误
+    expect(outcome.stopFallbackUsed).toBeUndefined();
+    expect(h.sendCommand).toHaveBeenCalledTimes(1); // 仅最初派发；无撤回通知
+    expect(h.stopAgent).not.toHaveBeenCalled(); // 不做无意义的 stopAgent 降级
+
+    // 撤回主链路照常：卡迁移 cancelled + 追踪/回执清理（撤回语义完整）
+    expect(readDecision('待岗任务 1').taskCard?.status).toBe('cancelled');
+    expect(getBossForSubordinate('agent-c1')).toBeUndefined();
+    expect(listPendingReceipts().some((r) => r.targetAgentId === 'agent-c1')).toBe(false);
+    expect(taskCardStatusRows(d.id).map((b) => `${b.from}->${b.to}`)).toEqual([
+      'none->pending', 'pending->running', 'running->cancelled',
+    ]);
+
+    // 审计如实：cancelled-running + notified:false + 无 error 字段（不是投递失败）
+    const audit = cancelAuditRows(outcome.taskId!);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ status: 'cancelled-running', notified: false, initiator: 'user' });
+    expect(audit[0].error ?? undefined).toBeUndefined();
+
+    // 配额照常释放（running → 无排队则槽位清空）
+    expect(getDelegationQuotaSnapshot().activeIds).toEqual([]);
   });
 });
