@@ -5,6 +5,8 @@ import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../sc
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT, grokSupportsEffort, isDeprecatedCodexModel, migrateRetiredClaudeModel, migrateRetiredCodexModel } from '../../shared/types';
 import { useDefaultAgentSkills, resolveDefaultSkillIds } from '../api/default-agent-skills';
+import { useRuntimes, visibleProviders } from '../api/runtimes';
+import { RuntimeAvailabilityNotice } from './RuntimeAvailabilityNotice';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -127,6 +129,13 @@ export function SpawnModal({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const wasOpenRef = useRef(false);
 
+  // Runtime availability — only offer CLIs actually installed on this machine
+  // (fail open: unknown/degraded detection shows everything). A restored
+  // conversation's runtime is never hidden, even if its CLI is missing.
+  const runtimes = useRuntimes();
+  const runtimeKeep = initialSession?.provider ?? null;
+  const visibleRuntimeProviders = visibleProviders(runtimes.value, runtimeKeep);
+
   const clearAreaContext = useCallback(() => {
     window.__spawnModalAreaContext = null;
   }, []);
@@ -197,6 +206,18 @@ export function SpawnModal({
     }
     wasOpenRef.current = isOpen;
   }, [isOpen, availableSkills, customClasses, initialSession, defaultAgentSkills.slugs]);
+
+  // If detection says the selected runtime is not installed (probe resolved
+  // after the user picked one, or a pick was made from an unfiltered list),
+  // snap to the first available. Unknown/degraded detection shows everything,
+  // so this never fires while the list is unfiltered.
+  const visibleRuntimeKey = visibleRuntimeProviders.join(',');
+  useEffect(() => {
+    if (visibleRuntimeProviders.length > 0 && !visibleRuntimeProviders.includes(selectedProvider)) {
+      setSelectedProvider(visibleRuntimeProviders[0]);
+    }
+    // Depends on the joined key so a new array identity does not re-fire it.
+  }, [visibleRuntimeKey, selectedProvider]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {
@@ -752,6 +773,7 @@ export function SpawnModal({
                   />
                 </label>
                 <div className="spawn-select-row">
+                  {visibleRuntimeProviders.includes('claude') && (
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
@@ -761,6 +783,8 @@ export function SpawnModal({
                     <img src={`${import.meta.env.BASE_URL}assets/claude.ico`} alt="Claude" className="spawn-provider-icon" />
                     <span>Claude</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('codex') && (
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
@@ -770,6 +794,8 @@ export function SpawnModal({
                     <img src={`${import.meta.env.BASE_URL}assets/codex.ico`} alt="Codex" className="spawn-provider-icon" />
                     <span>Codex</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('opencode') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
@@ -779,6 +805,8 @@ export function SpawnModal({
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('grok') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('grok')}
@@ -788,6 +816,8 @@ export function SpawnModal({
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('pi') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('pi')}
@@ -797,6 +827,7 @@ export function SpawnModal({
                     <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
                     <span>Pi</span>
                   </button>
+                  )}
                 </div>
               </div>
               <div className="spawn-field">
@@ -824,6 +855,8 @@ export function SpawnModal({
                 </div>
               </div>
             </div>
+
+            <RuntimeAvailabilityNotice keep={runtimeKeep} />
 
             <div className="spawn-form-row">
               <div className="spawn-field">
@@ -897,6 +930,9 @@ export function SpawnModal({
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.chooseCodexModel')}</div>
                 )}
+                <div className="spawn-inline-hint" style={{ marginTop: 4 }}>
+                  {t('terminal:spawn.modelAvailabilityNote', { defaultValue: "Being listed does not mean it will connect — that depends on the account and credentials configured for this runtime's CLI." })}
+                </div>
                 <ModelUsagePreview
                   provider={selectedProvider}
                   claudeModel={selectedModel}

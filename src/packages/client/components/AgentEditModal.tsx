@@ -22,6 +22,8 @@ import { useModalClose } from '../hooks';
 import { AgentIcon } from './AgentIcon';
 import { Icon } from './Icon';
 import { convertAgentRuntime } from '../api/session-transfer';
+import { useRuntimes, visibleProviders } from '../api/runtimes';
+import { RuntimeAvailabilityNotice } from './RuntimeAvailabilityNotice';
 
 interface AgentEditModalProps {
   agent: Agent;
@@ -116,6 +118,33 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   const [autoCollapseCron, setAutoCollapseCron] = useState<string>(agent.autoCollapseCron || '');
   const [autoCollapseTz, setAutoCollapseTz] = useState<string>(agent.autoCollapseTz || '');
   const [autoCollapsePrompt, setAutoCollapsePrompt] = useState<string>(agent.autoCollapsePrompt || '');
+
+  // Runtime availability — only offer CLIs installed on this machine (fail
+  // open: unknown/degraded detection shows everything). The runtime this agent
+  // currently uses is always kept visible, so editing never silently migrates.
+  const runtimes = useRuntimes();
+  const visibleRuntimeProviders = visibleProviders(runtimes.value, agent.provider);
+  const inUseRuntimeUnavailable =
+    runtimes.value.loaded &&
+    !runtimes.value.degraded &&
+    runtimes.value.providers.find((p) => p.provider === agent.provider)?.available === false;
+  const runtimeTitleFor = (provider: AgentProvider) =>
+    inUseRuntimeUnavailable && agent.provider === provider
+      ? t('terminal:spawn.runtimeInUseUnavailable', {
+          defaultValue: 'Not detected on this machine — kept because this agent currently uses it',
+        })
+      : undefined;
+
+  // Snap away from a runtime detection says is not installed. Unknown or
+  // degraded detection shows everything, so this never fires while the list
+  // is unfiltered.
+  const visibleRuntimeKey = visibleRuntimeProviders.join(',');
+  useEffect(() => {
+    if (visibleRuntimeProviders.length > 0 && !visibleRuntimeProviders.includes(selectedProvider)) {
+      setSelectedProvider(visibleRuntimeProviders[0]);
+    }
+    // Depends on the joined key so a new array identity does not re-fire it.
+  }, [visibleRuntimeKey, selectedProvider]);
 
   // Filter classes by search query
   const filteredCustomClasses = useMemo(() => {
@@ -699,41 +728,56 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
               <div className="spawn-field">
                 <label className="spawn-label">{t('common:labels.runtime')}</label>
                 <div className="spawn-select-row">
+                  {visibleRuntimeProviders.includes('claude') && (
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'claude' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('claude')}
+                    title={runtimeTitleFor('claude')}
                   >
                     <span><Icon name="brain" size={14} /></span>
                     <span>Claude</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('codex') && (
                   <button
                     className={`spawn-select-btn ${selectedProvider === 'codex' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('codex')}
+                    title={runtimeTitleFor('codex')}
                   >
                     <span><Icon name="gear" size={14} /></span>
                     <span>Codex</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('opencode') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--opencode ${selectedProvider === 'opencode' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('opencode')}
+                    title={runtimeTitleFor('opencode')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/opencode.svg`} alt="OpenCode" className="spawn-provider-icon" />
                     <span>OpenCode</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('grok') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--grok ${selectedProvider === 'grok' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('grok')}
+                    title={runtimeTitleFor('grok')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/grok.png`} alt="Grok" className="spawn-provider-icon" />
                     <span>Grok</span>
                   </button>
+                  )}
+                  {visibleRuntimeProviders.includes('pi') && (
                   <button
                     className={`spawn-select-btn spawn-select-btn--pi ${selectedProvider === 'pi' ? 'selected' : ''}`}
                     onClick={() => setSelectedProvider('pi')}
+                    title={runtimeTitleFor('pi')}
                   >
                     <img src={`${import.meta.env.BASE_URL}assets/pi.svg`} alt="Pi" className="spawn-provider-icon" />
                     <span>Pi</span>
                   </button>
+                  )}
                 </div>
               </div>
               <div className="spawn-field">
@@ -753,6 +797,8 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 </div>
               </div>
             </div>
+
+            <RuntimeAvailabilityNotice keep={agent.provider} />
 
             <div className="spawn-form-row">
               <div className="spawn-field">
@@ -823,6 +869,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                 ) : (
                   <div className="spawn-inline-hint">{t('terminal:spawn.codex.configuration')}</div>
                 )}
+                <div className="spawn-inline-hint" style={{ marginTop: 4 }}>
+                  {t('terminal:spawn.modelAvailabilityNote', { defaultValue: "Being listed does not mean it will connect — that depends on the account and credentials configured for this runtime's CLI." })}
+                </div>
                 <ModelUsagePreview
                   provider={selectedProvider}
                   claudeModel={selectedModel}

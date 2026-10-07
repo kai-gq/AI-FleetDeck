@@ -348,7 +348,13 @@
     "convertTo": "转换为 {{provider}}",
     "useOpenCodeCli": "使用 OpenCode CLI（多提供商）",
     "useGrokCli": "使用 Grok CLI（无头模式）",
-    "usePiCli": "使用 Pi 编码智能体 CLI（多提供商）"
+    "usePiCli": "使用 Pi 编码智能体 CLI（多提供商）",
+    "runtimesFiltered": "本机未安装，已隐藏：{{list}}",
+    "runtimesRefresh": "重新检测",
+    "runtimesRefreshTitle": "重新检测本机已安装的智能体 CLI",
+    "modelAvailabilityNote": "能选≠一定接通——实际取决于该运行时 CLI 配置的账号与凭据。",
+    "runtimeDetectionDegraded": "运行时检测结果不可靠，已显示全部运行时。",
+    "runtimeInUseUnavailable": "本机未检测到该运行时——因当前智能体正在使用而保留"
   },
   "overview": {
     "title": "智能体概览",
