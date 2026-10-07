@@ -39,6 +39,12 @@
 .unit-header-actions {
   display: flex;
   flex-direction: row;
+  // Wrap into a right-aligned grid instead of squeezing the name column:
+  // with the standby button the row is 8-9 icons, which used to crush
+  // .unit-header-info to ~26px and wrap the agent name vertically.
+  // (Small-screen layout already wraps this row.)
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
   margin-left: auto;
 }
@@ -95,7 +101,9 @@
 
 .unit-header-info {
   flex: 1;
-  min-width: 0;
+  // Keep the name column readable — the action row wraps (see above) instead
+  // of crushing this block to an unreadable sliver.
+  min-width: 96px;
 }
 
 .unit-class-icon {
