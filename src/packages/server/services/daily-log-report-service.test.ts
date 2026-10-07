@@ -24,6 +24,7 @@ import {
   runDailyLogReportScan,
 } from './daily-log-report-service.js';
 import * as cronService from './cron-service.js';
+import type { AgentLedgerEntry } from './agent-ledger-service.js';
 
 beforeAll(() => {
   initEventDb();
@@ -204,6 +205,80 @@ describe('成功落盘（md + json）与事件', () => {
       sections: { anomalies: 1, bottlenecks: 0, resources: 0, recommendations: 1 },
       files: { md: mdFile, json: jsonFile },
     });
+  });
+
+  it('任务22 编制段：ledger 非空 → md 尾部「## 编制」+ ⑭ 计数；json 契约零改动', async () => {
+    const reportDir = path.join(tmpDir, 'reports', 'daily');
+    const ledger: AgentLedgerEntry[] = [
+      {
+        agentId: 'w1',
+        agentName: 'W1',
+        windowDelegations: 3,
+        completed: 0,
+        failed: 3,
+        cancelled: 0,
+        terminal: 3,
+        consecutiveFailures: 3,
+        lastDelegationAt: Date.now(),
+        idleDays: 0,
+        avgDurationMs: null,
+        advice: 'observe',
+        reasons: ['连续失败 3 次'],
+      },
+      {
+        agentId: 'w2',
+        agentName: 'W2',
+        windowDelegations: 0,
+        completed: 0,
+        failed: 0,
+        cancelled: 0,
+        terminal: 0,
+        consecutiveFailures: 0,
+        lastDelegationAt: null,
+        idleDays: null,
+        avgDurationMs: null,
+        advice: 'keep',
+        reasons: [],
+      },
+    ];
+    const r = await runDailyLogReportScan({
+      now: NOW_0705,
+      countRows: () => 42,
+      runAnalysis: async () => reportFixture(),
+      reportDir,
+      collectLedger: () => ledger,
+    });
+
+    expect(r.skipped).toBe(false);
+    const md = fs.readFileSync(path.join(reportDir, 'daily-log-report-2026-10-04.md'), 'utf8');
+    expect(md).toContain('## 编制');
+    expect(md).toContain('- 汇总：共 2 名（保留 1 · 观察中 1 · 归档候选 0）');
+    expect(md).toContain('- 观察中 · W1：连续失败 3 次');
+
+    // json = LogAnalysisReport 契约（⑨ 晨报只读消费），编制不入 json
+    const json = JSON.parse(fs.readFileSync(path.join(reportDir, 'daily-log-report-2026-10-04.json'), 'utf8'));
+    expect(json).not.toHaveProperty('ledger');
+
+    // ⑭ 事件带编制计数（⑮ 标定用）；取最后一条 generate（本文件前面已有 generate 用例）
+    const gen = reportLogs().filter((row) => row.op === 'generate').at(-1);
+    expect(gen?.ledger).toEqual({ total: 2, observe: 1, archive: 0 });
+  });
+
+  it('任务22 编制段：采集抛错 → 段省略、日报照常落盘（降级不打断）', async () => {
+    const reportDir = path.join(tmpDir, 'reports', 'daily');
+    const r = await runDailyLogReportScan({
+      now: NOW_0705,
+      countRows: () => 42,
+      runAnalysis: async () => reportFixture(),
+      reportDir,
+      collectLedger: () => { throw new Error('ledger down'); },
+    });
+
+    expect(r.skipped).toBe(false);
+    const md = fs.readFileSync(path.join(reportDir, 'daily-log-report-2026-10-04.md'), 'utf8');
+    expect(md).not.toContain('## 编制');
+    expect(md).toContain('优化建议'); // 主报告不受影响
+    expect(reportLogs().filter((row) => row.op === 'generate').at(-1)?.ledger).toBeUndefined();
   });
 });
 

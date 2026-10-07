@@ -14,7 +14,9 @@
  *   - 失败降级永不上抛（调度层安全）：查询/落盘/任何意外异常 → 登记 + 跳过；
  *   - 不复用 daily 文件名（daily-log-report-service 的晨报聚合只认
  *     reports/daily/daily-log-report-*.json —— 本服务独立目录 + 独立前缀，防污染）；
- *   - v1 只落盘不播报（登记：播报通道待波次门后拍板）。
+ *   - v1 只落盘不播报（登记：播报通道待波次门后拍板）；
+ *   - 任务22 编制段：报表尾部附「## 编制」（agent-ledger-service 台账；采集失败/空
+ *     花名册 → 段省略，绝不影响报表主流程与最少数据闸门）。
  *
  * 边界：只读数据；不改 log-analysis 模块既有函数（buildLogStats 零改动）；不接委派通道。
  */
@@ -30,6 +32,11 @@ import {
   type ResourceGroupTotals,
 } from '../log-analysis/stats.js';
 import { createLogger } from '../utils/logger.js';
+import {
+  collectLiveRosterLedger,
+  renderAgentLedgerSection,
+  type AgentLedgerEntry,
+} from './agent-ledger-service.js';
 
 const log = createLogger('WeeklyCostReport');
 
@@ -83,6 +90,8 @@ export interface WeeklyCostReport {
   byProject: ResourceGroupTotals[];
   /** 数据缺失标注（costUsd unavailable 行数 / 截断等）。 */
   notes: string[];
+  /** 任务22 编制台账（「## 编制」段数据源；采集失败/空花名册 → 缺省不输出）。 */
+  ledger?: AgentLedgerEntry[];
 }
 
 function buildNotes(breakdown: { byAgent: ResourceGroupTotals[] }, truncated: boolean, fetchedRows: number): string[] {
@@ -136,6 +145,9 @@ export function renderWeeklyCostReport(report: WeeklyCostReport): string {
     '',
     ...renderTable('项目', report.byProject),
   ];
+  if (report.ledger && report.ledger.length > 0) {
+    lines.push('', renderAgentLedgerSection(report.ledger));
+  }
   if (report.notes.length > 0) {
     lines.push('', '## 数据说明', '', ...report.notes.map((note) => `- ${note}`));
   }
@@ -155,6 +167,8 @@ interface WeeklyReportLogFields {
   projects?: number;
   files?: { md: string; json: string };
   notes?: string[];
+  /** 任务22 编制段计数（建议采纳率 → ⑮ 标定用）。 */
+  ledger?: { total: number; observe: number; archive: number };
   error?: string;
 }
 
@@ -176,6 +190,7 @@ function logWeeklyReport(fields: WeeklyReportLogFields): void {
         projects: fields.projects,
         files: fields.files,
         notes: fields.notes,
+        ledger: fields.ledger,
         error: fields.error,
       },
     });
@@ -197,6 +212,8 @@ export interface WeeklyCostReportDeps {
   writeFile?: (file: string, content: string) => void;
   /** 建目录注入（测试用；缺省 fs.mkdirSync recursive）。 */
   ensureDir?: (dir: string) => void;
+  /** 任务22 编制台账采集注入（测试用；缺省 collectLiveRosterLedger 实时采集）。 */
+  collectLedger?: (now: number) => AgentLedgerEntry[];
 }
 
 export type WeeklyCostReportSkipReason = 'disabled' | 'no-data' | 'query-error' | 'write-error' | 'unexpected-error';
@@ -271,6 +288,13 @@ function scan(deps: WeeklyCostReportDeps): WeeklyCostReportResult {
   }
 
   const truncated = rows.length >= WEEKLY_RESOURCE_QUERY_LIMIT;
+  // 任务22 编制台账（⑮ 报表段；采集失败/空 → 段省略，绝不打断周报主流程）。
+  let ledger: AgentLedgerEntry[] = [];
+  try {
+    ledger = (deps.collectLedger ?? collectLiveRosterLedger)(at);
+  } catch (err) {
+    log.warn(`编制台账采集失败（周报编制段省略）：${errMessage(err)}`);
+  }
   const report: WeeklyCostReport = {
     generatedAt: at,
     window,
@@ -279,6 +303,7 @@ function scan(deps: WeeklyCostReportDeps): WeeklyCostReportResult {
     byAgent: breakdown.byAgent,
     byProject: breakdown.byProject,
     notes: buildNotes(breakdown, truncated, rows.length),
+    ...(ledger.length > 0 ? { ledger } : {}),
   };
 
   // 落盘：md（人读）+ json（结构化）。目录/前缀均独立于 daily 日报（防晨报聚合污染）。
@@ -308,6 +333,15 @@ function scan(deps: WeeklyCostReportDeps): WeeklyCostReportResult {
     projects: breakdown.byProject.length,
     files: { md: mdFile, json: jsonFile },
     notes: report.notes,
+    ...(ledger.length > 0
+      ? {
+          ledger: {
+            total: ledger.length,
+            observe: ledger.filter((e) => e.advice === 'observe').length,
+            archive: ledger.filter((e) => e.advice === 'archive-candidate').length,
+          },
+        }
+      : {}),
   });
   log.log(`成本周报已生成：${mdFile}`);
 

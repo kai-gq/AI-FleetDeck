@@ -140,6 +140,8 @@ export interface AgentProfileInput {
   now: number;
   windowMs?: number;
   maxSkillNames?: number;
+  /** 任务22 编制注记（boss-service 经 agent-ledger-service.buildRosterNote 产生）；缺省不输出。 */
+  rosterNote?: string | null;
 }
 
 /** 码点序比较（跨机器确定；不依赖 locale/ICU）。 */
@@ -189,6 +191,7 @@ export function buildAgentProfileCard(input: AgentProfileInput): AgentProfileCar
     completionRate: history.completionRate,
     avgDurationMs: history.avgDurationMs,
     reworkRate: null, // 无数据源（缺源登记，禁编造）
+    ...(input.rosterNote ? { rosterNote: input.rosterNote } : {}),
   };
 }
 
@@ -205,6 +208,7 @@ export function formatProfileDuration(ms: number): string {
  * 渲染档案卡为 Boss 快照里的一行（纯函数、体积有界）：
  *   `- **Profile**: Skills(3/7): a, b, c +4 | Done 10/12 (83%) | Avg 4.2m`
  * 无样本一律 n/a（不写 0 冒充）；整行超出 MAX_PROFILE_LINE_CHARS 时字符截断兜底。
+ * 任务22 起：编制注记（rosterNote，如「观察中：连续失败 3 次」）追加在行尾。
  */
 export function renderAgentProfileLine(card: AgentProfileCard): string {
   const skills = card.skillCount > 0
@@ -219,7 +223,8 @@ export function renderAgentProfileLine(card: AgentProfileCard): string {
     ? `Avg ${formatProfileDuration(card.avgDurationMs)}`
     : 'Avg n/a';
 
-  const line = `- **Profile**: ${skills} | ${done} | ${avg}`;
+  const note = card.rosterNote ? ` | ${card.rosterNote}` : '';
+  const line = `- **Profile**: ${skills} | ${done} | ${avg}${note}`;
   return line.length > MAX_PROFILE_LINE_CHARS
     ? line.slice(0, MAX_PROFILE_LINE_CHARS - 1) + '…'
     : line;

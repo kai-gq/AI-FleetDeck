@@ -11,7 +11,10 @@
  *   - 开关 TC_JARVIS_DAILY_REPORT（缺省开；'0'/'off'/'false' 关）；
  *   - 最少数据闸门：昨日 system_log 零行 → 直接跳过，不发 LLM；
  *   - LLM/收集失败或产报告 degraded → 打日志跳过、不落盘；
- *   - 本体永不上抛（调度层安全），任何一步异常都降级为「登记 + 跳过」。
+ *   - 本体永不上抛（调度层安全），任何一步异常都降级为「登记 + 跳过」；
+ *   - 任务22 编制段：md 尾部追加「## 编制」（agent-ledger-service 台账；采集失败/空
+ *     → 段省略）。**只加 md，不动 json**（json=⑨ 晨报只读消费的 LogAnalysisReport
+ *     契约，零改动；md 回退读首行，尾部追加不影响）。
  *
  * 边界：只读数据；不改 log-analysis 模块；不接委派通道；不计 ⑫ 配额；
  * 建议仍只落盘等人拍板，不自动执行。
@@ -32,6 +35,11 @@ import {
 } from '../log-analysis/index.js';
 import { createLogger } from '../utils/logger.js';
 import { truncateOrEmpty } from '../utils/index.js';
+import {
+  collectLiveRosterLedger,
+  renderAgentLedgerSection,
+  type AgentLedgerEntry,
+} from './agent-ledger-service.js';
 
 const log = createLogger('DailyLogReport');
 
@@ -164,6 +172,8 @@ export interface DailyLogReportDeps {
   writeFile?: (file: string, content: string) => void;
   /** 建目录注入（测试用；缺省 fs.mkdirSync recursive）。 */
   ensureDir?: (dir: string) => void;
+  /** 任务22 编制台账采集注入（测试用；缺省 collectLiveRosterLedger 实时采集）。 */
+  collectLedger?: (now: number) => AgentLedgerEntry[];
 }
 
 export type DailyLogReportSkipReason =
@@ -200,6 +210,8 @@ interface DailyReportLogFields {
   rows?: number;
   files?: { md: string; json: string };
   sections?: { anomalies: number; bottlenecks: number; resources: number; recommendations: number };
+  /** 任务22 编制段计数（建议采纳率 → ⑮ 标定用）。 */
+  ledger?: { total: number; observe: number; archive: number };
   degraded?: string;
   error?: string;
 }
@@ -220,6 +232,7 @@ function logDailyReport(fields: DailyReportLogFields): number | undefined {
         rows: fields.rows,
         files: fields.files,
         sections: fields.sections,
+        ledger: fields.ledger,
         degraded: fields.degraded,
         error: fields.error,
       },
@@ -288,9 +301,19 @@ export async function runDailyLogReportScan(
   const jsonFile = path.join(reportDir, `daily-log-report-${dayLabel}.json`);
   const ensureDir = deps.ensureDir ?? ((dir: string) => fs.mkdirSync(dir, { recursive: true }));
   const writeFile = deps.writeFile ?? ((file: string, content: string) => fs.writeFileSync(file, content, 'utf8'));
+
+  // 任务22 编制台账（⑮ 报表段；采集失败/空 → 段省略）。只进 md，json 契约零改动。
+  let ledger: AgentLedgerEntry[] = [];
+  try {
+    ledger = (deps.collectLedger ?? collectLiveRosterLedger)(at);
+  } catch (err) {
+    log.warn(`编制台账采集失败（日报编制段省略）：${errMessage(err)}`);
+  }
+
   try {
     ensureDir(reportDir);
-    writeFile(mdFile, renderLogAnalysisReport(report));
+    const md = renderLogAnalysisReport(report);
+    writeFile(mdFile, ledger.length > 0 ? `${md}\n${renderAgentLedgerSection(ledger)}\n` : md);
     writeFile(jsonFile, JSON.stringify(report, null, 2));
   } catch (err) {
     log.warn(`日报落盘失败，跳过：${errMessage(err)}`);
@@ -311,6 +334,15 @@ export async function runDailyLogReportScan(
       resources: report.resources.length,
       recommendations: report.recommendations.length,
     },
+    ...(ledger.length > 0
+      ? {
+          ledger: {
+            total: ledger.length,
+            observe: ledger.filter((e) => e.advice === 'observe').length,
+            archive: ledger.filter((e) => e.advice === 'archive-candidate').length,
+          },
+        }
+      : {}),
   });
   log.log(`每日日志分析日报已生成：${mdFile}`);
 

@@ -728,6 +728,11 @@ export interface AgentProfileCard {
   avgDurationMs: number | null;
   /** 返工率：无数据源，恒为 null（缺源登记，禁编造）。 */
   reworkRate: null;
+  /**
+   * 任务22 编制注记（如「观察中：连续失败 3 次」/「归档候选：闲置 35 天」）；
+   * 由 agent-ledger-service.buildRosterNote 产生，keep / 无证据时缺省不输出。
+   */
+  rosterNote?: string | null;
 }
 
 // Boss context delimiters - used to inject subordinate context at the beginning of user messages

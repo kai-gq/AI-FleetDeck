@@ -29,6 +29,7 @@ import { logger, sanitizeUnicode, generateId, truncateOrEmpty } from '../utils/i
 import { canTransitionTaskCard } from './task-card-service.js';
 import { logTaskCardStatus } from './activity-log.js';
 import { buildAgentProfileCard } from './agent-profile-service.js';
+import { computeAgentLedger, buildRosterNote } from './agent-ledger-service.js';
 import * as skillService from './skill-service.js';
 
 const log = logger.boss || console;
@@ -212,6 +213,9 @@ export function getBossForAgent(agentId: string): Agent | null {
  * B1（任务18）扩展：每名下属附带一张人事档案卡（技能摘要 + 历史表现），
  * 由 subordinate-context-service.buildBossContext 渲染进 Boss 快照 TEAM 段。
  * 纯聚合在 agent-profile-service（显式 now 注入）；这里只做数据接线与失败降级。
+ *
+ * 任务22 扩展：同一份合并委派史 + 花名册压成编制台账，非「保留」的建议以行尾
+ * 注记进档案卡（如「观察中：连续失败 3 次」）。只标注、不自动执行任何动作。
  */
 export async function gatherSubordinateContext(bossId: string): Promise<SubordinateContext[]> {
   const subordinates = getSubordinates(bossId);
@@ -225,6 +229,27 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
     allDecisions = Array.from(delegationHistories.values()).flat();
   } catch (err) {
     log.warn?.(' Failed to collect delegation history for agent profiles, degrading to empty:', err);
+  }
+
+  // 任务22 编制注记：agentId → 短句（仅非 keep 档有）；台账异常 → 无注记降级，快照照常。
+  const rosterNotes = new Map<string, string>();
+  try {
+    const roster = agentService
+      .getAllAgents()
+      .filter((agent) => !agent.isBoss)
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        ...(typeof agent.lastAssignedTaskTime === 'number'
+          ? { lastAssignedTaskTime: agent.lastAssignedTaskTime }
+          : {}),
+      }));
+    for (const entry of computeAgentLedger(allDecisions, roster, now)) {
+      const note = buildRosterNote(entry);
+      if (note) rosterNotes.set(entry.agentId, note);
+    }
+  } catch (err) {
+    log.warn?.(' Roster ledger failed, snapshot runs without roster notes:', err);
   }
 
   return Promise.all(subordinates.map(async (sub) => {
@@ -255,6 +280,7 @@ export async function gatherSubordinateContext(bossId: string): Promise<Subordin
         skills,
         decisions: allDecisions,
         now,
+        rosterNote: rosterNotes.get(sub.id) ?? null,
       });
     } catch (err) {
       log.warn?.(` Failed to build profile card for ${sub.name}, omitting it:`, err);

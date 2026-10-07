@@ -446,4 +446,25 @@ describe('B1 端到端：gatherSubordinateContext → buildBossContext 快照', 
       mocks.failProfileBuild.value = false;
     }
   });
+
+  it('任务22 编制注记（B1 扩展）：连续失败 3 次的 agent 行尾带「观察中」；无异常者不加注', async () => {
+    const now = Date.now();
+    // 三条最近连续失败（压过本文件此前累积的历史）→ w1 命中连败阈值
+    for (let i = 0; i < 3; i++) {
+      bossService.addDelegationToHistory('boss-1', decision({
+        id: `e2e-ledger-fail-${i}`,
+        timestamp: now - (i + 1) * 60_000,
+        completion: { completedAt: now - (i + 1) * 60_000 + 30_000, durationMs: 30_000, result: 'failed' },
+      }));
+    }
+
+    const contexts = await bossService.gatherSubordinateContext('boss-1');
+    expect(contexts.find((c) => c.id === 'w1')?.profile?.rosterNote).toBe('观察中：连续失败 3 次');
+    expect(contexts.find((c) => c.id === 'w2')?.profile?.rosterNote).toBeUndefined(); // 无证据不加注
+
+    const text = await buildBossContext('boss-1');
+    expect(text).toContain('| 观察中：连续失败 3 次');
+    const noteLines = text!.split('\n').filter((l) => l.startsWith('- **Profile**:'));
+    expect(noteLines.filter((l) => l.includes('观察中'))).toHaveLength(1); // 只标异常者
+  });
 });

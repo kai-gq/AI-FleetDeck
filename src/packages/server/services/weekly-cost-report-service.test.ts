@@ -29,6 +29,7 @@ import {
 } from './weekly-cost-report-service.js';
 import { aggregateResourceUsage } from '../log-analysis/stats.js';
 import * as cronService from './cron-service.js';
+import type { AgentLedgerEntry } from './agent-ledger-service.js';
 
 /** 2026-10-05 周一 09:00 本地。 */
 const NOW = () => new Date(2026, 9, 5, 9, 0, 0);
@@ -388,5 +389,98 @@ describe('startWeeklyCostReportJob', () => {
     expect(cronService.NIGHTLY_REFLECTION_CRON).toBe('0 2 * * *');
     expect(cronService.DAILY_LOG_REPORT_CRON).toBe('0 7 * * *');
     expect(cronService.RECEIPT_TIMEOUT_CRON).toBe('*/5 * * * *');
+  });
+});
+
+// ============================================================================
+// 任务22：编制段（agent-ledger 接线）
+// ============================================================================
+
+describe('任务22 编制段（agent-ledger 接线）', () => {
+  function ledgerFixture(): AgentLedgerEntry[] {
+    const base = {
+      windowDelegations: 1,
+      completed: 1,
+      failed: 0,
+      cancelled: 0,
+      terminal: 1,
+      consecutiveFailures: 0,
+      lastDelegationAt: NOW_MS - MIN,
+      idleDays: 0,
+      avgDurationMs: null,
+      reasons: [] as string[],
+    };
+    return [
+      { ...base, agentId: 'w1', agentName: 'W1', advice: 'keep' },
+      { ...base, agentId: 'w2', agentName: 'W2', advice: 'observe', reasons: ['连续失败 3 次'] },
+      {
+        ...base,
+        agentId: 'w3',
+        agentName: 'W3',
+        windowDelegations: 0,
+        completed: 0,
+        terminal: 0,
+        consecutiveFailures: 0,
+        lastDelegationAt: NOW_MS - 35 * DAY,
+        idleDays: 35,
+        advice: 'archive-candidate',
+        reasons: ['闲置 35 天', '最后委派 2026-08-31'],
+      },
+    ];
+  }
+
+  it('ledger 非空 → md 尾部「## 编制」（在按项目后）+ json 带 ledger + ⑭ 事件计数', async () => {
+    const r = await runWeeklyCostReportScan({
+      now: NOW,
+      queryRows: () => [resourceRow({ agentId: 'a1', tokensTotal: 5, costUsd: 0.005 })],
+      reportDir: tmpDir,
+      collectLedger: () => ledgerFixture(),
+    });
+
+    expect(r.skipped).toBe(false);
+    const md = fs.readFileSync(r.textFile!, 'utf8');
+    expect(md).toContain('## 编制');
+    expect(md.indexOf('## 编制')).toBeGreaterThan(md.indexOf('## 按项目'));
+    expect(md).toContain('- 汇总：共 3 名（保留 1 · 观察中 1 · 归档候选 1）');
+    expect(md).toContain('- 观察中 · W2：连续失败 3 次');
+    expect(md).toContain('- 归档候选 · W3：闲置 35 天；最后委派 2026-08-31');
+
+    const report = JSON.parse(fs.readFileSync(r.jsonFile!, 'utf8')) as WeeklyCostReport;
+    expect(report.ledger?.map((e) => e.agentId)).toEqual(['w1', 'w2', 'w3']);
+
+    const gen = weeklyLogs().filter((row) => row.op === 'generate').at(-1);
+    expect(gen?.ledger).toEqual({ total: 3, observe: 1, archive: 1 });
+  });
+
+  it('collectLedger 抛错 → 编制段省略、报表照常落盘（降级不打断）', async () => {
+    const r = await runWeeklyCostReportScan({
+      now: NOW,
+      queryRows: () => [resourceRow({ agentId: 'a1', tokensTotal: 5 })],
+      reportDir: tmpDir,
+      collectLedger: () => { throw new Error('ledger down'); },
+    });
+
+    expect(r.skipped).toBe(false);
+    const md = fs.readFileSync(r.textFile!, 'utf8');
+    expect(md).not.toContain('## 编制');
+    expect(md).toContain('## 按项目'); // 主报表不受影响
+    const report = JSON.parse(fs.readFileSync(r.jsonFile!, 'utf8')) as WeeklyCostReport;
+    expect(report.ledger).toBeUndefined();
+    expect(weeklyLogs().filter((row) => row.op === 'generate').at(-1)?.ledger).toBeUndefined();
+  });
+
+  it('renderWeeklyCostReport：ledger 缺省/空数组 → 不出段（旧调用方形态不变）', () => {
+    const base: WeeklyCostReport = {
+      generatedAt: NOW_MS,
+      window: { from: NOW_MS - 7 * DAY, to: NOW_MS, label: 'lbl' },
+      rows: 0,
+      truncated: false,
+      byAgent: [],
+      byProject: [],
+      notes: [],
+    };
+    expect(renderWeeklyCostReport(base)).not.toContain('## 编制');
+    expect(renderWeeklyCostReport({ ...base, ledger: [] })).not.toContain('## 编制');
+    expect(renderWeeklyCostReport({ ...base, ledger: ledgerFixture() })).toContain('## 编制');
   });
 });
