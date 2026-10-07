@@ -18,6 +18,7 @@ import * as cronService from './cron-service.js';
 import * as agentService from './agent-service.js';
 import { collapseAgentContext } from './runtime-service.js';
 import type { Agent } from '../../shared/agent-types.js';
+import { isOnStandby } from './agent-standby.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('AutoCollapse');
@@ -43,6 +44,8 @@ function defaultTimezone(): string {
  * should not be armed (disabled, no cron, or an invalid cron expression).
  */
 function desiredConfig(agent: Agent): { expression: string; timezone: string } | null {
+  // 待岗不武装：否则定时 /compact 会经 sendCommand 把进程拉活，待岗形同虚设
+  if (isOnStandby(agent)) return null;
   const expression = (agent.autoCollapseCron ?? '').trim();
   if (!agent.autoCollapse || !expression) return null;
   if (!cronService.validate(expression)) {

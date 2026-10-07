@@ -10,6 +10,7 @@ import {
   markPendingSilentContextRefresh,
   startStdinWatchdog,
 } from './runtime-watchdog.js';
+import { assertAgentNotOnStandby, isOnStandby } from './agent-standby.js';
 
 export interface CustomAgentConfig {
   name: string;
@@ -103,6 +104,9 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
     }
 
+    // 待岗闸门（最后一道防线）：任何通路都不允许给待岗 agent 起一轮新会话
+    assertAgentNotOnStandby(agent);
+
     if (!silent && !skipNotify) {
       notifyCommandStarted(agentId, command);
     }
@@ -193,6 +197,9 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     if (!runner) {
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
     }
+
+    // 待岗闸门：在 watchdogs/通知/重启分支等副作用发生前就拒绝
+    assertAgentNotOnStandby(agent);
 
     const processRunning = runner.isRunning(agentId);
 
@@ -503,6 +510,12 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
     const runner = getRunner(agent.provider ?? 'claude');
     if (!runner) {
       throw new Error(`Runtime provider not initialized: ${agent.provider}`);
+    }
+
+    // 待岗静默跳过（不抛）：静默命令的调用方多为 /context 轮询等，抛错只会刷日志
+    if (isOnStandby(agent)) {
+      log.log(`[sendSilentCommand] Agent ${agentId} is on standby (待岗) — skipping silent command: ${command}`);
+      return;
     }
 
     const isContextCommand = command.trim() === '/context' || command.trim() === '/cost' || command.trim() === '/compact';

@@ -437,3 +437,66 @@ describe('runtime-command-execution native harness controls', () => {
     expect(runner.run).not.toHaveBeenCalled();
   });
 });
+
+describe('runtime-command-execution standby (待岗) gate', () => {
+  const log = { log: vi.fn(), warn: vi.fn() };
+
+  function buildApi() {
+    const runner = makeRunner({ isRunning: false, supportsStdin: true });
+    const notifyCommandStarted = vi.fn();
+    const api = createRuntimeCommandExecution({
+      log,
+      getRunner: () => runner as any,
+      getRunnerForAgent: () => runner as any,
+      notifyCommandStarted,
+      emitOutput: vi.fn(),
+      killDetachedProviderProcessInCwd: vi.fn(async () => false),
+    });
+    return { runner, notifyCommandStarted, api };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAgent.mockReturnValue({
+      id: 'sb-1',
+      name: 'Standby One',
+      provider: 'claude',
+      status: 'idle',
+      taskCount: 0,
+      cwd: '/tmp/project',
+      class: 'dev',
+      standby: true,
+    });
+  });
+
+  it('sendCommand: 拒绝并抛 AGENT_ON_STANDBY，副作用（通知/重启/状态更新）零发生', async () => {
+    const { runner, notifyCommandStarted, api } = buildApi();
+
+    await expect(api.sendCommand('sb-1', 'do the thing')).rejects.toMatchObject({
+      code: 'AGENT_ON_STANDBY',
+    });
+
+    expect(runner.sendMessage).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+    expect(runner.stop).not.toHaveBeenCalled();
+    expect(notifyCommandStarted).not.toHaveBeenCalled();
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
+  });
+
+  it('executeCommand: runtime-events 直调通路同样被拒', async () => {
+    const { runner, api } = buildApi();
+
+    await expect(api.executeCommand('sb-1', 'auto-continue')).rejects.toMatchObject({
+      code: 'AGENT_ON_STANDBY',
+    });
+    expect(runner.run).not.toHaveBeenCalled();
+  });
+
+  it('sendSilentCommand: 静默跳过（不抛），保护 /context 轮询调用方', async () => {
+    const { runner, api } = buildApi();
+
+    await expect(api.sendSilentCommand('sb-1', '/context')).resolves.toBeUndefined();
+    expect(runner.sendMessage).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+  });
+});

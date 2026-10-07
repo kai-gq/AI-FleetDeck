@@ -9,6 +9,7 @@ import * as runtimeService from './runtime-service.js';
 import * as customClassService from './custom-class-service.js';
 import { createLogger } from '../utils/index.js';
 import { skillAssignmentSource } from '../../shared/skill-assignment.js';
+import { isOnStandby } from './agent-standby.js';
 
 const log = createLogger('AgentLifecycle');
 
@@ -84,6 +85,11 @@ async function restartAgent(
   reason: string,
   sendActivity?: ActivityCallback
 ): Promise<void> {
+  // 待岗跳过：批量重启/恢复不复活待岗 agent（会话与档案原样保留）
+  if (isOnStandby(agent)) {
+    log.log(`⏸ Skipping restart of agent ${agent.name} (${agent.id}) — on standby (待岗)`);
+    return;
+  }
   try {
     log.log(`🔄 Restarting agent ${agent.name} (${agent.id}) due to ${reason}`);
 

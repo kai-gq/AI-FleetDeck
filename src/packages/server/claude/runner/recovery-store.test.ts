@@ -228,3 +228,53 @@ describe('recoverOrphanedProcesses — tmux reconnection (regression)', () => {
     expect(reconnectTmux).toHaveBeenCalledWith('a1', '/logs/a1.log', 321, expect.objectContaining({ agentId: 'a1' }));
   });
 });
+
+describe('recoverOrphanedProcesses — standby (待岗) skip', () => {
+  beforeEach(() => {
+    mockGetAgent.mockReturnValue({ ...AGENT, standby: true });
+  });
+
+  it('待岗 agent 的死进程条目不 resume，并从账本消费掉', async () => {
+    const run = vi.fn(async () => {});
+    // agentStatus working + 有 sessionId + lastRequest —— 正常情况下会被 resume
+    mockLoadRunningProcesses.mockReturnValue([entry()]);
+    mockIsProcessRunning.mockReturnValue(false);
+
+    const store = await buildStore({ run });
+    store.recoverOrphanedProcesses();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(run).not.toHaveBeenCalled();
+    expect(mockSaveRunningProcesses).not.toHaveBeenCalled();
+    expect(mockClearRunningProcesses).toHaveBeenCalled();
+  });
+
+  it('待岗 agent 的活孤儿不被收养', async () => {
+    const reconnectDetached = vi.fn(async () => true);
+    mockLoadRunningProcesses.mockReturnValue([entry()]);
+    mockIsProcessRunning.mockReturnValue(true);
+
+    const store = await buildStore({ reconnectDetached });
+    store.recoverOrphanedProcesses();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(reconnectDetached).not.toHaveBeenCalled();
+    expect(mockClearRunningProcesses).toHaveBeenCalled();
+  });
+
+  it('待岗 agent 的活 tmux 会话被清掉而非重连', async () => {
+    const reconnectTmux = vi.fn();
+    mockIsTmuxEnabled.mockReturnValue(true);
+    mockHasTmuxSession.mockReturnValue(true);
+    // 合成循环的会话来源——待岗 agent 的活会话要么被清、要么不重连
+    mockListAgentTmuxSessions.mockReturnValue(['a1']);
+    mockLoadRunningProcesses.mockReturnValue([entry({ tmuxSession: 'tc-a1', tmuxLogOffset: 321 })]);
+
+    const store = await buildStore({ reconnectTmux });
+    store.recoverOrphanedProcesses();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(reconnectTmux).not.toHaveBeenCalled();
+    expect(mockKillTmuxSession).toHaveBeenCalledWith('a1');
+  });
+});

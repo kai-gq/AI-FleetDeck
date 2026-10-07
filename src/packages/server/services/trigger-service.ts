@@ -19,6 +19,8 @@ import { loadTriggers, saveTriggers as saveTriggersSync, saveTriggersAsync } fro
 import { insertOne, queryMany, execute } from '../data/event-db.js';
 import { llmMatch, llmExtractVariables } from './llm-matcher-service.js';
 import * as cronService from './cron-service.js';
+import * as agentService from './agent-service.js';
+import { isOnStandby } from './agent-standby.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('TriggerService');
@@ -567,6 +569,13 @@ export async function fireTrigger(
   const trigger = triggers.get(id);
   if (!trigger) {
     log.error(`Cannot fire unknown trigger: ${id}`);
+    return;
+  }
+
+  // 待岗 agent 不触发——跳过发生在限流与落库之前：既不算一次 fire，
+  // 也不把 trigger 翻成 error 状态（否则待岗期间每个事件都刷一次失败）。
+  if (isOnStandby(agentService.getAgent(trigger.agentId))) {
+    log.warn(`Trigger ${trigger.name} skipped — agent ${trigger.agentId} is on standby (待岗)`);
     return;
   }
 

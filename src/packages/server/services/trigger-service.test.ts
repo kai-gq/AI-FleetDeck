@@ -35,6 +35,11 @@ vi.mock('./runtime-service.js', () => ({
   sendCommand: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockGetAgent = vi.hoisted(() => vi.fn());
+vi.mock('./agent-service.js', () => ({
+  getAgent: (...args: unknown[]) => mockGetAgent(...args),
+}));
+
 vi.mock('./workflow-executor.js', () => ({
   handleTrigger: vi.fn().mockResolvedValue(undefined),
 }));
@@ -42,6 +47,7 @@ vi.mock('./workflow-executor.js', () => ({
 import * as triggerService from './trigger-service.js';
 import * as cronService from './cron-service.js';
 import * as runtimeService from './runtime-service.js';
+import { insertOne } from '../data/event-db.js';
 
 const cronSchedule = vi.mocked(cronService.schedule);
 const sendCommand = vi.mocked(runtimeService.sendCommand);
@@ -95,5 +101,38 @@ describe('cron trigger re-arm seeds the same-minute guard (no double-fire)', () 
     expect(rearmOpts).toEqual({ initialLastFired: fireMoment });
 
     vi.useRealTimers();
+  });
+});
+
+describe('fireTrigger — standby (待岗) skip', () => {
+  function makeCronTrigger(): string {
+    const created = triggerService.createTrigger({
+      name: 'standby-skip-test',
+      type: 'cron',
+      agentId: 'A',
+      promptTemplate: 'tick',
+      enabled: true,
+      status: 'enabled',
+      matchMode: 'structural',
+      rateLimitPerMinute: 0,
+      config: { expression: '* * * * *', timezone: 'UTC' },
+    } as Parameters<typeof triggerService.createTrigger>[0]);
+    return created.id;
+  }
+
+  it('待岗 agent:不投递、不落 trigger_events、不翻 trigger 状态', async () => {
+    const id = makeCronTrigger();
+    vi.mocked(insertOne).mockClear();
+    mockGetAgent.mockReturnValue({ id: 'A', name: 'Worker A', standby: true });
+
+    await triggerService.fireTrigger(id, {});
+
+    expect(sendCommand).not.toHaveBeenCalled();
+    // 跳过发生在 SQLite 落库之前——待岗期间事件流不留失败噪音
+    expect(vi.mocked(insertOne)).not.toHaveBeenCalled();
+    const trigger = triggerService.getTrigger(id);
+    expect(trigger?.fireCount).toBe(0);
+    expect(trigger?.lastFiredAt).toBeUndefined();
+    expect(trigger?.status).toBe('enabled');
   });
 });

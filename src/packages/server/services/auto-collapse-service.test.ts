@@ -182,3 +182,29 @@ describe('autoCollapseService post-collapse prompt', () => {
     expect(collapseMock).toHaveBeenCalledWith('a1', { waitForIdle: true });
   });
 });
+
+describe('autoCollapseService standby (待岗)', () => {
+  it('待岗 agent 不武装 auto-collapse', () => {
+    allAgents = [makeAgent({ id: 'sb', autoCollapse: true, autoCollapseCron: '0 3 * * *', autoCollapseTz: 'UTC', standby: true })];
+    autoCollapse.initAutoCollapse();
+    expect(scheduleMock).not.toHaveBeenCalled();
+    expect(autoCollapse.armedCount()).toBe(0);
+  });
+
+  it('待岗切换下掉已武装的 cron，恢复后重新武装', () => {
+    autoCollapse.initAutoCollapse();
+    const armed = makeAgent({ id: 'a1', autoCollapse: true, autoCollapseCron: '0 2 * * *', autoCollapseTz: 'UTC' });
+    subscriber?.('updated', armed);
+    expect(autoCollapse.armedCount()).toBe(1);
+
+    // 待岗 → 防定时 /compact 经 sendCommand 把进程拉活
+    subscriber?.('updated', { ...armed, standby: true });
+    expect(stopMock).toHaveBeenCalledTimes(1);
+    expect(autoCollapse.armedCount()).toBe(0);
+
+    // 恢复（standby 键消失）→ 重新武装
+    subscriber?.('updated', { ...armed });
+    expect(scheduleMock).toHaveBeenCalledTimes(2);
+    expect(autoCollapse.armedCount()).toBe(1);
+  });
+});

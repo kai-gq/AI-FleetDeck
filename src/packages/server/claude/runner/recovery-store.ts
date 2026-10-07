@@ -8,6 +8,7 @@ import {
   type RunningProcessInfo,
 } from '../../data/index.js';
 import * as agentService from '../../services/agent-service.js';
+import { isOnStandby } from '../../services/agent-standby.js';
 import { createLogger } from '../../utils/logger.js';
 import { hasTmuxSession, isTmuxEnabled, killTmuxSession, listAgentTmuxSessions, tmuxLogPath, tmuxSessionName } from './tmux-helper.js';
 import { getEffectivePid } from './process-identity.js';
@@ -199,6 +200,13 @@ export class RunnerRecoveryStore {
         continue;
       }
 
+      // 待岗跳过：不重连 tmux / 不收养 / 不 resume。条目也不进 preserved，
+      // 下一段账本重写时自然被消费掉（待岗=进程已停，复活它违背用户意图）。
+      if (isOnStandby(agentService.getAgent(savedProcess.agentId))) {
+        log.log(`⏸ [STANDBY] Skipping recovery for agent ${savedProcess.agentId} — on standby (待岗)`);
+        continue;
+      }
+
       // tmux mode: check if the tmux session is still alive
       if (savedProcess.tmuxSession && isTmuxEnabled()) {
         if (hasTmuxSession(savedProcess.agentId)) {
@@ -252,6 +260,12 @@ export class RunnerRecoveryStore {
         const agent = agentService.getAgent(agentId);
         if (!agent) continue; // killUnknownTmuxSessions() already handles these
         if ((agent.provider ?? 'claude') !== this.backend.name) continue;
+        if (isOnStandby(agent)) {
+          // 待岗与「进程已停」互为定义；真出现活会话（停进程失败/崩溃窗口）→ 按用户意图清掉，不重连
+          log.log(`🧹 [STANDBY] Killing tmux session ${tmuxSessionName(agentId)} — agent on standby (待岗)`);
+          killTmuxSession(agentId);
+          continue;
+        }
 
         const logFile = tmuxLogPath(agentId);
         let offset = 0;
