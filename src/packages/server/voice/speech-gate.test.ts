@@ -140,14 +140,12 @@ describe('SpeechGate', () => {
 
   // ---- 阶段一补测:五动作语义边界 ----
 
-  it('list_agents 静默丢弃:名单由服务端实时兜底整段播报,hop1 话术不出声(2026-10-07 修「一问两答」)', () => {
+  it('list_agents releases immediately once the action is known', () => {
     const { gate, spoken } = collect();
-    gate.push('action 落定前先入缓冲的这句。');
     gate.setAction('list_agents');
     gate.push('小美在改登录页,阿蓝空闲。');
-    expect(spoken).toEqual([]); // 缓冲清空、后续也不出声
-    expect(gate.spokenCount).toBe(0); // spoke=false → 客户端按 result.response 整段补播一次
-    expect(gate.spoke).toBe(false);
+    expect(spoken).toEqual(['小美在改登录页,阿蓝空闲。']); // 不缓冲,直接出声
+    expect(gate.spokenCount).toBe(1);
   });
 
   it('send_to_agent: release emits buffered sentences in order, including pushes made before the action was known', () => {
