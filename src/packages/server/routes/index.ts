@@ -41,6 +41,7 @@ import pluginsRouter from './plugins.js';
 import pushRouter from './push.js';
 import delegationBoardRouter from './delegation-board.js';
 import userActivityRouter from './user-activity.js';
+import runtimesRouter from './runtimes.js';
 import { getPlugins } from '../integrations/integration-registry.js';
 
 const router = Router();
@@ -87,6 +88,8 @@ router.use('/push', pushRouter);
 router.use('/delegations', delegationBoardRouter);
 // W13 用户活动上报（播报时机/时间感知）
 router.use('/user-activity', userActivityRouter);
+// 本机运行时可用性清单(GET /api/runtimes;主管建队与三处对话框口径共用;必须在插件 catch-all 之前)
+router.use('/runtimes', runtimesRouter);
 // Integration plugin routes (e.g. /api/slack/*, /api/documents/*, /api/jira/*)
 // Uses lazy lookup so plugins can be registered after route setup
 router.use((req: Request, res: Response, next: NextFunction) => {
