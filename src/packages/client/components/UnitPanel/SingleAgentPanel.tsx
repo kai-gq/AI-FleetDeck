@@ -72,6 +72,8 @@ export function SingleAgentPanel({
   // Get the latest agent data from the store to ensure we have current values
   const agent = useAgent(agentProp.id) || agentProp;
   const classConfig = getClassConfig(agent.class, customClasses);
+  // Standby (待岗): reversible user-initiated deactivation (see setAgentStandby)
+  const isStandby = agent.standby === true;
 
   // Get model file for custom classes
   const customClass = customClasses.find(c => c.id === agent.class);
@@ -94,6 +96,7 @@ export function SingleAgentPanel({
   const [showContextModal, setShowContextModal] = useState(false);
   const [clearPatternsConfirmOpen, setClearPatternsConfirmOpen] = useState(false);
   const [terminateConfirmOpen, setTerminateConfirmOpen] = useState(false);
+  const [standbyConfirmOpen, setStandbyConfirmOpen] = useState(false);
 
   // Update editName when agent changes
   useEffect(() => {
@@ -204,7 +207,7 @@ export function SingleAgentPanel({
   };
 
   return (
-    <div className="unit-panel">
+    <div className={`unit-panel ${isStandby ? 'standby' : ''}`}>
       {/* Model Preview */}
       <div className="unit-model-preview">
         <ModelPreview
@@ -248,6 +251,16 @@ export function SingleAgentPanel({
               {agent.status}
             </span>
             <span> • {agent.class} • {agent.provider}</span>
+            {isStandby && (
+              <span
+                className="unit-standby-badge"
+                title={t('terminal:overview.standbyBadgeTooltipUnit', { defaultValue: 'Deactivated by the user — receives no delegations until restored (restore it from this panel).' })}
+                aria-label={t('terminal:overview.standbyBadge', { defaultValue: 'Standby' })}
+              >
+                <Icon name="pause" size={10} weight="fill" />
+                <span>{t('terminal:overview.standbyBadge', { defaultValue: 'Standby' })}</span>
+              </span>
+            )}
           </div>
           <div
             className="unit-id"
@@ -291,10 +304,19 @@ export function SingleAgentPanel({
               </button>
             )}
           <button
+            className={`unit-action-icon ${isStandby ? 'standby-restore' : ''}`}
+            onClick={() => (isStandby ? store.setAgentStandby(agent.id, false) : setStandbyConfirmOpen(true))}
+            title={isStandby
+              ? t('terminal:overview.restoreAction', { defaultValue: 'Restore from standby' })
+              : t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' })}
+          >
+            <Icon name={isStandby ? 'play' : 'pause'} size={16} />
+          </button>
+          <button
             className="unit-action-icon"
             onClick={() => setContextConfirm('collapse')}
             title={t('unitPanel.collapseContext')}
-            disabled={agent.status !== 'idle'}
+            disabled={isStandby || agent.status !== 'idle'}
           >
             <Icon name="package" size={16} />
           </button>
@@ -302,6 +324,7 @@ export function SingleAgentPanel({
             className="unit-action-icon warning"
             onClick={() => setContextConfirm('clear')}
             title={t('unitPanel.clearContext')}
+            disabled={isStandby}
           >
             <Icon name="clear" size={16} />
           </button>
@@ -488,6 +511,20 @@ export function SingleAgentPanel({
         variant="danger"
         onConfirm={() => onKillAgent(agent.id)}
         onClose={() => setTerminateConfirmOpen(false)}
+      />
+
+      <ConfirmModal
+        isOpen={standbyConfirmOpen}
+        title={t('terminal:overview.standbyConfirmTitle', { defaultValue: 'Set agent on standby?' })}
+        message={t('terminal:overview.standbyConfirmMessage', {
+          defaultValue: '{{name}} will stop immediately; until you restore it, it receives no delegations.',
+          name: agent.name,
+        })}
+        confirmLabel={t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' })}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="primary"
+        onConfirm={() => store.setAgentStandby(agent.id, true)}
+        onClose={() => setStandbyConfirmOpen(false)}
       />
     </div>
   );

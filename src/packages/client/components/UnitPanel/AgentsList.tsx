@@ -377,7 +377,7 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
 
   return (
     <AgentHoverTooltip todos={agent.latestTodos} subordinates={subordinates} position="right">
-    <div className={`agent-item ${isSelected ? 'selected' : ''} ${hasUnread ? 'unread' : ''} ${agent.status}`} onClick={handleClick}>
+    <div className={`agent-item ${isSelected ? 'selected' : ''} ${hasUnread ? 'unread' : ''} ${agent.status} ${agent.standby === true ? 'standby' : ''}`} onClick={handleClick}>
       {/* Icon */}
       <div className="agent-item-icon" style={{ background: `${classConfig.color}20` }}>
         <AgentIcon agent={agent} size={18} />
@@ -402,6 +402,14 @@ const AgentListItem = memo(function AgentListItem({ agent, area: _area, searchQu
         {/* Status line */}
         <div className="agent-item-status">
           <span className={`agent-item-status-badge ${agent.status}`}>{agent.status}</span>
+          {agent.standby === true && (
+            <span
+              className="agent-item-standby-badge"
+              title={t('terminal:overview.standbyBadgeTooltipUnit', { defaultValue: 'Deactivated by the user — receives no delegations until restored (restore it from this panel).' })}
+            >
+              {t('terminal:overview.standbyBadge', { defaultValue: 'Standby' })}
+            </span>
+          )}
           {showIdleClock && (
             <span className="agent-item-idle" style={{ color: idleColor }} title={formatIdleTime(agent.lastActivity)}>
               <Icon name="status-waiting-input" size={10} /> {formatIdleCompact(agent.lastActivity)}
