@@ -242,6 +242,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   const handleRemoveAgent = () => {
     setRemoveConfirmOpen(true);
   };
+  // Standby (待岗) confirmation; restoring is immediate (no dialog).
+  const [standbyConfirmOpen, setStandbyConfirmOpen] = useState(false);
 
   // Right-click on the header's title area opens the same agent menu as the
   // overview panel's cards (shared builder). Delete routes into this header's
@@ -255,7 +257,15 @@ export const TerminalHeader = memo(function TerminalHeader({
   const headerAgentMenuActions = useMemo(
     () =>
       headerContextMenu
-        ? buildAgentContextMenuActions({ agent: selectedAgent, t, onDelete: () => setRemoveConfirmOpen(true) })
+        ? buildAgentContextMenuActions({
+          agent: selectedAgent,
+          t,
+          onDelete: () => setRemoveConfirmOpen(true),
+          onToggleStandby: () => {
+            if (selectedAgent.standby === true) store.setAgentStandby(selectedAgent.id, false);
+            else setStandbyConfirmOpen(true);
+          },
+        })
         : [],
     [headerContextMenu, selectedAgent, t],
   );
@@ -823,6 +833,19 @@ export const TerminalHeader = memo(function TerminalHeader({
         variant="danger"
         onConfirm={() => store.removeAgentFromServer(selectedAgentId)}
         onClose={() => setRemoveConfirmOpen(false)}
+      />
+      <ConfirmModal
+        isOpen={standbyConfirmOpen}
+        title={t('terminal:overview.standbyConfirmTitle', { defaultValue: 'Set agent on standby?' })}
+        message={t('terminal:overview.standbyConfirmMessage', {
+          defaultValue: '{{name}} stops immediately and will not receive any delegations until you restore it manually from this panel.',
+          name: selectedAgent.name,
+        })}
+        confirmLabel={t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' })}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="primary"
+        onConfirm={() => store.setAgentStandby(selectedAgent.id, true)}
+        onClose={() => setStandbyConfirmOpen(false)}
       />
     </div>
   );

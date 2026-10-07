@@ -573,6 +573,13 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
     agentId: string;
     name: string;
   } | null>(null);
+  // Standby (待岗) confirmation — reversible deactivation stops the agent
+  // immediately, so it gets the same ConfirmModal treatment as removal.
+  // Restoring is immediate (no dialog).
+  const [standbyConfirm, setStandbyConfirm] = useState<{
+    agentId: string;
+    name: string;
+  } | null>(null);
   const [deleteAreaConfirm, setDeleteAreaConfirm] = useState<{
     areaId: string;
     name: string;
@@ -1235,6 +1242,10 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
       agent,
       t,
       onDelete: () => setRemoveAgentConfirm({ agentId: agent.id, name: agent.name }),
+      onToggleStandby: () => {
+        if (agent.standby === true) store.setAgentStandby(agent.id, false);
+        else setStandbyConfirm({ agentId: agent.id, name: agent.name });
+      },
       extraActions: [
         {
           id: 'toggle-expand',
@@ -1588,6 +1599,21 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
         onClose={() => setRemoveAgentConfirm(null)}
       />
       <ConfirmModal
+        isOpen={standbyConfirm !== null}
+        title={t('terminal:overview.standbyConfirmTitle', { defaultValue: 'Set agent on standby?' })}
+        message={t('terminal:overview.standbyConfirmMessage', {
+          defaultValue: '{{name}} stops immediately and will not receive any delegations until you restore it manually from this panel.',
+          name: standbyConfirm?.name ?? '',
+        })}
+        confirmLabel={t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' })}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="primary"
+        onConfirm={() => {
+          if (standbyConfirm) store.setAgentStandby(standbyConfirm.agentId, true);
+        }}
+        onClose={() => setStandbyConfirm(null)}
+      />
+      <ConfirmModal
         isOpen={deleteAreaConfirm !== null}
         title={t('terminal:overview.deleteAreaTitle', { defaultValue: 'Delete area' })}
         message={deleteAreaConfirm && deleteAreaConfirm.agentIds.length > 0
@@ -1828,7 +1854,7 @@ const AgentCard = React.memo(function AgentCard({
         </button>
       )}
       <div
-        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${agent.status} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}`}
+        className={`aop-agent-card ${isBossAgent ? 'boss' : ''} ${agent.status}${agent.standby === true ? ' standby' : ''} ${hasPendingRead ? 'unread' : ''}${isTwoFingerHovered ? ' two-finger-hover' : ''}${isCompacting ? ' compacting' : ''}`}
         data-agent-id={agent.id}
         draggable
         onDragStart={(e) => {
@@ -1881,6 +1907,16 @@ const AgentCard = React.memo(function AgentCard({
           <AgentCardSelectionMarker agentId={agent.id} />
           {agent.name}
         </span>
+        {agent.standby === true && (
+          <span
+            className="aop-standby-badge"
+            title={t('terminal:overview.standbyBadgeTooltip', { defaultValue: 'Deactivated by the user — this agent receives no delegations until you restore it (right-click → Restore).' })}
+            aria-label={t('terminal:overview.standbyBadge', { defaultValue: 'Standby' })}
+          >
+            <Icon name="pause" size={10} weight="fill" />
+            <span>{t('terminal:overview.standbyBadge', { defaultValue: 'Standby' })}</span>
+          </span>
+        )}
         <CopyAgentIdentityButton name={agent.name} id={agent.id} />
         {(agent.status === 'working' || isCompacting) && (
           <AgentCardWorkingIndicator

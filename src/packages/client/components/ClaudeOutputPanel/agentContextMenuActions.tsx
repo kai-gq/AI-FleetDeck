@@ -1,8 +1,8 @@
 /**
- * Shared right-click menu for a single agent (Edit / Clear context / Clone /
- * Fork / Delete). Built once here so every spot that offers the agent menu —
- * the overview panel's cards and the guake header's title area — shows the
- * exact same actions instead of each keeping its own copy.
+ * Shared right-click menu for a single agent (Edit / Standby / Clear context /
+ * Clone / Fork / Delete). Built once here so every spot that offers the agent
+ * menu — the overview panel's cards and the guake header's title area — shows
+ * the exact same actions instead of each keeping its own copy.
  */
 
 import React from 'react';
@@ -20,10 +20,17 @@ export function buildAgentContextMenuActions(opts: {
   t: Translate;
   /** Delete confirmation is caller-owned — each host renders its own ConfirmModal. */
   onDelete: () => void;
+  /**
+   * Standby (待岗) toggle. The host owns the confirmation dialog: this fires on
+   * click with the intent already resolved (restore is immediate; setting
+   * standby opens the host's ConfirmModal). Omit to hide the item.
+   */
+  onToggleStandby?: () => void;
   /** Host-specific actions inserted after "Edit Agent" (e.g. the overview card's Expand/Collapse). */
   extraActions?: ContextMenuAction[];
 }): ContextMenuAction[] {
-  const { agent, t, onDelete, extraActions = [] } = opts;
+  const { agent, t, onDelete, onToggleStandby, extraActions = [] } = opts;
+  const isStandby = agent.standby === true;
   return [
     {
       id: 'edit-agent',
@@ -34,10 +41,21 @@ export function buildAgentContextMenuActions(opts: {
       },
     },
     ...extraActions,
+    ...(onToggleStandby ? [{
+      id: 'toggle-standby',
+      label: isStandby
+        ? t('terminal:overview.restoreAction', { defaultValue: 'Restore agent' })
+        : t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' }),
+      icon: <Icon name={isStandby ? 'play' : 'pause'} size={14} />,
+      onClick: onToggleStandby,
+    }] : []),
     {
       id: 'clear-context',
       label: t('terminal:overview.clearContext', { defaultValue: 'Clear context' }),
       icon: <Icon name="clear" size={14} />,
+      // Disabled while on standby: clearing would wipe the very session that
+      // restoring the agent is meant to resume.
+      disabled: isStandby,
       onClick: () => store.clearContext(agent.id),
     },
     {

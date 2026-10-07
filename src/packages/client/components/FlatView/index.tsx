@@ -1934,6 +1934,11 @@ export function FlatView({
     agentId: string;
     name: string;
   } | null>(null);
+  // Standby (待岗) confirmation — reversible deactivation; restoring is immediate.
+  const [standbyConfirm, setStandbyConfirm] = useState<{
+    agentId: string;
+    name: string;
+  } | null>(null);
   // Agent info modal — opened by clicking the agent avatar/name in the chat
   // header, mirroring the Guake terminal's guake-title-btn behavior.
   const [agentInfoOpen, setAgentInfoOpen] = useState(false);
@@ -2822,6 +2827,17 @@ export function FlatView({
         onClick: () => onAgentClick(agent.id),
       },
       {
+        id: 'toggle-standby',
+        label: agent.standby === true
+          ? t('terminal:overview.restoreAction', { defaultValue: 'Restore agent' })
+          : t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' }),
+        icon: <Icon name={agent.standby === true ? 'play' : 'pause'} size={14} />,
+        onClick: () => {
+          if (agent.standby === true) store.setAgentStandby(agent.id, false);
+          else setStandbyConfirm({ agentId: agent.id, name: agent.name });
+        },
+      },
+      {
         id: 'clone-agent',
         label: t('terminal:overview.cloneAgent', { defaultValue: 'Clone Agent' }),
         icon: <Icon name="clipboard" size={14} />,
@@ -3611,6 +3627,21 @@ export function FlatView({
           }
         }}
         onClose={() => setRemoveAgentConfirm(null)}
+      />
+      <ConfirmModal
+        isOpen={standbyConfirm !== null}
+        title={t('terminal:overview.standbyConfirmTitle', { defaultValue: 'Set agent on standby?' })}
+        message={t('terminal:overview.standbyConfirmMessage', {
+          defaultValue: '{{name}} stops immediately and will not receive any delegations until you restore it manually from this panel.',
+          name: standbyConfirm?.name ?? '',
+        })}
+        confirmLabel={t('terminal:overview.standbyAction', { defaultValue: 'Set on standby' })}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="primary"
+        onConfirm={() => {
+          if (standbyConfirm) store.setAgentStandby(standbyConfirm.agentId, true);
+        }}
+        onClose={() => setStandbyConfirm(null)}
       />
     </div>
   );

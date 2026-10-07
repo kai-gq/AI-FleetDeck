@@ -437,7 +437,13 @@
     "pendingRead": "待读",
     "fileLabel": "文件",
     "taskLabel": "任务",
-    "contextUsed": "已用 {{pct}}% 上下文（{{used}}k / {{limit}}k）"
+    "contextUsed": "已用 {{pct}}% 上下文（{{used}}k / {{limit}}k）",
+    "standbyAction": "设为待岗",
+    "restoreAction": "恢复上岗",
+    "standbyBadge": "待岗",
+    "standbyBadgeTooltip": "已被用户停用 —— 在手动恢复前，此智能体不会收到任何派活（右键 → 恢复上岗）。",
+    "standbyConfirmTitle": "将该智能体设为待岗？",
+    "standbyConfirmMessage": "{{name}} 将立即停止当前任务；在手动恢复前，不会收到任何派活。"
   },
   "debug": {
     "title": "调试面板",
