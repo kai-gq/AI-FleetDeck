@@ -3,7 +3,8 @@
  *
  * 钉住验收：④ 核心身份不可变（冻结常量 + 改名/改基调/改红线提案一律拒收）、
  * ① 记录期前 20 次会话零变更（record-only）、③ 重叠 <50% 大改标记不应用（flagged）。
- * 另覆盖：无证据拒收、白名单外字段拒收、重叠率算法、观测事件。
+ * 另覆盖：无证据拒收、字段集合开放（新增维度可演化；仅空/首尾空白/保留名拒收）、
+ * 重叠率算法、观测事件。
  */
 
 import { describe, expect, it } from 'vitest';
@@ -99,10 +100,27 @@ describe('evaluateProposal · 拒收', () => {
     expect(mixed.verdict).toBe('reject');
   });
 
-  it('白名单外（非核心）字段 → reject', () => {
-    const d = evaluateProposal(proposal({ changes: [{ field: 'favoriteColor', from: undefined, to: '蓝色' }] }), {}, AFTER_RECORD_PHASE);
-    expect(d.verdict).toBe('reject');
-    expect(d.reasons[0]).toContain('白名单');
+  it('演化可新增字段（字段集合开放、不写死）→ 不被拒收，走 review', () => {
+    const d = evaluateProposal(
+      proposal({ changes: [{ field: 'workSchedule', from: undefined, to: '工作日 9:00-18:00' }] }),
+      {},
+      AFTER_RECORD_PHASE,
+    );
+    expect(d.verdict).toBe('review');
+  });
+
+  it('字段名非法（空 / 首尾空白 / 保留名）→ reject', () => {
+    for (const [field, hint] of [
+      ['', '空'],
+      ['   ', '空'],
+      [' bossProfile ', '空白'],
+      ['__proto__', '保留'],
+      ['constructor', '保留'],
+    ] as const) {
+      const d = evaluateProposal(proposal({ changes: [{ field, from: undefined, to: 'x' }] }), {}, AFTER_RECORD_PHASE);
+      expect(d.verdict, `字段 ${JSON.stringify(field)} 应拒收`).toBe('reject');
+      expect(d.reasons[0]).toContain(hint);
+    }
   });
 
   it('isCoreIdentityField 大小写/空白归一', () => {

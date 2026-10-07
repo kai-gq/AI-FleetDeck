@@ -3,7 +3,8 @@
  *
  * 两层人格结构：
  *   - 核心身份（不可变）：名字 / 基调 / 红线「不替你做主」——见 core-identity.ts；
- *   - 关系模型（可演化）：老板画像 / 沟通偏好 / 信任度 / 协作节奏——本文件。
+ *   - 关系模型（可演化，**字段开放不写死**）：老板画像 / 沟通偏好 / 信任度 /
+ *     协作节奏为已知字段（中文标签）；演化可新增任意维度（2026-10-07 修订）。
  *
  * 治理铁律：结论必须有证据（evidence 非空）；核心身份字段出现在提案里 = 拒收
  * （不可变）；演化须经 governance.evaluateProposal 裁决，留 diff、可回滚。
@@ -13,14 +14,17 @@
 // 关系模型（可演化）
 // ============================================================================
 
-/** 关系模型可演化字段（白名单；提案里出现白名单之外/核心身份字段 → 治理拒收）。 */
-export const RELATIONSHIP_FIELDS = [
+/**
+ * 已知关系模型字段（渲染顺序 + 中文标签用；**不是白名单**——字段集合开放，
+ * 演化可新增维度，新增字段回退字段名原文渲染）。
+ */
+export const KNOWN_RELATIONSHIP_FIELDS = [
   'bossProfile',
   'communicationPrefs',
   'trustLevel',
   'collaborationRhythm',
 ] as const;
-export type RelationshipField = (typeof RELATIONSHIP_FIELDS)[number];
+export type RelationshipField = (typeof KNOWN_RELATIONSHIP_FIELDS)[number];
 
 /** 字段 → 注入渲染用中文名。 */
 export const RELATIONSHIP_FIELD_LABELS: Readonly<Record<RelationshipField, string>> = {
@@ -30,7 +34,7 @@ export const RELATIONSHIP_FIELD_LABELS: Readonly<Record<RelationshipField, strin
   collaborationRhythm: '协作节奏',
 };
 
-/** 关系模型（缺字段 = 尚未建立，不是空值）。 */
+/** 关系模型（缺字段 = 尚未建立，不是空值；索引签名 = 演化新增字段的通道）。 */
 export interface RelationshipModel {
   /** 老板画像（称呼/习惯/工作方式…自由文本）。 */
   bossProfile?: string;
@@ -40,6 +44,8 @@ export interface RelationshipModel {
   trustLevel?: number;
   /** 协作节奏（高频快节奏 / 低频大事才找…自由文本）。 */
   collaborationRhythm?: string;
+  /** 演化新增字段（键名非空/无首尾空白/非保留名——由治理把关）。 */
+  [field: string]: RelationshipValue;
 }
 
 export type RelationshipValue = string | number | undefined;
@@ -50,7 +56,7 @@ export type RelationshipValue = string | number | undefined;
 
 /** 单字段变更（from=undefined = 首次建立，不算「大改」）。 */
 export interface RelationshipChange {
-  /** 字段名（边界处为 string——未知字段由治理拒收，不在类型层放行）。 */
+  /** 字段名（开放集合——已知字段或演化新增维度；空/首尾空白/保留名/核心身份由治理拒收）。 */
   field: string;
   from: RelationshipValue;
   to: RelationshipValue;
@@ -67,7 +73,7 @@ export interface RelationshipEvolutionProposal {
 
 /**
  * 治理裁决（evaluateProposal 输出）：
- *   - reject：空变更 / 无证据 / 核心身份字段 / 白名单外字段 → 拒收，不记录；
+ *   - reject：空变更 / 无证据 / 字段名非法（空、首尾空白、保留名）/ 核心身份字段 → 拒收，不记录；
  *   - record-only：记录期（前 RECORD_PHASE_SESSIONS 次会话）→ 只记成长日志，不生效；
  *   - flagged：大改（文本重叠 < 阈值）→ 标记不应用，需人工拆分/复核后重新提案；
  *   - review：通过治理初筛 → 走 Tier2 人工审查（批准后才可应用）。

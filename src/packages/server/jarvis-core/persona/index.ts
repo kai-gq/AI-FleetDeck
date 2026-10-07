@@ -15,11 +15,10 @@ import type { MemoryEntry, MemoryStore } from '../memory/index.js';
 import { buildCoreIdentityBlock } from './core-identity.js';
 import { FileSessionCounter } from './session-counter.js';
 import { FileRelationshipStore } from './relationship-store.js';
-import { RELATIONSHIP_FIELD_LABELS } from './types.js';
+import { KNOWN_RELATIONSHIP_FIELDS, RELATIONSHIP_FIELD_LABELS } from './types.js';
 import type {
   GovernanceDecision,
   RelationshipEvolutionProposal,
-  RelationshipField,
   RelationshipModel,
   RelationshipValue,
 } from './types.js';
@@ -67,13 +66,24 @@ export interface PersonaInjection {
   relationshipBlock?: string;
 }
 
-/** 关系模型 → 注入块（多行；空模型 → undefined）。 */
+/**
+ * 关系模型 → 注入块（多行；空模型 → undefined）。
+ * 已知字段按固定顺序 + 中文标签；演化新增字段（无预置标签）回退字段名原文，
+ * 排在已知字段之后——字段集合开放，渲染不写死（2026-10-07 修订）。
+ */
 export function renderRelationshipBlock(model: RelationshipModel): string | undefined {
   const lines: string[] = [];
-  for (const field of Object.keys(RELATIONSHIP_FIELD_LABELS) as RelationshipField[]) {
+  for (const field of KNOWN_RELATIONSHIP_FIELDS) {
     const value = model[field];
     if (value === undefined || value === '') continue;
     lines.push(`- ${RELATIONSHIP_FIELD_LABELS[field]}：${value}`);
+  }
+  const known = new Set<string>(KNOWN_RELATIONSHIP_FIELDS);
+  for (const field of Object.keys(model)) {
+    if (known.has(field)) continue;
+    const value = model[field];
+    if (value === undefined || value === '') continue;
+    lines.push(`- ${field}：${value}`);
   }
   return lines.length > 0 ? lines.join('\n') : undefined;
 }

@@ -74,6 +74,12 @@ describe('renderRelationshipBlock', () => {
   it('空串字段视同未建立', () => {
     expect(renderRelationshipBlock({ bossProfile: '' })).toBeUndefined();
   });
+
+  it('演化新增字段 → 回退字段名原文，排在已知字段之后', () => {
+    expect(renderRelationshipBlock({ workSchedule: '工作日 9:00-18:00', bossProfile: '独立开发者' })).toBe(
+      ['- 老板画像：独立开发者', '- workSchedule：工作日 9:00-18:00'].join('\n'),
+    );
+  });
 });
 
 describe('buildPersonaInjection', () => {
@@ -93,6 +99,16 @@ describe('buildPersonaInjection', () => {
     });
     const injection = buildPersonaInjection({ store });
     expect(injection.relationshipBlock).toBe('- 老板画像：独立开发者，喜欢直接给结论');
+  });
+
+  it('新字段经治理 + 批准演化 → 注入块包含（字段不写死端到端）', () => {
+    const store = new FileRelationshipStore({ filePath: path.join(tmpDir, 'relationship.json') });
+    const p = proposal({ changes: [{ field: 'workSchedule', from: undefined, to: '工作日 9:00-18:00' }] });
+    const decision = evaluateProposal(p, store.getModel().model, { sessionCount: 20 });
+    expect(decision.verdict).toBe('review');
+    expect(store.applyEvolution(p, decision, { approval: 'tier2-approved' }).applied).toBe(true);
+    const injection = buildPersonaInjection({ store });
+    expect(injection.relationshipBlock).toBe('- workSchedule：工作日 9:00-18:00');
   });
 
   it('存储读取抛错 → 降级只注核心身份，不抛', () => {

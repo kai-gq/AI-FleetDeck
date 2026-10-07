@@ -2,8 +2,9 @@
  * jarvis-core/persona · 演化治理（任务 32；06-12 §8.1「治理先行」）
  *
  * evaluateProposal 纯函数，判定顺序（先硬边界、后记录期、再大改）：
- *   1. reject：空变更 / 证据缺失（结论必须有证据）/ 核心身份字段（不可变）/
- *      白名单外字段；
+ *   1. reject：空变更 / 证据缺失（结论必须有证据）/ 字段名非法（空、首尾空白、
+ *      保留名）/ 核心身份字段（不可变）——**字段集合开放**：白名单已取消，
+ *      演化可新增维度（2026-10-07 修订「关系模型不能写死」）；
  *   2. record-only：会话数 < RECORD_PHASE_SESSIONS（前 20 次只记录不生效）；
  *   3. flagged：文本重叠 < BIG_CHANGE_OVERLAP_THRESHOLD（标记不应用，需人工
  *      拆分/复核后重新提案——applyEvolution 对 flagged 一律拒绝）;
@@ -14,7 +15,6 @@
  */
 
 import { isCoreIdentityField } from './core-identity.js';
-import { RELATIONSHIP_FIELDS } from './types.js';
 import type {
   GovernanceDecision,
   PersonaObserver,
@@ -28,6 +28,9 @@ export const RECORD_PHASE_SESSIONS = 20;
 
 /** 大改重叠阈值（06-12 §8.2 建议值 50%；重叠 < 阈值 = 标记不应用）。 */
 export const BIG_CHANGE_OVERLAP_THRESHOLD = 0.5;
+
+/** 保留字段名（对象原型链安全；防 __proto__ 式意外写入）。 */
+const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set(['__proto__', 'prototype', 'constructor']);
 
 // ============================================================================
 // 重叠率
@@ -98,13 +101,17 @@ export function evaluateProposal(
     return { verdict: 'reject', reasons: ['结论缺少证据（evidence 为空）——结论必须有证据支撑'] };
   }
 
-  // 2. 核心身份不可变 / 白名单外字段 → 拒收
+  // 2. 硬边界：字段名非法 / 核心身份字段 → 拒收（字段集合开放——演化可新增维度）
   const boundaryReasons: string[] = [];
   for (const change of proposal.changes) {
-    if (isCoreIdentityField(change.field)) {
+    if (typeof change.field !== 'string' || change.field.trim() === '') {
+      boundaryReasons.push('变更字段名为空——拒绝无名变更');
+    } else if (isCoreIdentityField(change.field)) {
       boundaryReasons.push(`字段「${change.field}」属核心身份（名字/基调/红线），固定不可改`);
-    } else if (!(RELATIONSHIP_FIELDS as readonly string[]).includes(change.field)) {
-      boundaryReasons.push(`字段「${change.field}」不在关系模型白名单（${RELATIONSHIP_FIELDS.join('/')}）内`);
+    } else if (change.field !== change.field.trim()) {
+      boundaryReasons.push(`字段名「${change.field}」含首尾空白——须为规范形式`);
+    } else if (RESERVED_FIELD_NAMES.has(change.field.toLowerCase())) {
+      boundaryReasons.push(`字段「${change.field}」为保留名（对象原型安全），不得使用`);
     }
   }
   if (boundaryReasons.length > 0) return { verdict: 'reject', reasons: boundaryReasons };
@@ -120,7 +127,7 @@ export function evaluateProposal(
   // 4. 大改标记：重叠 < 阈值 → 标记不应用（人工拆分/复核后重新提案）
   const flagged: Array<{ field: string; overlap: number }> = [];
   for (const change of proposal.changes) {
-    const currentValue = current[change.field as keyof RelationshipModel];
+    const currentValue = current[change.field];
     const from = currentValue !== undefined ? currentValue : change.from;
     const overlap = computeValueOverlap(from, change.to);
     if (overlap !== null && overlap < BIG_CHANGE_OVERLAP_THRESHOLD) flagged.push({ field: change.field, overlap });
