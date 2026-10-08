@@ -26,7 +26,7 @@ export function VoiceSessionControl({ state }: { state: VoiceCompanionState }) {
   const active = state.phase !== 'off';
   const icon = state.phase === 'speaking' ? 'pause' : active ? 'stop' : 'play';
   const label =
-    state.label ?? t('terminal:fleetHome.voice.title', { defaultValue: '语音会话流' });
+    state.label ?? t('terminal:fleetHome.voice.title', { defaultValue: '秘书' });
 
   return (
     <button

@@ -84,7 +84,7 @@ export function DeckStatusBar() {
       {voice.present !== null && (
         <span className={`fleetdeck-statusbar__item${voiceActive ? ' is-voice-on' : ''}`}>
           <span className="fleetdeck-statusbar__dot" aria-hidden="true" />
-          {t('terminal:fleetHome.statusBar.voiceLabel', { defaultValue: '语音' })}
+          {t('terminal:fleetHome.statusBar.voiceLabel', { defaultValue: '秘书' })}
           {' · '}
           {voice.present === false
             ? t('terminal:fleetHome.voice.disabled', { defaultValue: '未启用' })

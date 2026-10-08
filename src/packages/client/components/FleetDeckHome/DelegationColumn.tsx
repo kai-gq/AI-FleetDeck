@@ -47,14 +47,14 @@ export function DelegationColumn() {
       <header className="fleetdeck-col__head">
         <h2>
           <Icon name="tree" size={14} />
-          {t('terminal:fleetHome.delegation.title', { defaultValue: '委派树' })}
+          {t('terminal:fleetHome.delegation.title', { defaultValue: '任务树' })}
         </h2>
         {data && (
           <span className="fleetdeck-col__count">
             {t('terminal:fleetHome.delegation.count', { defaultValue: '{{count}} 任务', count: entries.length })}
           </span>
         )}
-        <div className="fleetdeck-col__filters" role="group" aria-label={t('terminal:fleetHome.delegation.title', { defaultValue: '委派树' })}>
+        <div className="fleetdeck-col__filters" role="group" aria-label={t('terminal:fleetHome.delegation.title', { defaultValue: '任务树' })}>
           {DELEGATION_STATUS_FILTERS.map((filter) => (
             <button
               key={filter.id}

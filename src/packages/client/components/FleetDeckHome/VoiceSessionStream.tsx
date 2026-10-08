@@ -100,7 +100,7 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
       <header className="fleetdeck-col__head">
         <h2>
           <Icon name="microphone" size={14} />
-          {t('terminal:fleetHome.voice.title', { defaultValue: '语音会话流' })}
+          {t('terminal:fleetHome.voice.title', { defaultValue: '秘书' })}
         </h2>
         <span className="fleetdeck-col__count">
           {t('terminal:fleetHome.voice.streaming', { defaultValue: '流式' })}
@@ -122,10 +122,10 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
       {voice.present === false ? (
         <div className="voice-stream__guide">
           <Icon name="microphone" size={22} />
-          <strong>{t('terminal:fleetHome.voice.offTitle', { defaultValue: '语音未开启' })}</strong>
+          <strong>{t('terminal:fleetHome.voice.offTitle', { defaultValue: '秘书未开启' })}</strong>
           <p>
             {t('terminal:fleetHome.voice.offBody', {
-              defaultValue: '开启语音伙伴后，这里的对话会随说随现。',
+              defaultValue: '开启秘书后，这里的对话会随说随现。',
             })}
           </p>
           {onOpenVoiceSettings && (

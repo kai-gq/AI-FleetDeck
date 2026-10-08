@@ -35,7 +35,7 @@ interface RowProps<T> {
 function Caret({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   return (
     <button type="button" className="delegation-tree-row__caret" onClick={onToggle}>
-      <Icon name={expanded ? 'caret-down' : 'caret-right'} size={10} />
+      <Icon name={expanded ? 'caret-down' : 'caret-right'} size={12} />
     </button>
   );
 }
@@ -58,7 +58,7 @@ const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
       >
         <Icon
           name={expanded ? 'caret-down' : 'caret-right'}
-          size={10}
+          size={12}
           className="delegation-tree-row__caret-icon"
         />
         <span className={`delegation-tree-row__dot is-${node.statusGroup}`} />

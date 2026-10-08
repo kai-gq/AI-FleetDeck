@@ -161,7 +161,7 @@ $db-muted: var(--text-muted);
 
 // 层间缩进 + 纵向引导线（每层阶梯一条）
 .delegation-tree-children {
-  margin-left: 12px;
+  margin-left: 14px;
   border-left: 1px solid color-mix(in srgb, var(--border-color) 52%, transparent);
 }
 
@@ -188,16 +188,16 @@ $db-muted: var(--text-muted);
 
   &.is-boss,
   &.is-delegation {
-    padding-top: 2.5px;
-    padding-bottom: 2.5px;
+    padding-top: 3px;
+    padding-bottom: 3px;
   }
 }
 
 .delegation-tree-row__caret {
   display: grid;
   place-items: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
   border: 0;
   border-radius: 4px;
@@ -234,14 +234,14 @@ $db-muted: var(--text-muted);
   overflow: hidden;
   min-width: 0;
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   &.is-strong {
     flex: 1 1 auto;
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 700;
   }
 
@@ -266,9 +266,9 @@ $db-muted: var(--text-muted);
   border: 1px solid color-mix(in srgb, $db-active 32%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, $db-active 9%, transparent);
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 700;
-  line-height: 15px;
+  line-height: 17px;
   white-space: nowrap;
 
   &.is-boss {
@@ -282,9 +282,9 @@ $db-muted: var(--text-muted);
   flex: 0 0 auto;
   padding: 0 5px;
   border-radius: 4px;
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 700;
-  line-height: 14px;
+  line-height: 16px;
   background: color-mix(in srgb, $db-muted 12%, transparent);
 
   &.is-active { color: $db-active; background: color-mix(in srgb, $db-active 11%, transparent); }
@@ -299,7 +299,7 @@ $db-muted: var(--text-muted);
   flex: 0 0 auto;
   margin-left: auto;
   color: color-mix(in srgb, $db-muted 78%, transparent);
-  font-size: 7.5px;
+  font-size: 9px;
   white-space: nowrap;
 }
 
@@ -317,7 +317,7 @@ $db-muted: var(--text-muted);
 .delegation-tree-receipt__summary {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -333,7 +333,7 @@ $db-muted: var(--text-muted);
 
 .delegation-tree-receipt__text {
   color: $db-muted;
-  font-size: 9px;
+  font-size: 10.5px;
   line-height: 1.45;
   opacity: 0.85;
 }
@@ -350,7 +350,7 @@ $db-muted: var(--text-muted);
   border-radius: 5px;
   background: color-mix(in srgb, var(--accent-cyan, #42d6e8) 7%, transparent);
   font-family: $font-mono;
-  font-size: 8.5px;
+  font-size: 10px;
   cursor: pointer;
 
   &:hover { background: color-mix(in srgb, var(--accent-cyan, #42d6e8) 13%, transparent); }
@@ -379,7 +379,7 @@ $db-muted: var(--text-muted);
   flex: 0 0 auto;
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 700;
 
   &.is-success {
@@ -411,7 +411,7 @@ $db-muted: var(--text-muted);
   h2 {
     margin: 7px 0 0;
     color: var(--text-primary);
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 700;
     line-height: 1.4;
   }
@@ -427,7 +427,7 @@ $db-muted: var(--text-muted);
   border-radius: 5px;
   background: color-mix(in srgb, var(--bg-tertiary) 42%, transparent);
   font-family: $font-mono;
-  font-size: 8.5px;
+  font-size: 10px;
   cursor: pointer;
 
   &:hover {
@@ -448,7 +448,7 @@ $db-muted: var(--text-muted);
     border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
     border-radius: 999px;
     background: color-mix(in srgb, var(--bg-tertiary) 46%, transparent);
-    font-size: 8px;
+    font-size: 9.5px;
     font-weight: 700;
 
     &.is-active { color: $db-active; border-color: color-mix(in srgb, $db-active 30%, transparent); background: color-mix(in srgb, $db-active 9%, transparent); }
@@ -476,7 +476,7 @@ $db-muted: var(--text-muted);
 
   span {
     color: var(--text-muted);
-    font-size: 7px;
+    font-size: 8.5px;
     font-weight: 700;
     letter-spacing: 0.4px;
     text-transform: uppercase;
@@ -485,7 +485,7 @@ $db-muted: var(--text-muted);
   strong {
     overflow: hidden;
     color: var(--text-secondary);
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -506,7 +506,7 @@ $db-muted: var(--text-muted);
     gap: 6px;
     margin: 0 0 7px;
     color: var(--text-primary);
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 750;
 
     svg { color: $db-active; }
@@ -520,7 +520,7 @@ $db-muted: var(--text-muted);
   border-left: 2px solid color-mix(in srgb, $db-active 55%, transparent);
   border-radius: 0 6px 6px 0;
   background: color-mix(in srgb, $db-active 6%, transparent);
-  font-size: 10px;
+  font-size: 11.5px;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -529,7 +529,7 @@ $db-muted: var(--text-muted);
 .delegation-board-details__reason {
   margin: 6px 0 0;
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.55;
   word-break: break-word;
 }
@@ -543,7 +543,7 @@ $db-muted: var(--text-muted);
   border: 1px solid color-mix(in srgb, var(--accent-cyan, #42d6e8) 22%, transparent);
   border-radius: 5px;
   background: color-mix(in srgb, var(--accent-cyan, #42d6e8) 7%, transparent);
-  font-size: 9px;
+  font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -551,7 +551,7 @@ $db-muted: var(--text-muted);
 .delegation-board-details__muted {
   margin: 0;
   color: $db-muted;
-  font-size: 9px;
+  font-size: 10.5px;
   opacity: 0.75;
 }
 
@@ -568,7 +568,7 @@ $db-muted: var(--text-muted);
     align-items: flex-start;
     gap: 6px;
     color: var(--text-secondary);
-    font-size: 9.5px;
+    font-size: 11px;
     line-height: 1.45;
 
     svg { flex: 0 0 auto; margin-top: 2px; }
@@ -591,7 +591,7 @@ $db-muted: var(--text-muted);
     > span {
       flex: 0 0 74px;
       color: var(--text-muted);
-      font-size: 8px;
+      font-size: 9.5px;
       text-transform: uppercase;
       letter-spacing: 0.35px;
     }
@@ -599,7 +599,7 @@ $db-muted: var(--text-muted);
     code {
       overflow: hidden;
       color: var(--text-muted);
-      font-size: 8.5px;
+      font-size: 10px;
       text-overflow: ellipsis;
       white-space: nowrap;
       user-select: all;

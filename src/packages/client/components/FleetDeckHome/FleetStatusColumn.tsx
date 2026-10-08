@@ -127,7 +127,7 @@ export function FleetStatusColumn() {
           ))}
         {agents.length === 0 && (
           <div className="fleetdeck-col__empty">
-            {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无智能体' })}
+            {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无成员' })}
           </div>
         )}
       </div>
