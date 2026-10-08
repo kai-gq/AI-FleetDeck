@@ -11,7 +11,7 @@ import {
   useActiveTool,
   useSettings,
   useMobileView,
-  useViewMode,
+  useAppViewMode,
   useExplorerFolderPath,
   useFileViewerPath,
   useContextModalAgentId,
@@ -203,7 +203,7 @@ function AppContent() {
   const [sidebarRevealedByHover, setSidebarRevealedByHover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileView = useMobileView();
-  const viewMode = useViewMode();
+  const viewMode = useAppViewMode();
   const agentBarHidden = useAgentBarHidden();
   const fileViewerPath = useFileViewerPath();
   const contextModalAgentId = useContextModalAgentId();

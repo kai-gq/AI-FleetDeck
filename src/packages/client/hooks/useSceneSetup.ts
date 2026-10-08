@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { store } from '../store';
+import type { AppViewMode } from '../types/viewModes';
 import { setCallbacks, clearSceneCallbacks } from '../websocket';
 import { subscribeToWorkspaceChanges } from '../components/WorkspaceSwitcher';
 import type { SceneManager } from '../scene/SceneManager';
@@ -128,7 +129,7 @@ if (typeof window !== 'undefined') {
 interface UseSceneSetupOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   selectionBoxRef: React.RefObject<HTMLDivElement | null>;
-  viewMode: '2d' | '3d' | 'dashboard' | 'flat';
+  viewMode: AppViewMode;
   sceneMountKey?: number;
   showToast: (type: ToastType, title: string, message: string, duration?: number) => void;
   showAgentNotification: (notification: any) => void;

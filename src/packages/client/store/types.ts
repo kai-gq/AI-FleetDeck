@@ -6,6 +6,7 @@
 
 import { DEFAULT_TONES } from '../utils/notificationTones';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS } from '../../shared/file-search';
+import type { AppViewMode } from '../types/viewModes';
 import type {
   Agent,
   DrawingArea,
@@ -396,8 +397,8 @@ export interface StoreState {
   // Active CLI background tasks per agent (backgrounded Bash / async subagents),
   // pushed by background_tasks_update — each message replaces the agent's list.
   backgroundTasks: Map<string, AgentBackgroundTask[]>;  // agentId -> tasks
-  // View mode for main viewport (3d, 2d, dashboard, flat)
-  viewMode: '2d' | '3d' | 'dashboard' | 'flat';
+  // View mode for main viewport (home, 3d, 2d, dashboard, flat)
+  viewMode: AppViewMode;
   // Agent overview panel open state (persists across agent switches)
   overviewPanelOpen: boolean;
   // Agent overview tracking board visible state

@@ -14,6 +14,7 @@ import { MAX_NOTIFICATION_SOUND_VOLUME } from '../utils/notificationSounds';
 
 // Import types
 import type { StoreState, Listener, Settings } from './types';
+import type { AppViewMode } from '../types/viewModes';
 import { DEFAULT_SETTINGS } from './types';
 
 // Import domain actions
@@ -179,6 +180,7 @@ export {
   useSubagentsMapForAgent,
   useBackgroundTasksForAgent,
   useViewMode,
+  useAppViewMode,
   useOverviewPanelOpen,
   useTrackingBoardVisible,
   useAgentBarHidden,
@@ -298,7 +300,7 @@ class Store
         // Legacy value from when Flat view shipped as "2d-experimental" —
         // transparently migrate so users keep their chosen view after update.
         const normalized = saved === '2d-experimental' ? 'flat' : saved;
-        return (normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat') ? normalized as StoreState['viewMode'] : '3d';
+        return (normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat' || normalized === 'home') ? normalized as StoreState['viewMode'] : '3d';
       })(),
       overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
       trackingBoardVisible: getStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, false),
@@ -718,7 +720,7 @@ class Store
     this.notify();
   }
 
-  setViewMode(mode: '2d' | '3d' | 'dashboard' | 'flat'): void {
+  setViewMode(mode: AppViewMode): void {
     this.state.viewMode = mode;
     setStorageString(STORAGE_KEYS.SCENE_VIEW_MODE, mode);
     // Keep experimental2DView in sync for backward compatibility

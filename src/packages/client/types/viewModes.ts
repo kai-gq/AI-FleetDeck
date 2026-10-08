@@ -23,3 +23,16 @@ export const VIEW_MODE_DESCRIPTIONS: Record<ViewMode, string> = {
 };
 
 export const DEFAULT_VIEW_MODE: ViewMode = '3d';
+
+/**
+ * FleetDeck "home" (指挥台总览) view mode.
+ *
+ * Deliberately kept OUT of the `ViewMode` union: FloatingActionButtons /
+ * MobileFabMenu hold exhaustive `Record<ViewMode, IconName>` literals, so
+ * widening the legacy union would break them at build time. Legacy chrome
+ * consumes the narrowed `useViewMode()` selector (home → '3d'), while the
+ * app shell reads the raw value through `useAppViewMode()`.
+ */
+export const HOME_VIEW_MODE = 'home' as const;
+export type AppViewMode = ViewMode | typeof HOME_VIEW_MODE;
+export const APP_VIEW_MODES: readonly AppViewMode[] = ['home', '3d', '2d', 'flat', 'dashboard'] as const;

@@ -6,6 +6,8 @@
 
 import { useCallback, useRef, useState, useEffect, useSyncExternalStore } from 'react';
 import { skillAppliesToAgent } from '../../shared/skill-assignment';
+import { HOME_VIEW_MODE } from '../types/viewModes';
+import type { AppViewMode, ViewMode } from '../types/viewModes';
 import type {
   Agent,
   DrawingArea,
@@ -1413,9 +1415,21 @@ export function useSubagentsMapForAgent(parentAgentId: string | null): Map<strin
 // ============================================================================
 
 /**
- * Get current view mode
+ * Get current view mode, narrowed to the legacy ViewMode union.
+ *
+ * FleetDeck's 'home' cockpit has no legacy scene choreography, so legacy
+ * consumers (FAB, ViewModeToggle, AgentActivityDock, …) keep seeing '3d'
+ * while home is active. Use `useAppViewMode()` when the raw value matters.
  */
-export function useViewMode(): StoreState['viewMode'] {
+export function useViewMode(): ViewMode {
+  const raw = useSelector(useCallback((state: StoreState) => state.viewMode, []));
+  return raw === HOME_VIEW_MODE ? '3d' : raw;
+}
+
+/**
+ * Get the raw current view mode, including FleetDeck's 'home'.
+ */
+export function useAppViewMode(): AppViewMode {
   return useSelector(useCallback((state: StoreState) => state.viewMode, []));
 }
 
