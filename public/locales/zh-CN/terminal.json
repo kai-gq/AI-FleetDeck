@@ -3675,7 +3675,21 @@
       "offBody": "开启语音伙伴后，这里的对话会随说随现。",
       "openSettings": "去开启",
       "empty": "等待对话…",
-      "disabled": "未启用"
+      "disabled": "未启用",
+      "stage": {
+        "off": "点击开启后随说随现",
+        "starting": "正在启动麦克风…",
+        "listening": "持续聆听 · 你说就行",
+        "hearing": "听到了，请继续说…",
+        "transcribing": "正在转写…",
+        "thinking": "正在整理方案",
+        "speaking": "正在向你汇报结果",
+        "paused": "页面在后台，已暂停聆听",
+        "error": "麦克风出错，点击重试",
+        "active": "语音伙伴进行中",
+        "otherTab": "另一标签页聆听中",
+        "otherTabSub": "点击接管"
+      }
     },
     "statusBar": {
       "label": "状态栏",

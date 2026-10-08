@@ -7,8 +7,8 @@ import { useVoiceCompanionPhase } from './useVoiceCompanionPhase';
 
 const CLOCK_TICK_MS = 1_000;
 
-/** 相位 → 状态栏短标签（B-27 口径：粗粒度；细则状态看语音栏列头控件 title） */
-function voiceStateKey(phase: string): { key: string; fallback: string } {
+/** 相位 → 短标签（B-27 口径：粗粒度；B-29 起语音栏舞台条复用同一映射，单一来源） */
+export function voiceStateKey(phase: string): { key: string; fallback: string } {
   switch (phase) {
     case 'off':
       return { key: 'voice.off', fallback: '已关闭' };

@@ -7,7 +7,8 @@ import { clickVoiceCompanionButton, type VoiceCompanionState } from './useVoiceC
  * 语音栏列头 · 启停控件（B-26）。
  * 不改冻结的 VoiceCompanion：合成点击 .voice-companion-btn（DOM 代理，见 useVoiceCompanionPhase.ts），
  * 语义复用其 handleButtonClick（开启 / 关闭 / 播报中点击=打断）。
- * 语音未配置（按钮不存在）→「未启用」静态占位（引导卡同时在场）。
+ * 语音未配置（按钮不存在）→「未启用」静态占位；B-29 起舞台条仅在 present===true 挂载，
+ * 该分支退为防御性兜底（未开启场景由引导卡接管）。
  */
 export function VoiceSessionControl({ state }: { state: VoiceCompanionState }) {
   const { t } = useTranslation(['terminal', 'common']);

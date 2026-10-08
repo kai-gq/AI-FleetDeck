@@ -346,20 +346,29 @@
   }
 }
 
-// 语音球呼吸（原型 .pulse 语义：呼吸而非旋转）
-@keyframes fleetdeck-breath {
-  0%,
-  100% {
-    opacity: 0.55;
+// 语音球涟漪环（原型 @keyframes ripple）
+@keyframes fleetdeck-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.4;
   }
 
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+// 流式光标闪烁（原型 @keyframes blink）
+@keyframes fleetdeck-blink {
   50% {
-    opacity: 1;
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .voice-stream__orb {
+  .voice-stream__orb::after,
+  .voice-stream__caret {
     animation: none;
   }
 }
@@ -486,32 +495,84 @@
 .voice-stream {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px; // 原型 .chat
 
-  // 语音球（B-25）：呼吸=语音开启中；径向高光用 accent 混面板色（不写死白色，双皮肤成立）
-  &__orb {
+  // 舞台条（B-29 对齐原型 .voice-stage）：38px 语音球 + 状态两行 + 右侧启停控件
+  &__stage {
     flex: 0 0 auto;
-    width: 16px;
-    height: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  // 语音球（原型 .voice-orb）：径向高光 + 涟漪环；is-off=静态灰、无涟漪
+  &__orb {
+    position: relative;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background:
       radial-gradient(
         circle at 35% 30%,
-        color-mix(in srgb, var(--fd-accent) 42%, var(--bg-secondary)) 0%,
-        transparent 62%
+        color-mix(in srgb, var(--fd-accent-ink) 35%, transparent),
+        color-mix(in srgb, var(--fd-accent) 25%, transparent) 40%,
+        transparent 65%
       ),
       var(--fd-accent);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--fd-accent) 35%, transparent);
-    animation: fleetdeck-breath 2.2s ease-in-out infinite;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--fd-accent) 35%, transparent);
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      border: 1px solid var(--fd-accent);
+      opacity: 0.35;
+      animation: fleetdeck-ripple 2.4s ease-out infinite;
+    }
 
     &.is-off {
       background: var(--text-muted);
       box-shadow: none;
-      animation: none;
+
+      &::after {
+        display: none;
+      }
     }
   }
 
-  // 启停控件（B-26，列头右侧）：off=描边 ghost（play）；active=强调色描边（stop / 播报中 pause=打断）
+  // 状态两行（原型 .voice-state）：b=短标签（与状态栏同一映射）/ span=相位副行
+  &__state {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+
+    b {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    span {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  // 启停控件（B-26 起；B-29 移入舞台右槽对齐原型 .voice-demo 位）：
+  // off=描边 ghost（play）；active=强调色描边（stop / 播报中 pause=打断）
   &__control {
     flex: 0 0 auto;
     margin-left: auto;
@@ -550,7 +611,7 @@
     }
   }
 
-  // 气泡（原型 .msg：用户靠右 accent 实底 / 助理靠左 panel2 描边 / 系统居中胶囊）
+  // 气泡（原型 .msg：用户靠右 accent 实底 / 助理靠左 panel2 描边 / 系统居中胶囊；无角色胶章）
   &__entry {
     display: flex;
     gap: 6px;
@@ -562,16 +623,17 @@
     line-height: 1.55;
     color: var(--text-primary);
 
-    &--user {
+    &--user,
+    &--live {
       align-self: flex-end;
       background: var(--fd-accent);
       color: var(--fd-accent-ink);
       border-bottom-right-radius: 3px;
+    }
 
-      .voice-stream__tag {
-        background: color-mix(in srgb, var(--fd-accent-ink) 16%, transparent);
-        color: inherit;
-      }
+    // 流式半句（B-29，原型 .msg.typing）：虚线描边 + 尾部光标 =「还在说」
+    &--live {
+      border: 1px dashed color-mix(in srgb, var(--fd-accent-ink) 45%, transparent);
     }
 
     &--assistant {
@@ -581,8 +643,8 @@
       border-bottom-left-radius: 3px;
     }
 
-    &--system,
-    &--live {
+    // 系统提示（原型 .msg.sys）：居中虚线小药丸，不斜体
+    &--system {
       align-self: center;
       max-width: 100%;
       padding: 3px 12px;
@@ -591,19 +653,18 @@
       background: transparent;
       color: var(--text-muted);
       font-size: 10.5px;
-      font-style: italic;
     }
   }
 
-  &__tag {
-    flex: 0 0 auto;
-    padding: 0 5px;
-    border-radius: 4px;
-    background: var(--bg-tertiary);
-    font-size: 10px;
-    line-height: 1.6;
-    color: var(--text-muted);
-    font-style: normal;
+  // 流式光标（原型 .caret-blink；随气泡文字色）
+  &__caret {
+    display: inline-block;
+    width: 2px;
+    height: 11px;
+    margin-left: 3px;
+    vertical-align: -1px;
+    background: currentColor;
+    animation: fleetdeck-blink 1s steps(2) infinite;
   }
 
   &__text {
