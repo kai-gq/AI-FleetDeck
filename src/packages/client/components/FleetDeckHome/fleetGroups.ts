@@ -1,7 +1,7 @@
 import type { Agent } from '../../../shared/agent-types';
 
 /**
- * 指挥台总览 · 舰队分组（EPIC-1）。
+ * 指挥台总览 · 团队分组（EPIC-1）。
  * 规则（SPEC）：standby 优先 → 待命；working|waiting|waiting_permission → 在办；
  * 其余 → 已办结。组内 lastActivity 降序。纯函数，重载不依赖 DOM。
  */

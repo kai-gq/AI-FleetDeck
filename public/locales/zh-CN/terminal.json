@@ -3655,7 +3655,7 @@
   },
   "fleetHome": {
     "fleet": {
-      "title": "舰队状态",
+      "title": "团队状态",
       "count": "{{total}} 员 · {{active}} 在办",
       "empty": "暂无智能体"
     },

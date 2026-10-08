@@ -30,6 +30,13 @@
       "zh": "确定",
       "forbidden": ["好的"],
       "scope": { "keys": ["common:buttons.ok"] }
+    },
+    {
+      "//": "「舰队」概念已废止(2026-10-08 定名 FleetDeck 后 UI 团队化):zh 值一律不得出现「舰队」,命中由 --glossary 替换为「团队」。品牌 FleetDeck 是英文标识、不进 zh 值。",
+      "id": "fleet-concept",
+      "zh": "团队",
+      "forbidden": ["舰队"],
+      "scope": { "ns": "*" }
     }
   ],
   "style": [

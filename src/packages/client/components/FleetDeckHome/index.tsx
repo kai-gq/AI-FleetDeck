@@ -10,7 +10,7 @@ export interface FleetDeckHomeProps {
 }
 
 /**
- * 指挥台总览（EPIC-1）：左=舰队状态 / 中=委派树 / 右=语音会话流。
+ * 指挥台总览（EPIC-1）：左=团队状态 / 中=委派树 / 右=语音会话流。
  * 数据全部来自现有 store + 现有 API；三栏在 ≤1100px 折起语音栏、≤760px 单列堆叠。
  */
 export function FleetDeckHome({ onOpenToolbox }: FleetDeckHomeProps) {

@@ -31,8 +31,8 @@ export const VIEW_MENU_OPTIONS: readonly ViewMenuOption[] = [
     icon: 'home',
     labelKey: 'common:viewMode.labels.home',
     descriptionKey: 'common:viewMode.descriptions.home',
-    defaultLabel: 'Fleet Deck',
-    defaultDescription: 'Fleet & delegation overview',
+    defaultLabel: 'FleetDeck',
+    defaultDescription: 'Team & delegation overview',
   },
   {
     mode: '2d',

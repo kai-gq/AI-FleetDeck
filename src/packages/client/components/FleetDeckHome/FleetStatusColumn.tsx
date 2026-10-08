@@ -11,7 +11,7 @@ import { agentStatusKey, fleetGroupOf, groupFleet } from './fleetGroups';
 const ELAPSED_TICK_MS = 1_000;
 
 /**
- * 总览左栏 · 舰队状态（EPIC-1）。
+ * 总览左栏 · 团队状态（EPIC-1）。
  * 行 = AgentBadge + 名字(+BOSS 标) + 当前任务 + 状态灯/耗时；
  * 分组（在办/待命/已办结）与工作区过滤规则见 fleetGroups.ts + WorkspaceSwitcher。
  * 实时耗时取自 store.agentTaskProgress（在办任务的 startedAt），拿不到不编造。
@@ -74,7 +74,7 @@ export function FleetStatusColumn() {
       <header className="fleetdeck-col__head">
         <h2>
           <Icon name="users" size={14} />
-          {t('terminal:fleetHome.fleet.title', { defaultValue: '舰队状态' })}
+          {t('terminal:fleetHome.fleet.title', { defaultValue: '团队状态' })}
         </h2>
         <span className="fleetdeck-col__count">
           {t('terminal:fleetHome.fleet.count', {
@@ -127,7 +127,7 @@ export function FleetStatusColumn() {
           ))}
         {agents.length === 0 && (
           <div className="fleetdeck-col__empty">
-            {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无 Agent' })}
+            {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无智能体' })}
           </div>
         )}
       </div>
