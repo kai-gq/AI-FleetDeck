@@ -24,6 +24,7 @@ import { hasPendingSceneChanges, refreshScene } from '../hooks/useSceneSetup';
 import { Tooltip } from './shared/Tooltip';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from './WorkspaceSwitcher';
 import { AgentIcon } from './AgentIcon';
+import { AgentBadge } from './AgentBadge';
 import { Icon } from './Icon';
 import { ProviderIcon } from './ProviderIcon';
 
@@ -108,7 +109,8 @@ const AgentBarItem = memo(function AgentBarItem({
         : t('common:agentBar.reorderDrag', { defaultValue: '{{name}} ({{index}}) - Drag to reorder within group', name: agent.name, index: currentIndex + 1 })}
     >
       <div className="agent-bar-avatar">
-        <AgentIcon classId={agent.class} size="100%" className="agent-bar-icon" />
+        {/* ring off: the bar item's own border/dot already carry status */}
+        <AgentBadge agent={agent} size="100%" ring={false} className="agent-bar-icon" />
         <span
           className="agent-bar-status"
           style={{ backgroundColor: getAgentStatusColor(agent.status) }}

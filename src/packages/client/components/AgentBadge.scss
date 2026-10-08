@@ -1,0 +1,80 @@
+// AgentBadge — individual agent identity tile (SPEC EPIC-8)
+//
+// Ring color is injected per-instance as `--agent-badge-tone`
+// (see AgentBadge.tsx / utils/agentBadge.ts). The value is one of the shared
+// tone CSS variables (--accent-cyan/green/red, --text-muted) — the exact same
+// variables the cockpit fleet lamps use, so ring and lamp cannot drift.
+
+.agent-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  line-height: 1;
+
+  &__icon {
+    display: block;
+  }
+
+  // Name-initial chip — what tells two same-class agents apart.
+  &__initial {
+    position: absolute;
+    left: -3px;
+    bottom: -3px;
+    min-width: 13px;
+    height: 13px;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--agent-badge-tone, var(--border-color));
+    border-radius: 4px;
+    pointer-events: none;
+  }
+
+  &__crown {
+    position: absolute;
+    right: -4px;
+    top: -5px;
+    display: flex;
+    color: var(--accent-orange);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent-orange) 60%, transparent));
+    pointer-events: none;
+  }
+
+  // Status ring (外圈) — opt-out via the `ring` prop where the host already
+  // frames status itself (AgentBar item borders).
+  &--ring {
+    box-shadow: 0 0 0 2px var(--agent-badge-tone, var(--text-muted));
+  }
+
+  &--ring#{&}--active {
+    animation: agent-badge-breathe 2.2s ease-in-out infinite;
+  }
+}
+
+@keyframes agent-badge-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px var(--agent-badge-tone, var(--text-muted)),
+      0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--agent-badge-tone, var(--text-muted)),
+      0 0 8px 1px color-mix(in srgb, var(--agent-badge-tone, var(--text-muted)) 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-badge--ring.agent-badge--active {
+    animation: none;
+  }
+}
