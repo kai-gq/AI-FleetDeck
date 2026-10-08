@@ -2,6 +2,9 @@
 # 模板见 config.example.json,说明见 README.md。
 config.json
 
+# 声纹门禁(注册 ID,本机生物特征标识):永不入库,回滚=删文件或 status.mjs --off
+voiceprint.local.json
+
 # 运行日志(如有)
 *.log
 
