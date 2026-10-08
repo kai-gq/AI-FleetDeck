@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import { DelegationTree, type DelegationTreeCallbacks } from '../../plugins/delegation-board/DelegationTree';
 import { DelegationBoardDetails } from '../../plugins/delegation-board/DelegationBoardView';
-import { useDelegationBoardData } from '../../plugins/delegation-board/useDelegationBoardData';
+import { DELEGATION_STATUS_FILTERS, useDelegationBoardData } from '../../plugins/delegation-board/useDelegationBoardData';
 import type { BoardEntry } from '../../plugins/delegation-board/boardModel';
 
 /**
@@ -11,15 +11,17 @@ import type { BoardEntry } from '../../plugins/delegation-board/boardModel';
  * 与侧栏 DelegationBoardView 同源（同一 useDelegationBoardData hook）；
  * 默认展开任务与主管层（DelegationTree 缺省：任务/主管展开、委派/回执收起）；
  * 详情复用 DelegationBoardDetails（非模态）。
+ * 列头过滤段位（B-25 收口台账 B-16）：状态筛选模型与侧栏共用（DELEGATION_STATUS_FILTERS）。
  */
 export function DelegationColumn() {
   const { t } = useTranslation(['terminal', 'common']);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState<BoardEntry | null>(null);
   // 展开态 override（键 → 是否展开）：刷新/轮询不重置
   const [expansion, setExpansion] = useState<Map<string, boolean>>(() => new Map());
 
   const { data, loading, error, refresh, entries, tasks, statusLabel, onOpenAgent, onOpenOutput, agentExists } =
-    useDelegationBoardData('all');
+    useDelegationBoardData(statusFilter);
 
   const isExpanded = useCallback(
     (key: string, defaultExpanded: boolean) => expansion.get(key) ?? defaultExpanded,
@@ -52,6 +54,19 @@ export function DelegationColumn() {
             {t('terminal:fleetHome.delegation.count', { defaultValue: '{{count}} 任务', count: entries.length })}
           </span>
         )}
+        <div className="fleetdeck-col__filters" role="group" aria-label={t('terminal:fleetHome.delegation.title', { defaultValue: '委派树' })}>
+          {DELEGATION_STATUS_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              className={`fleetdeck-col__chip${statusFilter === filter.id ? ' is-active' : ''}`}
+              aria-pressed={statusFilter === filter.id}
+              onClick={() => setStatusFilter(filter.id)}
+            >
+              {t(`terminal:${filter.labelKey}`, { defaultValue: filter.fallback })}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="fleetdeck-col__refresh"

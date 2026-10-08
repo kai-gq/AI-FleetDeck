@@ -3,20 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { getLocaleTag } from '../../utils/formatting';
 import { DelegationTree, type DelegationTreeCallbacks } from './DelegationTree';
-import { useDelegationBoardData } from './useDelegationBoardData';
+import { DELEGATION_STATUS_FILTERS, useDelegationBoardData } from './useDelegationBoardData';
 import {
   boardStatusGroup,
   formatBoardDuration,
   type BoardEntry,
   type BoardEntryStatus,
 } from './boardModel';
-
-const FILTERS: Array<{ id: string; labelKey: string; fallback: string }> = [
-  { id: 'all', labelKey: 'delegationBoard.filter.all', fallback: 'All' },
-  { id: 'in-flight', labelKey: 'delegationBoard.filter.inFlight', fallback: 'In flight' },
-  { id: 'completed', labelKey: 'delegationBoard.filter.completed', fallback: 'Completed' },
-  { id: 'failed', labelKey: 'delegationBoard.filter.failed', fallback: 'Failed' },
-];
 
 function formatAbsoluteTime(timestamp: number | undefined, fallback: string): string {
   if (!timestamp) return fallback;
@@ -77,7 +70,7 @@ export function DelegationBoardView() {
       </div>
 
       <div className="delegation-board-view__filters">
-        {FILTERS.map((filter) => (
+        {DELEGATION_STATUS_FILTERS.map((filter) => (
           <button
             key={filter.id}
             type="button"

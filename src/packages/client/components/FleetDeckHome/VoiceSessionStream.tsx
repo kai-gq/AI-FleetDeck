@@ -55,6 +55,8 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
   return (
     <aside className="fleetdeck-col fleetdeck-col--voice">
       <header className="fleetdeck-col__head">
+        {/* 语音球（B-25）：呼吸=语音开启中；未开启落 is-off 静态灰（引导卡同时在场） */}
+        <span className={`voice-stream__orb${voicePresent === false ? ' is-off' : ''}`} aria-hidden="true" />
         <h2>
           <Icon name="microphone" size={14} />
           {t('terminal:fleetHome.voice.title', { defaultValue: '语音会话流' })}

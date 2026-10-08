@@ -22,6 +22,17 @@ const BOARD_POLL_MS = 20_000;
 /** 在办实时耗时心跳；无活跃条目时自动停表。 */
 const ELAPSED_TICK_MS = 1_000;
 
+/**
+ * 状态筛选模型（B-25：从 DelegationBoardView 上移，侧栏视图与总览中栏共用）。
+ * id 与 filterBoardEntries 的 statusFilter 参数一致；文案在 terminal:delegationBoard.filter.*。
+ */
+export const DELEGATION_STATUS_FILTERS: Array<{ id: string; labelKey: string; fallback: string }> = [
+  { id: 'all', labelKey: 'delegationBoard.filter.all', fallback: 'All' },
+  { id: 'in-flight', labelKey: 'delegationBoard.filter.inFlight', fallback: 'In flight' },
+  { id: 'completed', labelKey: 'delegationBoard.filter.completed', fallback: 'Completed' },
+  { id: 'failed', labelKey: 'delegationBoard.filter.failed', fallback: 'Failed' },
+];
+
 /** 状态文案兜底；zh 文案在 terminal:delegationBoard.status.*。 */
 const STATUS_FALLBACK: Record<BoardEntryStatus, string> = {
   'in-flight': 'In flight',
