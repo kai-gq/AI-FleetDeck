@@ -308,6 +308,12 @@ export class Scene2D {
       this.needsRender = true;
     }
 
+    // 主题语气切换（亮/暗皮）——地面/网格配色取自主题，需重绘静态层（B-31）
+    if (this.staticRenderer.consumeThemeChange()) {
+      this.staticDirty = true;
+      this.needsRender = true;
+    }
+
     // Any runtime animation or working agents means we need to render (dynamic layer)
     if (hasRuntimeAnimations || hasWorkingAgents) {
       this.needsRender = true;

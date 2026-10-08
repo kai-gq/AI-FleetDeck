@@ -43,6 +43,11 @@ export class Scene2DRenderer {
     this.grid.drawGround(size);
   }
 
+  /** 主题语气自静态层绘制后是否变化（亮/暗皮切换 → 静态层需标脏，B-31） */
+  consumeThemeChange(): boolean {
+    return this.grid.consumeThemeChange();
+  }
+
   drawGrid(size: number, spacing: number): void {
     this.grid.drawGrid(size, spacing);
   }

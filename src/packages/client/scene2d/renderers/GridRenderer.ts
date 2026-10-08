@@ -1,21 +1,46 @@
 import type { Scene2DCamera } from '../Scene2DCamera';
 import { BaseRenderer } from './BaseRenderer';
+import {
+  groundPaletteFor,
+  resolveSceneTone,
+  type SceneTone,
+} from '../utils/groundPalette';
 
 export class GridRenderer extends BaseRenderer {
-  // Cached ground gradient (only rebuild on viewport resize)
+  // Cached ground gradient (only rebuild on viewport resize / theme tone change)
   private groundGradient: CanvasGradient | null = null;
   private groundViewportW = 0;
   private groundViewportH = 0;
+  // 已绘制静态层所用主题语气（'' = 尚未绘制）；供 consumeThemeChange 比对（B-31）
+  private groundTone: SceneTone | '' = '';
 
   constructor(ctx: CanvasRenderingContext2D, camera: Scene2DCamera) {
     super(ctx, camera);
   }
 
+  /**
+   * 主题语气探测（Scene2D 动画循环每帧调用）：当前语气与已绘制静态层不一致
+   * 且静态层已画过 → true，调用方应把静态层标脏重绘（B-31）。
+   */
+  consumeThemeChange(): boolean {
+    return this.groundTone !== '' && resolveSceneTone() !== this.groundTone;
+  }
+
   drawGround(_size: number): void {
     const { width, height } = this.camera.getViewportSize();
 
-    // Rebuild gradient only when viewport size changes
-    if (!this.groundGradient || width !== this.groundViewportW || height !== this.groundViewportH) {
+    // 配色随主题语气（亮/暗皮）变化，一并进缓存键：暗皮沿用原作者字面色，
+    // 亮皮取浅色地板（见 utils/groundPalette，B-31）
+    const tone = resolveSceneTone();
+    const palette = groundPaletteFor(tone);
+
+    // Rebuild gradient only when viewport size or theme tone changes
+    if (
+      !this.groundGradient ||
+      width !== this.groundViewportW ||
+      height !== this.groundViewportH ||
+      tone !== this.groundTone
+    ) {
       const centerX = width / 2;
       const centerY = height / 2;
       const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY) * 1.2;
@@ -24,11 +49,12 @@ export class GridRenderer extends BaseRenderer {
         centerX, centerY, 0,
         centerX, centerY, maxRadius
       );
-      this.groundGradient.addColorStop(0, '#1a1f2e');
-      this.groundGradient.addColorStop(0.5, '#141820');
-      this.groundGradient.addColorStop(1, '#0a0c12');
+      this.groundGradient.addColorStop(0, palette.groundStops[0]);
+      this.groundGradient.addColorStop(0.5, palette.groundStops[1]);
+      this.groundGradient.addColorStop(1, palette.groundStops[2]);
       this.groundViewportW = width;
       this.groundViewportH = height;
+      this.groundTone = tone;
     }
 
     this.ctx.fillStyle = this.groundGradient;
@@ -55,15 +81,18 @@ export class GridRenderer extends BaseRenderer {
 
     const lineWidth = 1 / zoom;
 
+    // 网格线基色/对比度随主题语气（B-31）
+    const palette = groundPaletteFor(resolveSceneTone());
+
     for (let x = startX; x <= endX; x += actualSpacing) {
       const distFromOrigin = Math.abs(x);
       let alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeRadius);
 
       const isMajor = Math.abs(x) % (actualSpacing * 5) < 0.001;
-      alpha *= isMajor ? 0.12 : 0.05;
+      alpha *= (isMajor ? 0.12 : 0.05) * palette.gridAlphaGain;
 
       if (alpha > 0.005) {
-        this.ctx.strokeStyle = `rgba(100, 140, 180, ${alpha})`;
+        this.ctx.strokeStyle = `rgba(${palette.gridRgb}, ${alpha})`;
         this.ctx.lineWidth = isMajor ? lineWidth * 1.5 : lineWidth;
         this.ctx.beginPath();
         this.ctx.moveTo(x, bounds.minZ);
@@ -77,10 +106,10 @@ export class GridRenderer extends BaseRenderer {
       let alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeRadius);
 
       const isMajor = Math.abs(z) % (actualSpacing * 5) < 0.001;
-      alpha *= isMajor ? 0.12 : 0.05;
+      alpha *= (isMajor ? 0.12 : 0.05) * palette.gridAlphaGain;
 
       if (alpha > 0.005) {
-        this.ctx.strokeStyle = `rgba(100, 140, 180, ${alpha})`;
+        this.ctx.strokeStyle = `rgba(${palette.gridRgb}, ${alpha})`;
         this.ctx.lineWidth = isMajor ? lineWidth * 1.5 : lineWidth;
         this.ctx.beginPath();
         this.ctx.moveTo(bounds.minX, z);
@@ -173,15 +202,18 @@ export class GridRenderer extends BaseRenderer {
     this.ctx.font = '10px "SF Mono", "Monaco", "Consolas", monospace';
     this.ctx.textBaseline = 'middle';
 
+    // 坐标标签基色/对比度随主题语气（B-31）
+    const palette = groundPaletteFor(resolveSceneTone());
+
     for (let x = startX; x <= endX; x += labelInterval) {
       if (Math.abs(x) < 0.001) continue;
 
       const distFromOrigin = Math.abs(x);
-      const alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeEnd) * 0.4;
+      const alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeEnd) * 0.4 * palette.labelAlphaGain;
 
       if (alpha > 0.02) {
         const screenPos = this.camera.worldToScreen(x, 0);
-        this.ctx.fillStyle = `rgba(100, 140, 180, ${alpha})`;
+        this.ctx.fillStyle = `rgba(${palette.labelRgb}, ${alpha})`;
         this.ctx.textAlign = 'center';
         this.ctx.fillText(x.toString(), screenPos.x, screenPos.y + 16);
       }
@@ -191,11 +223,11 @@ export class GridRenderer extends BaseRenderer {
       if (Math.abs(z) < 0.001) continue;
 
       const distFromOrigin = Math.abs(z);
-      const alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeEnd) * 0.4;
+      const alpha = this.calculateGridAlpha(distFromOrigin, fadeStart, fadeEnd) * 0.4 * palette.labelAlphaGain;
 
       if (alpha > 0.02) {
         const screenPos = this.camera.worldToScreen(0, z);
-        this.ctx.fillStyle = `rgba(100, 140, 180, ${alpha})`;
+        this.ctx.fillStyle = `rgba(${palette.labelRgb}, ${alpha})`;
         this.ctx.textAlign = 'left';
         this.ctx.fillText(z.toString(), screenPos.x + 16, screenPos.y);
       }

@@ -44,4 +44,20 @@ html[data-tide-theme='fleetdeck-light'] {
       background: color-mix(in srgb, var(--fd-panel-2) 72%, var(--fd-line) 28%);
     }
   }
+
+  // 2D 模式画布（作者文件 Scene2DCanvas.scss：#0a0c12 暗底 + 暗玻璃角标）——
+  // 画布地面/网格本身由 GridRenderer 按主题语气绘制浅色版（B-31，配色见
+  // scene2d/utils/groundPalette.ts）。此处只补两处 CSS 硬编码：
+  // ① 容器底色（= 亮皮渐变边缘色，消除首帧黑闪与画布接缝）
+  .scene-2d-container {
+    background: #e3e9f2;
+  }
+
+  // ② 左下「2D Mode」角标：暗玻璃药丸 → 亮皮面板
+  .scene-2d-badge {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(238, 242, 248, 0.98) 100%);
+    color: var(--fd-accent);
+    border-color: color-mix(in srgb, var(--fd-accent) 25%, transparent);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
 }
