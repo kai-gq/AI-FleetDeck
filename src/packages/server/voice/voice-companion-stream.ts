@@ -15,7 +15,8 @@
  *     - {"type":"ready", endpoint}          凭据就绪,流式可用
  *     - {"type":"partial", text}            实时部分结果(整句增量,客户端替换显示)
  *     - {"type":"filler", text}             W7:垫话预生成就绪提示(客户端提前合成音频,正式句零等待)
- *     - {"type":"final", text}              一句的最终结果
+ *     - {"type":"final", text}              一句的最终结果(空 text = 本段作废:声纹拒绝或
+ *                                           跨连接重复抑制,客户端静默复位,不提交)
  *     - {"type":"error", code, message}     凭据缺失/识别出错(客户端据此回退批量通道)
  *     - {"type":"pong"}
  *
@@ -50,6 +51,48 @@ export const VOICE_COMPANION_WS_PATH = '/ws/voice-companion';
 const MAX_FRAME_BYTES = 512 * 1024;
 /** 单会话音频上限:60s(超长会话强制判停,防跑飞)。 */
 const MAX_SESSION_AUDIO_BYTES = 60 * 32_000;
+
+/**
+ * 跨连接去重护栏(多聆听端一话多回):
+ * 每个聆听端(不同浏览器配置/origin/设备,如自动化浏览器与用户窗口同开)各自转写、
+ * 各自 POST 进大脑 —— 客户端 leader 选举(localStorage 心跳)只覆盖同 origin 同 profile,
+ * 跨端互不可见,于是同一句话被回复多次。这里在终稿层做第一道闸:某连接产出的终稿若与
+ * 窗口期内「另一条连接」的终稿去空白后完全相同,即视作同一句被第二支客户端听到 →
+ * 回空 final(与声纹丢弃同语义:客户端静默复位本段,不提交、不回复)。
+ * 同一条连接内的重复(用户故意连说两遍)不受影响:必须"另一条连接"才算重复。
+ * 局限:只覆盖走本流式通道的连接;客户端批量回退(/api/stt/transcribe)不参与。
+ * 关闭:TC_VOICE_DEDUP_MS=0;窗口默认 3000ms。
+ */
+const DEDUPE_WINDOW_MS = (() => {
+  const raw = Number(process.env.TC_VOICE_DEDUP_MS ?? 3000);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+})();
+
+let connSeq = 0;
+/** 最近放行的终稿环(有界;connId 区分聆听端,同文本+异 connId+窗口内 = 重复)。 */
+const recentFinals: Array<{ norm: string; at: number; connId: number }> = [];
+
+/** 去空白归一:两条连接对同一句的标点一致,空白差异不应放行。 */
+function normalizeFinalText(text: string): string {
+  return text.replace(/\s+/g, '');
+}
+
+function isDuplicateFromOtherConnection(norm: string, connId: number, now: number): boolean {
+  if (!DEDUPE_WINDOW_MS || !norm) return false;
+  return recentFinals.some((r) => r.connId !== connId && r.norm === norm && now - r.at <= DEDUPE_WINDOW_MS);
+}
+
+function noteAcceptedFinal(norm: string, connId: number, now: number): void {
+  if (!DEDUPE_WINDOW_MS || !norm) return;
+  recentFinals.push({ norm, at: now, connId });
+  while (recentFinals.length > 16) recentFinals.shift();
+}
+
+/** 单测重置(模块级状态跨用例累积,与 handleConnection 同样的测试驱动惯例)。 */
+export function __resetVoiceDedupForTest(): void {
+  connSeq = 0;
+  recentFinals.length = 0;
+}
 
 export function hasVolcengineCredentials(cfg: VolcengineSttConfig): boolean {
   return !!cfg.apiKey || (!!cfg.appId && !!cfg.accessToken);
@@ -92,6 +135,7 @@ export function attachVoiceCompanionStream(server: HttpServer | import('node:htt
 /** 可见性:生产由 attach 内部调用;导出以便单测驱动连接协议(首个音频帧→预热等)。 */
 export function handleConnection(ws: WebSocket): void {
   const cfg = loadVolcengineSttConfig();
+  const connId = ++connSeq; // 本连接的聆听端标识(跨连接去重护栏用)
 
   const send = (obj: Record<string, unknown>): void => {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
@@ -158,6 +202,19 @@ export function handleConnection(ws: WebSocket): void {
           dropSession();
           return;
         }
+        // 跨连接去重护栏:同一句已被另一条聆听连接放行(多端同时开麦)→ 回空 final
+        // 静默复位本段,不进回合、不回复(与声纹丢弃同语义)。
+        const now = Date.now();
+        const norm = normalizeFinalText(text);
+        if (isDuplicateFromOtherConnection(norm, connId, now)) {
+          dropFillerPregenWorking();
+          log.log(`[VoiceCompanion] 跨连接重复终稿已抑制(conn#${connId}):"${text.slice(0, 40)}"`);
+          send({ type: 'final', text: '' });
+          dropSession();
+          return;
+        }
+        noteAcceptedFinal(norm, connId, now);
+
         sealFillerPartial(); // W7:final 即密封预生成槽(客户端随后 POST,回合侧 take)
         logVoiceAsr({
           channel: 'volcengine-stream',

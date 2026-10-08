@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebSocket } from 'ws';
-import { handleConnection } from './voice-companion-stream.js';
+import { handleConnection, __resetVoiceDedupForTest } from './voice-companion-stream.js';
 
 const h = vi.hoisted(() => ({
   loadVolcengineSttConfig: vi.fn(),
@@ -125,6 +125,8 @@ function openConnection(): FakeWs {
 beforeEach(() => {
   vi.clearAllMocks();
   asrMock.instances.length = 0;
+  // 去重环是模块级状态:跨用例清零,防上一条用例的终稿误伤下一条(测试毫秒级连跑,3s 窗口全覆盖)
+  __resetVoiceDedupForTest();
   h.loadVolcengineSttConfig.mockReturnValue({
     apiKey: 'test-key',
     appId: '',
@@ -294,5 +296,67 @@ describe('声纹门禁 · 丢弃/放行分支', () => {
     const lastArg = calls[calls.length - 1]![0] as Record<string, unknown>;
     expect('voiceprint' in lastArg).toBe(false);
     expect(h.sealFillerPartial).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('跨连接去重护栏(多聆听端一话多回)', () => {
+  type FinalOpts = { onFinal: (t: string, meta?: { voiceprint?: string }) => void };
+  const finalsOf = (ws: FakeWs): Array<Record<string, unknown>> => ws.parsed().filter((m) => m.type === 'final');
+
+  it('D1 两条连接先后同文本 → 第一条照常放行,第二条回空 final(静默复位不提交)', () => {
+    const a = openConnection();
+    a.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[0]!.opts as FinalOpts).onFinal('你好。你好。');
+
+    const b = openConnection();
+    b.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[1]!.opts as FinalOpts).onFinal('你好。你好。');
+
+    expect(finalsOf(a)).toEqual([{ type: 'final', text: '你好。你好。' }]);
+    expect(finalsOf(b)).toEqual([{ type: 'final', text: '' }]); // 文本绝不外发,客户端不 POST
+    // 被抑制侧:不走 seal(垫话工作槽作废语义)、不落 ASR 埋点 —— 只有第一条算真实回合
+    expect(h.sealFillerPartial).toHaveBeenCalledTimes(1);
+    expect(h.logVoiceAsr).toHaveBeenCalledTimes(1);
+  });
+
+  it('D2 同一条连接连说两遍同文本 → 都放行(用户故意重复,必须"另一条连接"才算重复)', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[0]!.opts as FinalOpts).onFinal('再说一遍');
+    ws.feedAudio(AUDIO_FRAME); // final 已拆除会话 → 新会话(同一 WS 跨段复用)
+    (asrMock.instances[1]!.opts as FinalOpts).onFinal('再说一遍');
+
+    expect(finalsOf(ws)).toEqual([
+      { type: 'final', text: '再说一遍' },
+      { type: 'final', text: '再说一遍' },
+    ]);
+  });
+
+  it('D3 不同文本互不影响;仅空白差异视为同一句', () => {
+    const a = openConnection();
+    a.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[0]!.opts as FinalOpts).onFinal('查 天气');
+
+    const b = openConnection();
+    b.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[1]!.opts as FinalOpts).onFinal('查天气'); // 去空白后相同 → 抑制
+    expect(finalsOf(b)).toEqual([{ type: 'final', text: '' }]);
+
+    const c = openConnection();
+    c.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[2]!.opts as FinalOpts).onFinal('几点了'); // 不同文本照常放行
+    expect(finalsOf(c)).toEqual([{ type: 'final', text: '几点了' }]);
+  });
+
+  it('D4 声纹 rejected 的终稿不占位:不影响后续同文本正常放行', () => {
+    const a = openConnection();
+    a.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[0]!.opts as FinalOpts).onFinal('你好', { voiceprint: 'rejected' });
+
+    const b = openConnection();
+    b.feedAudio(AUDIO_FRAME);
+    (asrMock.instances[1]!.opts as FinalOpts).onFinal('你好');
+
+    expect(finalsOf(b)).toEqual([{ type: 'final', text: '你好' }]);
   });
 });
