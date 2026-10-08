@@ -25,6 +25,13 @@ import { randomUUID } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import WebSocket from 'ws';
 import type { VolcengineEndpoint, VolcengineSttConfig } from '../services/voice-companion-service.js';
+import {
+  buildVoiceprintRequestFields,
+  createVoiceprintTracker,
+  readVoiceprintConfig,
+  type VoiceprintSignal,
+  type VoiceprintTracker,
+} from './voiceprint-gate.js';
 
 // ============================================================================
 // 协议常量
@@ -225,7 +232,8 @@ export interface VolcengineAsrOptions {
   /** 会话内持续无音频多久后静默断开(不计费,仅释放并发位)。 */
   idleTimeoutMs?: number;
   onPartial?: (text: string) => void;
-  onFinal?: (text: string) => void;
+  /** meta.voiceprint 仅在门禁启用且拿到稳定判定时携带(matched/rejected);unknown 不传。 */
+  onFinal?: (text: string, meta?: { voiceprint?: VoiceprintSignal }) => void;
   onError?: (err: VolcengineAsrError) => void;
   onLog?: (line: string) => void;
 }
@@ -257,6 +265,8 @@ export class VolcengineAsrSession {
   private connectTimer: NodeJS.Timeout | null = null;
   private finishTimer: NodeJS.Timeout | null = null;
   private logId = '';
+  /** 声纹门禁追踪器;未启用/端点不支持 = null(零行为变化)。 */
+  private voiceprintTracker: VoiceprintTracker | null = null;
 
   constructor(opts: VolcengineAsrOptions) {
     this.opts = opts;
@@ -433,6 +443,12 @@ export class VolcengineAsrSession {
   // --------------------------------------------------------------------------
 
   private sendFullRequestAndFlush(): void {
+    // 声纹门禁(SSD 短音频声纹,「只认主人」):与热词同款 —— 每段话建会话现读配置,
+    // 未启用 = 请求零变化;启用但端点不支持 → 记一行日志后照常识别。
+    const voiceprintCfg = readVoiceprintConfig();
+    const voiceprint = buildVoiceprintRequestFields(voiceprintCfg, this.opts.credentials.endpoint);
+    this.voiceprintTracker =
+      voiceprint.active && voiceprintCfg ? createVoiceprintTracker(voiceprintCfg) : null;
     const payload = {
       user: { uid: this.opts.uid || 'tide-commander' },
       audio: { format: 'pcm', codec: 'raw', rate: 16000, bits: 16, channel: 1 },
@@ -442,8 +458,11 @@ export class VolcengineAsrSession {
         enable_punc: true,
         show_utterances: true,
         result_type: 'full',
+        ...voiceprint.fields,
       },
     };
+    if (voiceprint.reason) this.opts.onLog?.(`声纹门禁未生效:${voiceprint.reason}`);
+    else if (voiceprint.active) this.opts.onLog?.('声纹门禁已启用(ssd_mode=2,仅放行已注册声纹)');
     this.sendFrame(buildFullClientRequest(this.seq, payload));
     this.seq += 1;
 
@@ -498,6 +517,7 @@ export class VolcengineAsrSession {
 
     if (parsed.messageType !== MSG_TYPE.SERVER_FULL_RESPONSE) return;
 
+    this.voiceprintTracker?.notePayload(parsed.payload);
     const text = extractResultText(parsed.payload);
     if (text && text !== this.lastText) {
       this.lastText = text;
@@ -541,7 +561,15 @@ export class VolcengineAsrSession {
       /* ignore */
     }
     this.ws = null;
-    this.opts.onFinal?.(text);
+    const tracker = this.voiceprintTracker;
+    const verdict = tracker?.verdict();
+    if (tracker && verdict) {
+      // 观测行(spike 实锤用):判定 + 收集到的 speaker_id + definite 分句数
+      this.opts.onLog?.(
+        `声纹判定 ${verdict} (speaker_id=[${tracker.speakerIds().join(',')}] definite=${tracker.definiteCount()})`,
+      );
+    }
+    this.opts.onFinal?.(text, verdict && verdict !== 'unknown' ? { voiceprint: verdict } : undefined);
   }
 
   private fail(err: VolcengineAsrError): void {

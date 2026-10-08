@@ -243,3 +243,56 @@ describe('W7 垫话预生成接线', () => {
     expect(h.dropFillerPregen).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('声纹门禁 · 丢弃/放行分支', () => {
+  type FinalOpts = { onFinal: (t: string, meta?: { voiceprint?: string }) => void };
+
+  it('V1 rejected → 只回空 final(转写清零、不进回合);埋点带 voiceprint;垫话工作槽作废', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    const opts = asrMock.instances[0]!.opts as FinalOpts;
+
+    opts.onFinal('今天下雨了', { voiceprint: 'rejected' });
+
+    const finals = ws.parsed().filter((m) => m.type === 'final');
+    expect(finals).toEqual([{ type: 'final', text: '' }]); // 丢弃 = 空 final,文本绝不外发
+    expect(h.logVoiceAsr).toHaveBeenCalledWith(
+      expect.objectContaining({ text: '今天下雨了', ok: true, voiceprint: 'rejected' }),
+    );
+    // 建会话 1 次 + 丢弃 1 次(drop 而非 seal:非本人内容永不进预生成密封槽)
+    expect(h.dropFillerPregenWorking).toHaveBeenCalledTimes(2);
+    expect(h.sealFillerPartial).not.toHaveBeenCalled();
+
+    // 下一段音频 = 新会话(旧会话已拆除)
+    ws.feedAudio(AUDIO_FRAME);
+    expect(asrMock.instances).toHaveLength(2);
+  });
+
+  it('V2 matched → 照常放行;埋点带 matched;密封照旧', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    const opts = asrMock.instances[0]!.opts as FinalOpts;
+
+    opts.onFinal('帮我查天气', { voiceprint: 'matched' });
+
+    expect(ws.parsed().some((m) => m.type === 'final' && m.text === '帮我查天气')).toBe(true);
+    expect(h.logVoiceAsr).toHaveBeenCalledWith(
+      expect.objectContaining({ text: '帮我查天气', ok: true, voiceprint: 'matched' }),
+    );
+    expect(h.sealFillerPartial).toHaveBeenCalledTimes(1);
+  });
+
+  it('V3 无 meta(门禁未启用)→ 行为与旧逐字一致:final 带文本、埋点无 voiceprint 字段', () => {
+    const ws = openConnection();
+    ws.feedAudio(AUDIO_FRAME);
+    const opts = asrMock.instances[0]!.opts as FinalOpts;
+
+    opts.onFinal('你好');
+
+    expect(ws.parsed().some((m) => m.type === 'final' && m.text === '你好')).toBe(true);
+    const calls = h.logVoiceAsr.mock.calls;
+    const lastArg = calls[calls.length - 1]![0] as Record<string, unknown>;
+    expect('voiceprint' in lastArg).toBe(false);
+    expect(h.sealFillerPartial).toHaveBeenCalledTimes(1);
+  });
+});

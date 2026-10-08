@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   VolcengineAsrSession,
   MSG_TYPE,
@@ -16,6 +19,7 @@ import {
   describeVolcError,
 } from './volcengine-asr-client.js';
 import { DEFAULT_VOLCENGINE_STT_CONFIG } from '../services/voice-companion-service.js';
+import { VOICEPRINT_SOURCE_ENV, type VoiceprintVerdict } from './voiceprint-gate.js';
 
 /** 手工拼一个服务端结果帧(与实现无关,按文档逐字节写)。 */
 function serverFrame(
@@ -421,5 +425,134 @@ describe('VolcengineAsrSession (mock SAUC server)', () => {
     expect(err.message).toContain('volc.bigasr.sauc.concurrent');
     expect(err.message).toContain('不发送该头');
     httpServer.close();
+  });
+});
+
+// ============================================================================
+// 声纹门禁接线(voiceprint.local.json → 请求字段 + onFinal meta)
+// ============================================================================
+
+describe('VolcengineAsrSession · 声纹门禁', () => {
+  let vpDir: string;
+  const envKey = VOICEPRINT_SOURCE_ENV;
+  const originalSource = process.env[envKey];
+
+  /** 写一份临时 voiceprint.local.json 并用 env 指过去;null = 指向不存在的文件(门禁关闭)。 */
+  const setVoiceprintSource = (cfg: Record<string, unknown> | null): void => {
+    if (!cfg) {
+      process.env[envKey] = path.join(vpDir, 'missing.json');
+      return;
+    }
+    const p = path.join(vpDir, `vp-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(p, JSON.stringify(cfg), 'utf-8');
+    process.env[envKey] = p;
+  };
+
+  beforeAll(() => {
+    vpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vp-asr-'));
+  });
+  afterAll(() => {
+    fs.rmSync(vpDir, { recursive: true, force: true });
+  });
+  afterEach(() => {
+    if (originalSource === undefined) delete process.env[envKey];
+    else process.env[envKey] = originalSource;
+  });
+
+  const CONFIG = { enabled: true, speakId: 'spk-1', speakerName: '主人' };
+
+  const resultWith = (speakerId: string | null) => ({
+    result: {
+      text: '帮我查天气',
+      utterances: [
+        {
+          definite: true,
+          text: '帮我查天气',
+          ...(speakerId ? { additions: { speaker_id: speakerId } } : {}),
+        },
+      ],
+    },
+  });
+
+  function startMock(
+    speakerId: string | null,
+    seen: { full?: Record<string, unknown> },
+  ): Promise<MockSaucServer> {
+    return startMockSaucServer((frame, ws) => {
+      const f = splitClientFrame(frame);
+      if (f.messageType === MSG_TYPE.CLIENT_FULL_REQUEST) {
+        seen.full = JSON.parse(gunzipSync(f.payload).toString('utf-8')) as Record<string, unknown>;
+        ws.send(serverFrame(resultWith(speakerId), FLAGS.POS_SEQUENCE, f.seq ?? 1));
+      } else if (f.messageType === MSG_TYPE.CLIENT_AUDIO_ONLY_REQUEST && (f.seq ?? 0) < 0) {
+        ws.send(serverFrame(resultWith(speakerId), FLAGS.NEG_WITH_SEQUENCE, f.seq));
+      }
+    });
+  }
+
+  function runSession(mockUrl: string): Promise<{
+    text: string;
+    meta?: { voiceprint?: VoiceprintVerdict };
+    logs: string[];
+  }> {
+    return new Promise((resolve, reject) => {
+      const logs: string[] = [];
+      const session = new VolcengineAsrSession({
+        credentials: { ...DEFAULT_VOLCENGINE_STT_CONFIG, apiKey: 'test-api-key' },
+        wsUrl: mockUrl,
+        connectTimeoutMs: 3_000,
+        finishTimeoutMs: 5_000,
+        onLog: (l) => logs.push(l),
+        onFinal: (text, meta) => resolve({ text, meta, logs }),
+        onError: (e) => reject(e),
+      });
+      session.sendAudio(Buffer.from('aaaa'));
+      session.finish();
+    });
+  }
+
+  it('启用:命中声纹名 → onFinal 带 matched;请求含 ssd_mode=2 等字段', async () => {
+    setVoiceprintSource(CONFIG);
+    const seen: { full?: Record<string, unknown> } = {};
+    const mock = await startMock('主人', seen);
+    const out = await runSession(mock.url);
+    await mock.close();
+
+    expect(out.text).toBe('帮我查天气');
+    expect(out.meta).toEqual({ voiceprint: 'matched' });
+    const req = (seen.full as { request: Record<string, unknown> }).request;
+    expect(req).toMatchObject({
+      ssd_mode: 2,
+      enable_speaker_info: true,
+      enable_nonstream: true,
+      voiceprints: [{ id: 'spk-1' }],
+    });
+    expect(out.logs.some((l) => l.includes('声纹判定 matched'))).toBe(true);
+  });
+
+  it('启用:speaker_id 不命中 → onFinal 带 rejected', async () => {
+    setVoiceprintSource(CONFIG);
+    const seen: { full?: Record<string, unknown> } = {};
+    const mock = await startMock('2', seen);
+    const out = await runSession(mock.url);
+    await mock.close();
+
+    expect(out.meta).toEqual({ voiceprint: 'rejected' });
+    expect(out.logs.some((l) => l.includes('声纹判定 rejected') && l.includes('speaker_id=[2]'))).toBe(true);
+  });
+
+  it('未配置(门禁关闭)→ meta 不携带、请求无 ssd 字段(零行为变化)', async () => {
+    setVoiceprintSource(null);
+    const seen: { full?: Record<string, unknown> } = {};
+    const mock = await startMock('主人', seen); // 服务端仍返回 speaker_id,客户端也不判定
+    const out = await runSession(mock.url);
+    await mock.close();
+
+    expect(out.text).toBe('帮我查天气');
+    expect(out.meta).toBeUndefined();
+    const req = (seen.full as { request: Record<string, unknown> }).request;
+    expect(req.ssd_mode).toBeUndefined();
+    expect(req.voiceprints).toBeUndefined();
+    expect(req.enable_speaker_info).toBeUndefined();
+    expect(out.logs.some((l) => l.includes('声纹'))).toBe(false);
   });
 });

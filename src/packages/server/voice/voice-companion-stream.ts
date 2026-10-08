@@ -139,13 +139,32 @@ export function handleConnection(ws: WebSocket): void {
         // W7:说话期间就预生成垫话;就绪即推 hint(客户端提前合成,正式句到达零等待)。
         noteFillerPartialForPregen(text, (hint) => send({ type: 'filler', text: hint }));
       },
-      onFinal: (text) => {
+      onFinal: (text, meta) => {
+        const voiceprint = meta?.voiceprint;
+        if (voiceprint === 'rejected') {
+          // 声纹门禁:本段非本人(家人/电视背景音)→ 不进大脑。
+          // 丢弃路径 = 空 final:客户端静默复位本段(转写随 onPartial('') 清屏),不发回合;
+          // 垫话工作槽作废(dropFillerPregenWorking = onError 惯例:密封槽留给上一句在途回合,
+          // 非本人的 partial 永不进预生成密封槽)。埋点留痕便于回溯。
+          dropFillerPregenWorking();
+          logVoiceAsr({
+            channel: 'volcengine-stream',
+            text,
+            durationMs: sessionStartedAt !== null ? Date.now() - sessionStartedAt : 0,
+            ok: true,
+            voiceprint: 'rejected',
+          });
+          send({ type: 'final', text: '' });
+          dropSession();
+          return;
+        }
         sealFillerPartial(); // W7:final 即密封预生成槽(客户端随后 POST,回合侧 take)
         logVoiceAsr({
           channel: 'volcengine-stream',
           text,
           durationMs: sessionStartedAt !== null ? Date.now() - sessionStartedAt : 0,
           ok: true,
+          ...(voiceprint ? { voiceprint } : {}),
         });
         send({ type: 'final', text });
         dropSession();

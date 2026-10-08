@@ -233,6 +233,8 @@ export interface VoiceAsrLogFields {
   language?: string;
   ok?: boolean;
   error?: string;
+  /** 声纹门禁判定(matched=本人放行 / rejected=本段丢弃不进大脑);未启用或未知 = undefined。 */
+  voiceprint?: 'matched' | 'rejected';
   /** 仅文件名，避免落盘完整本地路径（隐私） */
   audioFile?: string;
   sessionId?: string;
@@ -257,6 +259,7 @@ export function logVoiceAsr(f: VoiceAsrLogFields): number | undefined {
       language: f.language,
       ok: f.ok !== false,
       error: f.error,
+      voiceprint: f.voiceprint,
       audioFile: f.audioFile,
     },
   });
