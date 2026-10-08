@@ -57,12 +57,6 @@ export interface BoardResponse {
   entries: BoardEntry[];
 }
 
-export interface BoardBossGroup {
-  bossId: string;
-  bossName: string;
-  entries: BoardEntry[];
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -97,8 +91,11 @@ export function parseBoardResponse(body: unknown): BoardResponse | null {
   };
 }
 
-/** 状态归类（行样式/筛选用）：活跃 / 成功 / 失败 / 取消。 */
-export function boardStatusGroup(status: BoardEntryStatus): 'active' | 'success' | 'danger' | 'muted' {
+/** 行样式归类（行样式/筛选用）：活跃 / 成功 / 失败 / 取消。 */
+export type BoardStatusGroup = 'active' | 'success' | 'danger' | 'muted';
+
+/** 状态归类：活跃 / 成功 / 失败 / 取消。 */
+export function boardStatusGroup(status: BoardEntryStatus): BoardStatusGroup {
   switch (status) {
     case 'in-flight':
     case 'sent':
@@ -122,35 +119,197 @@ export function filterBoardEntries(entries: readonly BoardEntry[], status: strin
   return entries.filter((e) => e.what.status === status);
 }
 
-/** 按 Boss 分组（保持输入顺序——条目已是时间倒序；Boss 顺序 = 首次出现顺序）。 */
-export function groupEntriesByBoss(entries: readonly BoardEntry[]): BoardBossGroup[] {
-  const groups = new Map<string, BoardBossGroup>();
-  for (const entry of entries) {
-    const existing = groups.get(entry.bossId);
-    if (existing) {
-      existing.entries.push(entry);
-    } else {
-      groups.set(entry.bossId, {
-        bossId: entry.bossId,
-        bossName: entry.bossName || entry.bossId,
-        entries: [entry],
-      });
-    }
-  }
-  return [...groups.values()];
-}
-
-/** 耗时紧凑格式（语言中立：38s / 3m / 2.1h）。 */
+/** 耗时紧凑格式（语言中立：38s / 3m / 2.1h / 2.0d）。 */
 export function formatBoardDuration(durationMs: number): string {
   if (!Number.isFinite(durationMs) || durationMs < 0) return '';
   const seconds = durationMs / 1000;
   if (seconds < 60) return `${seconds >= 10 ? Math.round(seconds) : seconds.toFixed(1)}s`;
   const minutes = seconds / 60;
   if (minutes < 60) return `${Math.round(minutes)}m`;
-  return `${(minutes / 60).toFixed(1)}h`;
+  const hours = minutes / 60;
+  if (hours < 48) return `${hours.toFixed(1)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
 }
 
 /** 条目稳定键（列表 key / 详情定位；与视图 decisionId 同源）。 */
 export function boardEntryKey(entry: BoardEntry): string {
   return entry.decisionId;
+}
+
+// ─── 委派树（任务 → Boss → 每次委派 → 回执） ───
+// 任务层无独立实体：以 taskId 归组（同任务重派/换人自动聚合），无 taskId 回退 objective，
+// 再不齐单条自成任务。树节点 React key 一律 decisionId（taskId 进程内生成、跨重启不稳定）。
+
+export interface TreeDelegationNode {
+  kind: 'delegation';
+  /** = decisionId（稳定键） */
+  key: string;
+  entry: BoardEntry;
+  statusGroup: BoardStatusGroup;
+  /** 在办实时耗时（ms）；非活跃或无可信起点 → null（显示「进行中」，不编造时间）。 */
+  liveElapsedMs: number | null;
+}
+
+export interface TreeBossNode {
+  kind: 'boss';
+  /** 展开态全局键 = `${任务键}#${bossId}` */
+  key: string;
+  bossId: string;
+  bossName: string;
+  statusGroup: BoardStatusGroup;
+  delegations: TreeDelegationNode[];
+}
+
+export interface TreeTaskNode {
+  kind: 'task';
+  /** 归组键（task:/obj:/del: 前缀） */
+  key: string;
+  label: string;
+  taskId?: string;
+  statusGroup: BoardStatusGroup;
+  latestAt: number;
+  delegationCount: number;
+  bosses: TreeBossNode[];
+}
+
+export interface BuildDelegationTreeOptions {
+  now: number;
+  /** 在办起点投影（store.agentTaskProgress）；拿不到时回退委派时刻。 */
+  startedAtOf?: (entry: BoardEntry) => number | undefined;
+}
+
+/** 任务归组键：taskId 优先（重派聚合）；无则 objective；再退单条 decisionId。 */
+export function taskGroupKey(entry: BoardEntry): string {
+  const taskId = entry.taskId?.trim();
+  if (taskId) return `task:${taskId}`;
+  const objective = entry.what.objective?.trim();
+  if (objective) return `obj:${objective}`;
+  return `del:${entry.decisionId}`;
+}
+
+/** 聚合态（任务行/Boss 行圆点）：有活跃 → active；否则有失败 → danger；全取消 → muted；其余 success。 */
+export function aggregateStatusGroup(statuses: readonly BoardEntryStatus[]): BoardStatusGroup {
+  const groups = statuses.map(boardStatusGroup);
+  if (groups.includes('active')) return 'active';
+  if (groups.includes('danger')) return 'danger';
+  if (groups.length > 0 && groups.every((group) => group === 'muted')) return 'muted';
+  return 'success';
+}
+
+/**
+ * 在办实时耗时：仅活跃态计时；起点 = agentTaskProgress.startedAt，回退委派时刻；
+ * delegatedAt=0（服务端在办合成条目）且无起点 → null。
+ */
+export function liveElapsedMs(
+  status: BoardEntryStatus,
+  delegatedAt: number,
+  startedAt: number | undefined,
+  now: number
+): number | null {
+  if (boardStatusGroup(status) !== 'active') return null;
+  const start = startedAt && startedAt > 0 ? startedAt : delegatedAt;
+  if (!(start > 0)) return null;
+  return Math.max(0, now - start);
+}
+
+/** 组装三层树：任务（latestAt 倒序）→ Boss（首次出现序）→ 委派（保持输入序）。 */
+export function buildDelegationTree(
+  entries: readonly BoardEntry[],
+  opts: BuildDelegationTreeOptions
+): TreeTaskNode[] {
+  interface BossDraft {
+    bossId: string;
+    bossName: string;
+    delegations: TreeDelegationNode[];
+  }
+  interface TaskDraft {
+    key: string;
+    label: string;
+    taskId?: string;
+    latestAt: number;
+    bosses: BossDraft[];
+  }
+  const tasks = new Map<string, TaskDraft>();
+  for (const entry of entries) {
+    const key = taskGroupKey(entry);
+    let task = tasks.get(key);
+    if (!task) {
+      task = {
+        key,
+        label: entry.what.objective?.trim() || entry.why.userCommand?.trim() || entry.decisionId,
+        taskId: entry.taskId?.trim() || undefined,
+        latestAt: 0,
+        bosses: [],
+      };
+      tasks.set(key, task);
+    }
+    let boss = task.bosses.find((candidate) => candidate.bossId === entry.bossId);
+    if (!boss) {
+      boss = { bossId: entry.bossId, bossName: entry.bossName?.trim() || entry.bossId, delegations: [] };
+      task.bosses.push(boss);
+    }
+    boss.delegations.push({
+      kind: 'delegation',
+      key: boardEntryKey(entry),
+      entry,
+      statusGroup: boardStatusGroup(entry.what.status),
+      liveElapsedMs: liveElapsedMs(entry.what.status, entry.when.delegatedAt, opts.startedAtOf?.(entry), opts.now),
+    });
+    task.latestAt = Math.max(task.latestAt, entry.when.completedAt ?? entry.when.delegatedAt ?? 0);
+  }
+  const result: TreeTaskNode[] = [];
+  for (const task of tasks.values()) {
+    const all = task.bosses.flatMap((boss) => boss.delegations);
+    result.push({
+      kind: 'task',
+      key: task.key,
+      label: task.label,
+      taskId: task.taskId,
+      statusGroup: aggregateStatusGroup(all.map((node) => node.entry.what.status)),
+      latestAt: task.latestAt,
+      delegationCount: all.length,
+      bosses: task.bosses.map((boss) => ({
+        kind: 'boss',
+        key: `${task.key}#${boss.bossId}`,
+        bossId: boss.bossId,
+        bossName: boss.bossName,
+        statusGroup: aggregateStatusGroup(boss.delegations.map((node) => node.entry.what.status)),
+        delegations: boss.delegations,
+      })),
+    });
+  }
+  result.sort((a, b) => b.latestAt - a.latestAt);
+  return result;
+}
+
+/**
+ * 产出位置是否为可用路径（取首个空白分隔片段；整串含空白或是自然语言描述 → null）。
+ * 真实数据里大量产出是「无文件交付(只读任务)…」这类人话——只当文本展示，不猜路径。
+ * 紧贴的括号注解（如 `E:/tmp/uia-out.txt(UIA 完整控件文本)`，路径与注解间无空格）取片段后剥离；
+ * 「(1).json」这类括号属于文件名本体（注解尾段仍以扩展名收尾）时保留。
+ */
+export function extractOutputPath(raw: string | undefined): string | null {
+  const text = raw?.trim();
+  if (!text) return null;
+  const isPathLike = (candidate: string) => /[\\/]/.test(candidate) && !/\s/.test(candidate);
+  const cutGluedNote = (fragment: string): string => {
+    const at = fragment.search(/[(（]/);
+    if (at <= 0) return fragment;
+    const head = fragment.slice(0, at);
+    const tail = fragment.slice(at).split(/[\\/]/).pop() ?? '';
+    if (/\.[A-Za-z0-9]{1,8}$/.test(tail)) return fragment; // 括号属文件名本体
+    return head;
+  };
+  const first = cutGluedNote(text.split(/\s+/)[0]);
+  if (isPathLike(first)) return first;
+  return isPathLike(text) ? text : null;
+}
+
+/** 产出位置分类：文件（按扩展名）/ 目录 / 不可判定（自然语言等，只当文本展示）。 */
+export function classifyOutputPath(raw: string | undefined): 'file' | 'dir' | 'unknown' {
+  const path = extractOutputPath(raw);
+  if (!path) return 'unknown';
+  const last = path.split(/[\\/]/).filter(Boolean).pop() ?? '';
+  if (/^[A-Za-z]:$/.test(last)) return 'dir'; // 盘根 E:
+  return /\.[A-Za-z0-9]{1,8}$/.test(last) ? 'file' : 'dir';
 }
