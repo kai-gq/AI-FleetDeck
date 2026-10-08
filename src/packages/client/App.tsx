@@ -37,6 +37,7 @@ import { BossBuildingActionPopup } from './components/BossBuildingActionPopup';
 import { DatabaseBuildingActionPopup } from './components/DatabaseBuildingActionPopup';
 import { FPSMeter } from './components/FPSMeter';
 import { WorkspaceSwitcher, useWorkspaceSwitching } from './components/WorkspaceSwitcher';
+import { TopBar } from './components/TopBar/TopBar';
 
 // Lazy-load heavy components that are conditionally rendered
 const DatabasePanel = React.lazy(() => import('./components/database').then(m => ({ default: m.DatabasePanel })));
@@ -443,6 +444,7 @@ function AppContent() {
     commanderModal,
     explorerModal,
     spotlightModal,
+    toolboxModal,
     recentsModal,
     sessionFinderModal,
     deleteConfirmModal,
@@ -934,6 +936,17 @@ function AppContent() {
 
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />
+
+      {/* FleetDeck 顶栏——shell 常驻入口带（所有视图）：
+          工作区 / 搜索 / 视图 / 设置 / 新建 + 秘书状态位（占位）。
+          视图菜单含「指挥台」，非 home 视图靠它切回总览。
+          flat 视图由组件自己加 --flat 变体（上游遗留样式：全宽右对齐，避让 flat 侧栏）。 */}
+      <TopBar
+        onOpenSpotlight={spotlightModal.open}
+        onOpenToolbox={toolboxModal.open}
+        onSpawnAgent={() => spawnModal.open()}
+        onSpawnBoss={() => bossSpawnModal.open()}
+      />
 
       {/* Left-edge FAB rail. Single fixed-positioned scrollable column so
           the stack doesn't overflow off the bottom on short viewports

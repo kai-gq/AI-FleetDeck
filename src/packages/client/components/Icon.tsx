@@ -71,6 +71,7 @@ import {
   SquareSplitHorizontal,
   SquareSplitVertical,
   SquaresFour,
+  House,
   Hexagon,
   // Domain
   Database,
@@ -330,6 +331,7 @@ export const ICON_MAP = {
   'split-horizontal': SquareSplitHorizontal,
   'split-vertical': SquareSplitVertical,
   'grid': SquaresFour,
+  'home': House,
   'hexagon': Hexagon,
   'star': Star,
   'star-four': StarFour,

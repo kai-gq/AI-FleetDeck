@@ -81,6 +81,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   shortcut('toggle-file-explorer', 'Toggle File Explorer', 'Open/close file explorer', 'e', { alt: true }),
   shortcut('file-explorer-close-tab', 'Close File Tab', 'Close active file tab in explorer', 'w', { alt: true }),
   shortcut('toggle-spotlight', 'Toggle Spotlight', 'Open/close global search (Alt+P also works)', 'k', { ctrl: true }),
+  shortcut('toggle-toolbox', 'Toggle Toolbox', 'Open/close the Settings panel', ',', { ctrl: true }),
   shortcut('toggle-recents', 'Toggle Recents', 'Open/close recently-accessed agents & buildings', 'l', { ctrl: true }),
   shortcut('open-session-finder', 'Open Session Finder', 'Open the global session finder modal', 'f', { ctrl: true, shift: true }),
   shortcut('toggle-test-results', 'Toggle Test Results', 'Open/close the test results panel', 't', { ctrl: true }),

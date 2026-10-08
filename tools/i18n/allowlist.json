@@ -195,6 +195,9 @@
     "re:^terminal:dbInline\\.",
     "re:^terminal:dbSidebar\\.",
     "re:^terminal:dbTabs\\.",
-    "re:^terminal:fleetHome\\."
+    "re:^terminal:fleetHome\\.",
+    "re:^terminal:topBar\\.",
+    "common:viewMode.labels.home",
+    "common:viewMode.descriptions.home"
   ]
 }

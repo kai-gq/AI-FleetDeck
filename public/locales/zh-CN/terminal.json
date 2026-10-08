@@ -3676,5 +3676,18 @@
       "openSettings": "去开启",
       "empty": "等待对话…"
     }
+  },
+  "topBar": {
+    "search": "搜索",
+    "searchHint": "搜索（Ctrl+K）",
+    "viewHint": "切换视图",
+    "settings": "设置",
+    "settingsHint": "设置（Ctrl+,）",
+    "new": "新建",
+    "newAgent": "新建智能体",
+    "newBoss": "新建主管",
+    "secretary": "秘书",
+    "secretarySoon": "状态接入中（后续版本）",
+    "demoTag": "演示模式"
   }
 }

@@ -48,6 +48,13 @@ import {
   DEFAULT_TRACKPAD_CONFIG,
 } from './mouseControls';
 
+/**
+ * One-time migration marker for the FleetDeck 指挥台总览 (home) view.
+ * Raw localStorage key on purpose — utils/storage.ts's STORAGE_KEYS is not
+ * touched for this single-use flag.
+ */
+const FLEETDECK_HOME_INTRO_KEY = 'tide-fleetdeck-home-introduced';
+
 // Re-export types
 export type {
   StoreState,
@@ -300,7 +307,16 @@ class Store
         // Legacy value from when Flat view shipped as "2d-experimental" —
         // transparently migrate so users keep their chosen view after update.
         const normalized = saved === '2d-experimental' ? 'flat' : saved;
-        return (normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat' || normalized === 'home') ? normalized as StoreState['viewMode'] : '3d';
+        const valid = normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat' || normalized === 'home';
+        if (!valid) return 'home' as StoreState['viewMode'];
+        // One-time introduction of the FleetDeck home view: users still on the
+        // legacy '3d' default land on 指挥台总览 once. The marker flips with it,
+        // so switching back to 3D (or anywhere else) sticks from then on.
+        if (normalized === '3d' && !getStorageBoolean(FLEETDECK_HOME_INTRO_KEY, false)) {
+          setStorageBoolean(FLEETDECK_HOME_INTRO_KEY, true);
+          return 'home' as StoreState['viewMode'];
+        }
+        return normalized as StoreState['viewMode'];
       })(),
       overviewPanelOpen: getStorageBoolean(STORAGE_KEYS.AOP_OPEN, false),
       trackingBoardVisible: getStorageBoolean(STORAGE_KEYS.AOP_TRACKING_BOARD_VISIBLE, false),

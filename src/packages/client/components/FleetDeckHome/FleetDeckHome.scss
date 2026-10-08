@@ -11,7 +11,8 @@
   grid-template-columns: minmax(230px, 0.9fr) minmax(360px, 1.7fr) minmax(250px, 1fr);
   gap: 10px;
   // 左 64px 避让 .fab-rail（36px 宽 + 16px 左边距；B4 起 home 模式 rail 只留语音钮）
-  padding: 12px 12px 12px 64px;
+  // 上 56px 避让 .app-top-bar（fixed、top 12 + 高 30）
+  padding: 56px 12px 12px 64px;
   background: var(--bg-primary);
   overflow: hidden;
 
@@ -44,6 +45,15 @@
       overflow: visible;
     }
   }
+}
+
+// B4 · 总览首页 rail 收敛：.fab-rail 里除 VoiceCompanion 的三种元素外全部隐藏
+// （FAB/工作区/视图菜单的入口都在顶栏了；rail、FAB、语音保持挂载——
+//  语音不死、语音流镜像仍有源，非 home 视图 rail 原样恢复）。
+// 注意：Tooltip 会把按钮包进 .tide-tooltip-trigger 并注入 inline
+// display:inline-flex，inline 样式压过任何选择器——所以这里必须 !important。
+.view-mode-home .fab-rail > *:not(.voice-companion-bubble):not(.voice-companion-btn):not(.voice-companion-pill) {
+  display: none !important;
 }
 
 .fleetdeck-col {

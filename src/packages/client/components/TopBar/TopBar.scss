@@ -1,0 +1,184 @@
+// FleetDeck 顶栏（EPIC-4 · B4）
+//
+// 定位壳在 styles/components/_layout.scss 的 .app-top-bar（fixed、top 12、
+// left 64 避让 .fab-rail）；这里只管内部控件的观感。
+// 颜色全走主题 CSS 变量（双皮肤 token 先行，不写死色值）；
+// chip 观感与 .app-organize-all-btn / FAB 的 rgba(0,0,0,.6) 配方保持一致。
+
+.app-top-bar {
+  .top-bar__label {
+    white-space: nowrap;
+  }
+
+  .top-bar__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.75);
+      border-color: var(--accent-blue);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--accent-cyan);
+      outline-offset: 1px;
+    }
+
+    &--icon {
+      width: 30px;
+      padding: 0;
+    }
+  }
+
+  .top-bar__menu-wrap {
+    position: relative;
+  }
+
+  .top-bar__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 160;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 240px;
+    padding: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+
+  .top-bar__menu-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bg-tertiary);
+    }
+
+    &.is-active {
+      background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+    }
+  }
+
+  .top-bar__menu-icon {
+    flex: 0 0 auto;
+    display: flex;
+    padding-top: 2px;
+    color: var(--text-muted);
+
+    .top-bar__menu-item.is-active & {
+      color: var(--accent-cyan);
+    }
+  }
+
+  .top-bar__menu-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .top-bar__menu-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .top-bar__menu-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .top-bar__tag {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    font-size: 9px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  // 秘书状态位（占位，非入口）
+  .top-bar__secretary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: default;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .top-bar__secretary-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  @media (max-width: 900px) {
+    .top-bar__secretary {
+      display: none;
+    }
+  }
+
+  @media (max-width: 760px) {
+    & {
+      gap: 6px;
+    }
+
+    .top-bar__label {
+      display: none;
+    }
+
+    .top-bar__btn {
+      padding: 0 8px;
+    }
+
+    .top-bar__btn--icon {
+      width: 30px;
+      padding: 0;
+    }
+
+    .top-bar__menu {
+      min-width: 200px;
+    }
+  }
+}

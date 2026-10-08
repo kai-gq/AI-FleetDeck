@@ -12,11 +12,12 @@
   overflow: hidden;
 }
 
-// Top bar container - holds ViewModeToggle + WorkspaceSwitcher
+// Top bar container (FleetDeck 指挥台顶栏: workspaces + search + view menu + settings + new).
+// Left offset clears the 36px-wide .fab-rail at left:16px.
 .app-top-bar {
   position: fixed;
   top: 12px;
-  left: 12px;
+  left: 64px;
   z-index: 150;
   display: flex;
   align-items: center;
@@ -57,6 +58,14 @@
       }
     }
   }
+}
+
+// Dashboard-view clearance: .dashboard-view__topbar (metrics + search row) sits
+// at the top-left and would be covered by the floating top bar — drop it below
+// (52px = top 12 + bar height 30 + 10px gap). Vertical offset is language-proof;
+// a padding-left clearance would have to track the bar's width per view label.
+.view-mode-dashboard .dashboard-view__topbar {
+  padding-top: 52px;
 }
 
 .app-view-mode-toggle {

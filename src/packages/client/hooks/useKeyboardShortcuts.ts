@@ -13,6 +13,7 @@ interface UseKeyboardShortcutsOptions {
   commanderModal: UseModalState;
   explorerModal: UseModalStateWithId;
   spotlightModal: UseModalState;
+  toolboxModal: UseModalState;
   recentsModal: UseModalState;
   // Only isOpen/toggle/close are used here — accept any data payload so the
   // App can type the modal with its Session Finder prefill.
@@ -33,6 +34,7 @@ export function useKeyboardShortcuts({
   commanderModal,
   explorerModal,
   spotlightModal,
+  toolboxModal,
   recentsModal,
   sessionFinderModal,
   deleteConfirmModal,
@@ -270,6 +272,18 @@ export function useKeyboardShortcuts({
         console.log('[useKeyboardShortcuts] Spotlight shortcut matched!', { spotlightShortcut, altKey: e.altKey, code: e.code });
         e.preventDefault();
         spotlightModal.toggle();
+        return;
+      }
+
+      // Toggle the Toolbox / Settings panel (Ctrl+, by default). Global.
+      // Let the embedded terminal keep the combo when focus is inside it.
+      const toolboxShortcut = shortcuts.find(s => s.id === 'toggle-toolbox');
+      if (matchesShortcut(e, toolboxShortcut)) {
+        if (target.closest('.guake-bottom-terminal-embed')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (toolboxModal.isOpen) toolboxModal.close();
+        else toolboxModal.open();
         return;
       }
 
