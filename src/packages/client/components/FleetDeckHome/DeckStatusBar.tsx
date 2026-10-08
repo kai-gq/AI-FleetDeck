@@ -4,6 +4,7 @@ import { store, useAgents, useAreas, useIsConnected } from '../../store';
 import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
 import { groupFleet } from './fleetGroups';
 import { useVoiceCompanionPhase } from './useVoiceCompanionPhase';
+import { HOME_TOUR_START_EVENT } from './HomeTour';
 
 const CLOCK_TICK_MS = 1_000;
 
@@ -111,6 +112,16 @@ export function DeckStatusBar() {
       )}
 
       <span className="fleetdeck-statusbar__spacer" />
+      {/* 新手指引重看入口（B-33）：派发事件，HomeTour 从第 1 步重开 */}
+      <button
+        type="button"
+        className="fleetdeck-statusbar__tour"
+        title={t('terminal:fleetHome.tour.reopen', { defaultValue: '查看新手指引' })}
+        aria-label={t('terminal:fleetHome.tour.reopen', { defaultValue: '查看新手指引' })}
+        onClick={() => window.dispatchEvent(new Event(HOME_TOUR_START_EVENT))}
+      >
+        ?
+      </button>
       <time className="fleetdeck-statusbar__clock" dateTime={now.toISOString()}>
         {now.toLocaleTimeString('zh-CN', { hour12: false })}
       </time>

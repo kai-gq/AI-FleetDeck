@@ -67,4 +67,12 @@ html[data-tide-theme='fleetdeck-light'] {
   .delegation-tree-row__meta {
     color: color-mix(in srgb, var(--text-muted) 55%, var(--text-secondary));
   }
+
+  // ④ 新手指引聚光（B-33 HomeTour）：暗皮的深 scrim（rgba(5,8,14,.55)）压白底界面对比过闷，
+  // 亮皮换浅冷灰 scrim；accent 描边同步保留（两行 box-shadow 整体重写）。
+  .home-tour__spot {
+    box-shadow:
+      0 0 0 9999px rgba(15, 23, 42, 0.32),
+      0 0 0 1px color-mix(in srgb, var(--fd-accent) 65%, transparent);
+  }
 }

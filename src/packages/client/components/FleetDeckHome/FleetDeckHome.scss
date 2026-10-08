@@ -172,6 +172,29 @@
     min-width: 8px;
   }
 
+  // 新手指引重看入口（B-33）：16px 圆钮，hover 走 --fd-accent
+  &__tour {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--fd-accent);
+      color: var(--fd-accent);
+    }
+  }
+
   &__clock {
     flex: 0 0 auto;
     color: var(--text-secondary);
@@ -785,5 +808,145 @@
 .fleetdeck-col--delegation {
   .delegation-board-details {
     padding: 8px;
+  }
+}
+
+// ─── 首次使用导游（B-33）───
+// 挂 body（ModalPortal）：z 2400/2401/2402——压过顶栏 z151 与模态族。暗幕由聚光板的
+// 9999px box-shadow 溢出形成（中空处 = 目标）；blocker 全屏挡点击；气泡卡独立定位。
+// 颜色全走 --fd-*/主题变量（双皮）；亮皮 scrim 加深在 TopBar/fleetdeck-light-overrides.scss。
+.home-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+}
+
+.home-tour__blocker {
+  position: absolute;
+  inset: 0;
+}
+
+.home-tour__spot {
+  position: fixed;
+  z-index: 2401;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 9999px rgba(5, 8, 14, 0.55),
+    0 0 0 1px color-mix(in srgb, var(--fd-accent) 55%, transparent);
+  transition:
+    left 0.24s ease,
+    top 0.24s ease,
+    width 0.24s ease,
+    height 0.24s ease;
+}
+
+.home-tour__tip {
+  position: fixed;
+  z-index: 2402;
+  width: 296px;
+  box-sizing: border-box;
+  padding: 13px 16px;
+  border: 1px solid var(--fd-line);
+  border-radius: 12px;
+  background: var(--fd-panel);
+  box-shadow: var(--fd-shadow);
+  color: var(--text-secondary);
+  transition: left 0.24s ease, top 0.24s ease;
+  animation: home-tour-in 0.18s ease;
+
+  strong {
+    display: block;
+    margin-top: 2px;
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+
+  p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+}
+
+.home-tour__step {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--fd-accent);
+}
+
+.home-tour__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.home-tour__skip,
+.home-tour__prev,
+.home-tour__next {
+  padding: 5px 13px;
+  border: 1px solid var(--fd-line);
+  border-radius: 7px;
+  background: var(--fd-panel);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--fd-accent);
+    color: var(--fd-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--fd-accent);
+    outline-offset: 1px;
+  }
+}
+
+.home-tour__skip {
+  margin-right: auto;
+  padding: 5px 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+
+  &:hover {
+    border-color: transparent;
+    color: var(--text-secondary);
+  }
+}
+
+.home-tour__next {
+  border-color: transparent;
+  background: var(--fd-accent);
+  color: var(--fd-accent-ink);
+  font-weight: 600;
+
+  &:hover {
+    color: var(--fd-accent-ink);
+    filter: brightness(1.06);
+  }
+}
+
+@keyframes home-tour-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-tour__spot,
+  .home-tour__tip {
+    transition: none;
+  }
+
+  .home-tour__tip {
+    animation: none;
   }
 }
