@@ -3652,5 +3652,29 @@
       "viewOutput": "查看产出",
       "details": "详情"
     }
+  },
+  "fleetHome": {
+    "fleet": {
+      "title": "舰队状态",
+      "count": "{{total}} 员 · {{active}} 在办",
+      "empty": "暂无智能体"
+    },
+    "group": {
+      "active": "在办",
+      "standby": "待命",
+      "done": "已办结"
+    },
+    "delegation": {
+      "title": "委派树",
+      "count": "{{count}} 任务"
+    },
+    "voice": {
+      "title": "语音会话流",
+      "streaming": "流式",
+      "offTitle": "语音未开启",
+      "offBody": "开启语音伙伴后，这里的对话会随说随现。",
+      "openSettings": "去开启",
+      "empty": "等待对话…"
+    }
   }
 }

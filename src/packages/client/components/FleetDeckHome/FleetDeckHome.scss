@@ -1,0 +1,362 @@
+// 指挥台总览（EPIC-1）
+//
+// 三栏 grid：左=舰队状态 / 中=委派树 / 右=语音会话流。
+// 断点（SPEC）：≤1100px 折起语音栏，≤760px 单列堆叠（三栏可读，无横向滚动）。
+// 颜色全走主题 CSS 变量（双皮肤 token 先行，不写死色值）。
+
+.fleetdeck-home {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(230px, 0.9fr) minmax(360px, 1.7fr) minmax(250px, 1fr);
+  gap: 10px;
+  // 左 64px 避让 .fab-rail（36px 宽 + 16px 左边距；B4 起 home 模式 rail 只留语音钮）
+  padding: 12px 12px 12px 64px;
+  background: var(--bg-primary);
+  overflow: hidden;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: minmax(220px, 0.9fr) minmax(320px, 1.7fr);
+    padding-left: 56px;
+
+    .fleetdeck-col--voice {
+      display: none;
+    }
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+    grid-auto-rows: min-content;
+    align-content: start;
+    padding: 56px 10px 10px 54px;
+    overflow-y: auto;
+
+    .fleetdeck-col--voice {
+      display: flex;
+    }
+
+    .fleetdeck-col {
+      max-height: none;
+      min-height: 160px;
+    }
+
+    .fleetdeck-col__body {
+      overflow: visible;
+    }
+  }
+}
+
+.fleetdeck-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    flex: 0 0 auto;
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+
+  &__count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  &__refresh {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .is-spinning {
+      animation: fleetdeck-spin 0.9s linear infinite;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px;
+  }
+
+  &__empty,
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 24px 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--accent-red);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--accent-red);
+
+    span {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    button {
+      border: none;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 12px;
+    }
+  }
+}
+
+@keyframes fleetdeck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ─── 左栏：舰队状态 ───
+
+.fleet-group {
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 6px 3px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  &__n {
+    opacity: 0.75;
+  }
+}
+
+.fleet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg-tertiary);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--accent-cyan);
+  }
+
+  &__badge {
+    flex: 0 0 auto;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  &__name-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__boss {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border: 1px solid var(--accent-orange);
+    border-radius: 4px;
+    font-size: 9px;
+    line-height: 1.5;
+    color: var(--accent-orange);
+  }
+
+  &__task {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+
+    b {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+  }
+
+  // 状态灯与 AgentBadge 状态环同一变量（--fleet-row-tone 由组件内联注入）
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--fleet-row-tone, var(--text-muted));
+  }
+}
+
+// ─── 右栏：语音会话流（只读镜像） ───
+
+.voice-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &__entry {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+
+    &--system,
+    &--live {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    &--user .voice-stream__text {
+      color: var(--accent-cyan);
+    }
+  }
+
+  &__tag {
+    flex: 0 0 auto;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    font-style: normal;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  &__guide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 1;
+    padding: 24px 18px;
+    text-align: center;
+    color: var(--text-muted);
+
+    strong {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    button {
+      margin-top: 4px;
+      padding: 5px 14px;
+      border: 1px solid var(--accent-purple);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--accent-purple);
+      font-size: 12px;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+      }
+    }
+  }
+}
+
+// ─── 复用委派树/详情在栏内的贴合（scss 由插件自带，这里只做容器级微调） ───
+.fleetdeck-col--delegation {
+  .delegation-board-details {
+    padding: 8px;
+  }
+}

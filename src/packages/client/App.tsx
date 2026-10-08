@@ -46,6 +46,7 @@ const BossLogsModal = React.lazy(() => import('./components/BossLogsModal').then
 const Scene2DCanvas = React.lazy(() => import('./components/Scene2DCanvas').then(m => ({ default: m.Scene2DCanvas })));
 const FlatView = React.lazy(() => import('./components/FlatView').then(m => ({ default: m.FlatView })));
 const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const FleetDeckHome = React.lazy(() => import('./components/FleetDeckHome').then(m => ({ default: m.FleetDeckHome })));
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
@@ -976,7 +977,9 @@ function AppContent() {
             </div>
           )}
           <React.Suspense fallback={null}>
-          {viewMode === 'flat' ? (
+          {viewMode === 'home' ? (
+            <FleetDeckHome onOpenToolbox={toolboxModal.open} />
+          ) : viewMode === 'flat' ? (
             <FlatView
               onAgentClick={(agentId) => { recordRecentAgent(agentId); store.selectAgent(agentId); }}
               onAgentDoubleClick={(agentId) => {
@@ -1277,8 +1280,10 @@ function AppContent() {
 
         {/* Sidebar + its edge toggle button are irrelevant in Flat View —
             FlatView owns its own middle column, so hiding both prevents a
-            redundant agent list and frees up horizontal space. */}
-        {viewMode !== 'flat' && (
+            redundant agent list and frees up horizontal space.
+            Same for Home view: 指挥台总览 carries its own fleet + delegation
+            columns, so the sidebar would only cover the voice column. */}
+        {viewMode !== 'flat' && viewMode !== 'home' && (
           <>
         {/* Sidebar toggle button - always visible, positioned fixed */}
         <button

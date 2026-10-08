@@ -194,6 +194,7 @@
     "re:^terminal:testRunner\\.",
     "re:^terminal:dbInline\\.",
     "re:^terminal:dbSidebar\\.",
-    "re:^terminal:dbTabs\\."
+    "re:^terminal:dbTabs\\.",
+    "re:^terminal:fleetHome\\."
   ]
 }
