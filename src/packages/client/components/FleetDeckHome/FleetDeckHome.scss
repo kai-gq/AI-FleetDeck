@@ -10,6 +10,8 @@
   display: grid;
   // 原型尺寸（B-25）：268 定宽 / 中栏弹性 / 320 定宽，gap 12
   grid-template-columns: 268px minmax(0, 1fr) 320px;
+  // 行1=三栏（吃满剩余高度）/ 行2=底部状态栏（B-27，内容高 30px）
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 12px;
   // 左 64px 避让 .fab-rail（36px 宽 + 16px 左边距；B4 起 home 模式 rail 只留语音钮）
   // 上 12px：顶栏 B-23 起 in-flow（本条处于其下），无需再让位
@@ -33,8 +35,13 @@
 
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
+    grid-template-rows: none; // 失败回退自动行（min-content）：单列自然堆叠
     grid-auto-rows: min-content;
     align-content: start;
+    // 底边抬升 = .mobile-bottom-stack 高度（agent-bar+FAB+底部菜单，上游冻结件 fixed z2100；
+    // 高度由 App.tsx ResizeObserver 写入 --mobile-bottom-stack-height）：
+    // 否则 sticky 状态栏（bottom:0）会落进固定栈底下被盖住
+    inset: 0 0 var(--mobile-bottom-stack-height, 72px) 0;
     padding: 10px 10px 10px 54px;
     overflow-y: auto;
 
@@ -63,6 +70,18 @@
       overflow-x: auto;
       scrollbar-width: none;
     }
+
+    // 状态栏折叠（B-27）：手机只留 连接 + 语音 + 时钟；吸底随滚动（列内容长时仍可见）
+    .fleetdeck-statusbar {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+    }
+
+    .fleetdeck-statusbar__item--team,
+    .fleetdeck-statusbar__item--ws {
+      display: none;
+    }
   }
 }
 
@@ -88,6 +107,75 @@
   .view-mode-home .main-content > .voice-companion-bubble,
   .view-mode-home .main-content > .voice-companion-pill {
     display: none !important;
+  }
+}
+
+// ─── 底部状态栏（B-27，仅指挥台页）───
+// 诚实数据五项：连接 / 语音相位镜像 / 团队计数（与左栏同口径）/ 工作区（0 个则整项不渲染）/ 时钟。
+// 右侧 72px 内边距避 fixed bottom-right 的 FPSMeter；不写死色值（双皮肤成立）。
+.fleetdeck-statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 30px;
+  min-width: 0;
+  // 左 34px：避 .agent-bar-version-outdated-indicator（固定左下 18×18，版本过旧时出现，
+  // 压住连接状态灯）；右 72px：避 fixed bottom-right 的 FPSMeter
+  padding: 0 72px 0 34px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__item--ws {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  &__item.is-on &__dot {
+    background: var(--accent-green);
+    opacity: 1;
+  }
+
+  &__item.is-off &__dot {
+    background: var(--accent-red);
+    opacity: 1;
+  }
+
+  &__item.is-voice-on &__dot {
+    background: var(--fd-accent);
+    opacity: 1;
+  }
+
+  &__spacer {
+    flex: 1;
+    min-width: 8px;
+  }
+
+  &__clock {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
   }
 }
 

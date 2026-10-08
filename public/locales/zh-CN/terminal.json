@@ -3676,6 +3676,22 @@
       "openSettings": "去开启",
       "empty": "等待对话…",
       "disabled": "未启用"
+    },
+    "statusBar": {
+      "label": "状态栏",
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "voiceLabel": "语音",
+      "allWorkspaces": "全部工作区",
+      "voice": {
+        "off": "已关闭",
+        "listening": "聆听中",
+        "working": "处理中",
+        "speaking": "播报中",
+        "paused": "已暂停",
+        "error": "出错",
+        "active": "进行中"
+      }
     }
   },
   "topBar": {
