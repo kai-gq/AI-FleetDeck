@@ -58,6 +58,7 @@ import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { ConfigRelationNote } from './ConfigRelationNote';
 import { VoiceCompanionSection } from './VoiceCompanionSection';
+import { VoiceprintSettings } from './VoiceprintSettings';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { DefaultAgentSkillsSection } from './DefaultAgentSkillsSection';
@@ -1553,6 +1554,7 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           onJump={requestSectionJump}
         />
         <VoiceCompanionSection searchQuery={searchQuery} />
+        <VoiceprintSettings />
       </CollapsibleSection>
       )}
 

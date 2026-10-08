@@ -21,6 +21,7 @@ import configRouter from './config.js';
 import ttsRouter from './tts.js';
 import sttRouter from './stt.js';
 import voiceCompanionRouter from './voice-companion.js';
+import voiceprintRouter from './voiceprint.js';
 import areasRouter from './areas.js';
 import customClassIconsRouter from './custom-class-icons.js';
 import customSoundsRouter from './custom-sounds.js';
@@ -66,6 +67,8 @@ router.use('/custom-models', customModelsRouter);
 router.use('/tts', ttsRouter);
 router.use('/stt', sttRouter);
 router.use('/voice-companion', voiceCompanionRouter);
+// 声纹门禁页面设置(工具箱 → 语音伙伴;逻辑在 voice/voiceprint-enroll-service)
+router.use('/voice-companion/voiceprint', voiceprintRouter);
 router.use('/areas', areasRouter);
 router.use('/custom-class-icons', customClassIconsRouter);
 router.use('/custom-sounds', customSoundsRouter);
