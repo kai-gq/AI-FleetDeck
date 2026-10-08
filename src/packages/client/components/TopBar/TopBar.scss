@@ -265,6 +265,23 @@
     opacity: 0.6;
   }
 
+  // 语音开启中（B-26）：强调色呼吸点 + 文字提亮；off/未配置保持灰色静止
+  .top-bar__secretary.is-on {
+    color: var(--text-secondary);
+
+    .top-bar__secretary-dot {
+      background: var(--fd-accent);
+      opacity: 1;
+      animation: top-bar-breath 2.2s ease-in-out infinite;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .top-bar__secretary.is-on .top-bar__secretary-dot {
+      animation: none;
+    }
+  }
+
   // 主题切换钮（B-24；原型 .theme-btn：带边框胶囊，与 ghost 钮区分）
   .top-bar__theme-btn {
     border: 1px solid var(--fd-line);
@@ -296,5 +313,17 @@
     .top-bar__menu {
       min-width: 180px;
     }
+  }
+}
+
+// 秘书状态点呼吸（B-26；与指挥台语音球同节奏，独立 keyframes 防跨 chunk 未加载）
+@keyframes top-bar-breath {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
   }
 }

@@ -26,6 +26,11 @@
     }
   }
 
+  // B-26：≥1101 语音栏在场 → rail 里语音悬浮组已收敛（见文末），左避让收窄回 12px
+  @media (min-width: 1101px) {
+    padding-left: 12px;
+  }
+
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
     grid-auto-rows: min-content;
@@ -68,6 +73,22 @@
 // display:inline-flex，inline 样式压过任何选择器——所以这里必须 !important。
 .view-mode-home .fab-rail > *:not(.voice-companion-bubble):not(.voice-companion-btn):not(.voice-companion-pill) {
   display: none !important;
+}
+
+// B-26 · 语音收敛：≥1101 语音栏在场，VoiceCompanion 两处实例的悬浮话筒/气泡/pill 全部收起。
+// 实例一：.fab-rail（桌面主实例）；实例二：MobileFabMenu 常驻挂载的 .mobile-voice-companion
+//（上游桌面端也一并渲染，落在 .main-content 下——实测截图 2026-10-08 确认桌面端可见）。
+// ≤1100 语音栏折起 → 悬浮钮是唯一入口（保留）；≤760 rail 整条隐藏、移动实例本就是手机入口（不受影响）。
+// 隐藏只是视觉：DOM 代理合成点击对 display:none 照常派发，镜像扫描照常读取。
+@media (min-width: 1101px) {
+  .view-mode-home .fab-rail .voice-companion-btn,
+  .view-mode-home .fab-rail .voice-companion-bubble,
+  .view-mode-home .fab-rail .voice-companion-pill,
+  .view-mode-home .main-content > .mobile-voice-companion,
+  .view-mode-home .main-content > .voice-companion-bubble,
+  .view-mode-home .main-content > .voice-companion-pill {
+    display: none !important;
+  }
 }
 
 .fleetdeck-col {
@@ -399,6 +420,45 @@
       background: var(--text-muted);
       box-shadow: none;
       animation: none;
+    }
+  }
+
+  // 启停控件（B-26，列头右侧）：off=描边 ghost（play）；active=强调色描边（stop / 播报中 pause=打断）
+  &__control {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--fd-accent);
+      color: var(--text-primary);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--fd-accent);
+      outline-offset: 1px;
+    }
+
+    &.is-active {
+      border-color: var(--fd-accent);
+      color: var(--fd-accent);
+    }
+
+    &.is-disabled {
+      border-style: dashed;
+      cursor: default;
     }
   }
 

@@ -3674,7 +3674,8 @@
       "offTitle": "语音未开启",
       "offBody": "开启语音伙伴后，这里的对话会随说随现。",
       "openSettings": "去开启",
-      "empty": "等待对话…"
+      "empty": "等待对话…",
+      "disabled": "未启用"
     }
   },
   "topBar": {

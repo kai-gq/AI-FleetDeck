@@ -18,6 +18,7 @@ import { getTheme } from '../../utils/themes';
 import { getActiveThemeId, themeToneOf, toggleTheme } from '../../utils/fleetdeckTheme';
 import { Icon } from '../Icon';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
+import { useVoiceCompanionPhase } from '../FleetDeckHome/useVoiceCompanionPhase';
 import { VIEW_MENU_OPTIONS } from './viewMenu';
 import './TopBar.scss';
 // 亮色皮覆盖（B-24）静态引入：绝大多数 UI 走变量自动换皮，这里只带作者文件里的
@@ -52,6 +53,11 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
     return () => window.removeEventListener('tide-theme-changed', onThemeChanged);
   }, []);
   const isLightTheme = themeToneOf(getTheme(themeId)) === 'light';
+
+  // 秘书 pill 状态（B-26）：镜像语音伙伴真实相位（DOM 读取，见 useVoiceCompanionPhase）；
+  // title 直接用其本地化相位标签，无需新文案。非入口，仅状态位。
+  const voice = useVoiceCompanionPhase();
+  const voiceOn = voice.present === true && voice.phase !== 'off';
 
   // 窄屏时段位条横向滚动（overflow-x:auto）：把当前段位移进视野，
   // 否则手机上切到靠右的视图后，活动 chip 可能不在可见区。
@@ -210,11 +216,14 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
           )}
         </div>
 
-        {/* 秘书状态位：占位（B-26 接真实语音状态），非入口 */}
+        {/* 秘书状态位（B-26 起接真实语音状态）：呼吸点=语音开启中；非入口，仅状态位 */}
         <span
-          className="top-bar__secretary"
-          aria-disabled="true"
-          title={t('terminal:topBar.secretarySoon', { defaultValue: 'Status coming soon' })}
+          className={`top-bar__secretary${voiceOn ? ' is-on' : ''}`}
+          title={
+            voice.present === true && voice.label
+              ? voice.label
+              : t('terminal:fleetHome.voice.disabled', { defaultValue: '未启用' })
+          }
         >
           <span className="top-bar__secretary-dot" />
           {t('terminal:topBar.secretary', { defaultValue: 'Secretary' })}

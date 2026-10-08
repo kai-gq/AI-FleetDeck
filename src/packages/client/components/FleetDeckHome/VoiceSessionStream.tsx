@@ -7,6 +7,8 @@ import {
   toVoiceEntryRow,
   type VoiceStreamEntry,
 } from './voiceStreamModel';
+import { useVoiceCompanionPhase } from './useVoiceCompanionPhase';
+import { VoiceSessionControl } from './VoiceSessionControl';
 
 interface VoiceSessionStreamProps {
   /** 语音未开启时引导卡的「去设置」回调（App 注入工具箱打开）。 */
@@ -16,18 +18,20 @@ interface VoiceSessionStreamProps {
 /**
  * 总览右栏 · 语音会话流（只读 DOM 镜像，见 voiceStreamModel.ts 的约束说明）。
  * MutationObserver 盯 document.body（气泡无统一根类，且双实例挂载）；
- * 语音未开启（VoiceCompanion 返回 null）→ 引导卡，不整栏消失。
+ * 在场/相位走 useVoiceCompanionPhase（B-26）——未开启（VoiceCompanion 返回 null）→
+ * 引导卡，不整栏消失；列头启停控件走 DOM 代理（VoiceSessionControl）。
  */
 export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamProps) {
   const { t } = useTranslation(['terminal', 'common']);
-  const [voicePresent, setVoicePresent] = useState<boolean | null>(null);
+  const voice = useVoiceCompanionPhase();
   const [entries, setEntries] = useState<VoiceStreamEntry[]>([]);
   const lastSerializedRef = useRef('');
   const listRef = useRef<HTMLDivElement | null>(null);
+  // 语音球：仅「在场且相位非 off」呼吸（B-26 起相位真实；此前只看在场）
+  const voiceOn = voice.present === true && voice.phase !== 'off';
 
   useEffect(() => {
     const scan = () => {
-      setVoicePresent(document.querySelector('.voice-companion-btn') !== null);
       const candidates = Array.from(document.querySelectorAll('.voice-companion-bubble')).map((bubble) => ({
         inFabRail: bubble.closest('.fab-rail') !== null,
         rows: Array.from(bubble.querySelectorAll('.vc-entry')).map(toVoiceEntryRow),
@@ -55,8 +59,8 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
   return (
     <aside className="fleetdeck-col fleetdeck-col--voice">
       <header className="fleetdeck-col__head">
-        {/* 语音球（B-25）：呼吸=语音开启中；未开启落 is-off 静态灰（引导卡同时在场） */}
-        <span className={`voice-stream__orb${voicePresent === false ? ' is-off' : ''}`} aria-hidden="true" />
+        {/* 语音球（B-25；B-26 起相位真实）：呼吸=语音开启中；未开启落 is-off 静态灰 */}
+        <span className={`voice-stream__orb${voiceOn ? '' : ' is-off'}`} aria-hidden="true" />
         <h2>
           <Icon name="microphone" size={14} />
           {t('terminal:fleetHome.voice.title', { defaultValue: '语音会话流' })}
@@ -64,9 +68,11 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
         <span className="fleetdeck-col__count">
           {t('terminal:fleetHome.voice.streaming', { defaultValue: '流式' })}
         </span>
+        {/* 启停控件（B-26）：DOM 代理点击，未配置时「未启用」占位 */}
+        <VoiceSessionControl state={voice} />
       </header>
 
-      {voicePresent === false ? (
+      {voice.present === false ? (
         <div className="voice-stream__guide">
           <Icon name="microphone" size={22} />
           <strong>{t('terminal:fleetHome.voice.offTitle', { defaultValue: '语音未开启' })}</strong>
@@ -89,7 +95,7 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
               <span className="voice-stream__text">{entry.text}</span>
             </div>
           ))}
-          {voicePresent && entries.length === 0 && (
+          {voice.present === true && entries.length === 0 && (
             <div className="fleetdeck-col__empty">
               {t('terminal:fleetHome.voice.empty', { defaultValue: '等待对话…' })}
             </div>
