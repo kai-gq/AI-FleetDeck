@@ -1,0 +1,47 @@
+// FleetDeck 亮色皮覆盖（B-24）
+//
+// 绝大多数 UI 走 --fd-* / 主题变量即可随皮自动变化；本文件只处理两类硬编码：
+//   ① 语义别名层的亮色对调 —— 原型口径：暗皮「青主蓝次」，亮皮「蓝主青次」；
+//   ② 作者文件里的「暗色玻璃」硬编码（黑底药丸、黑玻璃按钮、深阴影）在亮皮上过重，
+//      按亮皮面板色重写。
+// 选择器带 html[data-tide-theme='fleetdeck-light']（特异性 (0,1,1) 起）——不依赖
+// 加载顺序（本文件经 TopBar.tsx 静态引入，晚到也不怕），对其它 23 个主题零影响。
+// 本轮口径（计划 §4·有意偏差 4）：保证「改动面 + 覆盖清单 + 走查实拍」，其余含字面
+// 色值的作者文件登记为后续条目；走查新命中项持续追加到本文件。
+
+html[data-tide-theme='fleetdeck-light'] {
+  // ── ① 别名层对调（暗皮在 TopBar.scss :root 里）──
+  --fd-accent: var(--accent-blue);
+  --fd-accent-2: var(--accent-cyan);
+  --fd-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+
+  // ── ② 暗色玻璃 → 亮色面板 ──
+
+  // 工作区药丸（styles/components/workspace-switcher.scss：作者文件，黑 60% 玻璃）
+  .workspace-switcher-trigger {
+    background: var(--fd-panel-2);
+    border-color: var(--fd-line);
+    box-shadow: none;
+
+    &:hover {
+      background: color-mix(in srgb, var(--fd-panel-2) 72%, var(--fd-line) 28%);
+      border-color: var(--fd-accent);
+    }
+  }
+
+  // 工作区下拉（深阴影 0.5 黑）
+  .workspace-switcher-dropdown {
+    box-shadow: var(--fd-shadow);
+  }
+
+  // 整理全部按钮（styles/components/_layout.scss：作者文件，同上黑玻璃）
+  .app-organize-all-btn {
+    background: var(--fd-panel-2);
+    border-color: var(--fd-line);
+    box-shadow: none;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--fd-panel-2) 72%, var(--fd-line) 28%);
+    }
+  }
+}

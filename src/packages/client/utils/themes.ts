@@ -8,6 +8,10 @@
  * saved user preferences continue to resolve.
  */
 
+// FleetDeck 双皮肤（B-24）：数据与迁移/切换逻辑在 fleetdeckTheme.ts，这里只接线
+//（ThemeId 联合 / tone 标注 / themes 数组 / DEFAULT_THEME / xterm 亮色分支 + 回填运行时）。
+import { bindThemeRuntime, fleetdeckDarkTheme, fleetdeckLightTheme } from './fleetdeckTheme';
+
 export type ThemeId =
   | 'dracula'
   | 'muted'
@@ -31,7 +35,9 @@ export type ThemeId =
   | 'intellij-one-dark'
   | 'midnight-harbor'
   | 'ember-noir'
-  | 'classic';
+  | 'classic'
+  | 'fleetdeck'
+  | 'fleetdeck-light';
 
 export interface ThemeColors {
   bgPrimary: string;
@@ -88,6 +94,8 @@ export interface Theme {
   id: ThemeId;
   name: string;
   description: string;
+  /** 明暗语气（B-24 FleetDeck 双皮肤引入；未标注的历史主题按 dark 处理） */
+  tone?: 'dark' | 'light';
   colors: ThemeColors;
 }
 
@@ -1223,7 +1231,9 @@ const classicTheme: Theme = {
 
 // All available themes
 export const themes: Theme[] = [
-  classicTheme,           // Default - original transparent style
+  fleetdeckDarkTheme,     // FleetDeck default - deep-space deck with cyan holo accents
+  fleetdeckLightTheme,    // FleetDeck light - bright SaaS pairing
+  classicTheme,           // Original transparent style
   intellijOneDarkTheme,   // IntelliJ / Atom One Dark replica
   abyssTheme,             // Ultra dark with vivid accents
   abyssEmberTheme,        // Abyss void + warm ember accents
@@ -1253,8 +1263,8 @@ export function getTheme(id: ThemeId): Theme {
   return themes.find(t => t.id === id) || classicTheme;
 }
 
-// Default theme
-export const DEFAULT_THEME: ThemeId = 'classic';
+// Default theme (B-24: FleetDeck dark; 老用户 classic 存档由 fleetdeckTheme.migrateThemeOnce 一次性迁移)
+export const DEFAULT_THEME: ThemeId = 'fleetdeck';
 
 // Apply theme to document (sets CSS variables)
 export function applyTheme(theme: Theme): void {
@@ -1333,6 +1343,12 @@ export function applyTheme(theme: Theme): void {
   }
 }
 
+// FleetDeck 双皮肤（B-24）：把主题运行时回填给 fleetdeckTheme.ts 的 toggleTheme。
+// 本文件求值期需要对方的数据（进 themes 数组），对方调用期需要本文件的
+// applyTheme/getTheme——用回填打断求值期循环依赖，任意加载顺序都成立
+//（本行执行时函数声明已就绪；fleetdeckTheme.ts 的求值总是先于本文件函数体运行）。
+bindThemeRuntime(applyTheme, getTheme);
+
 /**
  * Build an xterm.js ITheme from the active Tide theme definition.
  * Uses concrete hex/rgba strings (not color-mix()) so xterm can parse them.
@@ -1362,7 +1378,11 @@ export function getXtermTheme(): {
   brightCyan: string;
   brightWhite: string;
 } {
-  const { colors } = getTheme(getSavedTheme());
+  const theme = getTheme(getSavedTheme());
+  const { colors } = theme;
+  // 亮色皮（B-24）：ANSI 黑白在浅底上按原映射会灰度反转刺眼——black/brightBlack/
+  // white/brightWhite 改走文本灰阶三档，其余 8 色（红绿黄蓝紫青）不受影响。
+  const light = theme.tone === 'light';
   const bg = colors.bgPrimary;
   const bg3 = colors.bgTertiary;
   const fg = colors.textPrimary;
@@ -1389,22 +1409,22 @@ export function getXtermTheme(): {
     cursorAccent: bg,
     selectionBackground: selection,
     selectionForeground: selectionFg,
-    black: bg3,
+    black: light ? colors.textSecondary : bg3,
     red,
     green,
     yellow,
     blue,
     magenta,
     cyan,
-    white: fg,
-    brightBlack: muted,
+    white: light ? colors.textPrimary : fg,
+    brightBlack: light ? colors.textMuted : muted,
     brightRed: red,
     brightGreen: green,
     brightYellow: yellow,
     brightBlue: blue,
     brightMagenta: magenta,
     brightCyan: cyan,
-    brightWhite: fg,
+    brightWhite: light ? colors.textPrimary : fg,
   };
 }
 

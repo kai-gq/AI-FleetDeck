@@ -3688,6 +3688,7 @@
     "newBoss": "新建主管",
     "secretary": "秘书",
     "secretarySoon": "状态接入中（后续版本）",
-    "demoTag": "演示模式"
+    "demoTag": "演示模式",
+    "themeToggle": "切换深色 / 亮色"
   }
 }

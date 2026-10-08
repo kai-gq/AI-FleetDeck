@@ -5,9 +5,11 @@
 //   ① --fd-* 语义别名层（同一语义角色，深/亮两皮挂不同色相）；
 //   ② fab-rail 的垂直避让（顶栏 in-flow 后 rail 顶部从 12px 下移到 64px）；
 //   ③ 条内控件观感（品牌 / 分段视图切换 / ghost 钮 / 下拉 / 秘书 pill）。
-// 颜色一律走 --fd-*；亮皮覆写在 B-24 的 fleetdeck-light-overrides.scss。
+// 颜色一律走 --fd-*；亮皮覆写在同目录 fleetdeck-light-overrides.scss（B-24）。
 
 // ─── 语义别名层（B-23 引入；对既有暗色主题语义正确：青=主强调、蓝=次强调）───
+// B-24：亮皮覆写在 fleetdeck-light-overrides.scss（--fd-accent 对调为蓝主，
+// --fd-shadow 换浅阴影）；本块保持「暗色默认」语义，23 个历史主题同样成立。
 :root {
   --fd-accent: var(--accent-cyan);
   --fd-accent-2: var(--accent-blue);
@@ -15,6 +17,7 @@
   --fd-panel: var(--bg-secondary);
   --fd-panel-2: var(--bg-tertiary);
   --fd-line: var(--border-color);
+  --fd-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
 // fab-rail 垂直避让：选择器 (0,2,0) 压过冻结文件 toolbox/_core.scss 的 .fab-rail (0,1,0)
@@ -194,7 +197,7 @@
     background: var(--fd-panel);
     border: 1px solid var(--fd-line);
     border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--fd-shadow);
   }
 
   .top-bar__menu-item {
@@ -260,6 +263,19 @@
     border-radius: 50%;
     background: var(--text-muted);
     opacity: 0.6;
+  }
+
+  // 主题切换钮（B-24；原型 .theme-btn：带边框胶囊，与 ghost 钮区分）
+  .top-bar__theme-btn {
+    border: 1px solid var(--fd-line);
+    background: var(--fd-panel-2);
+    color: var(--text-muted);
+
+    &:hover {
+      background: var(--fd-panel-2);
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
   }
 
   @media (max-width: 900px) {

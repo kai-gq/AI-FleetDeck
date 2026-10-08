@@ -11,6 +11,7 @@ import { STORAGE_KEYS, getStorage, setStorage, getStorageString, setStorageStrin
 import { closeAllModalsExcept } from '../hooks';
 import { MAX_VIBRATION_INTENSITY } from '../utils/haptics';
 import { MAX_NOTIFICATION_SOUND_VOLUME } from '../utils/notificationSounds';
+import { migrateThemeOnce } from '../utils/fleetdeckTheme';
 
 // Import types
 import type { StoreState, Listener, Settings } from './types';
@@ -1697,5 +1698,10 @@ function getOrCreateStore(): Store {
   }
   return new Store();
 }
+
+// FleetDeck 双皮肤一次性迁移（B-24）：老用户 'classic' 存档 → 'fleetdeck'。
+// 必须早于 main.tsx 的 initializeTheme()：本模块经 main.tsx → App → store 在
+// main.tsx 任何语句执行前完成求值，先改档、后应用主题，零闪烁。幂等（有标记即跳过）。
+migrateThemeOnce();
 
 export const store = getOrCreateStore();

@@ -13,10 +13,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useAppViewMode } from '../../store';
 import type { AppViewMode } from '../../types/viewModes';
+import type { ThemeId } from '../../utils/themes';
+import { getTheme } from '../../utils/themes';
+import { getActiveThemeId, themeToneOf, toggleTheme } from '../../utils/fleetdeckTheme';
 import { Icon } from '../Icon';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
 import { VIEW_MENU_OPTIONS } from './viewMenu';
 import './TopBar.scss';
+// 亮色皮覆盖（B-24）静态引入：绝大多数 UI 走变量自动换皮，这里只带作者文件里的
+// 硬编码覆盖（黑玻璃药丸/深阴影），详见文件头注释。
+import './fleetdeck-light-overrides.scss';
 
 export interface TopBarProps {
   onOpenSpotlight: () => void;
@@ -33,6 +39,19 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+
+  // 主题钮状态（B-24）：applyTheme 每次换皮都会广播 tide-theme-changed，
+  // 监听它即可让图标跟随任意来源的换皮（本钮 / 设置面板 / 终端头部下拉）。
+  const [themeId, setThemeId] = useState<ThemeId>(() => getActiveThemeId());
+  useEffect(() => {
+    const onThemeChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ themeId?: string }>).detail;
+      setThemeId((detail?.themeId as ThemeId) ?? getActiveThemeId());
+    };
+    window.addEventListener('tide-theme-changed', onThemeChanged);
+    return () => window.removeEventListener('tide-theme-changed', onThemeChanged);
+  }, []);
+  const isLightTheme = themeToneOf(getTheme(themeId)) === 'light';
 
   // 窄屏时段位条横向滚动（overflow-x:auto）：把当前段位移进视野，
   // 否则手机上切到靠右的视图后，活动 chip 可能不在可见区。
@@ -200,6 +219,17 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
           <span className="top-bar__secretary-dot" />
           {t('terminal:topBar.secretary', { defaultValue: 'Secretary' })}
         </span>
+
+        {/* 主题切换（B-24）：深/亮一键对切；图标示当前语气（亮=太阳、暗=月亮） */}
+        <button
+          type="button"
+          className="top-bar__btn top-bar__theme-btn"
+          onClick={() => toggleTheme()}
+          title={t('terminal:topBar.themeToggle', { defaultValue: 'Switch dark / light' })}
+          aria-label={t('terminal:topBar.themeToggle', { defaultValue: 'Switch dark / light' })}
+        >
+          <Icon name={isLightTheme ? 'sun' : 'moon'} size={16} />
+        </button>
       </div>
     </div>
   );

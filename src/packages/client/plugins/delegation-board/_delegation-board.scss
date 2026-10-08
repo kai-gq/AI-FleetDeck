@@ -5,8 +5,8 @@
 // 状态色：active=蓝 / success=绿 / danger=红 / muted=灰。
 // =============================================================================
 $db-active: var(--accent-blue, #5b9dff);
-$db-success: #76d584;
-$db-danger: #f87171;
+$db-success: var(--accent-green, #76d584);
+$db-danger: var(--accent-red, #f87171);
 $db-muted: var(--text-muted);
 
 .delegation-board-view {
@@ -272,9 +272,9 @@ $db-muted: var(--text-muted);
   white-space: nowrap;
 
   &.is-boss {
-    color: #e5b567;
-    border-color: color-mix(in srgb, #e5b567 30%, transparent);
-    background: color-mix(in srgb, #e5b567 8%, transparent);
+    color: var(--accent-yellow, #e5b567);
+    border-color: color-mix(in srgb, var(--accent-yellow, #e5b567) 30%, transparent);
+    background: color-mix(in srgb, var(--accent-yellow, #e5b567) 8%, transparent);
   }
 }
 
@@ -576,7 +576,7 @@ $db-muted: var(--text-muted);
 
   .is-done { color: color-mix(in srgb, $db-success 85%, var(--text-secondary)); }
   .is-done svg { color: $db-success; }
-  .is-open svg { color: #e5b567; }
+  .is-open svg { color: var(--accent-yellow, #e5b567); }
   .is-unknown svg { color: $db-muted; }
 }
 
