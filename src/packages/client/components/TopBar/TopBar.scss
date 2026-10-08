@@ -38,6 +38,26 @@
   }
 }
 
+// ── 快捷终端（主管 ▼ 抽屉）B-30 ──
+// ① 指挥台页不渲染侧栏（App.tsx：view-mode-home），作者 _base.scss 的
+//    right: $sidebar-width 会留出 320px 空白——此处收齐整宽（0,3,0 压 0,1,0）。
+.app.view-mode-home .guake-terminal {
+  right: 0;
+}
+
+// ② 展开/收起过渡：折叠态只是 .guake-content 的 translateY(-100%)（作者
+//    _base.scss「No transition - show instantly」），补上滑动+淡出即可双向动画；
+//    把手是 content 的兄弟节点（ClaudeOutputPanel），不随动画位移。
+.guake-terminal .guake-content {
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guake-terminal .guake-content {
+    transition: none;
+  }
+}
+
 .app-top-bar {
   // ── 品牌（原型 .brand：Fleet·Deck，Deck 强调色）──
   .top-bar__brand {

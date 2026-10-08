@@ -2320,8 +2320,9 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       {!(isOpen && isFullscreen) && (
         <div
           className="guake-handle"
-          onClick={() => { if (isOpen) store.toggleTerminal(); }}
-          onDoubleClick={() => { if (!isOpen) store.toggleTerminal(); }}
+          // B-30：原 onClick(仅收起)/onDoubleClick(仅展开) 组合会让快速双击
+          // 先合后开（看着像「点了没反应」）；改为单击即切、双击只生效一次。
+          onClick={(e) => { if (e.detail > 1) return; store.toggleTerminal(); }}
           style={{ top: isOpen ? `min(${terminalHeight}%, calc(100vh - 72px))` : '0' }}
         >
           <span className="guake-handle-icon"><Icon name={isOpen ? 'caret-up' : 'caret-down'} size={12} /></span>
