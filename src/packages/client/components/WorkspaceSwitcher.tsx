@@ -59,6 +59,18 @@ export function getActiveWorkspaceState(): Workspace | null {
   return currentActiveWorkspace;
 }
 
+/**
+ * 程序化清空工作区过滤（切回「全部工作区」）——本地即时生效 + 通知订阅者 +
+ * 服务端同步（与组件内 handleSelect(id=null) 同语义，跳过镜头存档/切换遮罩：
+ * 总览左栏空态「查看全部」等入口用）。B-32。
+ */
+export function clearActiveWorkspaceFilter(): void {
+  storeActiveWorkspaceId(null);
+  currentActiveWorkspace = null;
+  notifyListeners();
+  void apiSetActiveWorkspace(null).catch((err) => console.error('workspace error:', err));
+}
+
 /** Returns all loaded workspaces. */
 export function getAllWorkspaces(): Workspace[] {
   return allWorkspaces;

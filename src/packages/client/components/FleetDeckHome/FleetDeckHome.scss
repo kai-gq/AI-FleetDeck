@@ -311,6 +311,37 @@
     text-align: center;
   }
 
+  // 空态·带出路的变体（B-32 左栏：工作区过滤藏了成员 → 说明 + 「查看全部」）
+  &__empty--rich {
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px 12px;
+
+    strong {
+      font-size: 12.5px;
+      color: var(--text-primary);
+    }
+
+    span {
+      line-height: 1.5;
+    }
+
+    button {
+      margin-top: 2px;
+      padding: 5px 14px;
+      border: 1px solid var(--fd-accent);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--fd-accent);
+      font-size: 12px;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--fd-accent) 12%, transparent);
+      }
+    }
+  }
+
   &__error {
     display: flex;
     align-items: center;
@@ -709,6 +740,43 @@
       &:hover {
         background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
       }
+    }
+  }
+
+  // 空态建议 + 常用指令（B-32）：等待对话时给一句引导和几枚口语指令；
+  // 点击走 processVoiceCompanionTextStream，回复以本地条目并入本栏（不出声，防麦克风自采）
+  &__hint {
+    padding: 18px 10px 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 2px 2px 6px;
+  }
+
+  &__chip {
+    padding: 5px 12px;
+    border: 1px solid var(--fd-line);
+    border-radius: 999px;
+    background: var(--fd-panel);
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--fd-accent);
+      color: var(--fd-accent);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: default;
     }
   }
 }

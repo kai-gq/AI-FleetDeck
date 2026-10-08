@@ -61,6 +61,31 @@ describe('fleetdeck theme wiring', () => {
   });
 });
 
+// ── B-32 亮色灰字对比度：真机走查「白底灰字看不清」，两档加深并以下限钉住 ──
+function relativeLuminance(hex: string): number {
+  const value = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4]
+    .map((offset) => parseInt(value.slice(offset, offset + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+describe('亮色皮灰字对比度下限（B-32）', () => {
+  it('textPrimary/textSecondary/textMuted 在三种亮底上都保持可读', () => {
+    const c = fleetdeckLightTheme.colors;
+    for (const bg of [c.bgSecondary, c.bgPrimary, c.bgTertiary]) {
+      expect(contrastRatio(c.textPrimary, bg)).toBeGreaterThanOrEqual(12);
+      expect(contrastRatio(c.textSecondary, bg)).toBeGreaterThanOrEqual(5);
+      expect(contrastRatio(c.textMuted, bg)).toBeGreaterThanOrEqual(3.8);
+    }
+  });
+});
+
 describe('migrateThemeOnce', () => {
   it('rewrites a classic save once and never again', () => {
     lsStore.set('tide-theme', 'classic');

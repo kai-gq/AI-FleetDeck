@@ -60,4 +60,11 @@ html[data-tide-theme='fleetdeck-light'] {
     border-color: color-mix(in srgb, var(--fd-accent) 25%, transparent);
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
+
+  // ③ 委派树行内元信息（作者文件 plugins/delegation-board/_delegation-board.scss:301，
+  // --text-muted 再叠 22% 透明）——亮底上等效色被抬亮到 ~3:1，9px 小字读不动（B-32 实拍）；
+  // 亮皮沿 muted→secondary 轴混色，保留弱化层级（次级 6.2:1 > 本处 ~5.2:1）。
+  .delegation-tree-row__meta {
+    color: color-mix(in srgb, var(--text-muted) 55%, var(--text-secondary));
+  }
 }

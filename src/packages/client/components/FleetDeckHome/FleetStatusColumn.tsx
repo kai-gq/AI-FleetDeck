@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AgentBadge } from '../AgentBadge';
 import { Icon } from '../Icon';
 import { useAgents, useAreas, store, useStore } from '../../store';
-import { useWorkspaceFilter, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
+import { useWorkspaceFilter, isAgentVisibleInWorkspace, clearActiveWorkspaceFilter } from '../WorkspaceSwitcher';
 import { formatBoardDuration } from '../../plugins/delegation-board/boardModel';
 import { AGENT_BADGE_TONE_VARS, agentBadgeTone } from '../../utils/agentBadge';
 import { agentStatusKey, fleetGroupOf, groupFleet } from './fleetGroups';
@@ -63,6 +63,19 @@ export function FleetStatusColumn() {
 
   const groups = useMemo(() => groupFleet(agents), [agents]);
   const activeCount = groups.find((group) => group.id === 'active')?.agents.length ?? 0;
+
+  // 被工作区过滤藏起来的成员数（含未分配）：空态提示「全部工作区还有 N 名成员」（B-32）
+  const hiddenCount = useMemo(() => {
+    if (!activeWorkspace) return 0;
+    let hidden = 0;
+    for (const agent of agentsMap.values()) {
+      if (store.isAgentInArchivedArea(agent.id)) continue;
+      const area = store.getAreaForAgent(agent.id);
+      if (!isAgentVisibleInWorkspace(area?.id ?? null)) hidden += 1;
+    }
+    return hidden;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- areas 仅为触发重算
+  }, [agentsMap, areas, activeWorkspace]);
 
   const openAgent = useCallback((agentId: string) => {
     store.selectAgent(agentId);
@@ -125,11 +138,26 @@ export function FleetStatusColumn() {
               })}
             </div>
           ))}
-        {agents.length === 0 && (
-          <div className="fleetdeck-col__empty">
-            {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无成员' })}
-          </div>
-        )}
+        {agents.length === 0 &&
+          (activeWorkspace && hiddenCount > 0 ? (
+            <div className="fleetdeck-col__empty fleetdeck-col__empty--rich">
+              <Icon name="users" size={18} />
+              <strong>{t('terminal:fleetHome.fleet.emptyFiltered', { defaultValue: '当前工作区暂无成员' })}</strong>
+              <span>
+                {t('terminal:fleetHome.fleet.emptyElsewhere', {
+                  defaultValue: '全部工作区还有 {{count}} 名成员',
+                  count: hiddenCount,
+                })}
+              </span>
+              <button type="button" onClick={clearActiveWorkspaceFilter}>
+                {t('terminal:fleetHome.fleet.showAll', { defaultValue: '查看全部' })}
+              </button>
+            </div>
+          ) : (
+            <div className="fleetdeck-col__empty">
+              {t('terminal:fleetHome.fleet.empty', { defaultValue: '暂无成员' })}
+            </div>
+          ))}
       </div>
     </section>
   );

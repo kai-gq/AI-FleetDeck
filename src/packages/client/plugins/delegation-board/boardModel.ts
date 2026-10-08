@@ -278,7 +278,9 @@ export function buildDelegationTree(
       })),
     });
   }
-  result.sort((a, b) => b.latestAt - a.latestAt);
+  // 任务排序（B-32）：在办置顶，其余按最新活动倒序——「现在在忙什么」第一眼可见
+  const rankOf = (node: TreeTaskNode) => (node.statusGroup === 'active' ? 0 : 1);
+  result.sort((a, b) => rankOf(a) - rankOf(b) || b.latestAt - a.latestAt);
   return result;
 }
 

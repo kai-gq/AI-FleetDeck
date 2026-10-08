@@ -21,7 +21,7 @@ export interface ViewMenuOption {
   descriptionKey: string;
   defaultLabel: string;
   defaultDescription: string;
-  /** 演示性视图（3D 场景）在菜单里带一枚「演示模式」小标 */
+  /** 演示性视图（3D 场景）模型标记；B-32 起段位不再渲染「演示模式」小标，字段保留供模型语义与测试 */
   demo?: boolean;
 }
 

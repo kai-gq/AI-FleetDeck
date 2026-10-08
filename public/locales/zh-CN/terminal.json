@@ -3657,7 +3657,10 @@
     "fleet": {
       "title": "团队状态",
       "count": "{{total}} 员 · {{active}} 在办",
-      "empty": "暂无成员"
+      "empty": "暂无成员",
+      "emptyFiltered": "当前工作区暂无成员",
+      "emptyElsewhere": "全部工作区还有 {{count}} 名成员",
+      "showAll": "查看全部"
     },
     "group": {
       "active": "在办",
@@ -3689,7 +3692,15 @@
         "active": "语音伙伴进行中",
         "otherTab": "另一标签页聆听中",
         "otherTabSub": "点击接管"
-      }
+      },
+      "emptyHint": "说一句，或点下面的常用指令",
+      "chip": {
+        "progress": "念下今日进展",
+        "inFlight": "现在有哪些在办任务",
+        "failures": "有哪些失败的委派",
+        "thinking": "正在处理…"
+      },
+      "chipError": "处理失败，请再试一次"
     },
     "statusBar": {
       "label": "状态栏",

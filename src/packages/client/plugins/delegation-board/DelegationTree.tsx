@@ -48,13 +48,15 @@ function entryTimestamp(entry: BoardEntry): number | undefined {
 
 const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
   const { t } = useTranslation(['terminal', 'common']);
-  const expanded = cb.isExpanded(node.key, true);
+  // B-32：仅「在办」任务默认展开，历史(已完成/失败/取消)默认折叠，列表一眼是摘要
+  const defaultExpanded = node.statusGroup === 'active';
+  const expanded = cb.isExpanded(node.key, defaultExpanded);
   return (
     <div className="delegation-tree-task">
       <button
         type="button"
         className="delegation-tree-row is-task"
-        onClick={() => cb.onToggle(node.key, true)}
+        onClick={() => cb.onToggle(node.key, defaultExpanded)}
       >
         <Icon
           name={expanded ? 'caret-down' : 'caret-right'}
@@ -65,12 +67,14 @@ const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
         <span className="delegation-tree-row__name is-strong" title={node.label}>
           {node.label}
         </span>
-        <span className="delegation-tree-row__badge">
-          {t('terminal:delegationBoard.tree.delegationCount', {
-            defaultValue: '{{count}} delegations',
-            count: node.delegationCount,
-          })}
-        </span>
+        {node.delegationCount > 1 && (
+          <span className="delegation-tree-row__badge">
+            {t('terminal:delegationBoard.tree.delegationCount', {
+              defaultValue: '{{count}} delegations',
+              count: node.delegationCount,
+            })}
+          </span>
+        )}
         <span className="delegation-tree-row__meta">{formatTimeAgo(node.latestAt)}</span>
       </button>
       {expanded && (
@@ -86,12 +90,14 @@ const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
 
 const BossRow = memo(function BossRow({ node, cb }: RowProps<TreeBossNode>) {
   const { t } = useTranslation(['terminal', 'common']);
-  const expanded = cb.isExpanded(node.key, true);
+  // B-32：主管行随任务行——在办默认展开，历史默认折叠
+  const defaultExpanded = node.statusGroup === 'active';
+  const expanded = cb.isExpanded(node.key, defaultExpanded);
   const canOpen = cb.agentExists(node.bossId);
   return (
     <div className="delegation-tree-boss">
       <div className="delegation-tree-row is-boss">
-        <Caret expanded={expanded} onToggle={() => cb.onToggle(node.key, true)} />
+        <Caret expanded={expanded} onToggle={() => cb.onToggle(node.key, defaultExpanded)} />
         <Icon name="user-circle" size={11} className="delegation-tree-row__icon" />
         <button
           type="button"

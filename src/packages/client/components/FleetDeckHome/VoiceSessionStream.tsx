@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import {
@@ -10,6 +10,14 @@ import {
 import { useVoiceCompanionPhase } from './useVoiceCompanionPhase';
 import { VoiceSessionControl } from './VoiceSessionControl';
 import { voiceStateKey } from './DeckStatusBar';
+import { processVoiceCompanionTextStream } from '../../api/voiceCompanion';
+
+/** 空态常用口语指令（B-32）：键 → 兜底文案；点击即向大脑发一条文本（走既有 /process 流式通道）。 */
+const VOICE_CHIPS: Array<{ key: string; fallback: string }> = [
+  { key: 'fleetHome.voice.chip.progress', fallback: '念下今日进展' },
+  { key: 'fleetHome.voice.chip.inFlight', fallback: '现在有哪些在办任务' },
+  { key: 'fleetHome.voice.chip.failures', fallback: '有哪些失败的委派' },
+];
 
 interface VoiceSessionStreamProps {
   /** 语音未开启时引导卡的「去设置」回调（App 注入工具箱打开）。 */
@@ -59,6 +67,15 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
   // 语音球：仅「在场且相位非 off」点亮（B-26 起相位真实；此前只看在场）
   const voiceOn = voice.present === true && voice.phase !== 'off';
 
+  // ── 常用指令（B-32）状态：点击 → 文本回合走 /process 流式通道，回复以本地条目并入本栏 ──
+  // 不出声（不接 speechQueue）：聆听态直接播音会被麦克风回采；条目只进本栏，
+  // 不写 .voice-companion-bubble，避免与 DOM 镜像双写。
+  const [chipEntries, setChipEntries] = useState<VoiceStreamEntry[]>([]);
+  const [chipBusy, setChipBusy] = useState(false);
+  const chipBusyRef = useRef(false);
+  const chipSeqRef = useRef(0);
+  const chipAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     const scan = () => {
       const candidates = Array.from(document.querySelectorAll('.voice-companion-bubble')).map((bubble) => ({
@@ -83,7 +100,77 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries]);
+  }, [entries, chipEntries]);
+
+  useEffect(() => () => chipAbortRef.current?.abort(), []);
+
+  const runChip = useCallback(
+    (text: string) => {
+      if (chipBusyRef.current) return;
+      chipBusyRef.current = true;
+      setChipBusy(true);
+      chipSeqRef.current += 1;
+      const seq = chipSeqRef.current;
+      const liveId = `chip-live-${seq}`;
+      const pendingId = `chip-pending-${seq}`;
+      let acc = '';
+      const append = (entry: VoiceStreamEntry) => setChipEntries((prev) => [...prev, entry]);
+      const replace = (id: string, next: VoiceStreamEntry | null) =>
+        setChipEntries((prev) => {
+          const rest = prev.filter((e) => e.id !== id);
+          return next ? [...rest, next] : rest;
+        });
+      const finish = () => {
+        chipBusyRef.current = false;
+        setChipBusy(false);
+      };
+
+      append({ id: `chip-user-${seq}`, role: 'user', tag: '', text });
+      append({
+        id: pendingId,
+        role: 'system',
+        tag: '',
+        text: t('terminal:fleetHome.voice.chip.thinking', { defaultValue: '正在处理…' }),
+      });
+
+      const controller = new AbortController();
+      chipAbortRef.current = controller;
+      void processVoiceCompanionTextStream(text, { signal: controller.signal }, {
+        onSentence: (sentence) => {
+          acc += sentence;
+          replace(pendingId, null);
+          replace(liveId, { id: liveId, role: 'live', tag: '', text: acc });
+        },
+        onFinal: (result) => {
+          replace(pendingId, null);
+          replace(liveId, null);
+          const finalText = acc.trim() || (result.response ?? '').trim();
+          if (result.success !== false && finalText) {
+            append({ id: `chip-reply-${seq}`, role: 'assistant', tag: '', text: finalText });
+          } else if (result.success === false) {
+            append({
+              id: `chip-error-${seq}`,
+              role: 'system',
+              tag: '',
+              text: result.error || t('terminal:fleetHome.voice.chipError', { defaultValue: '处理失败，请再试一次' }),
+            });
+          }
+          finish();
+        },
+      }).catch(() => {
+        replace(pendingId, null);
+        replace(liveId, null);
+        append({
+          id: `chip-error-${seq}`,
+          role: 'system',
+          tag: '',
+          text: t('terminal:fleetHome.voice.chipError', { defaultValue: '处理失败，请再试一次' }),
+        });
+        finish();
+      });
+    },
+    [t]
+  );
 
   // 舞台文字：短标签复用状态栏映射（单一来源）；非 leader 实例 =「另一处正在聆听」（点击控件可接管）
   const statusKey = voiceStateKey(voice.phase);
@@ -136,7 +223,7 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
         </div>
       ) : (
         <div className="fleetdeck-col__body voice-stream" ref={listRef}>
-          {entries.map((entry) => (
+          {[...entries, ...chipEntries].map((entry) => (
             <div key={entry.id} className={`voice-stream__entry voice-stream__entry--${entry.role}`}>
               <span className="voice-stream__text">
                 {entry.text}
@@ -144,9 +231,27 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
               </span>
             </div>
           ))}
-          {voice.present === true && entries.length === 0 && (
-            <div className="fleetdeck-col__empty">
-              {t('terminal:fleetHome.voice.empty', { defaultValue: '等待对话…' })}
+          {voice.present === true && entries.length === 0 && chipEntries.length === 0 && (
+            <div className="voice-stream__hint">
+              {t('terminal:fleetHome.voice.emptyHint', { defaultValue: '说一句，或点下面的常用指令' })}
+            </div>
+          )}
+          {voice.present === true && (
+            <div className="voice-stream__chips">
+              {VOICE_CHIPS.map((chip) => {
+                const label = t(`terminal:${chip.key}`, { defaultValue: chip.fallback });
+                return (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    className="voice-stream__chip"
+                    disabled={chipBusy}
+                    onClick={() => runChip(label)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

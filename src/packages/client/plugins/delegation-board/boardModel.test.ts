@@ -136,6 +136,27 @@ describe('任务24 委派树 · 归组与构建', () => {
     expect(first.bosses[0].statusGroup).toBe('danger');
   });
 
+  it('建树:在办任务置顶,其余按 latestAt 倒序(B-32)', () => {
+    const entries = [
+      makeEntry({
+        decisionId: 'd-done',
+        what: { objective: '旧任务', status: 'completed' },
+        when: { delegatedAt: 5000, completedAt: 9000, durationMs: 4000 },
+      }),
+      makeEntry({
+        decisionId: 'd-run',
+        what: { objective: '在办任务', status: 'running' },
+        when: { delegatedAt: 1000 },
+      }),
+    ];
+
+    const tasks = buildDelegationTree(entries, { now: 10_000 });
+    // 纯 latestAt 排序本应是旧任务(9000)在前;在办置顶后翻过来
+    expect(tasks.map((task) => task.label)).toEqual(['在办任务', '旧任务']);
+    expect(tasks[0]?.statusGroup).toBe('active');
+    expect(tasks[1]?.statusGroup).toBe('success');
+  });
+
   it('建树:多 Boss 分叉;bossName 缺省回退 bossId;在办条目实时耗时接线', () => {
     const entries = [
       makeEntry({

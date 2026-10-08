@@ -38,6 +38,18 @@
   }
 }
 
+// B-32：指挥台（首页）不渲染侧栏，折叠把手悬在内容区上空显得「浮」——宽屏
+// （≥1320px：段位群止于 ~590px、右侧钮群起于「宽-240px」，实测无碰撞）时把把手
+// 收进顶栏行内（52px 条高里居中 top:8px），与工作区药丸同一语言；窄屏维持下沿悬停。
+// 必须 !important：组件给折叠态写了 inline top:'0'（注释见上一条）。
+@media (min-width: 1320px) {
+  .app.view-mode-home .guake-terminal.collapsed .guake-handle {
+    top: 8px !important;
+    border-radius: 10px;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
 // ── 快捷终端（主管 ▼ 抽屉）B-30 ──
 // ① 指挥台页不渲染侧栏（App.tsx：view-mode-home），作者 _base.scss 的
 //    right: $sidebar-width 会留出 320px 空白——此处收齐整宽（0,3,0 压 0,1,0）。

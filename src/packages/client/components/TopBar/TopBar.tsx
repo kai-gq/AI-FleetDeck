@@ -134,9 +134,6 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
             onClick={() => handleSelectView(option.mode)}
           >
             {t(option.labelKey, { defaultValue: option.defaultLabel })}
-            {option.demo && (
-              <span className="top-bar__tag">{t('terminal:topBar.demoTag', { defaultValue: 'Demo' })}</span>
-            )}
           </button>
         ))}
       </nav>

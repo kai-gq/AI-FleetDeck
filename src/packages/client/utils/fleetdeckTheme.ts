@@ -105,8 +105,10 @@ export const fleetdeckLightTheme: Theme = {
     bgTertiary: '#EEF2F8',
     borderColor: '#DDE5F0',
     textPrimary: '#0F172A',
-    textSecondary: '#5B6B82',
-    textMuted: '#93A3B8',
+    // B-32 对比度微调：原 #5B6B82 / #93A3B8 在亮底上偏淡(后者 ~2.5:1,低于 3:1),
+    // 灰字两档各加深一档(白底 ~6.2:1 / ~4.5:1),保持层级仍分明。
+    textSecondary: '#52627A',
+    textMuted: '#66788F',
     accentBlue: '#2563EB',
     accentGreen: '#059669',
     accentOrange: '#D97706',
