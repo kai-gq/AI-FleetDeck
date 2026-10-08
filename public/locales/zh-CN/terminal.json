@@ -3644,6 +3644,13 @@
       "where": "产出在哪",
       "acceptance": "验收",
       "ids": "标识"
+    },
+    "tree": {
+      "delegationCount": "{{count}} 次委派",
+      "boss": "主管",
+      "openConversation": "打开对话",
+      "viewOutput": "查看产出",
+      "details": "详情"
     }
   }
 }

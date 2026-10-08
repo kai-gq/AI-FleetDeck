@@ -151,60 +151,70 @@ $db-muted: var(--text-muted);
 
 .delegation-board-view__empty svg { color: color-mix(in srgb, $db-active 55%, transparent); }
 
-.delegation-board-group + .delegation-board-group {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent);
+// ─── 委派树（任务 → Boss → 每次委派 → 回执） ───
+
+.delegation-tree {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 10px;
 }
 
-.delegation-board-group__header {
+// 层间缩进 + 纵向引导线（每层阶梯一条）
+.delegation-tree-children {
+  margin-left: 12px;
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 52%, transparent);
+}
+
+.delegation-tree-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 11px 3px;
-  color: var(--text-muted);
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.45px;
-  text-transform: uppercase;
-
-  svg { color: $db-active; }
-
-  em {
-    padding: 0 5px;
-    color: $db-active;
-    border-radius: 999px;
-    background: color-mix(in srgb, $db-active 10%, transparent);
-    font-size: 8px;
-    font-style: normal;
-  }
-}
-
-.delegation-board-row {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  column-gap: 7px;
-  align-items: center;
-  width: calc(100% - 12px);
-  margin: 2px 6px;
-  padding: 6px 7px;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
   color: inherit;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 6px;
   background: transparent;
   text-align: left;
-  cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  font-family: $font-mono;
 
-  &:hover {
-    border-color: color-mix(in srgb, $db-active 22%, transparent);
-    background: color-mix(in srgb, $db-active 6%, transparent);
+  &.is-task {
+    cursor: pointer;
+    transition: background 120ms ease;
+
+    &:hover { background: color-mix(in srgb, $db-active 7%, transparent); }
+  }
+
+  &.is-boss,
+  &.is-delegation {
+    padding-top: 2.5px;
+    padding-bottom: 2.5px;
   }
 }
 
-.delegation-board-row__dot {
-  grid-row: 1 / span 2;
+.delegation-tree-row__caret {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: $db-muted;
+  cursor: pointer;
+
+  &:hover { color: $db-active; background: color-mix(in srgb, $db-active 14%, transparent); }
+}
+
+.delegation-tree-row__caret-icon {
+  flex: 0 0 auto;
+  color: $db-muted;
+}
+
+.delegation-tree-row__dot {
+  flex: 0 0 auto;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -215,43 +225,61 @@ $db-muted: var(--text-muted);
   &.is-danger { background: $db-danger; }
 }
 
-.delegation-board-row__title {
-  grid-column: 2;
-  grid-row: 1;
+.delegation-tree-row__icon {
+  flex: 0 0 auto;
+  color: $db-active;
+}
+
+.delegation-tree-row__name {
   overflow: hidden;
+  min-width: 0;
   color: var(--text-primary);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  &.is-strong {
+    flex: 1 1 auto;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  // 行名按钮（Boss/下属）：点开对话
+  &.is-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: $font-mono;
+    text-align: left;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.7; cursor: default; }
+    &:not(:disabled):hover { color: $db-active; text-decoration: underline; text-underline-offset: 2px; }
+  }
 }
 
-.delegation-board-row__priority {
-  grid-column: 3;
-  grid-row: 1;
-  padding: 0 4px;
-  color: #e5b567;
-  border: 1px solid color-mix(in srgb, #e5b567 28%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, #e5b567 8%, transparent);
+.delegation-tree-row__badge {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  color: $db-active;
+  border: 1px solid color-mix(in srgb, $db-active 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, $db-active 9%, transparent);
   font-size: 8px;
   font-weight: 700;
-}
-
-.delegation-board-row__agent {
-  grid-column: 2;
-  grid-row: 2;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 8.5px;
-  text-overflow: ellipsis;
+  line-height: 15px;
   white-space: nowrap;
+
+  &.is-boss {
+    color: #e5b567;
+    border-color: color-mix(in srgb, #e5b567 30%, transparent);
+    background: color-mix(in srgb, #e5b567 8%, transparent);
+  }
 }
 
-.delegation-board-row__status {
-  grid-column: 3;
-  grid-row: 2;
-  justify-self: end;
+.delegation-tree-row__status {
+  flex: 0 0 auto;
   padding: 0 5px;
   border-radius: 4px;
   font-size: 8px;
@@ -264,12 +292,107 @@ $db-muted: var(--text-muted);
   &.is-danger { color: $db-danger; background: color-mix(in srgb, $db-danger 10%, transparent); }
 }
 
-.delegation-board-row__meta {
-  grid-column: 2 / span 2;
-  grid-row: 3;
-  margin-top: 2px;
+.delegation-tree-row__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  margin-left: auto;
   color: color-mix(in srgb, $db-muted 78%, transparent);
   font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.delegation-tree-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 8px 8px 34px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 68%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+}
+
+.delegation-tree-receipt__summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 9.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.delegation-tree-receipt__output {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.delegation-tree-receipt__text {
+  color: $db-muted;
+  font-size: 9px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+.delegation-tree-receipt__open,
+.delegation-tree-receipt__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  color: var(--accent-cyan, #42d6e8);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan, #42d6e8) 26%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent-cyan, #42d6e8) 7%, transparent);
+  font-family: $font-mono;
+  font-size: 8.5px;
+  cursor: pointer;
+
+  &:hover { background: color-mix(in srgb, var(--accent-cyan, #42d6e8) 13%, transparent); }
+}
+
+.delegation-tree-receipt__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.delegation-tree-receipt__more {
+  margin-left: auto;
+  color: $db-muted;
+  border-color: color-mix(in srgb, var(--border-color) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 42%, transparent);
+
+  &:hover {
+    color: $db-active;
+    border-color: color-mix(in srgb, $db-active 32%, transparent);
+    background: color-mix(in srgb, $db-active 8%, transparent);
+  }
+}
+
+.delegation-tree-receipt__rating {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+
+  &.is-success {
+    color: $db-success;
+    border: 1px solid color-mix(in srgb, $db-success 30%, transparent);
+    background: color-mix(in srgb, $db-success 8%, transparent);
+  }
+
+  &.is-danger {
+    color: $db-danger;
+    border: 1px solid color-mix(in srgb, $db-danger 30%, transparent);
+    background: color-mix(in srgb, $db-danger 8%, transparent);
+  }
 }
 
 // ─── 详情（面板内切换） ───
