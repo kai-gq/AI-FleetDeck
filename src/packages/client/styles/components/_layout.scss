@@ -12,60 +12,40 @@
   overflow: hidden;
 }
 
-// Top bar container (FleetDeck 指挥台顶栏: workspaces + search + view menu + settings + new).
-// Left offset clears the 36px-wide .fab-rail at left:16px.
+// FleetDeck 顶栏（换肤改版 B-23）：in-flow 全宽条，作为 .app（列 flex）的直接子节点
+// 随文档流排布 —— 所有视图（含仪表盘 / flat）自动避让，零每视图补丁。
+// 之前的三块补丁已随 B-23 删除：--flat 变体（全宽条天然避让 flat 侧栏）、
+// 仪表盘 52px 让位（不再有浮层遮挡）、mobile-view-3d 重定位（条随流，无需上浮）。
+// z 151：高于右侧固定侧栏（150，其顶部已让位见 .sidebar）与 fab-rail（150），
+// 低于 Guake 终端（200，上游行为：终端展开时盖住顶栏，见台账 B-18）。
 .app-top-bar {
-  position: fixed;
-  top: 12px;
-  left: 64px;
-  z-index: 150;
+  position: relative;
+  z-index: 151;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px;
+  background: var(--fd-panel);
+  border-bottom: 1px solid var(--fd-line);
 
-  // On mobile: hide in terminal view, show (repositioned) in 3D/2D view
+  // 手机端终端视图隐藏（上游行为保留）
   @media (max-width: 768px) {
     .app.mobile-view-terminal & {
       display: none !important;
     }
 
-    .app.mobile-view-3d & {
-      left: 64px;
-      top: 12px;
-      z-index: 999;
-    }
+    // 左避让：手机端左上角悬浮 .mobile-fab-toggle 汉堡钮（fixed 12,12，44×44，
+    // z 1000）会盖住条内第一个控件——老栏即以 left:64 避让，这里用等值 padding。
+    padding-left: 64px;
   }
 
-  // Flat-view variant: span the full width with controls aligned to the right,
-  // so they don't sit on top of the flat-UI sidebar/columns.
-  &--flat {
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 44px;
-    padding: 0 16px 0 16px;
-    gap: 10px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%);
-    border-bottom: 1px solid var(--bg-tertiary);
-    backdrop-filter: blur(6px);
-    justify-content: flex-end;
-    z-index: 151;
-
-    @media (max-width: 768px) {
-      .app.mobile-view-3d & {
-        left: 0;
-        top: 0;
-      }
-    }
+  @media (max-width: 760px) {
+    gap: 6px;
+    // 左 64 保持汉堡避让（shorthand 会覆盖上一条的 padding-left）
+    padding: 0 8px 0 64px;
   }
-}
-
-// Dashboard-view clearance: .dashboard-view__topbar (metrics + search row) sits
-// at the top-left and would be covered by the floating top bar — drop it below
-// (52px = top 12 + bar height 30 + 10px gap). Vertical offset is language-proof;
-// a padding-left clearance would have to track the bar's width per view label.
-.view-mode-dashboard .dashboard-view__topbar {
-  padding-top: 52px;
 }
 
 .app-view-mode-toggle {
@@ -150,7 +130,9 @@
 
 .sidebar {
   position: fixed;
-  top: 0;
+  // 顶栏（B-23 in-flow，高 52）之下；移动端由 responsive/_mobile.scss 覆写回 top:0
+  // （侧栏在移动端是 z-200 全屏抽屉，含顶栏区域）
+  top: 52px;
   right: 0;
   bottom: 0;
   width: $sidebar-width;

@@ -1,46 +1,178 @@
-// FleetDeck 顶栏（EPIC-4 · B4）
+// FleetDeck 顶栏（EPIC-4 · B4；换肤改版 B-23 全宽条重做）
 //
-// 定位壳在 styles/components/_layout.scss 的 .app-top-bar（fixed、top 12、
-// left 64 避让 .fab-rail）；这里只管内部控件的观感。
-// 颜色全走主题 CSS 变量（双皮肤 token 先行，不写死色值）；
-// chip 观感与 .app-organize-all-btn / FAB 的 rgba(0,0,0,.6) 配方保持一致。
+// 容器（in-flow 全宽条：高 52、下边框、flex 排布）在 styles/components/_layout.scss
+// 的 .app-top-bar 里；本文件负责三件事：
+//   ① --fd-* 语义别名层（同一语义角色，深/亮两皮挂不同色相）；
+//   ② fab-rail 的垂直避让（顶栏 in-flow 后 rail 顶部从 12px 下移到 64px）；
+//   ③ 条内控件观感（品牌 / 分段视图切换 / ghost 钮 / 下拉 / 秘书 pill）。
+// 颜色一律走 --fd-*；亮皮覆写在 B-24 的 fleetdeck-light-overrides.scss。
+
+// ─── 语义别名层（B-23 引入；对既有暗色主题语义正确：青=主强调、蓝=次强调）───
+:root {
+  --fd-accent: var(--accent-cyan);
+  --fd-accent-2: var(--accent-blue);
+  --fd-accent-ink: var(--bg-primary);
+  --fd-panel: var(--bg-secondary);
+  --fd-panel-2: var(--bg-tertiary);
+  --fd-line: var(--border-color);
+}
+
+// fab-rail 垂直避让：选择器 (0,2,0) 压过冻结文件 toolbox/_core.scss 的 .fab-rail (0,1,0)
+//（含其 max-height 小屏 top:8 覆写——顶栏常驻时 rail 必须始终在条下）。不改冻结文件。
+.app .fab-rail {
+  top: 64px;
+}
+
+// 折叠态 Guake 把手避让：把手是 fixed top:0 居中的下拉舌（z 201），顶栏 B-23 起全宽
+// 常驻会与条中段重叠（窄屏时盖住段位钮）——下移到条下沿。
+// 必须 !important：组件给把手写了 inline style（ClaudeOutputPanel/index.tsx
+// `top: isOpen ? min(...) : '0'`，折叠时即 '0'），inline 压过任何选择器。
+// 只落在 .collapsed 态：展开态无此覆写，拖拽调节用的动态 top 不受影响。
+// 移动端把手 display:none（responsive/_mobile.scss），包在 min-width 里语义更明确。
+@media (min-width: 769px) {
+  .app .guake-terminal.collapsed .guake-handle {
+    top: 52px !important;
+  }
+}
 
 .app-top-bar {
-  .top-bar__label {
-    white-space: nowrap;
+  // ── 品牌（原型 .brand：Fleet·Deck，Deck 强调色）──
+  .top-bar__brand {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
   }
 
+  .top-bar__brand-mark {
+    display: block;
+    width: 22px;
+    height: 22px;
+  }
+
+  .top-bar__brand-plate {
+    fill: var(--fd-accent);
+  }
+
+  .top-bar__brand-core {
+    fill: var(--fd-panel);
+  }
+
+  .top-bar__brand-text {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    white-space: nowrap;
+
+    em {
+      font-style: normal;
+      color: var(--fd-accent);
+    }
+  }
+
+  // ── 分段视图切换（原型 .viewswitch）──
+  .top-bar__viewswitch {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9px;
+    background: var(--fd-panel-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .top-bar__segment {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--fd-accent);
+      outline-offset: 1px;
+    }
+
+    &.is-active {
+      background: var(--fd-accent);
+      color: var(--fd-accent-ink);
+      font-weight: 600;
+    }
+  }
+
+  // 「演示」小标（3D 段位；原型 .demo 的明确化）
+  .top-bar__tag {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border: 1px solid var(--fd-line);
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  .top-bar__segment.is-active .top-bar__tag {
+    border-color: color-mix(in srgb, var(--fd-accent-ink) 45%, transparent);
+    color: var(--fd-accent-ink);
+    opacity: 0.85;
+  }
+
+  // ── 右侧组（搜索/设置/新建/秘书）──
+  .top-bar__right {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  // ghost 图标钮（原型 .theme-btn 的无边框变体）
   .top-bar__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    width: 30px;
     height: 30px;
-    padding: 0 10px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0;
+    border: none;
     border-radius: 8px;
-    color: var(--text-primary);
+    background: transparent;
+    color: var(--text-secondary);
     font: inherit;
     font-size: 12px;
-    cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s, border-color 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.75);
-      border-color: var(--accent-blue);
+      background: var(--fd-panel-2);
+      color: var(--text-primary);
     }
 
     &:focus-visible {
-      outline: 1px solid var(--accent-cyan);
+      outline: 1px solid var(--fd-accent);
       outline-offset: 1px;
-    }
-
-    &--icon {
-      width: 30px;
-      padding: 0;
     }
   }
 
@@ -48,19 +180,20 @@
     position: relative;
   }
 
+  // 右侧钮的下拉向右锚定、向左展开（贴在视口右缘不溢出）
   .top-bar__menu {
     position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
+    top: calc(100% + 8px);
+    right: 0;
     z-index: 160;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    min-width: 240px;
+    min-width: 200px;
     padding: 4px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-line);
+    border-radius: 10px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
 
@@ -79,11 +212,7 @@
     cursor: pointer;
 
     &:hover {
-      background: var(--bg-tertiary);
-    }
-
-    &.is-active {
-      background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+      background: var(--fd-panel-2);
     }
   }
 
@@ -92,10 +221,6 @@
     display: flex;
     padding-top: 2px;
     color: var(--text-muted);
-
-    .top-bar__menu-item.is-active & {
-      color: var(--accent-cyan);
-    }
   }
 
   .top-bar__menu-text {
@@ -112,33 +237,17 @@
     font-size: 12px;
   }
 
-  .top-bar__menu-desc {
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  .top-bar__tag {
-    flex: 0 0 auto;
-    padding: 0 4px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-tertiary);
-    font-size: 9px;
-    line-height: 1.5;
-    color: var(--text-muted);
-  }
-
-  // 秘书状态位（占位，非入口）
+  // 秘书状态位（原型 .voice-pill；B-26 接真实语音状态）
   .top-bar__secretary {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     height: 30px;
     padding: 0 10px;
-    border: 1px dashed var(--border-color);
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.35);
-    font-size: 11px;
+    border: 1px solid var(--fd-line);
+    border-radius: 999px;
+    background: var(--fd-panel-2);
+    font-size: 12px;
     color: var(--text-muted);
     cursor: default;
     user-select: none;
@@ -146,11 +255,11 @@
   }
 
   .top-bar__secretary-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--text-muted);
-    opacity: 0.7;
+    opacity: 0.6;
   }
 
   @media (max-width: 900px) {
@@ -160,25 +269,16 @@
   }
 
   @media (max-width: 760px) {
-    & {
-      gap: 6px;
-    }
-
-    .top-bar__label {
+    .top-bar__brand-text {
       display: none;
     }
 
-    .top-bar__btn {
-      padding: 0 8px;
-    }
-
-    .top-bar__btn--icon {
-      width: 30px;
-      padding: 0;
+    .top-bar__segment {
+      padding: 4px 8px;
     }
 
     .top-bar__menu {
-      min-width: 200px;
+      min-width: 180px;
     }
   }
 }

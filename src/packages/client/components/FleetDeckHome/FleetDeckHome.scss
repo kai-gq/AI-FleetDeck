@@ -11,8 +11,8 @@
   grid-template-columns: minmax(230px, 0.9fr) minmax(360px, 1.7fr) minmax(250px, 1fr);
   gap: 10px;
   // 左 64px 避让 .fab-rail（36px 宽 + 16px 左边距；B4 起 home 模式 rail 只留语音钮）
-  // 上 56px 避让 .app-top-bar（fixed、top 12 + 高 30）
-  padding: 56px 12px 12px 64px;
+  // 上 12px：顶栏 B-23 起 in-flow（本条处于其下），无需再让位
+  padding: 12px 12px 12px 64px;
   background: var(--bg-primary);
   overflow: hidden;
 
@@ -29,7 +29,7 @@
     grid-template-columns: 1fr;
     grid-auto-rows: min-content;
     align-content: start;
-    padding: 56px 10px 10px 54px;
+    padding: 10px 10px 10px 54px;
     overflow-y: auto;
 
     .fleetdeck-col--voice {

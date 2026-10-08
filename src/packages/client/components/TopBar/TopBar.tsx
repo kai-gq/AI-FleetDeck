@@ -1,13 +1,12 @@
 /**
- * TopBar —— FleetDeck 顶栏（EPIC-4 · B4）
+ * TopBar —— FleetDeck 顶栏（EPIC-4 · B4；换肤改版 B-23 全宽条重做）
  *
- * shell 常驻入口带（所有视图）：工作区切换 / 搜索 / 视图菜单 / 设置 / 新建 / 秘书状态位。
- * - 搜索、设置复用 App 现成的 spotlightModal / toolboxModal 回调（原功能零丢失）。
+ * in-flow 全宽条（所有视图；容器样式见 styles/components/_layout.scss）：
+ * 品牌 FleetDeck / 工作区（下拉） / 分段视图切换 / 搜索·设置·新建（ghost 图标钮） / 秘书状态位。
  * - 视图切换沿用 FAB / ViewModeToggle 的同一套编排（先广播 tide:viewmode-switch-pressed，
  *   3D 等下一帧再落值）；切回总览时顺带收起 Guake 终端覆盖层（台账 B-14）。
- * - 非 home 视图靠视图菜单里的「指挥台」返回；rail 原样保留各自的入口。
- * - flat 视图挂 `--flat` 变体（上游遗留样式：全宽条右对齐，避开 flat 侧栏）。
- * - 秘书 pill 是占位状态位（wave2 接真实状态），非入口。
+ * - 原 --flat 变体已删（B-23：in-flow 条天然全宽，无需视图级补丁）。
+ * - 秘书 pill 是状态位（B-26 接真实语音状态），非入口。
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,7 +15,7 @@ import { store, useAppViewMode } from '../../store';
 import type { AppViewMode } from '../../types/viewModes';
 import { Icon } from '../Icon';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
-import { VIEW_MENU_OPTIONS, viewMenuOptionOf } from './viewMenu';
+import { VIEW_MENU_OPTIONS } from './viewMenu';
 import './TopBar.scss';
 
 export interface TopBarProps {
@@ -26,13 +25,21 @@ export interface TopBarProps {
   onSpawnBoss: () => void;
 }
 
-type OpenMenu = 'view' | 'new' | null;
+type OpenMenu = 'new' | null;
 
 export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBoss }: TopBarProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const viewMode = useAppViewMode();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  // 窄屏时段位条横向滚动（overflow-x:auto）：把当前段位移进视野，
+  // 否则手机上切到靠右的视图后，活动 chip 可能不在可见区。
+  useEffect(() => {
+    const active = navRef.current?.querySelector<HTMLElement>('.top-bar__segment.is-active');
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [viewMode]);
 
   // 点击别处 / Escape 收起下拉
   useEffect(() => {
@@ -71,142 +78,129 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
     [viewMode]
   );
 
-  const current = viewMenuOptionOf(viewMode);
-  const currentLabel = t(current.labelKey, { defaultValue: current.defaultLabel });
-
   return (
-    <div className={`app-top-bar${viewMode === 'flat' ? ' app-top-bar--flat' : ''}`} ref={rootRef}>
+    <div className="app-top-bar" ref={rootRef}>
+      {/* 品牌（原型：Fleet·Deck，Deck 走强调色；纯装饰，不进读屏） */}
+      <div className="top-bar__brand" aria-hidden="true">
+        <svg className="top-bar__brand-mark" viewBox="0 0 32 32">
+          <path className="top-bar__brand-plate" d="M16 3 5 9v14l11 6 11-6V9L16 3z" />
+          <path className="top-bar__brand-core" d="M16 8 9 12v8l7 4 7-4v-8l-7-4z" />
+        </svg>
+        <span className="top-bar__brand-text">
+          Fleet<em>Deck</em>
+        </span>
+      </div>
+
       <WorkspaceSwitcher />
 
-      <button
-        type="button"
-        className="top-bar__btn top-bar__btn--icon"
-        onClick={onOpenSpotlight}
-        title={t('terminal:topBar.searchHint', { defaultValue: 'Search (Ctrl+K)' })}
-        aria-label={t('terminal:topBar.search', { defaultValue: 'Search' })}
+      {/* 分段视图切换（原型 .viewswitch；文案沿用现有视图名，只换样式） */}
+      <nav
+        className="top-bar__viewswitch"
+        ref={navRef}
+        aria-label={t('terminal:topBar.viewHint', { defaultValue: 'Switch view' })}
       >
-        <Icon name="search" size={16} />
-      </button>
+        {VIEW_MENU_OPTIONS.map((option) => (
+          <button
+            key={option.mode}
+            type="button"
+            className={`top-bar__segment${option.mode === viewMode ? ' is-active' : ''}`}
+            aria-pressed={option.mode === viewMode}
+            title={t(option.descriptionKey, { defaultValue: option.defaultDescription })}
+            onClick={() => handleSelectView(option.mode)}
+          >
+            {t(option.labelKey, { defaultValue: option.defaultLabel })}
+            {option.demo && (
+              <span className="top-bar__tag">{t('terminal:topBar.demoTag', { defaultValue: 'Demo' })}</span>
+            )}
+          </button>
+        ))}
+      </nav>
 
-      <div className="top-bar__menu-wrap">
+      <div className="top-bar__right">
         <button
           type="button"
           className="top-bar__btn"
-          onClick={() => setOpenMenu((v) => (v === 'view' ? null : 'view'))}
-          title={t('terminal:topBar.viewHint', { defaultValue: 'Switch view' })}
-          aria-haspopup="menu"
-          aria-expanded={openMenu === 'view'}
+          onClick={onOpenSpotlight}
+          title={t('terminal:topBar.searchHint', { defaultValue: 'Search (Ctrl+K)' })}
+          aria-label={t('terminal:topBar.search', { defaultValue: 'Search' })}
         >
-          <Icon name={current.icon} size={16} />
-          <span className="top-bar__label">{currentLabel}</span>
-          <Icon name="caret-down" size={12} />
+          <Icon name="search" size={16} />
         </button>
-        {openMenu === 'view' && (
-          <div className="top-bar__menu" role="menu">
-            {VIEW_MENU_OPTIONS.map((option) => (
+
+        <button
+          type="button"
+          className="top-bar__btn"
+          onClick={onOpenToolbox}
+          title={t('terminal:topBar.settingsHint', { defaultValue: 'Settings (Ctrl+,)' })}
+          aria-label={t('terminal:topBar.settings', { defaultValue: 'Settings' })}
+        >
+          <Icon name="gear" size={16} />
+        </button>
+
+        <div className="top-bar__menu-wrap">
+          <button
+            type="button"
+            className="top-bar__btn"
+            onClick={() => setOpenMenu((v) => (v === 'new' ? null : 'new'))}
+            title={t('terminal:topBar.new', { defaultValue: 'New' })}
+            aria-label={t('terminal:topBar.new', { defaultValue: 'New' })}
+            aria-haspopup="menu"
+            aria-expanded={openMenu === 'new'}
+          >
+            <Icon name="plus" size={16} />
+          </button>
+          {openMenu === 'new' && (
+            <div className="top-bar__menu" role="menu">
               <button
-                key={option.mode}
                 type="button"
-                role="menuitemradio"
-                aria-checked={option.mode === viewMode}
-                className={`top-bar__menu-item${option.mode === viewMode ? ' is-active' : ''}`}
-                onClick={() => handleSelectView(option.mode)}
+                role="menuitem"
+                className="top-bar__menu-item"
+                onClick={() => {
+                  setOpenMenu(null);
+                  onSpawnAgent();
+                }}
               >
                 <span className="top-bar__menu-icon">
-                  <Icon name={option.icon} size={16} />
+                  <Icon name="plus" size={16} />
                 </span>
                 <span className="top-bar__menu-text">
                   <span className="top-bar__menu-label">
-                    {t(option.labelKey, { defaultValue: option.defaultLabel })}
-                    {option.demo && (
-                      <span className="top-bar__tag">
-                        {t('terminal:topBar.demoTag', { defaultValue: 'Demo' })}
-                      </span>
-                    )}
-                  </span>
-                  <span className="top-bar__menu-desc">
-                    {t(option.descriptionKey, { defaultValue: option.defaultDescription })}
+                    {t('terminal:topBar.newAgent', { defaultValue: 'New agent' })}
                   </span>
                 </span>
               </button>
-            ))}
-          </div>
-        )}
-      </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="top-bar__menu-item"
+                onClick={() => {
+                  setOpenMenu(null);
+                  onSpawnBoss();
+                }}
+              >
+                <span className="top-bar__menu-icon">
+                  <Icon name="crown" size={16} />
+                </span>
+                <span className="top-bar__menu-text">
+                  <span className="top-bar__menu-label">
+                    {t('terminal:topBar.newBoss', { defaultValue: 'New boss' })}
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
 
-      <button
-        type="button"
-        className="top-bar__btn top-bar__btn--icon"
-        onClick={onOpenToolbox}
-        title={t('terminal:topBar.settingsHint', { defaultValue: 'Settings (Ctrl+,)' })}
-        aria-label={t('terminal:topBar.settings', { defaultValue: 'Settings' })}
-      >
-        <Icon name="gear" size={16} />
-      </button>
-
-      <div className="top-bar__menu-wrap">
-        <button
-          type="button"
-          className="top-bar__btn"
-          onClick={() => setOpenMenu((v) => (v === 'new' ? null : 'new'))}
-          aria-haspopup="menu"
-          aria-expanded={openMenu === 'new'}
+        {/* 秘书状态位：占位（B-26 接真实语音状态），非入口 */}
+        <span
+          className="top-bar__secretary"
+          aria-disabled="true"
+          title={t('terminal:topBar.secretarySoon', { defaultValue: 'Status coming soon' })}
         >
-          <Icon name="plus" size={14} />
-          <span className="top-bar__label">{t('terminal:topBar.new', { defaultValue: 'New' })}</span>
-          <Icon name="caret-down" size={12} />
-        </button>
-        {openMenu === 'new' && (
-          <div className="top-bar__menu" role="menu">
-            <button
-              type="button"
-              role="menuitem"
-              className="top-bar__menu-item"
-              onClick={() => {
-                setOpenMenu(null);
-                onSpawnAgent();
-              }}
-            >
-              <span className="top-bar__menu-icon">
-                <Icon name="plus" size={16} />
-              </span>
-              <span className="top-bar__menu-text">
-                <span className="top-bar__menu-label">
-                  {t('terminal:topBar.newAgent', { defaultValue: 'New agent' })}
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="top-bar__menu-item"
-              onClick={() => {
-                setOpenMenu(null);
-                onSpawnBoss();
-              }}
-            >
-              <span className="top-bar__menu-icon">
-                <Icon name="crown" size={16} />
-              </span>
-              <span className="top-bar__menu-text">
-                <span className="top-bar__menu-label">
-                  {t('terminal:topBar.newBoss', { defaultValue: 'New boss' })}
-                </span>
-              </span>
-            </button>
-          </div>
-        )}
+          <span className="top-bar__secretary-dot" />
+          {t('terminal:topBar.secretary', { defaultValue: 'Secretary' })}
+        </span>
       </div>
-
-      {/* 秘书状态位：占位（wave2 接真实状态），非入口 */}
-      <span
-        className="top-bar__secretary"
-        aria-disabled="true"
-        title={t('terminal:topBar.secretarySoon', { defaultValue: 'Status coming soon' })}
-      >
-        <span className="top-bar__secretary-dot" />
-        {t('terminal:topBar.secretary', { defaultValue: 'Secretary' })}
-      </span>
     </div>
   );
 }
