@@ -198,6 +198,8 @@
     "re:^terminal:fleetHome\\.",
     "re:^terminal:topBar\\.",
     "common:viewMode.labels.home",
-    "common:viewMode.descriptions.home"
+    "common:viewMode.descriptions.home",
+    "common:viewMode.labels.commander",
+    "common:viewMode.descriptions.commander"
   ]
 }

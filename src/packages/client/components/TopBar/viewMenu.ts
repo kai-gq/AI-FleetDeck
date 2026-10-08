@@ -9,7 +9,7 @@
  * 代码侧 defaultValue 为英文兜底。
  */
 
-import type { AppViewMode } from '../../types/viewModes';
+import { COMMANDER_VIEW_MODE, type AppViewMode } from '../../types/viewModes';
 import type { IconName } from '../Icon';
 
 export interface ViewMenuOption {
@@ -33,6 +33,14 @@ export const VIEW_MENU_OPTIONS: readonly ViewMenuOption[] = [
     descriptionKey: 'common:viewMode.descriptions.home',
     defaultLabel: 'FleetDeck',
     defaultDescription: 'Team & delegation overview',
+  },
+  {
+    mode: COMMANDER_VIEW_MODE,
+    icon: 'crown',
+    labelKey: 'common:viewMode.labels.commander',
+    descriptionKey: 'common:viewMode.descriptions.commander',
+    defaultLabel: 'Commander',
+    defaultDescription: 'Grid overview of all members & conversations',
   },
   {
     mode: '2d',

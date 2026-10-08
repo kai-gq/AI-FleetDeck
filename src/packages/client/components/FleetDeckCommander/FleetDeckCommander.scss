@@ -1,0 +1,51 @@
+// 「指挥官」正式视图（B-30）：把模态版 CommanderView 去模态化，嵌入主内容区。
+//
+// 选择器全部带 .fleetdeck-commander 前缀（0,2,0），压过
+// styles/components/commander-view/_header.scss 里的同名类（0,1,0），
+// 与样式表加载顺序、懒加载 chunk 时机无关；模态入口（AppModals）不受影响。
+// 零字面色：面板底色仍来自原作者样式里的 var(--bg-*) 渐变。
+
+@use '../../styles/variables' as *;
+
+.fleetdeck-commander {
+  position: absolute;
+  inset: 0;
+  display: flex;
+
+  // 去模态：固定定位/遮罩/边距/入场动画全部清零，铺满宿主
+  .commander-overlay {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    background: none;
+    padding: 0;
+    animation: none;
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  // 从「顶部下落的面板」变成「占满内容区的视图」
+  .commander-view {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+}
+
+// 全幅工作台：隐藏 fab-rail（模态版同样被遮罩盖住；指挥台已有隐藏先例）
+.view-mode-commander .fab-rail {
+  display: none;
+}
+
+// 桌面端给侧栏让位：侧栏是 fixed right:0（320px, z150）的浮层——3D 场景是连续画布
+// 穿底无碍，网格面板被切内容则不可读，故右缩 $sidebar-width。用户折叠侧栏时
+// .app 带 .sidebar-collapsed → right:0 自动收回。移动端侧栏是全屏抽屉（z200），不预留。
+@media (min-width: 769px) {
+  .app.view-mode-commander:not(.sidebar-collapsed) .fleetdeck-commander {
+    right: $sidebar-width;
+  }
+}

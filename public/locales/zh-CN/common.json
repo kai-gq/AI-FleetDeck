@@ -149,14 +149,16 @@
       "3d": "3D",
       "dashboard": "仪表盘",
       "flat": "平铺",
-      "home": "指挥台"
+      "home": "指挥台",
+      "commander": "指挥官"
     },
     "descriptions": {
       "2d": "轻量级俯视图",
       "3d": "完整 3D 等距视图",
       "dashboard": "指标和状态概览",
       "flat": "平铺界面布局",
-      "home": "团队与委派总览"
+      "home": "团队与委派总览",
+      "commander": "全部成员与对话的网格总览"
     }
   },
   "buttons2": {

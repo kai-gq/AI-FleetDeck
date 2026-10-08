@@ -34,5 +34,14 @@ export const DEFAULT_VIEW_MODE: ViewMode = '3d';
  * app shell reads the raw value through `useAppViewMode()`.
  */
 export const HOME_VIEW_MODE = 'home' as const;
-export type AppViewMode = ViewMode | typeof HOME_VIEW_MODE;
-export const APP_VIEW_MODES: readonly AppViewMode[] = ['home', '3d', '2d', 'flat', 'dashboard'] as const;
+
+/**
+ * FleetDeck "commander" full view mode (B-30 · 指挥官).
+ *
+ * Same rationale as HOME_VIEW_MODE: deliberately kept OUT of the `ViewMode`
+ * union so the frozen exhaustive-literal consumers stay untouched; legacy
+ * chrome keeps seeing '3d' via the narrowed `useViewMode()` selector.
+ */
+export const COMMANDER_VIEW_MODE = 'commander' as const;
+export type AppViewMode = ViewMode | typeof HOME_VIEW_MODE | typeof COMMANDER_VIEW_MODE;
+export const APP_VIEW_MODES: readonly AppViewMode[] = ['home', 'commander', '3d', '2d', 'flat', 'dashboard'] as const;

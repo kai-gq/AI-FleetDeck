@@ -48,6 +48,7 @@ const Scene2DCanvas = React.lazy(() => import('./components/Scene2DCanvas').then
 const FlatView = React.lazy(() => import('./components/FlatView').then(m => ({ default: m.FlatView })));
 const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
 const FleetDeckHome = React.lazy(() => import('./components/FleetDeckHome').then(m => ({ default: m.FleetDeckHome })));
+const FleetDeckCommander = React.lazy(() => import('./components/FleetDeckCommander').then(m => ({ default: m.FleetDeckCommander })));
 import { MobileFabMenu } from './components/MobileFabMenu';
 import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
@@ -992,6 +993,8 @@ function AppContent() {
           <React.Suspense fallback={null}>
           {viewMode === 'home' ? (
             <FleetDeckHome onOpenToolbox={toolboxModal.open} />
+          ) : viewMode === 'commander' ? (
+            <FleetDeckCommander />
           ) : viewMode === 'flat' ? (
             <FlatView
               onAgentClick={(agentId) => { recordRecentAgent(agentId); store.selectAgent(agentId); }}

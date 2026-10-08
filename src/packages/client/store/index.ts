@@ -308,7 +308,7 @@ class Store
         // Legacy value from when Flat view shipped as "2d-experimental" —
         // transparently migrate so users keep their chosen view after update.
         const normalized = saved === '2d-experimental' ? 'flat' : saved;
-        const valid = normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat' || normalized === 'home';
+        const valid = normalized === '2d' || normalized === '3d' || normalized === 'dashboard' || normalized === 'flat' || normalized === 'home' || normalized === 'commander';
         if (!valid) return 'home' as StoreState['viewMode'];
         // One-time introduction of the FleetDeck home view: users still on the
         // legacy '3d' default land on 指挥台总览 once. The marker flips with it,
