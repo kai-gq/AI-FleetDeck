@@ -11,17 +11,9 @@ import { useVoiceCompanionPhase } from './useVoiceCompanionPhase';
 import { VoiceSessionControl } from './VoiceSessionControl';
 import { voiceStateKey } from './DeckStatusBar';
 import { processVoiceCompanionTextStream } from '../../api/voiceCompanion';
-
-/** 空态常用口语指令（B-32 起；B-33 由 3 条扩到 7 条）：键 → 兜底文案；点击即向大脑发一条文本（走既有 /process 流式通道）。 */
-const VOICE_CHIPS: Array<{ key: string; fallback: string }> = [
-  { key: 'fleetHome.voice.chip.progress', fallback: '念下今日进展' },
-  { key: 'fleetHome.voice.chip.roster', fallback: '团队里都有谁' },
-  { key: 'fleetHome.voice.chip.inFlight', fallback: '现在有哪些在办任务' },
-  { key: 'fleetHome.voice.chip.doneToday', fallback: '今天完成了什么' },
-  { key: 'fleetHome.voice.chip.decisions', fallback: '有什么需要我拍板的吗' },
-  { key: 'fleetHome.voice.chip.failures', fallback: '有哪些失败的委派' },
-  { key: 'fleetHome.voice.chip.news', fallback: '有什么新消息吗' },
-];
+// 空态常用口语指令（B-32 起；B-33 3→7 条）：与秘书能力弹窗共用清单（voiceChips.ts）
+import { VOICE_CHIPS } from './voiceChips';
+import { SecretaryHelpModal } from './SecretaryHelpModal';
 
 interface VoiceSessionStreamProps {
   /** 语音未开启时引导卡的「去设置」回调（App 注入工具箱打开）。 */
@@ -65,6 +57,8 @@ function voiceStageSubKey(phase: string): { key: string; fallback: string } {
 export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const voice = useVoiceCompanionPhase();
+  // 列头「?」：秘书能力速览弹窗开关（B-34 用户口径）
+  const [helpOpen, setHelpOpen] = useState(false);
   const [entries, setEntries] = useState<VoiceStreamEntry[]>([]);
   const lastSerializedRef = useRef('');
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -196,6 +190,16 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
         <span className="fleetdeck-col__count">
           {t('terminal:fleetHome.voice.streaming', { defaultValue: '流式' })}
         </span>
+        {/* 列头右上「?」：秘书能做什么（B-34 用户口径） */}
+        <button
+          type="button"
+          className="fleetdeck-col__help"
+          onClick={() => setHelpOpen(true)}
+          title={t('terminal:fleetHome.voice.help.title', { defaultValue: '秘书能做什么' })}
+          aria-label={t('terminal:fleetHome.voice.help.title', { defaultValue: '秘书能做什么' })}
+        >
+          <Icon name="question" size={11} />
+        </button>
       </header>
 
       {voice.present === true && (
@@ -260,6 +264,8 @@ export function VoiceSessionStream({ onOpenVoiceSettings }: VoiceSessionStreamPr
           )}
         </div>
       )}
+      {/* 能力速览弹窗（ModalPortal 挂 body，组件内位置不影响 DOM 嵌套） */}
+      <SecretaryHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </aside>
   );
 }
