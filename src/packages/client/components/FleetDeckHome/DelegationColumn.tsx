@@ -9,13 +9,14 @@ import type { BoardEntry } from '../../plugins/delegation-board/boardModel';
 /**
  * 总览中栏 · 委派树（EPIC-1）。
  * 与侧栏 DelegationBoardView 同源（同一 useDelegationBoardData hook）；
- * 默认展开任务与主管层（DelegationTree 缺省：任务/主管展开、委派/回执收起）；
+ * 默认展开三层（DelegationTree 缺省：有委派数据即全展开，B-34）；
  * 详情复用 DelegationBoardDetails（非模态）。
- * 列头过滤段位（B-25 收口台账 B-16）：状态筛选模型与侧栏共用（DELEGATION_STATUS_FILTERS）。
+ * 列头过滤段位（B-25 收口台账 B-16）：状态筛选模型与侧栏共用（DELEGATION_STATUS_FILTERS）；
+ * 默认「进行中」（B-34 用户口径）。
  */
 export function DelegationColumn() {
   const { t } = useTranslation(['terminal', 'common']);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('in-flight');
   const [selected, setSelected] = useState<BoardEntry | null>(null);
   // 展开态 override（键 → 是否展开）：刷新/轮询不重置
   const [expansion, setExpansion] = useState<Map<string, boolean>>(() => new Map());

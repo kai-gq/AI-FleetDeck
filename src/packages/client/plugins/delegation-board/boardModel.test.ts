@@ -56,15 +56,22 @@ describe('任务24 委派看板数据模型', () => {
     expect(boardStatusGroup('cancelled')).toBe('muted');
   });
 
-  it('过滤:all 全量;具体状态精确匹配;不改输入', () => {
+  it('过滤:all 全量;段位按状态组(进行中=active 全组、已完成含 done、失败=danger);未知 id 精确匹配;不改输入', () => {
     const entries = [
       makeEntry({ decisionId: 'a', what: { objective: 'A', status: 'in-flight' } }),
-      makeEntry({ decisionId: 'b', what: { objective: 'B', status: 'completed' } }),
+      makeEntry({ decisionId: 'b', what: { objective: 'B', status: 'sent' } }),
+      makeEntry({ decisionId: 'c', what: { objective: 'C', status: 'running' } }),
+      makeEntry({ decisionId: 'd', what: { objective: 'D', status: 'completed' } }),
+      makeEntry({ decisionId: 'e', what: { objective: 'E', status: 'done' } }),
+      makeEntry({ decisionId: 'f', what: { objective: 'F', status: 'failed' } }),
+      makeEntry({ decisionId: 'g', what: { objective: 'G', status: 'cancelled' } }),
     ];
-    expect(filterBoardEntries(entries, 'all').map((e) => e.decisionId)).toEqual(['a', 'b']);
-    expect(filterBoardEntries(entries, 'in-flight').map((e) => e.decisionId)).toEqual(['a']);
-    expect(filterBoardEntries(entries, 'failed')).toEqual([]);
-    expect(entries).toHaveLength(2);
+    expect(filterBoardEntries(entries, 'all').map((e) => e.decisionId)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+    expect(filterBoardEntries(entries, 'in-flight').map((e) => e.decisionId)).toEqual(['a', 'b', 'c']);
+    expect(filterBoardEntries(entries, 'completed').map((e) => e.decisionId)).toEqual(['d', 'e']);
+    expect(filterBoardEntries(entries, 'failed').map((e) => e.decisionId)).toEqual(['f']);
+    expect(filterBoardEntries(entries, 'cancelled').map((e) => e.decisionId)).toEqual(['g']);
+    expect(entries).toHaveLength(7);
   });
 
   it('耗时紧凑格式:38.5s → 39s / 3m / 2.1h / 2.0d;异常值空串', () => {
@@ -136,7 +143,7 @@ describe('任务24 委派树 · 归组与构建', () => {
     expect(first.bosses[0].statusGroup).toBe('danger');
   });
 
-  it('建树:在办任务置顶,其余按 latestAt 倒序(B-32)', () => {
+  it('建树:任务纯按最新活动倒序(B-34 用户口径;在办不再置顶)', () => {
     const entries = [
       makeEntry({
         decisionId: 'd-done',
@@ -151,10 +158,10 @@ describe('任务24 委派树 · 归组与构建', () => {
     ];
 
     const tasks = buildDelegationTree(entries, { now: 10_000 });
-    // 纯 latestAt 排序本应是旧任务(9000)在前;在办置顶后翻过来
-    expect(tasks.map((task) => task.label)).toEqual(['在办任务', '旧任务']);
-    expect(tasks[0]?.statusGroup).toBe('active');
-    expect(tasks[1]?.statusGroup).toBe('success');
+    // 最新的委派排最上面:旧任务(9000) 在 在办任务(1000) 之上,不再按状态抬在办
+    expect(tasks.map((task) => task.label)).toEqual(['旧任务', '在办任务']);
+    expect(tasks[0]?.statusGroup).toBe('success');
+    expect(tasks[1]?.statusGroup).toBe('active');
   });
 
   it('建树:多 Boss 分叉;bossName 缺省回退 bossId;在办条目实时耗时接线', () => {

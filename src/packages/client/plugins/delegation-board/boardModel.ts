@@ -113,9 +113,22 @@ export function boardStatusGroup(status: BoardEntryStatus): BoardStatusGroup {
   }
 }
 
-/** 通过服务端 status 过滤（'all' = 不过滤）。 */
+/**
+ * 段位过滤（B-25 段位共用；B-34 起按状态组）。
+ * 'all' = 不过滤；「进行中/已完成/失败」段位按状态组全量匹配——进行中 = active 全组
+ * （sent/in-flight/pending/queued/running）、已完成含 done；其余未知 id 仍按状态精确匹配。
+ * 注意：服务端 ?status= 仍是精确匹配（客户端只走本地过滤，不传该参数）。
+ */
+const STATUS_FILTER_GROUPS: Record<string, BoardStatusGroup> = {
+  'in-flight': 'active',
+  completed: 'success',
+  failed: 'danger',
+};
+
 export function filterBoardEntries(entries: readonly BoardEntry[], status: string): BoardEntry[] {
   if (!status || status === 'all') return [...entries];
+  const group = STATUS_FILTER_GROUPS[status];
+  if (group) return entries.filter((e) => boardStatusGroup(e.what.status) === group);
   return entries.filter((e) => e.what.status === status);
 }
 
@@ -278,9 +291,9 @@ export function buildDelegationTree(
       })),
     });
   }
-  // 任务排序（B-32）：在办置顶，其余按最新活动倒序——「现在在忙什么」第一眼可见
-  const rankOf = (node: TreeTaskNode) => (node.statusGroup === 'active' ? 0 : 1);
-  result.sort((a, b) => rankOf(a) - rankOf(b) || b.latestAt - a.latestAt);
+  // 任务排序（B-34 用户口径）：纯按最新活动倒序——最新的委派排最上面
+  // （取代 B-32「在办置顶」；「在办有哪些」由默认「进行中」段位承担）
+  result.sort((a, b) => b.latestAt - a.latestAt);
   return result;
 }
 

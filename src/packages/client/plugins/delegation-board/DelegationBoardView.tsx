@@ -24,9 +24,10 @@ function formatAbsoluteTime(timestamp: number | undefined, fallback: string): st
  */
 export function DelegationBoardView() {
   const { t } = useTranslation(['terminal', 'common']);
-  const [statusFilter, setStatusFilter] = useState('all');
+  // B-34 用户口径：默认「进行中」段位（与总览中栏 DelegationColumn 一致）
+  const [statusFilter, setStatusFilter] = useState('in-flight');
   const [selected, setSelected] = useState<BoardEntry | null>(null);
-  // 展开态 override（键 → 是否展开）：缺省按层级默认（任务/主管展开、回执收起），刷新/轮询不重置。
+  // 展开态 override（键 → 是否展开）：缺省 = 有委派数据全展开（B-34），刷新/轮询不重置。
   const [expansion, setExpansion] = useState<Map<string, boolean>>(() => new Map());
 
   const { data, loading, error, refresh, entries, tasks, statusLabel, onOpenAgent, onOpenOutput, agentExists } =

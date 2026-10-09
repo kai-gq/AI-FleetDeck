@@ -30,6 +30,8 @@ export interface DelegationTreeCallbacks {
 interface RowProps<T> {
   node: T;
   cb: DelegationTreeCallbacks;
+  /** 有委派数据 → 三层（任务/主管/委派回执）默认全展开（B-34 用户口径）；手动收起仍记 override。 */
+  expandAll: boolean;
 }
 
 function Caret({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
@@ -46,17 +48,16 @@ function entryTimestamp(entry: BoardEntry): number | undefined {
   return entry.when.delegatedAt > 0 ? entry.when.delegatedAt : undefined;
 }
 
-const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
+const TaskRow = memo(function TaskRow({ node, cb, expandAll }: RowProps<TreeTaskNode>) {
   const { t } = useTranslation(['terminal', 'common']);
-  // B-32：仅「在办」任务默认展开，历史(已完成/失败/取消)默认折叠，列表一眼是摘要
-  const defaultExpanded = node.statusGroup === 'active';
-  const expanded = cb.isExpanded(node.key, defaultExpanded);
+  // B-34 用户口径：有委派数据时全展开（替代 B-32「仅在办展开、历史折叠」）
+  const expanded = cb.isExpanded(node.key, expandAll);
   return (
     <div className="delegation-tree-task">
       <button
         type="button"
         className="delegation-tree-row is-task"
-        onClick={() => cb.onToggle(node.key, defaultExpanded)}
+        onClick={() => cb.onToggle(node.key, expandAll)}
       >
         <Icon
           name={expanded ? 'caret-down' : 'caret-right'}
@@ -80,7 +81,7 @@ const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
       {expanded && (
         <div className="delegation-tree-children">
           {node.bosses.map((boss) => (
-            <BossRow key={boss.key} node={boss} cb={cb} />
+            <BossRow key={boss.key} node={boss} cb={cb} expandAll={expandAll} />
           ))}
         </div>
       )}
@@ -88,16 +89,15 @@ const TaskRow = memo(function TaskRow({ node, cb }: RowProps<TreeTaskNode>) {
   );
 });
 
-const BossRow = memo(function BossRow({ node, cb }: RowProps<TreeBossNode>) {
+const BossRow = memo(function BossRow({ node, cb, expandAll }: RowProps<TreeBossNode>) {
   const { t } = useTranslation(['terminal', 'common']);
-  // B-32：主管行随任务行——在办默认展开，历史默认折叠
-  const defaultExpanded = node.statusGroup === 'active';
-  const expanded = cb.isExpanded(node.key, defaultExpanded);
+  // B-34：主管行随任务行——有委派数据即默认展开
+  const expanded = cb.isExpanded(node.key, expandAll);
   const canOpen = cb.agentExists(node.bossId);
   return (
     <div className="delegation-tree-boss">
       <div className="delegation-tree-row is-boss">
-        <Caret expanded={expanded} onToggle={() => cb.onToggle(node.key, defaultExpanded)} />
+        <Caret expanded={expanded} onToggle={() => cb.onToggle(node.key, expandAll)} />
         <Icon name="user-circle" size={11} className="delegation-tree-row__icon" />
         <button
           type="button"
@@ -123,7 +123,7 @@ const BossRow = memo(function BossRow({ node, cb }: RowProps<TreeBossNode>) {
       {expanded && (
         <div className="delegation-tree-children">
           {node.delegations.map((delegation) => (
-            <DelegationRow key={delegation.key} node={delegation} cb={cb} />
+            <DelegationRow key={delegation.key} node={delegation} cb={cb} expandAll={expandAll} />
           ))}
         </div>
       )}
@@ -131,10 +131,10 @@ const BossRow = memo(function BossRow({ node, cb }: RowProps<TreeBossNode>) {
   );
 });
 
-const DelegationRow = memo(function DelegationRow({ node, cb }: RowProps<TreeDelegationNode>) {
+const DelegationRow = memo(function DelegationRow({ node, cb, expandAll }: RowProps<TreeDelegationNode>) {
   const { t } = useTranslation(['terminal', 'common']);
   const { entry } = node;
-  const expanded = cb.isExpanded(node.key, false); // 回执默认收起
+  const expanded = cb.isExpanded(node.key, expandAll); // B-34：有委派数据回执也默认展开
   const canOpen = cb.agentExists(entry.who.agentId);
   const durationText =
     entry.when.durationMs !== undefined
@@ -256,10 +256,13 @@ const Receipt = memo(function Receipt({ entry, cb }: { entry: BoardEntry; cb: De
 
 /** 委派树（任务 → Boss → 每次委派 → 回执）；纯展示,全部交互经 cb 回视图。 */
 export function DelegationTree({ tasks, cb }: { tasks: TreeTaskNode[]; cb: DelegationTreeCallbacks }) {
+  // B-34 用户口径：树里有委派数据 → 三层默认全展开（一目了然,不用逐层点开）；
+  // 手动收起记入视图侧 expansion override（刷新/轮询不重置）。
+  const expandAll = tasks.length > 0;
   return (
     <div className="delegation-tree">
       {tasks.map((task) => (
-        <TaskRow key={task.key} node={task} cb={cb} />
+        <TaskRow key={task.key} node={task} cb={cb} expandAll={expandAll} />
       ))}
     </div>
   );
