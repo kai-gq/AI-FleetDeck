@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // settings + scene config panel
+import React, { useState, useEffect } from 'react'; // settings + scene config panel
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useSettings, store, useCustomAgentClassesArray } from '../../store';
@@ -56,9 +56,6 @@ const SOUND_EVENT_ROWS: Array<{
 import { BUILT_IN_AGENT_CLASSES } from '../../../shared/agent-types';
 import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
-import { ConfigRelationNote } from './ConfigRelationNote';
-import { VoiceCompanionSection } from './VoiceCompanionSection';
-import { VoiceprintSettings } from './VoiceprintSettings';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
 import { DefaultAgentSkillsSection } from './DefaultAgentSkillsSection';
@@ -77,10 +74,7 @@ import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, isValidExcludeDirName } from '../../../shared/file-search';
 import { Icon } from '../Icon';
 import { searchSettingsSections } from './settingsSearch';
-import { loadWhisperCloudConfig, saveWhisperCloudConfig, loadVolcengineCredStatus, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
-import type { WhisperCloudConfig, SttEngineMode } from '../../api/whisperCloud';
-import { loadTtsVoices, saveTtsVoices, sanitizeTuning, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../../api/ttsVoice';
-import type { TtsVoiceConfig, TtsLang } from '../../api/ttsVoice';
+import { VOICE_SETTINGS_OPEN_EVENT } from '../../utils/voiceSettingsEvents';
 import type {
   SceneConfig,
   TerrainConfig,
@@ -271,7 +265,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string; icon: string }[] = [
   { value: 'it', label: 'Italiano', icon: '🇮🇹' },
 ];
 
-export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager, onSearchQueryChange }: ConfigSectionProps) {
+export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegrationsModal, onOpenPluginsModal, onOpenMonitoringModal, onOpenStatisticsModal, onOpenWorkflowEditor, onOpenTriggerManager }: ConfigSectionProps) {
   const { t } = useTranslation(['config', 'common', 'tools']);
   const settings = useSettings();
   const customClasses = useCustomAgentClassesArray();
@@ -349,63 +343,10 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [isWhatsAppHubOpen, setIsWhatsAppHubOpen] = useState(false);
   const [codexBinaryPath, setCodexBinaryPathState] = useState('');
   const [codexBinaryPathDirty, setCodexBinaryPathDirty] = useState(false);
-  const [sttConfig, setSttConfig] = useState<WhisperCloudConfig>(DEFAULT_WHISPER_CLOUD_CONFIG);
-  const [sttDirty, setSttDirty] = useState(false);
-  const [sttLoaded, setSttLoaded] = useState(false);
-  const [sttSaving, setSttSaving] = useState(false);
-  const [sttSaved, setSttSaved] = useState(false);
-  const [sttError, setSttError] = useState<string | null>(null);
-  // 火山凭据状态(跟随「语音伙伴」config.json):null=检测中
-  const [volcCreds, setVolcCreds] = useState<boolean | null>(null);
-  const [ttsVoices, setTtsVoices] = useState<TtsVoiceConfig>(DEFAULT_TTS_VOICES);
-  const [ttsVoicesExist, setTtsVoicesExist] = useState(false);
-  const [ttsDirty, setTtsDirty] = useState(false);
-  // 语速/音量输入框的原始文本(允许编辑中的 "-"/"+" 等中间态,保存时归一化)
-  const [ttsRateInput, setTtsRateInput] = useState('0');
-  const [ttsVolumeInput, setTtsVolumeInput] = useState('0');
-  const [ttsLoaded, setTtsLoaded] = useState(false);
-  const [ttsSaving, setTtsSaving] = useState(false);
-  const [ttsSaved, setTtsSaved] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
-  const [ttsAuditioning, setTtsAuditioning] = useState<TtsLang | null>(null);
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load codex binary path from server on mount
   useEffect(() => {
     fetchCodexBinaryPath().then(setCodexBinaryPathState).catch(() => {});
-  }, []);
-
-  // Load STT cloud-channel config (tools/whisper/cloud.json) on mount
-  useEffect(() => {
-    loadWhisperCloudConfig()
-      .then(({ config }) => {
-        setSttConfig(config);
-        setSttDirty(false);
-      })
-      .catch((err) => {
-        setSttError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setSttLoaded(true));
-    // 火山凭据状态(云端识别的凭据在「语音伙伴」里配置,这里只显示有无)
-    loadVolcengineCredStatus()
-      .then(setVolcCreds)
-      .catch(() => setVolcCreds(false));
-  }, []);
-
-  // Load TTS voice config (tools/edge-tts/voices.local.json) on mount
-  useEffect(() => {
-    loadTtsVoices()
-      .then(({ config, exists }) => {
-        setTtsVoices(config);
-        setTtsRateInput(String(config.rate));
-        setTtsVolumeInput(String(config.volume));
-        setTtsVoicesExist(exists);
-        setTtsDirty(false);
-      })
-      .catch((err) => {
-        setTtsError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setTtsLoaded(true));
   }, []);
 
   // Sync echo prompt setting from server on mount
@@ -581,96 +522,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
     setCodexBinaryPathDirty(false);
   };
 
-  const handleSttModeChange = (mode: SttEngineMode) => {
-    setSttConfig((c) => ({ ...c, mode }));
-    setSttDirty(true);
-    setSttError(null);
-  };
-
-  const handleSttSave = () => {
-    setSttSaving(true);
-    setSttError(null);
-    saveWhisperCloudConfig(sttConfig)
-      .then(() => {
-        setSttDirty(false);
-        setSttSaved(true);
-        window.setTimeout(() => setSttSaved(false), 3000);
-      })
-      .catch((err) => setSttError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setSttSaving(false));
-  };
-
-  const handleTtsVoiceChange = (lang: TtsLang, value: string) => {
-    setTtsVoices((c) => ({ ...c, [lang]: value }));
-    setTtsDirty(true);
-    setTtsError(null);
-  };
-
-  // 语速/音量(-100..100 百分数,0 = 默认):与音色同一份配置一起保存/试听。
-  // 输入框保留原始文本(便于输入负号),配置里存解析后的数值(非法/空 → 0)。
-  const handleTtsTuningChange = (field: 'rate' | 'volume', raw: string) => {
-    if (field === 'rate') setTtsRateInput(raw); else setTtsVolumeInput(raw);
-    setTtsVoices((c) => ({ ...c, [field]: sanitizeTuning(raw, 0) }));
-    setTtsDirty(true);
-    setTtsError(null);
-  };
-
-  // 返回是否保存成功(试听前先保存,失败则中止)
-  const handleTtsSave = async (): Promise<boolean> => {
-    setTtsSaving(true);
-    setTtsError(null);
-    try {
-      await saveTtsVoices(ttsVoices);
-      // 保存后把输入框归一化为实际落盘值(非法中间态如 "-" 会显示为 0)
-      setTtsRateInput(String(ttsVoices.rate));
-      setTtsVolumeInput(String(ttsVoices.volume));
-      setTtsDirty(false);
-      setTtsVoicesExist(true);
-      setTtsSaved(true);
-      window.setTimeout(() => setTtsSaved(false), 3000);
-      return true;
-    } catch (err) {
-      setTtsError(`${t('config:tts.saveFailed', { defaultValue: '保存失败' })}: ${err instanceof Error ? err.message : String(err)}`);
-      return false;
-    } finally {
-      setTtsSaving(false);
-    }
-  };
-
-  const handleTtsAudition = async (lang: TtsLang) => {
-    if (ttsDirty && !(await handleTtsSave())) return;
-    // 停掉上一段试听
-    if (ttsAudioRef.current) {
-      ttsAudioRef.current.pause();
-      ttsAudioRef.current = null;
-    }
-    setTtsAuditioning(lang);
-    setTtsError(null);
-    try {
-      const res = await authFetch(apiUrl('/api/tts/speak'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: TTS_AUDITION_SAMPLES[lang], lang, rate: ttsVoices.rate, volume: ttsVoices.volume }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const url = URL.createObjectURL(await res.blob());
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      const finish = () => {
-        if (ttsAudioRef.current === audio) ttsAudioRef.current = null;
-        URL.revokeObjectURL(url);
-        setTtsAuditioning((cur) => (cur === lang ? null : cur));
-      };
-      audio.onended = finish;
-      audio.onerror = finish;
-      await audio.play();
-    } catch (err) {
-      ttsAudioRef.current = null;
-      setTtsAuditioning(null);
-      setTtsError(`${t('config:tts.auditionFailed', { defaultValue: '试听失败' })}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
   const updateTerrain = (updates: Partial<TerrainConfig>) => {
     onChange({ ...config, terrain: { ...config.terrain, ...updates } });
   };
@@ -696,27 +547,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   };
 
   const isSearching = searchQuery.trim().length > 0;
-
-  // ---- 节间互跳(关系说明条的「去 XX」):展开目标节 + 滚动定位 ----
-  const [expandSignals, setExpandSignals] = useState<Record<string, number>>({});
-  const pendingScrollRef = useRef<string | null>(null);
-
-  const requestSectionJump = (target: string) => {
-    if (isSearching) onSearchQueryChange?.(''); // 目标可能被搜索过滤掉,先清搜索
-    pendingScrollRef.current = target;
-    setExpandSignals((prev) => ({ ...prev, [target]: (prev[target] ?? 0) + 1 }));
-  };
-
-  useEffect(() => {
-    const target = pendingScrollRef.current;
-    if (!target) return;
-    pendingScrollRef.current = null;
-    // 等展开/清搜索后的 DOM 落地再滚动
-    const raf = window.requestAnimationFrame(() => {
-      document.getElementById(`config-section-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [expandSignals]);
 
   return (
     <>
@@ -1437,125 +1267,22 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
-      {/* ---- 「语音」区块:语音转文字(输入)+ 文字转语音(播报)合并为一块,内部两个子标题 ----
-          注意:两个 shouldShowSection('stt'/'tts') 标记必须保留(settingsSearch 的 id 集合断言
-          扫源码);expandSignal 取两信号之和(各自单调递增 → 任一互跳都能触发展开)。 */}
-      {(shouldShowSection('stt') || shouldShowSection('tts')) && (
-      <CollapsibleSection id="config-section-stt" expandSignal={(expandSignals.stt ?? 0) + (expandSignals.tts ?? 0)} title={t('config:sections.voice', { defaultValue: '语音' })} storageKey="stt" defaultOpen={false} forceOpen={isSearching && (shouldShowSection('stt') || shouldShowSection('tts'))}>
-        {/* 「音色设置」互跳的滚动锚点(合并后 tts 不再有独立根元素) */}
-        <div id="config-section-tts" />
-
-        {shouldShowSection('stt') && (
-        <>
-        <div className="config-group-heading">{t('config:general.stt')}</div>
-        <ConfigRelationNote
-          items={[{
-            text: t('config:voiceRelations.stt', { defaultValue: '本页引擎设置同时被:终端语音输入、语音伙伴(批量回退)、WhatsApp 转写 使用;云端凭据在「语音伙伴」里配置。' }),
-            links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
-          }]}
-          onJump={requestSectionJump}
-        />
-        <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:stt.engineMode', { defaultValue: '引擎模式' })} query={searchQuery} /></span>
-          <select className="config-select" value={sttConfig.mode} onChange={(e) => handleSttModeChange(e.target.value as SttEngineMode)}>
-            <option value="auto">{t('config:stt.modeAuto', { defaultValue: '自动(云优先,失败回退本地)' })}</option>
-            <option value="local">{t('config:stt.modeLocal', { defaultValue: '仅本地(离线)' })}</option>
-            <option value="cloud">{t('config:stt.modeCloud', { defaultValue: '仅云端(失败不回退)' })}</option>
-          </select>
-        </div>
-        <div className="config-row config-row-stacked">
-          <span className="config-hint">{t('config:stt.cloudHint', { defaultValue: '云端识别 = 火山引擎(字节);凭据复用「语音伙伴」的火山配置,云端模式会把语音上传服务商。' })}</span>
-          {sttLoaded && volcCreds !== null && (
-            <span className="config-hint">{volcCreds ? t('config:stt.statusVolcConfigured', { defaultValue: '火山凭据已配置' }) : sttConfig.mode === 'cloud' ? t('config:stt.cloudNeedsCred', { defaultValue: '⚠ 仅云端模式未配置火山凭据,语音识别将不可用(去「语音伙伴」填)' }) : t('config:stt.statusNoCred', { defaultValue: '未配置火山凭据(「自动」= 纯本地识别)' })}</span>
-          )}
-          {sttError && (
-            <span className="config-hint">{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
-          )}
-          {(sttDirty || sttSaved) && (
-            <button className="config-btn config-btn-sm" onClick={handleSttSave} disabled={sttSaving}>{sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
-          )}
-        </div>
-        </>
-        )}
-
-        {shouldShowSection('tts') && (
-        <>
-        <div className="config-group-heading">{t('config:general.tts')}</div>
-        <ConfigRelationNote
-          items={[{
-            text: t('config:voiceRelations.tts', { defaultValue: '本页音色同时被:语音伙伴播报、终端逐行朗读 使用。' }),
-            links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
-          }]}
-          onJump={requestSectionJump}
-        />
-        {(['zh', 'en', 'es'] as const).map((lang) => (
-          <div className="config-row" key={lang}>
-            <span className="config-label"><HighlightText text={TTS_LANG_LABELS[lang]} query={searchQuery} /></span>
-            <select className="config-select" value={ttsVoices[lang]} onChange={(e) => handleTtsVoiceChange(lang, e.target.value)}>
-              {TTS_VOICE_OPTIONS[lang].map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
-              {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
-            </button>
-          </div>
-        ))}
-        <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:tts.rate', { defaultValue: '语速(%)' })} query={searchQuery} /></span>
-          <input
-            type="text"
-            inputMode="numeric"
-            className="config-input config-input-sm"
-            value={ttsRateInput}
-            placeholder="0"
-            onChange={(e) => handleTtsTuningChange('rate', e.target.value)}
-          />
-          <span className="config-hint">{t('config:tts.rateHint', { defaultValue: '负值更慢,正值更快;0 = 原速' })}</span>
-        </div>
-        <div className="config-row">
-          <span className="config-label"><HighlightText text={t('config:tts.volume', { defaultValue: '音量(%)' })} query={searchQuery} /></span>
-          <input
-            type="text"
-            inputMode="numeric"
-            className="config-input config-input-sm"
-            value={ttsVolumeInput}
-            placeholder="0"
-            onChange={(e) => handleTtsTuningChange('volume', e.target.value)}
-          />
-          <span className="config-hint">{t('config:tts.volumeHint', { defaultValue: '负值更轻,正值更响;0 = 原音量' })}</span>
-        </div>
-        <div className="config-row config-row-stacked">
-          <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费);语速/音量取值 -100..100(百分数);试听会先保存再播放,保存后下一句播报立即生效。' })}</span>
-          {ttsLoaded && (
-            <span className="config-hint">{ttsVoicesExist ? t('config:tts.statusCustom', { defaultValue: '已自定义音色' }) : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}</span>
-          )}
-          {ttsError && (
-            <span className="config-hint">{ttsError}</span>
-          )}
-          {(ttsDirty || ttsSaved) && (
-            <button className="config-btn config-btn-sm" onClick={handleTtsSave} disabled={ttsSaving}>{ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
-          )}
-        </div>
-        </>
-        )}
-      </CollapsibleSection>
-      )}
-
+      {/* ---- 语音设置已迁出为顶栏话筒弹窗(VoiceSettingsModal):此处只剩「已迁出」跳转条 ----
+          铁律:voiceCompanion 标记必须保留(冻结的 settingsSearch.test.ts 扫源码做 id 集合
+          等值断言,settingsSearch.ts 索引里也保留 voiceCompanion 条目);stt/tts 的
+          shouldShowSection 标记与 HighlightText 不得再出现(否则冻结测试的解析会失衡)。 */}
       {shouldShowSection('voiceCompanion') && (
-      <CollapsibleSection id="config-section-voiceCompanion" expandSignal={expandSignals.voiceCompanion} title={t('config:voiceCompanion.sectionTitle', { defaultValue: '语音伙伴' })} storageKey="voiceCompanion" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceCompanion')}>
-        <ConfigRelationNote
-          items={[{
-            text: t('config:voiceRelations.companion', { defaultValue: '实时转写=本页火山配置;批量回退→语音转文字;播报音色→文字转语音。' }),
-            links: [
-              { label: t('config:voiceRelations.goStt', { defaultValue: '转写设置' }), target: 'stt' },
-              { label: t('config:voiceRelations.goTts', { defaultValue: '音色设置' }), target: 'tts' },
-            ],
-          }]}
-          onJump={requestSectionJump}
-        />
-        <VoiceCompanionSection searchQuery={searchQuery} />
-        <VoiceprintSettings />
+      <CollapsibleSection id="config-section-voiceCompanion" title={t('config:sections.voice', { defaultValue: '语音' })} storageKey="voiceCompanion" defaultOpen={false} forceOpen={isSearching && shouldShowSection('voiceCompanion')}>
+        <div className="config-row config-row-stacked">
+          <span className="config-hint">{t('config:voiceRelations.moved', { defaultValue: '语音设置(语音转文字 / 文字转语音 / 语音伙伴·声纹)已移至顶栏右上角话筒按钮。' })}</span>
+          <button
+            type="button"
+            className="config-btn config-btn-sm"
+            onClick={() => window.dispatchEvent(new Event(VOICE_SETTINGS_OPEN_EVENT))}
+          >
+            {t('config:voiceRelations.movedOpen', { defaultValue: '打开语音设置' })}
+          </button>
+        </div>
       </CollapsibleSection>
       )}
 
