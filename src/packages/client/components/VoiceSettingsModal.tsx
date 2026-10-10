@@ -293,25 +293,51 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
                 }]}
                 onJump={(target) => selectTab(target as VoiceTab)}
               />
-              <div className="config-row">
-                <span className="config-label">{t('config:stt.engineMode', { defaultValue: '引擎模式' })}</span>
-                <select className="config-select" value={sttConfig.mode} onChange={(e) => handleSttModeChange(e.target.value as SttEngineMode)}>
-                  <option value="auto">{t('config:stt.modeAuto', { defaultValue: '自动(云优先,失败回退本地)' })}</option>
-                  <option value="local">{t('config:stt.modeLocal', { defaultValue: '仅本地(离线)' })}</option>
-                  <option value="cloud">{t('config:stt.modeCloud', { defaultValue: '仅云端(失败不回退)' })}</option>
-                </select>
+
+              <div className="voice-section">
+                <div className="voice-section-title">{t('config:stt.engineSection', { defaultValue: '识别引擎' })}</div>
+                <div className="config-row">
+                  <span className="config-label">{t('config:stt.engineMode', { defaultValue: '引擎模式' })}</span>
+                  <select className="config-select" value={sttConfig.mode} onChange={(e) => handleSttModeChange(e.target.value as SttEngineMode)}>
+                    <option value="auto">{t('config:stt.modeAuto', { defaultValue: '自动(云优先,失败回退本地)' })}</option>
+                    <option value="local">{t('config:stt.modeLocal', { defaultValue: '仅本地(离线)' })}</option>
+                    <option value="cloud">{t('config:stt.modeCloud', { defaultValue: '仅云端(失败不回退)' })}</option>
+                  </select>
+                </div>
+                <div className="config-row config-row-stacked">
+                  <span className="config-hint">{t('config:stt.cloudHint', { defaultValue: '云端识别 = 火山引擎(字节);凭据复用「语音伙伴」的火山配置,云端模式会把语音上传服务商。' })}</span>
+                </div>
               </div>
-              <div className="config-row config-row-stacked">
-                <span className="config-hint">{t('config:stt.cloudHint', { defaultValue: '云端识别 = 火山引擎(字节);凭据复用「语音伙伴」的火山配置,云端模式会把语音上传服务商。' })}</span>
-                {sttLoaded && volcCreds !== null && (
-                  <span className="config-hint">{volcCreds ? t('config:stt.statusVolcConfigured', { defaultValue: '火山凭据已配置' }) : sttConfig.mode === 'cloud' ? t('config:stt.cloudNeedsCred', { defaultValue: '⚠ 仅云端模式未配置火山凭据,语音识别将不可用(去「语音伙伴」填)' }) : t('config:stt.statusNoCred', { defaultValue: '未配置火山凭据(「自动」= 纯本地识别)' })}</span>
-                )}
-                {sttError && (
-                  <span className="config-hint">{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
-                )}
-                {(sttDirty || sttSaved) && (
-                  <button className="config-btn config-btn-sm" onClick={handleSttSave} disabled={sttSaving}>{sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
-                )}
+
+              {sttLoaded && volcCreds !== null && (
+                <div className={`voice-status${volcCreds ? ' voice-status--ok' : sttConfig.mode === 'cloud' ? ' voice-status--warn' : ''}`}>
+                  <span className="voice-status-dot" />
+                  <span>
+                    {volcCreds
+                      ? t('config:stt.statusVolcConfigured', { defaultValue: '火山凭据已配置,云端识别可用' })
+                      : sttConfig.mode === 'cloud'
+                        ? t('config:stt.cloudNeedsCred', { defaultValue: '仅云端模式未配置火山凭据,语音识别将不可用' })
+                        : t('config:stt.statusNoCred', { defaultValue: '未配置火山凭据(「自动」= 纯本地识别)' })}
+                  </span>
+                  {!volcCreds && (
+                    <button type="button" className="voice-status-action" onClick={() => selectTab('companion')}>
+                      {t('config:stt.statusGoFill', { defaultValue: '去「语音伙伴」填写' })}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {sttError && (
+                <div className="voice-status voice-status--error">
+                  <span className="voice-status-dot" />
+                  <span>{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
+                </div>
+              )}
+
+              <div className="voice-actions">
+                <button className={`config-btn voice-save-btn${sttSaved ? ' is-saved' : ''}`} onClick={handleSttSave} disabled={sttSaving || !(sttDirty || sttSaved)}>
+                  {sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}
+                </button>
               </div>
             </>
           )}
@@ -325,54 +351,80 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
                 }]}
                 onJump={(target) => selectTab(target as VoiceTab)}
               />
-              {(['zh', 'en', 'es'] as const).map((lang) => (
-                <div className="config-row" key={lang}>
-                  <span className="config-label">{TTS_LANG_LABELS[lang]}</span>
-                  <select className="config-select" value={ttsVoices[lang]} onChange={(e) => handleTtsVoiceChange(lang, e.target.value)}>
-                    {TTS_VOICE_OPTIONS[lang].map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                  <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
-                    {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
-                  </button>
+
+              <div className="voice-section">
+                <div className="voice-section-title">{t('config:tts.voicesSection', { defaultValue: '播报音色' })}</div>
+                {(['zh', 'en', 'es'] as const).map((lang) => (
+                  <div className="config-row" key={lang}>
+                    <span className="config-label">{TTS_LANG_LABELS[lang]}</span>
+                    <div className="voice-control-group">
+                      <select className="config-select" value={ttsVoices[lang]} onChange={(e) => handleTtsVoiceChange(lang, e.target.value)}>
+                        {TTS_VOICE_OPTIONS[lang].map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
+                        {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="config-row config-row-stacked">
+                  <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费)。' })}</span>
                 </div>
-              ))}
-              <div className="config-row">
-                <span className="config-label">{t('config:tts.rate', { defaultValue: '语速(%)' })}</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="config-input config-input-sm"
-                  value={ttsRateInput}
-                  placeholder="0"
-                  onChange={(e) => handleTtsTuningChange('rate', e.target.value)}
-                />
-                <span className="config-hint">{t('config:tts.rateHint', { defaultValue: '负值更慢,正值更快;0 = 原速' })}</span>
               </div>
-              <div className="config-row">
-                <span className="config-label">{t('config:tts.volume', { defaultValue: '音量(%)' })}</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="config-input config-input-sm"
-                  value={ttsVolumeInput}
-                  placeholder="0"
-                  onChange={(e) => handleTtsTuningChange('volume', e.target.value)}
-                />
-                <span className="config-hint">{t('config:tts.volumeHint', { defaultValue: '负值更轻,正值更响;0 = 原音量' })}</span>
+
+              <div className="voice-section">
+                <div className="voice-section-title">{t('config:tts.tuningSection', { defaultValue: '语速与音量' })}</div>
+                <div className="config-row">
+                  <span className="config-label">{t('config:tts.rate', { defaultValue: '语速(%)' })}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="config-input config-input-sm voice-tuning-input"
+                    value={ttsRateInput}
+                    placeholder="0"
+                    onChange={(e) => handleTtsTuningChange('rate', e.target.value)}
+                  />
+                </div>
+                <div className="config-row">
+                  <span className="config-label">{t('config:tts.volume', { defaultValue: '音量(%)' })}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="config-input config-input-sm voice-tuning-input"
+                    value={ttsVolumeInput}
+                    placeholder="0"
+                    onChange={(e) => handleTtsTuningChange('volume', e.target.value)}
+                  />
+                </div>
+                <div className="config-row config-row-stacked">
+                  <span className="config-hint">{t('config:tts.tuningHint', { defaultValue: '取值 -100..100(百分数):语速负值更慢、正值更快;音量负值更轻、正值更响;0 = 默认。' })}</span>
+                </div>
               </div>
-              <div className="config-row config-row-stacked">
-                <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费);语速/音量取值 -100..100(百分数);试听会先保存再播放,保存后下一句播报立即生效。' })}</span>
-                {ttsLoaded && (
-                  <span className="config-hint">{ttsVoicesExist ? t('config:tts.statusCustom', { defaultValue: '已自定义音色' }) : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}</span>
-                )}
-                {ttsError && (
-                  <span className="config-hint">{ttsError}</span>
-                )}
-                {(ttsDirty || ttsSaved) && (
-                  <button className="config-btn config-btn-sm" onClick={handleTtsSave} disabled={ttsSaving}>{ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
-                )}
+
+              {ttsLoaded && (
+                <div className={`voice-status${ttsVoicesExist ? ' voice-status--ok' : ''}`}>
+                  <span className="voice-status-dot" />
+                  <span>
+                    {ttsVoicesExist
+                      ? t('config:tts.statusCustom', { defaultValue: '已自定义音色(下一句播报立即生效)' })
+                      : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}
+                  </span>
+                </div>
+              )}
+
+              {ttsError && (
+                <div className="voice-status voice-status--error">
+                  <span className="voice-status-dot" />
+                  <span>{ttsError}</span>
+                </div>
+              )}
+
+              <div className="voice-actions">
+                <button className={`config-btn voice-save-btn${ttsSaved ? ' is-saved' : ''}`} onClick={handleTtsSave} disabled={ttsSaving || !(ttsDirty || ttsSaved)}>
+                  {ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}
+                </button>
               </div>
             </>
           )}

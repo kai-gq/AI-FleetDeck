@@ -1,13 +1,40 @@
 @use '../variables' as *;
 
 // 语音设置弹窗(VoiceSettingsModal;顶栏话筒按钮入口)。
-// 外壳复用 shortcuts-modal,内容行复用全局 .config-*;这里只定义 3 标签条。
+// 外壳复用 shortcuts-modal;内容行沿用全局 .config-* 类 —— 这些类为工具箱
+// 密集面板而设(9-11px 字号/伪斜体提示),弹窗里整体升一档字号/间距/留白
+// (B-37 商业化排版)。作用域限定本弹窗,不影响工具箱;冻结组件
+// (VoiceCompanionSection / VoiceprintSettings)的 config 行自动同享这档升级。
 .voice-settings-modal {
-  // 标签页(语音转文字 / 文字转语音 / 语音伙伴)
+  // ---- 外壳留白对齐(标题 / 标签 / 内容 / 底栏同一竖线)----
+  // flex-shrink:0:内容超高时(语音伙伴标签)防止 header/标签条/底栏被压缩截断
+  > .shortcuts-modal-header,
+  > .voice-settings-tabs,
+  > .shortcuts-modal-footer {
+    flex-shrink: 0;
+  }
+
+  .shortcuts-modal-header {
+    padding: 16px 24px;
+  }
+
+  .shortcuts-modal-content {
+    padding: 18px 24px 22px;
+  }
+
+  .shortcuts-modal-footer {
+    padding: 12px 24px;
+  }
+
+  .shortcuts-modal-hint {
+    font-size: 12px;
+  }
+
+  // ---- 标签条(语音转文字 / 文字转语音 / 语音伙伴)----
   .voice-settings-tabs {
     display: flex;
     gap: 4px;
-    padding: 0 20px;
+    padding: 0 24px;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-tertiary);
     overflow-x: auto; // 窄屏(移动端)横滚,标签不折行
@@ -18,9 +45,9 @@
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: 9px 12px;
+    padding: 11px 14px;
     margin-bottom: -1px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-muted);
     cursor: pointer;
     white-space: nowrap;
@@ -37,8 +64,264 @@
     }
   }
 
-  // 弹窗内容里关系条贴紧首行
+  // ---- 字号/间距升档(覆盖工具箱密集排版)----
+  .config-row {
+    margin-bottom: 8px;
+    min-height: 30px;
+  }
+
+  .config-row-stacked {
+    margin-bottom: 6px;
+  }
+
+  .config-label {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .config-hint {
+    font-size: 12px;
+    font-style: normal; // 中文不适合伪斜体
+    line-height: 1.6;
+  }
+
+  .config-input {
+    width: 72px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+
+    &.config-input-sm {
+      width: 80px;
+    }
+
+    &.config-input-full {
+      width: 100%;
+    }
+  }
+
+  .config-select {
+    min-width: 220px;
+    max-width: 100%;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+
+  .config-btn {
+    padding: 7px 16px;
+    font-size: 12.5px;
+    border-radius: $radius-md;
+
+    &.config-btn-sm {
+      padding: 7px 14px; // 弹窗里不再按工具箱的紧凑尺寸
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  }
+
+  .config-btn-link {
+    font-size: 12.5px;
+  }
+
+  // 开关放大一档(工具箱 32x18 → 42x24)
+  .config-toggle {
+    width: 42px;
+    height: 24px;
+
+    .config-toggle-track {
+      border-radius: 12px;
+    }
+
+    .config-toggle-thumb {
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .config-toggle-input:checked + .config-toggle-track .config-toggle-thumb {
+      left: calc(100% - 19px);
+    }
+  }
+
+  // 组标题 = 分区标题(带上分隔线)——语音伙伴/声纹门禁等冻结组件共用
+  .config-group-heading {
+    margin: 22px 0 12px;
+    padding: 18px 0 0;
+    border-top: 1px solid var(--border-color);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-transform: none;
+    color: var(--text-primary);
+
+    &:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+  }
+
+  // ---- 自有分区(识别引擎 / 播报音色 / 语速与音量)----
+  .voice-section {
+    & + .voice-section {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border-color);
+    }
+  }
+
+  .voice-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text-primary);
+
+    &::before {
+      content: '';
+      width: 3px;
+      height: 13px;
+      border-radius: 2px;
+      background: var(--accent-cyan);
+    }
+  }
+
+  // 试听行:下拉 + 按钮成组(随 .config-row 的 space-between 贴右)
+  .voice-control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .voice-tuning-input {
+    text-align: right;
+  }
+
+  // ---- 状态卡(凭据状态 / 自定义状态 / 错误)----
+  .voice-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .voice-status-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .voice-status--ok {
+    border-color: color-mix(in srgb, var(--accent-green) 35%, transparent);
+
+    .voice-status-dot {
+      background: var(--accent-green);
+    }
+  }
+
+  .voice-status--warn {
+    border-color: color-mix(in srgb, var(--accent-orange) 45%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 7%, transparent);
+
+    .voice-status-dot {
+      background: var(--accent-orange);
+    }
+  }
+
+  .voice-status--error {
+    border-color: color-mix(in srgb, var(--accent-red) 45%, transparent);
+    background: color-mix(in srgb, var(--accent-red) 7%, transparent);
+    color: var(--accent-red);
+
+    .voice-status-dot {
+      background: var(--accent-red);
+    }
+  }
+
+  .voice-status-action {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    font-size: 12.5px;
+    color: var(--accent-cyan);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: color-mix(in srgb, var(--accent-cyan) 80%, white);
+    }
+  }
+
+  // ---- 保存动作行(右对齐;干净/保存中置灰)----
+  .voice-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  .voice-save-btn.is-saved {
+    background: color-mix(in srgb, var(--accent-green) 18%, transparent);
+    color: var(--accent-green);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 45%, transparent);
+  }
+
+  // ---- 关系说明横幅(内容区顶部,引导 + 互跳)----
   .config-relation-note {
-    margin-bottom: 10px;
+    margin: 0 0 18px;
+    padding: 10px 14px;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 1.55;
+    border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+    border-left: 3px solid color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+    border-radius: $radius-md;
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  }
+
+  .config-relation-link {
+    font-size: 12px;
+  }
+
+  // ---- 移动端:行内换行,控件不溢出 ----
+  @media (max-width: 560px) {
+    .shortcuts-modal-content {
+      padding: 14px 14px 18px;
+    }
+
+    .config-row {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+
+    .config-select {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .voice-control-group {
+      margin-left: auto;
+    }
   }
 }
