@@ -66,6 +66,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { profileRender, useRenderCounter } from './utils/profiling';
 import { dockBuilding } from './utils/buildingViewMode';
 import { getStorageString, STORAGE_KEYS } from './utils/storage';
+import { VOICE_SETTINGS_OPEN_EVENT } from './utils/voiceSettingsEvents';
 import { preloadTones } from './utils/notificationSounds';
 import type { SessionFinderOpenData } from './components/SessionSearchModal';
 import type { SpawnModalInitialSession } from './components/SpawnModal';
@@ -123,6 +124,7 @@ function AppContent() {
   const bossSpawnModal = useModalState();
   const subordinateModal = useModalState<string>();
   const toolboxModal = useModalState();
+  const voiceSettingsModal = useModalState();
   const commanderModal = useModalState();
   const deleteConfirmModal = useModalState();
   const spotlightModal = useModalState();
@@ -460,6 +462,7 @@ function AppContent() {
   useModalStackRegistration('boss-spawn-modal', bossSpawnModal.isOpen, bossSpawnModal.close);
   useModalStackRegistration('subordinate-modal', subordinateModal.isOpen, subordinateModal.close);
   useModalStackRegistration('toolbox-modal', toolboxModal.isOpen, toolboxModal.close);
+  useModalStackRegistration('voice-settings-modal', voiceSettingsModal.isOpen, voiceSettingsModal.close);
   useModalStackRegistration('commander-modal', commanderModal.isOpen, commanderModal.close);
   useModalStackRegistration('delete-confirm-modal', deleteConfirmModal.isOpen, deleteConfirmModal.close);
   useModalStackRegistration('spotlight-modal', spotlightModal.isOpen, spotlightModal.close);
@@ -486,6 +489,14 @@ function AppContent() {
   useModalStackRegistration('context-modal', contextModalAgentId !== null, () => store.closeContextModal());
   useModalStackRegistration('terminal', terminalOpen, () => store.setTerminalOpen(false));
   useModalStackRegistration('pm2-logs-modal', pm2LogsModalBuildingId !== null, () => setPm2LogsModalBuildingId(null));
+
+  // 语音设置弹窗的外部入口(设置面板「已迁出」跳转条等派发 window 事件;
+  // 监听放 App 层,弹窗懒加载未挂载时入口也有效)
+  useEffect(() => {
+    const onOpen = () => voiceSettingsModal.open();
+    window.addEventListener(VOICE_SETTINGS_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(VOICE_SETTINGS_OPEN_EVENT, onOpen);
+  }, [voiceSettingsModal.open]);
   useModalStackRegistration('boss-logs-modal', bossLogsModalBuildingId !== null, () => setBossLogsModalBuildingId(null));
   useModalStackRegistration('database-panel', databasePanelBuildingId !== null, closeDatabasePanel);
   useModalStackRegistration('terminal-modal', terminalModalBuildingId !== null, closeTerminalModal);
@@ -945,6 +956,7 @@ function AppContent() {
       <TopBar
         onOpenSpotlight={spotlightModal.open}
         onOpenToolbox={toolboxModal.open}
+        onOpenVoiceSettings={voiceSettingsModal.open}
         onSpawnAgent={() => spawnModal.open()}
         onSpawnBoss={() => bossSpawnModal.open()}
       />
@@ -992,7 +1004,7 @@ function AppContent() {
           )}
           <React.Suspense fallback={null}>
           {viewMode === 'home' ? (
-            <FleetDeckHome onOpenToolbox={toolboxModal.open} />
+            <FleetDeckHome onOpenVoiceSettings={voiceSettingsModal.open} />
           ) : viewMode === 'commander' ? (
             <FleetDeckCommander />
           ) : viewMode === 'flat' ? (
@@ -1264,6 +1276,7 @@ function AppContent() {
           onShowTerminal={handleShowTerminal}
           onOpenSidebar={handleOpenSidebar}
           onOpenToolbox={toolboxModal.open}
+          onOpenVoiceSettings={voiceSettingsModal.open}
           onOpenSpotlight={spotlightModal.open}
           onOpenCommander={commanderModal.open}
           onOpenControls={controlsModal.open}
@@ -1704,6 +1717,7 @@ function AppContent() {
         bossSpawnModal={bossSpawnModal}
         subordinateModal={subordinateModal}
         toolboxModal={toolboxModal}
+        voiceSettingsModal={voiceSettingsModal}
         commanderModal={commanderModal}
         deleteConfirmModal={deleteConfirmModal}
         spotlightModal={spotlightModal}

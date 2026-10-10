@@ -8,8 +8,8 @@ import { HomeTour } from './HomeTour';
 import './FleetDeckHome.scss';
 
 export interface FleetDeckHomeProps {
-  /** 「去开启」语音引导卡 → 工具箱（App 注入，保持本组件无 App 依赖）。 */
-  onOpenToolbox?: () => void;
+  /** 「去开启」语音引导卡 → 语音设置弹窗（App 注入，保持本组件无 App 依赖）。 */
+  onOpenVoiceSettings?: () => void;
 }
 
 /**
@@ -17,13 +17,13 @@ export interface FleetDeckHomeProps {
  * 数据全部来自现有 store + 现有 API；三栏在 ≤1100px 折起语音栏、≤760px 单列堆叠；
  * 2D 窗格自身只在 ≥1320px 挂载（窄窗回落原三栏，组件返回 null）。
  */
-export function FleetDeckHome({ onOpenToolbox }: FleetDeckHomeProps) {
+export function FleetDeckHome({ onOpenVoiceSettings }: FleetDeckHomeProps) {
   return (
     <div className="fleetdeck-home">
       <FleetStatusColumn />
       <Scene2DPane />
       <DelegationColumn />
-      <VoiceSessionStream onOpenVoiceSettings={onOpenToolbox} />
+      <VoiceSessionStream onOpenVoiceSettings={onOpenVoiceSettings} />
       <DeckStatusBar />
       {/* 首次使用导游（B-33）：走 ModalPortal 挂 body（position:fixed，不占 grid 格） */}
       <HomeTour />

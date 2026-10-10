@@ -28,13 +28,14 @@ import './fleetdeck-light-overrides.scss';
 export interface TopBarProps {
   onOpenSpotlight: () => void;
   onOpenToolbox: () => void;
+  onOpenVoiceSettings: () => void;
   onSpawnAgent: () => void;
   onSpawnBoss: () => void;
 }
 
 type OpenMenu = 'new' | null;
 
-export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBoss }: TopBarProps) {
+export function TopBar({ onOpenSpotlight, onOpenToolbox, onOpenVoiceSettings, onSpawnAgent, onSpawnBoss }: TopBarProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const viewMode = useAppViewMode();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
@@ -153,12 +154,22 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
 
         <button
           type="button"
-          className="top-bar__btn"
+          className="top-bar__btn top-bar__settings"
           onClick={onOpenToolbox}
           title={t('terminal:topBar.settingsHint', { defaultValue: 'Settings (Ctrl+,)' })}
           aria-label={t('terminal:topBar.settings', { defaultValue: 'Settings' })}
         >
           <Icon name="gear" size={16} />
+        </button>
+
+        <button
+          type="button"
+          className="top-bar__btn top-bar__voice"
+          onClick={onOpenVoiceSettings}
+          title={t('terminal:topBar.voiceSettingsHint', { defaultValue: '语音设置(语音转文字 / 文字转语音 / 语音伙伴·声纹)' })}
+          aria-label={t('terminal:topBar.voiceSettings', { defaultValue: '语音设置' })}
+        >
+          <Icon name="microphone" size={16} />
         </button>
 
         <div className="top-bar__menu-wrap">

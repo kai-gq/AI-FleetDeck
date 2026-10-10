@@ -19,6 +19,7 @@ interface MobileFabMenuProps {
   onShowTerminal: () => void;
   onOpenSidebar: () => void;
   onOpenToolbox: () => void;
+  onOpenVoiceSettings: () => void;
   onOpenSpotlight: () => void;
   onOpenCommander: () => void;
   onOpenControls: () => void;
@@ -39,6 +40,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
   onShowTerminal,
   onOpenSidebar,
   onOpenToolbox,
+  onOpenVoiceSettings,
   onOpenSpotlight,
   onOpenCommander,
   onOpenControls,
@@ -160,6 +162,17 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             title={t('common:floatingButtons.controls')}
           >
             <Icon name="keyboard" size={18} />
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => handleAction(onOpenVoiceSettings)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleAction(onOpenVoiceSettings);
+            }}
+            title={t('common:floatingButtons.voiceSettings', { defaultValue: '语音设置' })}
+          >
+            <Icon name="speaker-on" size={18} />
           </button>
           <button
             className="mobile-fab-option"

@@ -18,6 +18,7 @@ const SpawnModal = React.lazy(() => import('./SpawnModal').then(m => ({ default:
 const BossSpawnModal = React.lazy(() => import('./BossSpawnModal').then(m => ({ default: m.BossSpawnModal })));
 const SubordinateAssignmentModal = React.lazy(() => import('./SubordinateAssignmentModal').then(m => ({ default: m.SubordinateAssignmentModal })));
 const Toolbox = React.lazy(() => import('./toolbox').then(m => ({ default: m.Toolbox })));
+const VoiceSettingsModal = React.lazy(() => import('./VoiceSettingsModal').then(m => ({ default: m.VoiceSettingsModal })));
 const BuildingConfigModal = React.lazy(() => import('./BuildingConfigModal').then(m => ({ default: m.BuildingConfigModal })));
 const CommanderView = React.lazy(() => import('./CommanderView').then(m => ({ default: m.CommanderView })));
 const FileExplorerPanel = React.lazy(() => import('./FileExplorerPanel').then(m => ({ default: m.FileExplorerPanel })));
@@ -40,6 +41,7 @@ interface AppModalsProps {
   bossSpawnModal: UseModalState;
   subordinateModal: UseModalState<string>;
   toolboxModal: UseModalState;
+  voiceSettingsModal: UseModalState;
   commanderModal: UseModalState;
   deleteConfirmModal: UseModalState;
   spotlightModal: UseModalState;
@@ -98,6 +100,7 @@ export function AppModals({
   bossSpawnModal,
   subordinateModal,
   toolboxModal,
+  voiceSettingsModal,
   commanderModal,
   deleteConfirmModal,
   spotlightModal,
@@ -186,6 +189,9 @@ export function AppModals({
         onOpenWorkflowEditor={() => workflowEditorModal.open()}
         onOpenTriggerManager={() => triggerManagerModal.open()}
       />
+
+      {/* Voice Settings Modal (顶栏话筒 / FAB / 设置面板「已迁出」入口) */}
+      <VoiceSettingsModal isOpen={voiceSettingsModal.isOpen} onClose={voiceSettingsModal.close} />
 
       {/* Building Config Modal */}
       <BuildingConfigModal
