@@ -53,7 +53,7 @@ export function IntegrationStatusPanel({ onOpenModal }: IntegrationStatusPanelPr
         const icon = INTEGRATION_ICONS[integration.id] || '\uD83D\uDD0C';
         const hasError = !!integration.status.error;
         const connected = integration.status.connected;
-        const statusColor = hasError ? '#f38ba8' : connected ? '#a6e3a1' : '#fab387';
+        const statusColor = hasError ? 'var(--accent-red, #f38ba8)' : connected ? 'var(--accent-green, #a6e3a1)' : 'var(--accent-orange, #fab387)';
         const statusText = hasError
           ? t('config:integrationStatusPanel.statusError', { defaultValue: 'Error' })
           : connected

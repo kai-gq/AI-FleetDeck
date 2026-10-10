@@ -112,7 +112,7 @@ const S = {
     width: 6,
     height: 6,
     borderRadius: '50%',
-    background: hasError ? '#f38ba8' : connected ? '#a6e3a1' : '#fab387',
+    background: hasError ? 'var(--accent-red, #f38ba8)' : connected ? 'var(--accent-green, #a6e3a1)' : 'var(--accent-orange, #fab387)',
     flexShrink: 0,
   }),
   body: {
@@ -163,8 +163,8 @@ const S = {
     borderRadius: 10,
     fontSize: 11,
     fontWeight: 600,
-    background: hasError ? 'rgba(243, 139, 168, 0.15)' : connected ? 'rgba(166, 227, 161, 0.15)' : 'rgba(250, 179, 135, 0.15)',
-    color: hasError ? '#f38ba8' : connected ? '#a6e3a1' : '#fab387',
+    background: hasError ? 'color-mix(in srgb, var(--accent-red) 15%, transparent)' : connected ? 'color-mix(in srgb, var(--accent-green) 15%, transparent)' : 'color-mix(in srgb, var(--accent-orange) 15%, transparent)',
+    color: hasError ? 'var(--accent-red, #f38ba8)' : connected ? 'var(--accent-green, #a6e3a1)' : 'var(--accent-orange, #fab387)',
   }),
   section: {
     marginTop: 16,
@@ -296,7 +296,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
 
   const errorStyle = {
     fontSize: 11,
-    color: '#f38ba8',
+    color: 'var(--accent-red, #f38ba8)',
   };
 
   const renderField = (field: ConfigField) => {
@@ -329,7 +329,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
 
   return (
     <form onSubmit={handleSubmit}>
-      {errors._form && <div style={{ ...errorStyle, marginBottom: 12, padding: '8px 10px', borderRadius: 6, background: 'rgba(243, 139, 168, 0.1)' }}>{errors._form}</div>}
+      {errors._form && <div style={{ ...errorStyle, marginBottom: 12, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--accent-red) 10%, transparent)' }}>{errors._form}</div>}
       {Array.from(groups.entries()).map(([groupName, fields]) => (
         <div key={groupName || '_default'}>
           {groupName && <div style={{ ...S.sectionTitle, marginTop: 16, marginBottom: 8 }}>{groupName}</div>}
@@ -338,7 +338,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
               {field.type !== 'boolean' && (
                 <label style={labelStyle}>
                   {field.label}
-                  {field.required && <span style={{ color: '#f38ba8', marginLeft: 2 }}>*</span>}
+                  {field.required && <span style={{ color: 'var(--accent-red, #f38ba8)', marginLeft: 2 }}>*</span>}
                 </label>
               )}
               {renderField(field)}
@@ -350,7 +350,7 @@ function IntegrationSettingsForm({ integration, onSave, onCancel }: { integratio
       ))}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border, #313244)' }}>
         <button type="button" onClick={onCancel} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-secondary, #a6adc8)', fontSize: 13, cursor: 'pointer' }}>{t('common:buttons.cancel')}</button>
-        <button type="submit" disabled={saving} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: saveSuccess ? '#a6e3a1' : 'var(--accent, #89b4fa)', color: saveSuccess ? '#1e1e2e' : '#1e1e2e', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+        <button type="submit" disabled={saving} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: saveSuccess ? 'var(--accent-green, #a6e3a1)' : 'var(--accent, #89b4fa)', color: 'var(--bg-primary, #1e1e2e)', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
           {saving ? t('terminal:fileExplorer.saving') : saveSuccess ? t('config:integrationsPanel.saved', { defaultValue: 'Saved' }) : t('config:integrationsPanel.saveConfiguration', { defaultValue: 'Save Configuration' })}
         </button>
       </div>
@@ -500,7 +500,7 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
         )}
         {error && (
           <div style={{ padding: 20, textAlign: 'center' }}>
-            <div style={{ color: '#f38ba8', marginBottom: 8 }}>{error}</div>
+            <div style={{ color: 'var(--accent-red, #f38ba8)', marginBottom: 8 }}>{error}</div>
             <button onClick={fetchIntegrations} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border, #313244)', background: 'none', color: 'var(--text-primary, #cdd6f4)', cursor: 'pointer', fontSize: 13 }}>{t('common:buttons.retry')}</button>
           </div>
         )}
@@ -556,9 +556,9 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
                                 borderRadius: 4,
                                 fontSize: 11,
                                 fontWeight: 500,
-                                background: 'rgba(137, 180, 250, 0.15)',
-                                color: '#89b4fa',
-                                border: '1px solid rgba(137, 180, 250, 0.3)',
+                                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                                color: 'var(--accent, #89b4fa)',
+                                border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
                               }}
                               title={mode === 'polling'
                                 ? t('config:integrationsPanel.pollModeTitle', { defaultValue: 'Web API polling (xoxp- user token)' })
@@ -577,9 +577,9 @@ export function IntegrationsPanel({ isOpen, onClose, initialTab, zIndex }: Integ
 
                   {/* Error detail */}
                   {active.status.error && (
-                    <div style={{ ...S.section, borderColor: 'rgba(243, 139, 168, 0.3)', background: 'rgba(243, 139, 168, 0.05)' }}>
-                      <div style={{ ...S.sectionTitle, color: '#f38ba8' }}>{t('common:toast.errorTitle')}</div>
-                      <div style={{ fontSize: 12, color: '#f38ba8' }}>{active.status.error}</div>
+                    <div style={{ ...S.section, borderColor: 'color-mix(in srgb, var(--accent-red) 30%, transparent)', background: 'color-mix(in srgb, var(--accent-red) 5%, transparent)' }}>
+                      <div style={{ ...S.sectionTitle, color: 'var(--accent-red, #f38ba8)' }}>{t('common:toast.errorTitle')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--accent-red, #f38ba8)' }}>{active.status.error}</div>
                     </div>
                   )}
 

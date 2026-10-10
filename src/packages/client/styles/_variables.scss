@@ -124,4 +124,17 @@ $radius-xl: 12px;
   --thinking-accent: #{$accent-purple};
   --status-working: #{$accent-cyan};
   --bg-hover: color-mix(in srgb, #{$accent-cyan} 6%, transparent);
+
+  // Alias layer: IntegrationsPanel / MonitoringModal / SlackMultiInstanceSetup /
+  // WorkflowPanel 等组件引用 --surface-* / --border / --accent / --accent-color /
+  // --bg-input 这些名字，历史上从未被定义 —— 一律落进各自的深色 fallback，亮色皮
+  // （fleetdeck-light）下这些面板恒为深色。此处一次性映射到真 token：值是变量引用，
+  // applyTheme 写在 <html> 内联样式上的主题值经级联自动生效，深浅两皮皆随主题。
+  --surface-0: var(--bg-secondary);   // 面板/弹窗底
+  --surface-1: var(--bg-primary);     // 面板内凹槽（标题条/页签条/行）
+  --surface-2: var(--bg-tertiary);    // chip / 次级底
+  --border: var(--border-color);
+  --accent: var(--accent-blue);
+  --accent-color: var(--accent-blue);
+  --bg-input: var(--bg-tertiary);
 }

@@ -96,60 +96,60 @@ const S = {
     padding: '8px 10px',
     borderRadius: 6,
     cursor: 'pointer',
-    background: active ? 'rgba(137,180,250,0.15)' : 'transparent',
-    border: active ? '1px solid rgba(137,180,250,0.3)' : '1px solid transparent',
-    color: active ? '#cdd6f4' : '#a6adc8',
+    background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+    border: active ? '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' : '1px solid transparent',
+    color: active ? 'var(--text-primary, #cdd6f4)' : 'var(--text-secondary, #a6adc8)',
     fontSize: 13,
   }) as const,
   label: { fontWeight: 500 } as const,
-  sub: { fontSize: 11, color: '#6c7086', marginTop: 2 } as const,
+  sub: { fontSize: 11, color: 'var(--text-muted, #6c7086)', marginTop: 2 } as const,
   addBtn: {
     marginTop: 8,
     padding: '8px 10px',
     borderRadius: 6,
     background: 'transparent',
-    color: '#89b4fa',
-    border: '1px dashed rgba(137,180,250,0.4)',
+    color: 'var(--accent, #89b4fa)',
+    border: '1px dashed color-mix(in srgb, var(--accent) 40%, transparent)',
     cursor: 'pointer',
     fontSize: 13,
   } as const,
   editor: { flex: 1, display: 'flex', flexDirection: 'column' as const, gap: 12 } as const,
   field: { display: 'flex', flexDirection: 'column' as const, gap: 4 } as const,
-  fieldLabel: { fontSize: 12, fontWeight: 500, color: '#a6adc8' } as const,
-  fieldDesc: { fontSize: 11, color: '#6c7086' } as const,
+  fieldLabel: { fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #a6adc8)' } as const,
+  fieldDesc: { fontSize: 11, color: 'var(--text-muted, #6c7086)' } as const,
   input: {
     padding: '8px 10px',
     background: 'var(--surface-0, #1e1e2e)',
     border: '1px solid var(--border, #313244)',
     borderRadius: 6,
-    color: '#cdd6f4',
+    color: 'var(--text-primary, #cdd6f4)',
     fontSize: 13,
     fontFamily: 'inherit',
   } as const,
   badge: (mode: string) => {
     const colorMap: Record<string, string> = {
-      socket: '#a6e3a1',
-      polling: '#89b4fa',
-      none: '#6c7086',
+      socket: 'var(--accent-green, #a6e3a1)',
+      polling: 'var(--accent, #89b4fa)',
+      none: 'var(--text-muted, #6c7086)',
     };
-    const c = colorMap[mode] ?? '#6c7086';
+    const c = colorMap[mode] ?? 'var(--text-muted, #6c7086)';
     return {
       display: 'inline-block',
       padding: '2px 8px',
       borderRadius: 4,
       fontSize: 11,
       fontWeight: 500,
-      background: `${c}26`,
+      background: `color-mix(in srgb, ${c} 15%, transparent)`,
       color: c,
-      border: `1px solid ${c}55`,
+      border: `1px solid color-mix(in srgb, ${c} 33%, transparent)`,
     };
   },
   rowGap: { display: 'flex', gap: 12 } as const,
   buttons: { display: 'flex', gap: 8, marginTop: 12 } as const,
   btnPrimary: {
     padding: '8px 16px',
-    background: '#89b4fa',
-    color: '#1e1e2e',
+    background: 'var(--accent, #89b4fa)',
+    color: 'var(--bg-primary, #1e1e2e)',
     border: 'none',
     borderRadius: 6,
     cursor: 'pointer',
@@ -159,7 +159,7 @@ const S = {
   btnSecondary: {
     padding: '8px 16px',
     background: 'transparent',
-    color: '#cdd6f4',
+    color: 'var(--text-primary, #cdd6f4)',
     border: '1px solid var(--border, #313244)',
     borderRadius: 6,
     cursor: 'pointer',
@@ -168,8 +168,8 @@ const S = {
   btnDanger: {
     padding: '8px 16px',
     background: 'transparent',
-    color: '#f38ba8',
-    border: '1px solid rgba(243,139,168,0.4)',
+    color: 'var(--accent-red, #f38ba8)',
+    border: '1px solid color-mix(in srgb, var(--accent-red) 40%, transparent)',
     borderRadius: 6,
     cursor: 'pointer',
     fontSize: 13,
@@ -178,9 +178,9 @@ const S = {
     padding: '8px 12px',
     borderRadius: 6,
     fontSize: 12,
-    background: kind === 'error' ? 'rgba(243,139,168,0.15)' : 'rgba(166,227,161,0.15)',
-    color: kind === 'error' ? '#f38ba8' : '#a6e3a1',
-    border: `1px solid ${kind === 'error' ? 'rgba(243,139,168,0.3)' : 'rgba(166,227,161,0.3)'}`,
+    background: kind === 'error' ? 'color-mix(in srgb, var(--accent-red) 15%, transparent)' : 'color-mix(in srgb, var(--accent-green) 15%, transparent)',
+    color: kind === 'error' ? 'var(--accent-red, #f38ba8)' : 'var(--accent-green, #a6e3a1)',
+    border: `1px solid ${kind === 'error' ? 'color-mix(in srgb, var(--accent-red) 30%, transparent)' : 'color-mix(in srgb, var(--accent-green) 30%, transparent)'}`,
   }),
 };
 
@@ -352,7 +352,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
 
   return (
     <div>
-      <div style={{ marginBottom: 12, fontSize: 12, color: '#a6adc8' }}>
+      <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-secondary, #a6adc8)' }}>
         {t('config:slackSetup.intro', { defaultValue: 'Add multiple Slack connections side-by-side. The default instance maps to your existing bot / token; add more for personal (xoxp-) tokens or additional workspaces.' })}
       </div>
       {alert && (
@@ -386,7 +386,7 @@ export const SlackMultiInstanceSetup: React.FC<CustomSettingsProps> = ({ integra
 
         {/* Right pane: editor */}
         <div style={S.editor}>
-          {loading && <div style={{ color: '#6c7086', fontSize: 13 }}>{t('config:slackSetup.loading', { defaultValue: 'Loading…' })}</div>}
+          {loading && <div style={{ color: 'var(--text-muted, #6c7086)', fontSize: 13 }}>{t('config:slackSetup.loading', { defaultValue: 'Loading…' })}</div>}
           {!loading && values && (
             <>
               <div style={S.field}>
