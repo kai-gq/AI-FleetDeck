@@ -19,6 +19,7 @@ import { jiraPlugin } from './jira/index.js';
 import { googleCalendarPlugin } from './google-calendar/index.js';
 import { googleDrivePlugin } from './google-drive/index.js';
 import { whatsappPlugin } from './whatsapp/index.js';
+import { wechatPlugin } from './wechat/index.js';
 
 const log = createLogger('Integrations');
 
@@ -34,6 +35,7 @@ const ALL_PLUGINS: IntegrationPlugin[] = [
   docxPlugin,
   jiraPlugin,
   whatsappPlugin,
+  wechatPlugin,
 ];
 
 const plugins = new Map<string, IntegrationPlugin>();
