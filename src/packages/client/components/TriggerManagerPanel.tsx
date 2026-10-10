@@ -28,6 +28,7 @@ const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'jira', label: 'Jira' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'wechat', label: 'WeChat' },
 ];
 
 type TypeFilter = 'all' | TriggerType;
@@ -43,6 +44,7 @@ const TYPE_TAB_DEFS: { value: TypeFilter; label: string; icon: string; key: stri
   { value: 'email',     label: 'Email',     icon: '✉️', key: 'config:triggerPanel.type.email' },
   { value: 'jira',      label: 'Jira',      icon: '🎫', key: 'config:triggerPanel.type.jira' },
   { value: 'whatsapp',  label: 'WhatsApp',  icon: '📱', key: 'config:triggerPanel.type.whatsapp' },
+  { value: 'wechat',    label: 'WeChat',    icon: '💚', key: 'config:triggerPanel.type.wechat' },
 ];
 
 const BITBUCKET_EVENT_OPTIONS: { value: string; label: string; key: string }[] = [
@@ -567,6 +569,8 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                           updateField('promptTemplate', 'Slack message from {{slack.user}} in {{slack.channelName}}:\n{{slack.message}}\n\n{{slack.attachmentsBlock}}');
                         } else if (type === 'whatsapp') {
                           updateField('promptTemplate', 'WhatsApp message from {{whatsapp.fromName}} ({{whatsapp.from}}):\n{{whatsapp.body}}\n\n{{whatsapp.attachmentsBlock}}');
+                        } else if (type === 'wechat') {
+                          updateField('promptTemplate', 'WeChat message from {{wechat.fromName}} ({{wechat.from}}):\n{{wechat.body}}\n\nTo reply, use the wechat-messaging skill and ALWAYS pass {{wechat.contextToken}} as context_token.');
                         }
                       }
                     }}
@@ -1187,6 +1191,61 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
                         <span>{t('config:triggerPanel.whatsapp.includeStatuses', { defaultValue: 'Include statuses' })}</span>
                       </label>
                     </div>
+                  </div>
+                );
+              })()}
+
+              {editingTrigger.type === 'wechat' && (() => {
+                const cfg = (editingTrigger as any).config || {};
+                return (
+                  <div style={styles.section}>
+                    <h4 style={styles.sectionTitle}>{t('config:triggerPanel.wechat.section', { defaultValue: 'WeChat Config' })}</h4>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>{t('config:triggerPanel.wechat.fromFilter', { defaultValue: 'From filter (comma-separated sender id substrings)' })}</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.fromFilter?.join(', ') || ''}
+                          onChange={e => updateConfig('fromFilter', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="wxid_xxx, @im.wechat"
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>{t('config:triggerPanel.wechat.excludeFrom', { defaultValue: 'Exclude senders (takes precedence)' })}</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.excludeFrom?.join(', ') || ''}
+                          onChange={e => updateConfig('excludeFrom', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="bot_mirror"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.row}>
+                      <div style={styles.field}>
+                        <label style={styles.label}>{t('config:triggerPanel.wechat.bodyPattern', { defaultValue: 'Body pattern (regex, matches text or voice transcription)' })}</label>
+                        <input
+                          style={styles.input}
+                          value={cfg.bodyPattern || ''}
+                          onChange={e => updateConfig('bodyPattern', e.target.value || undefined)}
+                          placeholder="部署|deploy"
+                        />
+                      </div>
+                    </div>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.onlyWithContextToken} onChange={e => updateConfig('onlyWithContextToken', e.target.checked || undefined)} />
+                        <span>{t('config:triggerPanel.wechat.onlyWithContextToken', { defaultValue: 'Reply-capable messages only' })}</span>
+                      </label>
+                      <label style={styles.checkboxLabel}>
+                        <input type="checkbox" checked={!!cfg.dmOnly} onChange={e => updateConfig('dmOnly', e.target.checked || undefined)} />
+                        <span>{t('config:triggerPanel.slack.dmOnly', { defaultValue: 'DMs only' })}</span>
+                      </label>
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {t('config:triggerPanel.wechat.variablesHint', {
+                        defaultValue: 'Variables: {{wechat.from}}, {{wechat.fromName}}, {{wechat.body}}, {{wechat.contextToken}} — pass contextToken to the wechat-messaging skill to reply.',
+                      })}
+                    </p>
                   </div>
                 );
               })()}

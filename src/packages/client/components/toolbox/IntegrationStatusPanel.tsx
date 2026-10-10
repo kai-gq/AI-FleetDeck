@@ -10,6 +10,7 @@ const INTEGRATION_ICONS: Record<string, string> = {
   'google-calendar': '\uD83D\uDCC5',
   docx: '\uD83D\uDCC4',
   whatsapp: '\uD83D\uDCF1',
+  wechat: '\uD83D\uDC9A',
 };
 
 interface IntegrationStatusPanelProps {
