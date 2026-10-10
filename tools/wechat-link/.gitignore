@@ -1,0 +1,6 @@
+# 凭据与运行产物 —— 绝不入库
+.state.json
+probe-log.jsonl
+msgs.jsonl
+raw-*.json
+*.html
