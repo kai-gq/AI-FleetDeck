@@ -8,6 +8,7 @@ const customComponents: Record<string, React.LazyExoticComponent<React.Component
   'gmail-oauth': lazy(() => import('./GmailOAuthSetup').then((m) => ({ default: m.GmailOAuthSetup }))),
   'google-oauth': lazy(() => import('./GoogleOAuthSetup').then((m) => ({ default: m.GoogleOAuthSetup }))),
   'slack-multi-instance': lazy(() => import('./SlackMultiInstanceSetup').then((m) => ({ default: m.SlackMultiInstanceSetup }))),
+  'wechat-config': lazy(() => import('./WeChatConfigModal').then((m) => ({ default: m.WeChatConfigModal }))),
 };
 
 interface CustomSettingsProps {
@@ -25,6 +26,7 @@ const INTEGRATION_ICONS: Record<string, string> = {
   'google-calendar': '\uD83D\uDCC5',
   'google-drive': '\uD83D\uDCC1',
   docx: '\uD83D\uDCC4',
+  wechat: '\uD83D\uDC9A',
 };
 
 // UI copy for integration descriptions/requirements lives in the component so it

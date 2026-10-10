@@ -1,0 +1,350 @@
+@use '../variables' as *;
+
+// WeChat (ClawBot) config panel — rendered inline inside IntegrationsPanel
+// (custom settings component), not as a standalone modal. Buttons reuse the
+// global .btn classes from _buttons.scss.
+.wechat-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  .wc-description {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .wc-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 32px 16px;
+
+    p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+  }
+
+  .wc-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: wc-spin 0.8s linear infinite;
+
+    &.wc-spinner-sm {
+      width: 14px;
+      height: 14px;
+      border-width: 2px;
+    }
+  }
+
+  .wc-alert {
+    padding: 10px 12px;
+    border-radius: $radius-sm;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 12px;
+    line-height: 1.4;
+
+    &.wc-alert-error {
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent);
+      color: var(--accent-red);
+    }
+
+    &.wc-alert-success {
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 25%, transparent);
+      color: var(--accent-green);
+    }
+  }
+
+  .wc-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: $radius-lg;
+    background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
+  }
+
+  .wc-section-title {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .wc-status-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .wc-state-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: $radius-sm;
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+    color: var(--text-secondary);
+
+    .wc-state-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    &.wc-state-connected {
+      background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+      color: var(--accent-green);
+    }
+
+    &.wc-state-qr_pending {
+      background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+      color: var(--accent-blue);
+    }
+
+    &.wc-state-needs_reauth {
+      background: color-mix(in srgb, var(--accent-orange) 16%, transparent);
+      color: var(--accent-orange);
+    }
+  }
+
+  .wc-meta-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wc-meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .wc-meta-label {
+    flex: 0 0 88px;
+    color: var(--text-muted);
+  }
+
+  .wc-meta-value {
+    color: var(--text-primary);
+    font-family: $font-mono;
+    word-break: break-all;
+
+    &.wc-meta-error {
+      color: var(--accent-red);
+    }
+  }
+
+  .wc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &.wc-field-row {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  .wc-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .wc-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.5;
+
+    &.wc-hint-warn {
+      color: var(--accent-orange);
+      font-style: normal;
+    }
+  }
+
+  .wc-input,
+  .wc-textarea,
+  .wc-select {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: $radius-sm;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.5;
+    outline: none;
+    transition: all $transition-fast;
+    width: 100%;
+    box-sizing: border-box;
+
+    &:focus {
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  .wc-input.wc-input-narrow {
+    max-width: 120px;
+  }
+
+  .wc-textarea {
+    resize: vertical;
+    min-height: 4rem;
+    max-height: 10rem;
+  }
+
+  // Toggle switch (mirrors the WhatsApp panel's wa-toggle)
+  .wc-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .wc-toggle-track {
+      width: 32px;
+      height: 18px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 9px;
+      transition: background $transition-fast, border-color $transition-fast;
+      position: relative;
+      display: inline-block;
+    }
+
+    .wc-toggle-thumb {
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: 14px;
+      height: 14px;
+      background: var(--text-secondary);
+      border-radius: 50%;
+      transition: transform $transition-fast, background $transition-fast;
+    }
+
+    input:checked + .wc-toggle-track {
+      background: color-mix(in srgb, var(--accent-blue) 35%, transparent);
+      border-color: var(--accent-blue);
+
+      .wc-toggle-thumb {
+        transform: translateX(14px);
+        background: var(--accent-blue);
+      }
+    }
+  }
+
+  .wc-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  // QR binding panel
+  .wc-qr-panel {
+    padding: 12px;
+    border: 1px dashed var(--border-color);
+    border-radius: $radius-md;
+    background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .wc-qr-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .wc-qr-countdown {
+    color: var(--text-muted);
+  }
+
+  .wc-qr-image {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+    background: #fff;
+    border-radius: $radius-sm;
+
+    .qr-code-svg {
+      display: block;
+    }
+  }
+
+  .wc-qr-expired {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    color: var(--text-secondary);
+
+    p {
+      margin: 0;
+      font-size: 12px;
+    }
+  }
+
+  .wc-qr-loading-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .wc-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
+@keyframes wc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
