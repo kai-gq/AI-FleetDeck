@@ -77,7 +77,7 @@ import { BUILTIN_AGENT_NAMES } from '../../scene/config';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, isValidExcludeDirName } from '../../../shared/file-search';
 import { Icon } from '../Icon';
 import { searchSettingsSections } from './settingsSearch';
-import { loadWhisperCloudConfig, saveWhisperCloudConfig, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
+import { loadWhisperCloudConfig, saveWhisperCloudConfig, loadVolcengineCredStatus, DEFAULT_WHISPER_CLOUD_CONFIG } from '../../api/whisperCloud';
 import type { WhisperCloudConfig, SttEngineMode } from '../../api/whisperCloud';
 import { loadTtsVoices, saveTtsVoices, sanitizeTuning, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../../api/ttsVoice';
 import type { TtsVoiceConfig, TtsLang } from '../../api/ttsVoice';
@@ -355,7 +355,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
   const [sttSaving, setSttSaving] = useState(false);
   const [sttSaved, setSttSaved] = useState(false);
   const [sttError, setSttError] = useState<string | null>(null);
-  const [showSttKey, setShowSttKey] = useState(false);
+  // 火山凭据状态(跟随「语音伙伴」config.json):null=检测中
+  const [volcCreds, setVolcCreds] = useState<boolean | null>(null);
   const [ttsVoices, setTtsVoices] = useState<TtsVoiceConfig>(DEFAULT_TTS_VOICES);
   const [ttsVoicesExist, setTtsVoicesExist] = useState(false);
   const [ttsDirty, setTtsDirty] = useState(false);
@@ -385,6 +386,10 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
         setSttError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setSttLoaded(true));
+    // 火山凭据状态(云端识别的凭据在「语音伙伴」里配置,这里只显示有无)
+    loadVolcengineCredStatus()
+      .then(setVolcCreds)
+      .catch(() => setVolcCreds(false));
   }, []);
 
   // Load TTS voice config (tools/edge-tts/voices.local.json) on mount
@@ -578,12 +583,6 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
 
   const handleSttModeChange = (mode: SttEngineMode) => {
     setSttConfig((c) => ({ ...c, mode }));
-    setSttDirty(true);
-    setSttError(null);
-  };
-
-  const handleSttApiKeyChange = (value: string) => {
-    setSttConfig((c) => ({ ...c, apiKey: value }));
     setSttDirty(true);
     setSttError(null);
   };
@@ -1438,16 +1437,20 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
       </CollapsibleSection>
       )}
 
-      {/* ---- 「语音」分组:三节互为上下游,用组标题 + 关系条讲清 ---- */}
-      {(shouldShowSection('stt') || shouldShowSection('tts') || shouldShowSection('voiceCompanion')) && (
-      <div className="config-group-heading">{t('config:sections.voice', { defaultValue: '语音' })}</div>
-      )}
+      {/* ---- 「语音」区块:语音转文字(输入)+ 文字转语音(播报)合并为一块,内部两个子标题 ----
+          注意:两个 shouldShowSection('stt'/'tts') 标记必须保留(settingsSearch 的 id 集合断言
+          扫源码);expandSignal 取两信号之和(各自单调递增 → 任一互跳都能触发展开)。 */}
+      {(shouldShowSection('stt') || shouldShowSection('tts')) && (
+      <CollapsibleSection id="config-section-stt" expandSignal={(expandSignals.stt ?? 0) + (expandSignals.tts ?? 0)} title={t('config:sections.voice', { defaultValue: '语音' })} storageKey="stt" defaultOpen={false} forceOpen={isSearching && (shouldShowSection('stt') || shouldShowSection('tts'))}>
+        {/* 「音色设置」互跳的滚动锚点(合并后 tts 不再有独立根元素) */}
+        <div id="config-section-tts" />
 
-      {shouldShowSection('stt') && (
-      <CollapsibleSection id="config-section-stt" expandSignal={expandSignals.stt} title={t('config:general.stt')} storageKey="stt" defaultOpen={false} forceOpen={isSearching && shouldShowSection('stt')}>
+        {shouldShowSection('stt') && (
+        <>
+        <div className="config-group-heading">{t('config:general.stt')}</div>
         <ConfigRelationNote
           items={[{
-            text: t('config:voiceRelations.stt', { defaultValue: '本页引擎/密钥同时被:终端语音输入、语音伙伴(批量回退)、WhatsApp 转写 使用。' }),
+            text: t('config:voiceRelations.stt', { defaultValue: '本页引擎设置同时被:终端语音输入、语音伙伴(批量回退)、WhatsApp 转写 使用;云端凭据在「语音伙伴」里配置。' }),
             links: [{ label: t('config:voiceRelations.goCompanion', { defaultValue: '去语音伙伴' }), target: 'voiceCompanion' }],
           }]}
           onJump={requestSectionJump}
@@ -1461,27 +1464,23 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
           </select>
         </div>
         <div className="config-row config-row-stacked">
-          <span className="config-label"><HighlightText text={t('config:stt.apiKey', { defaultValue: 'API 密钥' })} query={searchQuery} /></span>
-          <div className="config-input-group">
-            <input type={showSttKey ? 'text' : 'password'} className="config-input config-input-full" value={sttConfig.apiKey} onChange={(e) => handleSttApiKeyChange(e.target.value)} placeholder="sk-…" onKeyDown={(e) => { if (e.key === 'Enter' && sttDirty && !sttSaving) { handleSttSave(); } }} />
-            <button className="config-btn config-btn-sm" onClick={() => setShowSttKey(!showSttKey)} title={showSttKey ? t('config:stt.hideKey', { defaultValue: '隐藏密钥' }) : t('config:stt.showKey', { defaultValue: '显示密钥' })}><Icon name={showSttKey ? 'eye-closed' : 'eye'} size={14} /></button>
-            {(sttDirty || sttSaved) && (
-              <button className="config-btn config-btn-sm" onClick={handleSttSave} disabled={sttSaving}>{sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
-            )}
-          </div>
-          <span className="config-hint">{t('config:stt.apiKeyHint', { defaultValue: '在 siliconflow.cn 免费注册获取(不绑卡);云端模式会把语音上传至服务商。' })}</span>
-          {sttLoaded && (
-            <span className="config-hint">{sttConfig.mode === 'cloud' && !sttConfig.apiKey ? t('config:stt.cloudNeedsKey', { defaultValue: '⚠ 仅云端模式未填密钥,语音识别将不可用' }) : sttConfig.apiKey ? t('config:stt.statusConfigured', { defaultValue: '已配置密钥' }) : sttConfig.mode === 'local' ? t('config:stt.statusLocal', { defaultValue: '未配置密钥(仅本地模式 = 离线识别)' }) : t('config:stt.statusMissing', { defaultValue: '未配置密钥(自动模式 = 纯本地识别)' })}</span>
+          <span className="config-hint">{t('config:stt.cloudHint', { defaultValue: '云端识别 = 火山引擎(字节);凭据复用「语音伙伴」的火山配置,云端模式会把语音上传服务商。' })}</span>
+          {sttLoaded && volcCreds !== null && (
+            <span className="config-hint">{volcCreds ? t('config:stt.statusVolcConfigured', { defaultValue: '火山凭据已配置' }) : sttConfig.mode === 'cloud' ? t('config:stt.cloudNeedsCred', { defaultValue: '⚠ 仅云端模式未配置火山凭据,语音识别将不可用(去「语音伙伴」填)' }) : t('config:stt.statusNoCred', { defaultValue: '未配置火山凭据(「自动」= 纯本地识别)' })}</span>
           )}
           {sttError && (
             <span className="config-hint">{t('config:stt.saveFailed', { defaultValue: '保存失败' })}: {sttError}</span>
           )}
+          {(sttDirty || sttSaved) && (
+            <button className="config-btn config-btn-sm" onClick={handleSttSave} disabled={sttSaving}>{sttSaved ? t('config:stt.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
+          )}
         </div>
-      </CollapsibleSection>
-      )}
+        </>
+        )}
 
-      {shouldShowSection('tts') && (
-      <CollapsibleSection id="config-section-tts" expandSignal={expandSignals.tts} title={t('config:general.tts')} storageKey="tts" defaultOpen={false} forceOpen={isSearching && shouldShowSection('tts')}>
+        {shouldShowSection('tts') && (
+        <>
+        <div className="config-group-heading">{t('config:general.tts')}</div>
         <ConfigRelationNote
           items={[{
             text: t('config:voiceRelations.tts', { defaultValue: '本页音色同时被:语音伙伴播报、终端逐行朗读 使用。' }),
@@ -1538,6 +1537,8 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             <button className="config-btn config-btn-sm" onClick={handleTtsSave} disabled={ttsSaving}>{ttsSaved ? t('config:tts.saved', { defaultValue: '已保存' }) : t('common:buttons.apply')}</button>
           )}
         </div>
+        </>
+        )}
       </CollapsibleSection>
       )}
 

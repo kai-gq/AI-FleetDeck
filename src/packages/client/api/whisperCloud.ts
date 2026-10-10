@@ -1,29 +1,26 @@
 import { apiUrl, authFetch } from '../utils/storage';
+import { loadVoiceCompanionConfig } from './voiceCompanion';
 
 /**
  * 语音识别「云通道」(tools/whisper/cloud.json)读写。
  *
- * 该文件由 whisper 垫片(Python)在每次转写时读取;这里通过通用文件 API
- * 读写,服务端零改动。路径解析用 /api/files/exists:它只走严格的
- * resolveAndValidateFilePath(无 fallback 策略,不会误命中其它目录的同名
- * 文件),且文件不存在时也会返回解析后的绝对路径,正好用来做落盘位置发现
- * (/api/files/write 要求绝对路径且文件已存在,故缺失时先 /create)。
+ * 2026-10-10 起云端识别 = 火山引擎,由 TC 服务端调用(services/stt-volcengine.ts),
+ * 凭据复用「语音伙伴」的 config.json(stt.volcengine)—— 本文件只剩 {mode} 开关
+ * (服务端每次转写现读);旧文件里的 provider/apiKey/model 字段直接忽略。
+ * 路径解析用 /api/files/exists:它只走严格的 resolveAndValidateFilePath
+ * (无 fallback 策略,不会误命中其它目录的同名文件),且文件不存在时也会
+ * 返回解析后的绝对路径,正好用来做落盘位置发现(/api/files/write 要求
+ * 绝对路径且文件已存在,故缺失时先 /create)。
  */
 
 export type SttEngineMode = 'auto' | 'local' | 'cloud';
 
 export interface WhisperCloudConfig {
   mode: SttEngineMode;
-  provider: 'siliconflow';
-  apiKey: string;
-  model: string;
 }
 
 export const DEFAULT_WHISPER_CLOUD_CONFIG: WhisperCloudConfig = {
   mode: 'auto',
-  provider: 'siliconflow',
-  apiKey: '',
-  model: 'FunAudioLLM/SenseVoiceSmall',
 };
 
 const CLOUD_REL_PATH = 'tools/whisper/cloud.json';
@@ -43,10 +40,22 @@ function sanitize(raw: unknown): WhisperCloudConfig {
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>;
     if (obj.mode === 'auto' || obj.mode === 'local' || obj.mode === 'cloud') cfg.mode = obj.mode;
-    if (typeof obj.apiKey === 'string') cfg.apiKey = obj.apiKey.trim();
-    if (typeof obj.model === 'string' && obj.model.trim()) cfg.model = obj.model.trim();
   }
   return cfg;
+}
+
+/**
+ * 云端识别(火山引擎)凭据是否已配置 —— 跟随「语音伙伴」的 config.json
+ * (stt.volcengine:apiKey 或 appId+accessToken)。只回布尔值,密钥值不外显。
+ */
+export async function loadVolcengineCredStatus(): Promise<boolean> {
+  try {
+    const { config } = await loadVoiceCompanionConfig();
+    const v = config.stt?.volcengine;
+    return !!v && (!!v.apiKey || (!!v.appId && !!v.accessToken));
+  } catch {
+    return false;
+  }
 }
 
 /** 读取云通道配置;文件缺失/损坏时回默认值(auto,无 key = 纯本地),不抛出。 */

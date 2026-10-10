@@ -10,6 +10,13 @@ import os from 'os';
 import path from 'path';
 import { logger } from '../utils/logger.js';
 import { logVoiceAsr } from '../services/activity-log.js';
+import { loadVolcengineSttConfig } from '../services/voice-companion-service.js';
+import {
+  decideSttEngine,
+  hasVolcengineCreds,
+  loadSttCloudMode,
+  transcribeViaVolcengine,
+} from '../services/stt-volcengine.js';
 
 const router = Router();
 
@@ -43,6 +50,37 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     await writeFile(filepath, audioBuffer);
 
     logger.server.log(`[STT] Transcribing audio file: ${filepath} (${audioBuffer.length} bytes)`);
+
+    // 云通道(2026-10-10 起 = 火山引擎,复用语音伙伴凭据;详见 services/stt-volcengine.ts):
+    // auto=云优先失败回退本地,cloud=仅云端失败即报错,local=跳过。日志绝不落密钥。
+    const cloudMode = loadSttCloudMode();
+    const cloudCreds = loadVolcengineSttConfig();
+    const plan = decideSttEngine(cloudMode, hasVolcengineCreds(cloudCreds));
+
+    if (plan !== 'local-only') {
+      try {
+        const { text: cloudText, durationMs } = await transcribeViaVolcengine(filepath, cloudCreds);
+        unlink(filepath).catch(() => {});
+        logVoiceAsr({
+          channel: 'volcengine-batch', text: cloudText, cached: false, ok: true,
+          durationMs, audioFile: filename, model: 'volcengine-bigmodel', language,
+        });
+        logger.server.log(`[STT] 火山识别完成: "${cloudText.substring(0, 100)}..." (${durationMs}ms)`);
+        return res.json({ success: true, text: cloudText, engine: 'volcengine' });
+      } catch (err) {
+        const detail = String(err).slice(0, 300);
+        if (plan === 'cloud-only') {
+          unlink(filepath).catch(() => {});
+          logVoiceAsr({
+            channel: 'volcengine-batch', text: '', ok: false, error: detail.slice(0, 200),
+            durationMs: Date.now() - startedAt, audioFile: filename, model: 'volcengine-bigmodel', language,
+          });
+          logger.server.error(`[STT] 火山识别失败(仅云端模式,不回退): ${detail}`);
+          return res.status(500).json({ error: 'Cloud transcription failed', details: detail });
+        }
+        logger.server.log(`[STT] 火山识别失败,回退本地 whisper: ${detail}`);
+      }
+    }
 
     // Run whisper
     const transcription = await new Promise<string>((resolve, reject) => {

@@ -1,6 +1,3 @@
 {
-  "mode": "auto",
-  "provider": "siliconflow",
-  "apiKey": "",
-  "model": "FunAudioLLM/SenseVoiceSmall"
+  "mode": "auto"
 }

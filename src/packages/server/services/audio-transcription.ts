@@ -24,6 +24,13 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createLogger } from '../utils/logger.js';
 import { logVoiceAsr } from './activity-log.js';
+import { loadVolcengineSttConfig } from './voice-companion-service.js';
+import {
+  decideSttEngine,
+  hasVolcengineCreds,
+  loadSttCloudMode,
+  transcribeViaVolcengine,
+} from './stt-volcengine.js';
 
 const log = createLogger('AudioTranscription');
 
@@ -133,6 +140,43 @@ export async function transcribeAudio(
       }
     }
   } catch { /* no cache, fall through */ }
+
+  // 云通道优先(与 routes/stt.ts 同一决策):auto=火山优先失败回退本地,cloud=只走火山。
+  // 结果写回 <base>.txt,与本地路径共享同一个幂等缓存。
+  {
+    const cloudCreds = loadVolcengineSttConfig();
+    const plan = decideSttEngine(loadSttCloudMode(), hasVolcengineCreds(cloudCreds));
+    if (plan !== 'local-only') {
+      try {
+        const { text: cloudText, durationMs } = await transcribeViaVolcengine(
+          audioPath,
+          cloudCreds,
+          { timeoutMs: 60_000 },
+        );
+        try {
+          await fs.writeFile(txtPath, cloudText, 'utf-8');
+        } catch (err) {
+          log.debug(`transcribeAudio: cloud txt cache write failed: ${err}`);
+        }
+        logVoiceAsr({
+          channel: 'volcengine-batch', text: cloudText, cached: false, ok: true,
+          durationMs, audioFile, model: 'volcengine-bigmodel', language: opts.language,
+        });
+        return cloudText ? { text: cloudText, durationMs, cached: false } : null;
+      } catch (err) {
+        const detail = String(err instanceof Error ? err.message : err).slice(0, 200);
+        if (plan === 'cloud-only') {
+          log.warn(`transcribeAudio: cloud-only mode failed: ${detail}`);
+          logVoiceAsr({
+            channel: 'volcengine-batch', text: '', ok: false, error: detail,
+            durationMs: Date.now() - startedAt, audioFile, model: 'volcengine-bigmodel', language: opts.language,
+          });
+          return null;
+        }
+        log.debug(`transcribeAudio: cloud failed, falling back to local whisper: ${detail}`);
+      }
+    }
+  }
 
   const model = opts.model ?? 'medium';
   const timeoutMs = opts.timeoutMs ?? 5 * 60_000;
