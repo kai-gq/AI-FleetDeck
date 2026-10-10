@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { ModalPortal } from '../shared/ModalPortal';
 import { computeSpotlight, computeTooltip, type TourRect } from './homeTourModel';
 
-/** 首次使用导游「已看过」标记（B-33）。改版本号 = 老用户可再看一次。 */
-export const HOME_TOUR_STORAGE_KEY = 'tide-home-tour-v1';
+/** 首次使用导游「已看过」标记（B-33；v2=增补语音 Key/基本设置/秘书「?」三步）。改版本号 = 老用户可再看一次。 */
+export const HOME_TOUR_STORAGE_KEY = 'tide-home-tour-v2';
 /** 重看入口事件（状态栏「?」钮派发）；HomeTour 监听后无视标记、从第 1 步重开。 */
 export const HOME_TOUR_START_EVENT = 'tide-home-tour-start';
 /** 只在桌面三栏布局下引导（≤1100px 语音栏折起，聚光叙事不成立）。 */
@@ -23,9 +23,10 @@ interface TourStep {
 }
 
 /**
- * 四步导游（B-33）：团队状态 → 任务树 → 秘书 → 视图切换。
+ * 七步导游（B-33 初版四步:v2 增补 秘书「?」→ 语音 Key → 基本设置 三步）。
  * 文案口径（用户点名）：自信、有画面感、面向用户；秘书一步讲「工作原理」——
- * 说一句话 → 听懂 → 派活 → 任务树长进度 → 办完亲口汇报。最后一步按钮变「开始使用」。
+ * 说一句话 → 听懂 → 派活 → 任务树长进度 → 办完亲口汇报；新增三步教配置
+ * （能力清单 / 语音设置入口与火山凭据 / 齿轮基础设置）。最后一步按钮变「开始使用」。
  */
 const TOUR_STEPS: TourStep[] = [
   {
@@ -51,6 +52,30 @@ const TOUR_STEPS: TourStep[] = [
     title: '秘书',
     bodyKey: 'fleetHome.tour.secretary.body',
     body: '你说一句话，系统就开始运转：听懂意图 → 派活给主管和成员 → 任务树同步长出进度 → 办完亲口向你汇报。问进展、派新活，动嘴就行。',
+  },
+  {
+    key: 'secretaryHelp',
+    selector: '.fleetdeck-col__help',
+    titleKey: 'fleetHome.tour.secretaryHelp.title',
+    title: '秘书能做什么',
+    bodyKey: 'fleetHome.tour.secretaryHelp.body',
+    body: '秘书列头右上角的「?」藏着它的能力清单——点开看看都能指挥它干什么，再开口心里更有底。',
+  },
+  {
+    key: 'voiceSettings',
+    selector: '.top-bar__voice',
+    titleKey: 'fleetHome.tour.voiceSettings.title',
+    title: '配置语音 Key',
+    bodyKey: 'fleetHome.tour.voiceSettings.body',
+    body: '识别引擎、播报音色、语音伙伴（含声纹）全收在顶栏这个话筒按钮里。要用云端识别或常开聆听，先把火山引擎凭据（API Key，或 APP ID + Access Token）填进「语音伙伴」标签——填一次，全链路都通。',
+  },
+  {
+    key: 'basicSettings',
+    selector: '.top-bar__settings',
+    titleKey: 'fleetHome.tour.basicSettings.title',
+    title: '基本设置',
+    bodyKey: 'fleetHome.tour.basicSettings.body',
+    body: '齿轮里是基础设置：界面语言、历史条数、外观主题、扩展开关。上面的搜索框能直接搜——输「语言」「历史」就能跳到对应条目。',
   },
   {
     key: 'views',
