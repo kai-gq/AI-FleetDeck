@@ -12,7 +12,7 @@ export type { ExternalEvent, TriggerHandler, TriggerDefinition };
 
 // ─── Trigger Enums ───
 
-export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron' | 'whatsapp' | 'bitbucket';
+export type TriggerType = 'webhook' | 'email' | 'slack' | 'jira' | 'cron' | 'whatsapp' | 'bitbucket' | 'wechat';
 export type TriggerStatus = 'enabled' | 'disabled' | 'error';
 export type MatchMode = 'structural' | 'llm' | 'hybrid';
 export type ExtractionMode = 'structural' | 'llm';
@@ -145,6 +145,17 @@ export interface WhatsAppTrigger extends BaseTrigger {
   };
 }
 
+export interface WeChatTrigger extends BaseTrigger {
+  type: 'wechat';
+  config: {
+    fromFilter?: string[];            // Substring match against sender id (e.g. the xxx@im.wechat local part)
+    excludeFrom?: string[];           // Substring match against sender id — evaluated BEFORE fromFilter, wins on overlap
+    bodyPattern?: string;             // Case-insensitive regex against message body (text or voice transcription)
+    onlyWithContextToken?: boolean;   // If true, only fire when a context_token is present (reply-capable messages)
+    dmOnly?: boolean;                 // Only fire on 1:1 messages (ClawBot is DM-only today; kept for parity)
+  };
+}
+
 export interface BitbucketTrigger extends BaseTrigger {
   type: 'bitbucket';
   config: {
@@ -155,7 +166,7 @@ export interface BitbucketTrigger extends BaseTrigger {
   };
 }
 
-export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger | WhatsAppTrigger | BitbucketTrigger;
+export type Trigger = WebhookTrigger | EmailTrigger | SlackTrigger | JiraTrigger | CronTrigger | WhatsAppTrigger | BitbucketTrigger | WeChatTrigger;
 
 // ─── LLM Match Results ───
 

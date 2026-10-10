@@ -361,7 +361,7 @@ export function TriggerManagerPanel({ isOpen, onClose }: TriggerManagerPanelProp
   const typeCounts = useMemo(() => {
     const counts: Record<TypeFilter, number> = {
       all: triggers.length,
-      webhook: 0, bitbucket: 0, cron: 0, slack: 0, email: 0, jira: 0, whatsapp: 0,
+      webhook: 0, bitbucket: 0, cron: 0, slack: 0, email: 0, jira: 0, whatsapp: 0, wechat: 0,
     };
     for (const t of triggers) {
       if (t.type in counts) counts[t.type as TriggerType] += 1;
