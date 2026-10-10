@@ -23,6 +23,8 @@ export interface ViewMenuOption {
   defaultDescription: string;
   /** 演示性视图（3D 场景）模型标记；B-32 起段位不再渲染「演示模式」小标，字段保留供模型语义与测试 */
   demo?: boolean;
+  /** 段位条不渲染的入口（B-35：2D 已内嵌指挥台中栏，顶栏撤下「2D」段位；模型项保留供 viewMenuOptionOf 与其它入口） */
+  hidden?: boolean;
 }
 
 export const VIEW_MENU_OPTIONS: readonly ViewMenuOption[] = [
@@ -49,6 +51,7 @@ export const VIEW_MENU_OPTIONS: readonly ViewMenuOption[] = [
     descriptionKey: 'common:viewMode.descriptions.2d',
     defaultLabel: '2D',
     defaultDescription: 'Lightweight top-down view',
+    hidden: true, // B-35：2D 内嵌指挥台中栏，段位条不再单列入口
   },
   {
     mode: '3d',

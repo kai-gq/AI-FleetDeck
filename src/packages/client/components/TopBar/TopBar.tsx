@@ -118,13 +118,15 @@ export function TopBar({ onOpenSpotlight, onOpenToolbox, onSpawnAgent, onSpawnBo
 
       <WorkspaceSwitcher />
 
-      {/* 分段视图切换（原型 .viewswitch；文案沿用现有视图名，只换样式） */}
+      {/* 分段视图切换（原型 .viewswitch；文案沿用现有视图名，只换样式）；
+          B-35：hidden 项（2D，已内嵌指挥台中栏）不渲染段位 */}
+
       <nav
         className="top-bar__viewswitch"
         ref={navRef}
         aria-label={t('terminal:topBar.viewHint', { defaultValue: 'Switch view' })}
       >
-        {VIEW_MENU_OPTIONS.map((option) => (
+        {VIEW_MENU_OPTIONS.filter((option) => !option.hidden).map((option) => (
           <button
             key={option.mode}
             type="button"

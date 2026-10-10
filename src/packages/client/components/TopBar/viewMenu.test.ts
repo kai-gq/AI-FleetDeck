@@ -29,6 +29,14 @@ describe('viewMenu（顶栏视图菜单模型）', () => {
     }
   });
 
+  it('只有 2D 从段位条撤下（B-35：已内嵌指挥台中栏），模型项保留', () => {
+    const hiddenModes = VIEW_MENU_OPTIONS.filter((option) => option.hidden).map((option) => option.mode);
+    expect(hiddenModes).toEqual(['2d']);
+    // hidden 不影响模型查询：viewMenuOptionOf('2d') 仍命中 2D 项
+    expect(viewMenuOptionOf('2d').mode).toBe('2d');
+    expect(viewMenuOptionOf('2d').defaultLabel).toBe('2D');
+  });
+
   it('viewMenuOptionOf 命中现有视图；未知值兜底 home', () => {
     expect(viewMenuOptionOf('home').icon).toBe('home');
     expect(viewMenuOptionOf('flat').icon).toBe('sparkle');
