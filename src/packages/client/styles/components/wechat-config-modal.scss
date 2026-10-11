@@ -348,3 +348,10 @@
     transform: rotate(360deg);
   }
 }
+
+// 共享 .modal-overlay 是 z-index:1000，而集成面板（IntegrationsPanel）内联 overlay
+// 是 10000（经插件面板打开时 10030）——微信面板里弹出的确认框会整块躲在面板后面
+// （表现为「点断开连接没反应」）。靠消息里的标记类只提升这一个弹层。
+body > .modal-overlay:has(.wc-logout-confirm-marker) {
+  z-index: 10100;
+}

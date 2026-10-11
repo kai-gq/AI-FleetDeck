@@ -608,9 +608,14 @@ export function WeChatConfigModal({ onSave, onCancel }: CustomSettingsProps) {
       <ConfirmModal
         isOpen={logoutConfirmOpen}
         title={t('config:wechat.logout', { defaultValue: '断开连接' })}
-        message={t('config:wechat.confirmLogout', {
-          defaultValue: '确定断开微信连接吗？本机保存的登录凭据将被清除，需要重新扫码。',
-        })}
+        message={
+          // 标记类供样式侧 :has() 把弹层提到集成面板（z-index 10000/10030）之上
+          <span className="wc-logout-confirm-marker">
+            {t('config:wechat.confirmLogout', {
+              defaultValue: '确定断开微信连接吗？本机保存的登录凭据将被清除，需要重新扫码。',
+            })}
+          </span>
+        }
         confirmLabel={t('config:wechat.logout', { defaultValue: '断开连接' })}
         cancelLabel={t('common:buttons.cancel', { defaultValue: '取消' })}
         variant="danger"
