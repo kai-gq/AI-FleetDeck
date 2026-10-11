@@ -1,0 +1,184 @@
+// =============================================================================
+// 视图模式选择器/主题/检查器开关与关闭(含 ≤1100px 嵌套媒体)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1422-1597 行,逐行原样。
+// =============================================================================
+
+
+.flat-terminal-wrapper {
+  // ── View mode selector (segmented pill) ─────────────────────────────────
+  &__view-mode {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    gap: 2px;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+  }
+
+  &__view-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 50%, transparent),
+        0 1px 3px color-mix(in srgb, #000 25%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
+      }
+    }
+  }
+
+  // Dropdown trigger: shows the ACTIVE mode, so it deliberately does NOT reuse
+  // the --active segment styling (a purple fill here would read as "selected
+  // option" rather than "open the menu"). Text colour carries the state.
+  &__view-mode-trigger {
+    color: var(--text-primary);
+    gap: 6px;
+
+    // The caret is the only affordance that this opens something — keep it
+    // quiet until hover so the header stays calm.
+    svg:last-child {
+      opacity: 0.55;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    &:hover svg:last-child { opacity: 1; }
+
+    &--open {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+
+      svg:last-child {
+        opacity: 1;
+        transform: rotate(180deg);
+      }
+    }
+  }
+
+  &__view-mode-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  &__view-mode-label {
+    line-height: 1;
+  }
+
+  // ── Theme selector wrapper ──────────────────────────────────────────────
+  &__theme {
+    display: inline-flex;
+    align-items: center;
+
+    // Compact the shared ThemeSelector so it fits the flat header chip row.
+    .theme-selector-trigger {
+      padding: 4px 9px;
+      font-size: 11px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+        border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+      }
+    }
+  }
+
+  // ── Inspector toggle button (show/hide right inspector panel) ───────────
+  &__inspector-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+      box-shadow 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 22%, transparent);
+      border-color: color-mix(in srgb, var(--accent-purple) 55%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 35%, transparent),
+        0 1px 3px color-mix(in srgb, #000 25%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 32%, transparent);
+      }
+    }
+  }
+
+  &__inspector-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  &__inspector-label {
+    line-height: 1;
+  }
+
+  // ── Close button (deselect agent, return to empty-chat overview) ────────
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
+    }
+  }
+
+  // Narrow panels: collapse the view-mode labels and cwd to save room.
+  @media (max-width: 1100px) {
+    &__view-mode-label,
+    &__inspector-label {
+      display: none;
+    }
+
+    &__cwd {
+      max-width: 160px;
+    }
+  }
+}

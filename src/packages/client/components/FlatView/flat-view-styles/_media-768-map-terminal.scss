@@ -1,0 +1,131 @@
+// =============================================================================
+// ≤768px:地图胶囊、文件夹/建筑网格、外框头部与状态栏适配
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2472-2594 行,逐行原样。
+// =============================================================================
+
+
+@media (max-width: 768px) {
+  .flat-map-area-card__folders,
+  .flat-map-area-card__buildings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .flat-map-folder-chip,
+  .flat-map-building-chip {
+    width: 100%;
+    min-height: 36px;
+  }
+
+  // Chat header: keep a single row on mobile to avoid stacking identity +
+  // toolbar across two rows (was the "double row after the agent name"
+  // complaint). Identity flexes to fill, meta hugs its content on the right.
+  .flat-terminal-wrapper__header {
+    flex-wrap: nowrap;
+    // Keep enough clearance for the working-avatar sway without spending a
+    // second row's worth of vertical space.
+    padding: 6px 10px 4px;
+    gap: 8px;
+    min-height: 40px;
+    overflow: visible;
+  }
+
+  .flat-terminal-wrapper__header-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    // Two-line identity: name + status on top, model/harness subtitle below,
+    // avatar spanning both rows. Keeps the single header row (identity +
+    // toolbar side by side) while still showing which model the agent runs.
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'avatar info'
+      'avatar model';
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 0;
+    padding: 2px 4px;
+  }
+
+  .flat-terminal-wrapper__header-avatar {
+    grid-area: avatar;
+  }
+
+  .flat-terminal-wrapper__header-info {
+    grid-area: info;
+    min-width: 0;
+    align-self: end;
+  }
+
+  .flat-terminal-wrapper__header-identity {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .flat-terminal-wrapper__header-name {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  // Status as a small pill; don't let it steal the name
+  .flat-terminal-wrapper__header-status {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Model/harness subtitle — borderless compact variant of the desktop chip:
+  // provider icon + "model · effort" reads as a second line under the name.
+  .flat-terminal-wrapper__header-model {
+    grid-area: model;
+    align-self: start;
+    justify-self: start;
+    min-width: 0;
+    max-width: 100%;
+    gap: 4px;
+  }
+
+  .flat-terminal-wrapper__header-provider-icon {
+    width: 11px;
+    height: 11px;
+  }
+
+  .flat-terminal-wrapper__header-model-chip {
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    font-size: 9px;
+    max-width: 100%;
+  }
+
+  .flat-terminal-wrapper__header-meta {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  // Hide the task chip — redundant with the agent name on a cramped header.
+  .flat-terminal-wrapper__header-task {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__header-avatar,
+  .flat-terminal-wrapper__header-avatar > * {
+    width: 28px;
+    height: 28px;
+  }
+
+  .flat-terminal-wrapper__action-btn,
+  .flat-terminal-wrapper__building-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}

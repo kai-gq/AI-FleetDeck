@@ -1,0 +1,141 @@
+// =============================================================================
+// 内嵌底部面板(经典终端样式/面板头与列表)与测试抖动、辉光动画
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2768-2902 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Embedded bottom panel (terminal) — sits between the AgentTerminalPane and
+// the statusbar, mirroring the Guake terminal's bottom split panel area.
+// ============================================================================
+
+// "Classic TUI" view — the embedded xterm/ttyd terminal attached to an
+// interactive agent's tmux session, filling the main content area in place of
+// the message pane.
+.flat-classic-terminal {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+
+  .guake-bottom-terminal-embed {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  &--message {
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+}
+
+.flat-bottom-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  // Height comes from useBottomTerminalResize via inline style; fallback keeps
+  // the panel visible even if the style prop is missing for some reason.
+  height: 250px;
+  min-height: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 10px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    flex-shrink: 0;
+    min-height: 28px;
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__muted {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 10px;
+  }
+
+  &__header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    background: var(--bg-primary);
+
+    > * {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+
+  &__placeholder {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+}
+
+// Statusbar tests-building working indicator (shared by the flask shortcut button)
+@keyframes flat-tests-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-14deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-7deg); }
+  80% { transform: rotate(4deg); }
+}
+
+@keyframes flat-tests-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(139, 233, 253, 0.3); }
+  50% { box-shadow: 0 0 6px 1px rgba(139, 233, 253, 0.7); }
+}

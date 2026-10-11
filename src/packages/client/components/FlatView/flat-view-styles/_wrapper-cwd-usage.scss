@@ -1,0 +1,130 @@
+// =============================================================================
+// 工作目录胶囊与上下文用量(用量条/仪表/标签/窗口/数值)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1299-1420 行,逐行原样。
+// =============================================================================
+
+
+.flat-terminal-wrapper {
+  // ── Working directory chip ──────────────────────────────────────────────
+  &__cwd {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    max-width: 240px;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+      color: var(--text-primary);
+    }
+
+    &-icon {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    &-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+    }
+  }
+
+  // ── Context / token usage chip ──────────────────────────────────────────
+  &__context {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    }
+
+    &-bar {
+      position: relative;
+      width: 64px;
+      height: 5px;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      overflow: hidden;
+    }
+
+    &-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.2s ease, background-color 0.2s ease;
+    }
+
+    &-warning {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+  }
+
+  &__usage-bars {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  &__usage-gauge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+
+    & + & {
+      padding-left: 8px;
+      border-left: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    }
+  }
+
+  &__usage-label {
+    color: var(--text-muted);
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  &__usage-window {
+    color: var(--text-secondary);
+    font-weight: 700;
+    text-transform: none;
+  }
+
+  &__usage-value {
+    overflow: hidden;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

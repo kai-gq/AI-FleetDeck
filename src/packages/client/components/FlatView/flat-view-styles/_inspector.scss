@@ -1,0 +1,127 @@
+// =============================================================================
+// 检查器侧板(挤推聊天列)与滑入动画
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1662-1782 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Inspector side panel (pushes chat column; does not overlay)
+// ----------------------------------------------------------------------------
+// Rendered as a 4th grid column that slides in alongside .flat-right when the
+// user toggles the Inspector button in the chat header. Reuses the embedded
+// SingleAgentPanel (session details) with flat-UI-specific overrides.
+// ============================================================================
+
+.flat-inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg-secondary);
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  overflow: hidden;
+  animation: flat-inspector-slide-in 0.22s ease;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: var(--bg-tertiary);
+    flex-shrink: 0;
+  }
+
+  &__tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    background: color-mix(in srgb, #000 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 6px;
+  }
+
+  &__tab {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    }
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
+      border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+
+    // The embedded SingleAgentPanel uses .unit-panel as its root. Ensure it
+    // fills the inspector body so its internal scrolling behaves correctly.
+    .unit-panel {
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+      padding: 10px;
+    }
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+}
+
+@keyframes flat-inspector-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

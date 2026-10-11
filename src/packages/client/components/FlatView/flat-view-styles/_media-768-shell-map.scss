@@ -1,0 +1,253 @@
+// =============================================================================
+// ≤768px:FAB 隐藏、聊天列、中列、地图与区域卡片适配
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2226-2470 行,逐行原样。
+// =============================================================================
+
+
+@media (max-width: 768px) {
+  // Flat view has its own agents drawer toggle, so the global FAB hamburger
+  // would just be a redundant second hamburger eating top-row space. Hide
+  // the FAB chrome inside flat view; its menu items are still reachable via
+  // the bottom-nav (Settings / Commander / Spawn / Tracking / Search).
+  .app.view-mode-flat .mobile-fab-toggle,
+  .app.view-mode-flat .mobile-fab-menu {
+    display: none !important;
+  }
+
+  // No FAB on the left edge in flat view → drop the 56px gutter so the chat
+  // can use the full viewport width.
+  .app.view-mode-flat .flat-view {
+    padding-left: 0;
+  }
+
+  // Reserve room for the fixed mobile bottom-stack so the chat input (which
+  // sits at the bottom of the flat-terminal-wrapper flex column, NOT
+  // position-fixed) doesn't end up underneath the bottom-nav. The Guake
+  // mobile-view-terminal layout already does this on .main-content; flat
+  // view defaults to mobileView='3d' on phones so we apply it ourselves.
+  .app.view-mode-flat .main-content {
+    height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+    max-height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+    overflow: hidden;
+  }
+
+  // Edge-to-edge: the WebView extends behind the system status bar on
+  // Android Capacitor. Push the topmost UI elements down by the inset so
+  // their content doesn't sit behind the battery/wifi icons.
+  .app.view-mode-flat .flat-terminal-wrapper__header,
+  .app.view-mode-flat .flat-inspector__header,
+  .app.view-mode-flat .flat-middle__header,
+  .app.view-mode-flat .flat-map__header {
+    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  }
+
+  // The chat identity header has less chrome than the other FlatView headers.
+  // Keep the Android status-bar inset, but reclaim the extra breathing room so
+  // the conversation gets more height on short mobile viewports.
+  .app.view-mode-flat .flat-terminal-wrapper__header {
+    padding-top: calc(2px + env(safe-area-inset-top, 0px));
+  }
+
+  // Inspector + agents drawer extend to the bottom of the viewport but the
+  // bottom-nav (z-index 2100) sits on top. Reserve room at the bottom of
+  // their scrollable bodies so the last item isn't hidden behind the nav.
+  .app.view-mode-flat .flat-inspector__body,
+  .app.view-mode-flat .flat-middle__content {
+    padding-bottom: var(--mobile-bottom-stack-height, 72px);
+  }
+
+  .flat-view {
+    // FAB toggle is 44px wide at left:12 → ~56px. Keep a bit of breathing
+    // room but reclaim space vs. the desktop 64px gutter.
+    padding-left: 56px;
+  }
+
+  // Agents column header: allow actions to wrap under the title if
+  // horizontal room runs out instead of overflowing off-screen.
+  .flat-middle__header {
+    flex-wrap: wrap;
+    // Tighter: this row stacks on top of the drawer's own header (stats +
+    // search + filters), so every px of chrome costs list space.
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .flat-middle__content {
+    padding: 8px;
+  }
+
+  // CTA buttons: bump tap-target height and space them a little more.
+  .flat-cta-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+    min-height: 34px;
+  }
+
+  // Empty-state map: use a dense, readable browse view on phones. Exact scene
+  // coordinates remain a desktop concern; on mobile a two-column reading
+  // order avoids tiny cards and empty spatial cells. Tapping a card expands it
+  // to the full width and exposes touch-friendly agent/building rows.
+  .flat-chat--empty {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .flat-map {
+    width: 100%;
+    padding: 0 10px 12px;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  // Sticky map chrome keeps the view switcher reachable without allowing it
+  // to overlap the Android status bar or the Areas title.
+  .app.view-mode-flat .flat-map__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title toggle'
+      'stats stats';
+    align-items: center;
+    gap: 3px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    margin: 0 -10px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 8px;
+    background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .flat-map__title {
+    grid-area: title;
+    font-size: 15px;
+  }
+
+  .flat-map__hint {
+    display: none;
+  }
+
+  .flat-map__stats {
+    grid-area: stats;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+  }
+
+  .flat-map__stats-working {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: color-mix(in srgb, var(--status-working) 78%, var(--text-secondary));
+  }
+
+  .flat-map__stats-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--status-working);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--status-working) 55%, transparent);
+  }
+
+  .flat-map__view-mode {
+    grid-area: toggle;
+    position: relative;
+    top: auto;
+    right: auto;
+    justify-self: end;
+
+    .view-mode-toggle__btn {
+      min-width: 40px;
+      min-height: 40px;
+      padding: 6px 9px;
+    }
+  }
+
+  .flat-map__grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .flat-map-area-card {
+    min-width: 0;
+    grid-row: auto !important;
+    grid-column: auto !important;
+    border-radius: 12px;
+  }
+
+  .flat-map-area-card__header {
+    padding: 7px 8px;
+    gap: 6px;
+    min-height: 48px;
+  }
+
+  .flat-map-area-card__name {
+    font-size: 12px;
+  }
+
+  .flat-map-area-card__count {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+
+  // On desktop the area logo is a large watermark. In the mobile browse card
+  // it becomes a crisp thumbnail so it identifies the area without obscuring
+  // its name or counters.
+  .flat-map-area-card__logo {
+    position: static;
+    width: 22px;
+    height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+    flex-shrink: 0;
+    opacity: 0.82;
+    z-index: 0;
+    border-radius: 5px;
+  }
+
+  .flat-map-area-card__caret {
+    flex-shrink: 0;
+    margin-left: auto;
+    opacity: 0.7;
+  }
+
+  // Collapsed: just the header tile is visible.
+  .flat-map-area-card--collapsed {
+    .flat-map-area-card__agents,
+    .flat-map-area-card__buildings,
+    .flat-map-area-card__folders {
+      display: none;
+    }
+  }
+
+  .flat-map-area-card--expanded {
+    grid-column: 1 / -1 !important;
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 72%, transparent);
+    box-shadow: 0 6px 18px color-mix(in srgb, #000 30%, transparent);
+  }
+
+  .flat-map-area-card__agents {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 2px 8px 8px;
+  }
+
+  .flat-map-agent-chip {
+    width: 100%;
+    padding: 7px 10px 9px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+}

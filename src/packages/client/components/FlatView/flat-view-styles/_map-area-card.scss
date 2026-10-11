@@ -1,0 +1,144 @@
+// =============================================================================
+// 地图区域卡片 .flat-map-area-card(头/统计/进度/文件夹与建筑槽位)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 381-518 行,逐行原样。
+// =============================================================================
+
+
+.flat-map-area-card {
+  display: flex;
+  flex-direction: column;
+  // Own stacking context so the logo watermark (z-index:-1) sits above the
+  // card's tint but behind the content, and is clipped to the card.
+  position: relative;
+  isolation: isolate;
+  // Subtle per-area backdrop so each area's group of agents/buildings reads as
+  // one tinted region on the flat map. The area's own color (--area-color, set
+  // inline from area.color) is mixed lightly into the card surface so it stays
+  // readable in light/dark, with a faint area-color border. color-mix matches
+  // the tint approach already used for area chips (e.g. TrackingBoard).
+  background: color-mix(in srgb, var(--area-color, var(--text-muted)) 12%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--area-color, var(--text-muted)) 38%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 58%, transparent);
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 25%, transparent);
+  }
+
+  // Working state is intentionally static. A compact SVG in the header carries
+  // activity without repainting every area-sized card at display refresh rate.
+  &--working {
+    border-color: color-mix(in srgb, var(--area-color, var(--text-muted)) 72%, var(--accent-cyan));
+    box-shadow: 0 0 0 1px rgba(139, 233, 253, 0.18);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    }
+  }
+
+  &__color {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  // Area logo as a large, subtle watermark anchored to the card's bottom-right
+  // corner, sitting behind the content (z-index:-1) and clipped by the card's
+  // overflow:hidden. Header still shows the area-color dot for quick ID.
+  &__logo {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 88px;
+    height: 88px;
+    max-width: 55%;
+    max-height: 72%;
+    object-fit: contain;
+    opacity: 0.3;
+    pointer-events: none;
+    user-select: none;
+    z-index: -1;
+    border-radius: 4px;
+  }
+
+  &__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__working {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+    color: var(--accent-cyan);
+    background: rgba(139, 233, 253, 0.12);
+    border: 1px solid rgba(139, 233, 253, 0.32);
+    border-radius: 8px;
+    box-shadow: 0 0 7px rgba(139, 233, 253, 0.16);
+  }
+
+  &__working-glyph {
+    color: currentColor;
+  }
+
+  &__working-count {
+    min-width: 6px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
+  &__caret {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 12px;
+    text-align: center;
+  }
+
+  &__agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 8px 8px;
+  }
+}

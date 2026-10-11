@@ -1,0 +1,183 @@
+// =============================================================================
+// ≤1024px:单列布局、中列(侧栏打开态/--full/--compact 紧凑化)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1810-1984 行,逐行原样。
+// =============================================================================
+
+
+@media (max-width: 1024px) {
+  .flat-view {
+    grid-template-columns: 1fr;
+
+    &--with-inspector {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  // Resize splitter is desktop/tablet-only — the agents column becomes a
+  // slide-in drawer on mobile so there's nothing for it to divide.
+  .flat-splitter {
+    display: none;
+  }
+
+  // Chat / flat-map is always visible on mobile — no matter whether an agent
+  // is selected. When none is, the right column shows the flat-map empty
+  // state; when one is, it shows the chat pane.
+  .flat-right {
+    grid-column: 1 / -1;
+  }
+
+  // When the agents toggle button is rendered at the top of flat-right, the
+  // chat/flat-map below it needs to claim the remaining height rather than
+  // trying to be 100% of the parent (which would push the button off-screen).
+  .flat-right > .flat-terminal-wrapper,
+  .flat-right > .flat-chat {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  // Agents column becomes a fixed drawer anchored to the left edge. Hidden
+  // offscreen by default, slides in when the mobile toggle is activated.
+  .flat-middle {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    // Compact by default so the active chat remains visible and the drawer is
+    // practical for quick agent selection. The explicit Full control below
+    // promotes it to a complete-width browser when needed.
+    width: min(320px, 82vw);
+    z-index: 185;
+    transform: translateX(-110%);
+    transition: transform 0.22s ease;
+    border-right: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+    box-shadow: 6px 0 32px color-mix(in srgb, #000 60%, transparent);
+  }
+
+  .flat-view--mobile-sidebar-open .flat-middle {
+    transform: translateX(0);
+  }
+
+  .flat-view--mobile-sidebar-full .flat-middle {
+    width: 100vw;
+    max-width: none;
+  }
+
+  // Slim rail intended to stay open while chatting. Management controls remain
+  // available after tapping Full; compact mode focuses on selecting agents.
+  .flat-view--mobile-sidebar-compact {
+    // Keep the compact dimensions active even while the rail slides out. If
+    // they disappear at close time, it briefly grows to the default drawer
+    // width before leaving the screen.
+    .flat-middle {
+      width: min(140px, 34vw);
+      min-width: 0;
+      max-width: 140px;
+      background: var(--bg-primary);
+      // Slight translucency keeps the chat perceptible without reducing the
+      // rail text and avatars as aggressively as the former 70% opacity.
+      opacity: 0.85;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    // Compact is a persistent companion rail, not a modal drawer: do not dim
+    // or intercept the remaining chat surface.
+    .flat-mobile-sidebar-backdrop {
+      display: none;
+    }
+
+    .flat-middle__header {
+      padding: 6px;
+    }
+
+    .flat-middle__actions {
+      width: 100%;
+      justify-content: flex-end;
+
+      // Compact is a selector rail, not a management surface. Full restores
+      // all creation/search/filter controls.
+      .flat-cta-btn {
+        display: none;
+      }
+    }
+
+    .flat-middle__content {
+      padding: 2px;
+    }
+
+    .agent-overview-panel {
+      background: transparent;
+
+      .aop-stats-row {
+        display: none;
+      }
+
+      .aop-agent-list {
+        padding: 3px 2px;
+      }
+
+      .aop-area-eye-btn,
+      .aop-area-add-btn,
+      .aop-area-count {
+        display: none;
+      }
+
+      .aop-area-header {
+        min-height: 34px;
+        padding: 4px;
+        gap: 4px;
+
+        .aop-area-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      .aop-agent-card {
+        min-height: 34px;
+
+        .aop-card-avatar {
+          width: 28px;
+          height: 28px;
+        }
+
+        .aop-agent-header {
+          padding: 4px;
+        }
+
+        .copy-agent-identity-btn,
+        .aop-msg-count,
+        .aop-subagent-count,
+        .aop-task-label,
+        .aop-last-message,
+        .aop-match-context,
+        .aop-agent-body {
+          display: none;
+        }
+      }
+    }
+  }
+
+  .flat-mobile-sidebar-size-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 42%, transparent);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+    color: var(--accent-cyan);
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+    }
+  }
+}

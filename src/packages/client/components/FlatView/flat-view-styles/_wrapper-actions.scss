@@ -1,0 +1,110 @@
+// =============================================================================
+// 分支前瞻/滞后、拉取、动作区与动作按钮(引用 blink 关键帧)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1027-1128 行,逐行原样。
+// =============================================================================
+
+
+.flat-terminal-wrapper {
+  &__area-dir-branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--accent-cyan);
+    opacity: 0.85;
+  }
+
+  &__branch-ahead {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent-green);
+  }
+
+  &__branch-behind {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent-orange);
+  }
+
+  &__area-fetch {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 3px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      color: var(--text-primary);
+    }
+
+    &--fetching {
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+
+  // ── Action button cluster (search / clear context / more) ───────────────
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+  }
+
+  &__action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover:not(:disabled) {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 45%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
+      }
+    }
+
+    &--danger {
+      color: color-mix(in srgb, var(--accent-red) 85%, transparent);
+
+      &:hover {
+        color: var(--accent-red);
+        background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      }
+    }
+
+    &--confirm {
+      color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 18%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-red) 50%, transparent);
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+}

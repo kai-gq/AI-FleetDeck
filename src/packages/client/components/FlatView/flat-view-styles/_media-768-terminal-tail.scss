@@ -1,0 +1,97 @@
+// =============================================================================
+// ≤768px:动作按钮/关闭/检查器/底部面板/视图模式等尾部适配
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2597-2685 行,逐行原样。
+// =============================================================================
+
+
+@media (max-width: 768px) {
+  .flat-terminal-wrapper__statusbar {
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 6px;
+    row-gap: 6px;
+  }
+
+  // Legacy sizing for any residual header action buttons. The cluster itself is
+  // hidden on phones (relocated to the bottom sheet), so this mainly keeps the
+  // desktop-narrow fallback tidy.
+  .flat-terminal-wrapper__action-btn,
+  .flat-terminal-wrapper__building-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .flat-terminal-wrapper__close {
+    width: 28px;
+    height: 28px;
+  }
+
+  .flat-terminal-wrapper__inspector-toggle {
+    padding: 4px 6px;
+  }
+
+  .flat-terminal-wrapper__inspector-label {
+    display: none;
+  }
+
+  // The top-right action cluster sits out of thumb reach on phones — hide it.
+  // Its actions are relocated to the bottom sheet, opened from the reachable
+  // "Actions" button in the mobile bottom-nav (see MobileBottomMenu).
+  .flat-terminal-wrapper__actions {
+    display: none;
+  }
+
+  // Side panel (git / buildings / debug) should overlay on mobile — there
+  // isn't room to push chat content left by 380px.
+  .flat-terminal-wrapper {
+    --guake-side-panel-width: 100%;
+    // Void instead of the gray var(--bg-tertiary) so the (transparent) pinned-agents
+    // bar reads as the chat background, not a gray strip. Header/output/input all
+    // paint their own bg, so this only affects the otherwise-bare pinbar row.
+    background: var(--bg-primary);
+  }
+  .flat-right { background: var(--bg-primary); }
+
+  .flat-terminal-wrapper--with-side-panel > *:not(.guake-git-panel):not(.guake-buildings-panel):not(.guake-workflow-panel):not(.agent-debug-panel) {
+    margin-right: 0;
+  }
+
+  .flat-terminal-wrapper .guake-git-panel,
+  .flat-terminal-wrapper .guake-buildings-panel,
+  .flat-terminal-wrapper .guake-workflow-panel,
+  .flat-terminal-wrapper .agent-debug-panel {
+    width: 100%;
+  }
+
+  // Bottom embedded panel: shorter default height on mobile so it doesn't
+  // swallow most of the chat area.
+  .flat-bottom-panel {
+    height: 180px;
+  }
+
+  // Compact mode: reclaim vertical space for chat by hiding low-priority
+  // chrome. Functionality is preserved — view modes default to one mode,
+  // back/forward replaced by the agents drawer, close handled by switching
+  // agents, the action cluster relocated to the bottom sheet, and statusbar
+  // info is reachable from the inspector / file explorer / FAB menu.
+  .flat-terminal-wrapper__view-mode {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__close {
+    display: none;
+  }
+
+  .flat-terminal-wrapper__statusbar {
+    display: none;
+  }
+
+  // The agents drawer toggle and inspector toggle have been moved to the
+  // bottom-nav (Agents / Inspector buttons in MobileBottomMenu) — see
+  // src/packages/client/components/MobileBottomMenu.tsx. Hide the in-view
+  // floating buttons so the top of the chat is clean.
+  .app.view-mode-flat .flat-mobile-sidebar-toggle,
+  .app.view-mode-flat .flat-terminal-wrapper__inspector-toggle {
+    display: none;
+  }
+}

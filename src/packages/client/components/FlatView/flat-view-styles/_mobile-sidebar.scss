@@ -1,0 +1,31 @@
+// =============================================================================
+// 移动端侧栏开关/遮罩(桌面隐藏,尾含 Responsive 横幅注释)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1784-1808 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Mobile sidebar toggle + backdrop (only active on narrow viewports)
+// ----------------------------------------------------------------------------
+// On mobile the agents column collapses into a slide-in drawer, so we surface
+// a dedicated toggle button + backdrop here. Both are hidden on desktop and
+// become visible only inside the `@media (max-width: 1024px)` block below.
+// ============================================================================
+
+.flat-mobile-sidebar-toggle,
+.flat-mobile-sidebar-size-toggle {
+  display: none;
+}
+
+.flat-mobile-sidebar-backdrop {
+  display: none;
+}
+
+// ============================================================================
+// Responsive
+// ============================================================================
+
+// Tablet + mobile: collapse to a single column where the chat/flat-map always
+// fills the viewport, and the agents list slides in from the left as a
+// drawer. The `flat-view--mobile-sidebar-open` class is toggled by the
+// in-view toggle button.

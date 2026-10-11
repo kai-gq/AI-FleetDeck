@@ -1,0 +1,92 @@
+// =============================================================================
+// 空聊天态地图视图 .flat-map(画布/节点/连线)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 294-379 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Empty-chat compact area/agent overview
+// ----------------------------------------------------------------------------
+// Shown when no agent is selected. Gives users a quick browseable map of
+// areas and their agents, with one-click expand (area) or open-chat (agent).
+// ============================================================================
+
+.flat-map {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px 16px;
+  gap: 10px;
+  overflow-y: auto;
+  position: relative;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    border-radius: 3px;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 20%, transparent);
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    padding-right: 130px;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  &__hint {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  &__stats {
+    display: none;
+  }
+
+  &__view-mode {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 5;
+    background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 999px;
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    align-content: start;
+  }
+
+  &__empty {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+}

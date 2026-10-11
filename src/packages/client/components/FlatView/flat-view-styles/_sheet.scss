@@ -1,0 +1,162 @@
+// =============================================================================
+// 聊天操作底部抽屉(根/遮罩/把手/标题行/操作行)与滑入、淡入动画
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2068-2223 行,逐行原样。
+// =============================================================================
+
+
+// Tablet tweak: smaller left gutter and lighter header paddings. The FAB
+// stack on the left edge needs ~56px at most on narrow phones.
+// ── Mobile chat-actions bottom sheet ────────────────────────────────────────
+// Relocates the flat chat's header action cluster (search / clear / git /
+// buildings / debug / destructive ops) into a thumb-reachable sheet that slides
+// up from the bottom, sitting just above the mobile bottom-nav. Only reachable
+// on phones — the trigger that opens it is mobile-only.
+.flat-chat-actions-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2050; // below the bottom-nav (2100) so the nav stays tappable
+}
+
+.flat-chat-actions-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, #000 45%, transparent);
+  animation: flat-sheet-fade 0.15s ease;
+}
+
+.flat-chat-actions-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  // Sit directly on top of the bottom-nav, which owns the very bottom strip.
+  bottom: var(--mobile-bottom-stack-height, 72px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-bottom: none;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  box-shadow: 0 -12px 32px color-mix(in srgb, #000 50%, transparent);
+  animation: flat-sheet-slide-up 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.flat-chat-actions-sheet__grabber {
+  width: 40px;
+  height: 4px;
+  margin: 2px auto 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.flat-chat-actions-sheet__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flat-chat-actions-sheet__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flat-chat-actions-sheet__done {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-purple);
+  background: none;
+  border: none;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.flat-chat-actions-sheet__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.flat-chat-actions-sheet__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 8px 4px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  cursor: pointer;
+
+  span {
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  &.is-active {
+    background: color-mix(in srgb, var(--accent-purple) 24%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+  }
+}
+
+.flat-chat-actions-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flat-chat-actions-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+
+  &:active {
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &--danger {
+    color: color-mix(in srgb, var(--accent-red) 90%, transparent);
+  }
+
+  &.is-armed {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-red) 50%, transparent);
+  }
+}
+
+@keyframes flat-sheet-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes flat-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

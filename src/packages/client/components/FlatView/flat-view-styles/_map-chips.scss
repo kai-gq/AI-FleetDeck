@@ -1,0 +1,142 @@
+// =============================================================================
+// 地图代理胶囊与建筑/文件夹胶囊(含活动指示点)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 520-655 行,逐行原样。
+// =============================================================================
+
+
+.flat-map-agent-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 6px;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    color: var(--text-primary);
+  }
+
+  // A static chip plus a tiny SVG replaces the old five full-chip animations
+  // and two animated pseudo-elements.
+  &.working {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-cyan) 68%, var(--border-color));
+    color: var(--text-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &__provider-icon {
+    width: 12px;
+    height: 12px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px color-mix(in srgb, #000 25%, transparent));
+  }
+
+  &__crown {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  // Thin remaining-context gauge pinned to the bottom edge. Source of truth
+  // matches the FlatView terminal statusbar chip (flat-terminal-wrapper__context)
+  // via getDisplayContextInfo() — used% fills the bar, color shifts red as the
+  // agent approaches its context window limit.
+  &__context-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
+    pointer-events: none;
+  }
+
+  &__context-bar-fill {
+    display: block;
+    height: 100%;
+    transition: width 0.2s ease, background-color 0.2s ease;
+  }
+}
+
+.flat-map-agent-chip__activity {
+  color: var(--accent-cyan);
+}
+
+.flat-map-area-card__buildings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--text-primary) 5%, transparent);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+
+.flat-map-area-card__folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--text-primary) 5%, transparent);
+  margin-top: 2px;
+}
+
+.flat-map-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--text-primary);
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

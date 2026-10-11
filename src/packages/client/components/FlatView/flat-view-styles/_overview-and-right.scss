@@ -1,0 +1,82 @@
+// =============================================================================
+// 嵌入 AgentOverviewPanel 适配(:has 收窄)与右列 .flat-right/.flat-chat
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 217-292 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Embedded Agents Overview Panel (reused from the Guake terminal)
+// ----------------------------------------------------------------------------
+// The 'agents' middle column renders <AgentOverviewPanel /> directly. Strip
+// the close button (the panel can't be dismissed inside the Flat UI — the
+// left-nav is how users move away from agents) and let the panel fill the
+// available column space.
+// ============================================================================
+
+.flat-middle .agent-overview-panel {
+  // Neutralize the absolute positioning the panel uses inside the Guake
+  // terminal — here it should flow inline as the middle column's body, filling
+  // whatever space the column flex container gives it.
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  border-right: none;
+  flex: 1;
+  min-height: 0;
+  // Drop the Guake-side z-index (201) so the global floating FAB buttons on
+  // the left edge (z-index 150) stay clickable on top of the panel.
+  z-index: auto;
+
+  .aop-row-controls .close-btn {
+    display: none;
+  }
+}
+
+.flat-middle__content:has(> .agent-overview-panel) {
+  // Let the panel manage its own scrolling instead of double-scrolling inside
+  // the column's content wrapper.
+  padding: 0;
+  overflow: hidden;
+}
+
+// ============================================================================
+// Right Column - Chat View
+// ============================================================================
+
+.flat-right {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+// Keep only the empty/placeholder styles — the rest is replaced by
+// AgentTerminalPane (see .flat-terminal-wrapper below).
+.flat-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &--empty {
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+  }
+
+  &__placeholder-icon {
+    font-size: 48px;
+    opacity: 0.5;
+  }
+
+  &__placeholder-text {
+    font-size: 14px;
+  }
+}

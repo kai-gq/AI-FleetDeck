@@ -1,0 +1,85 @@
+// =============================================================================
+// ≤1024px:侧栏开关钮(打开/关闭态)、遮罩、检查器与标签
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1989-2065 行,逐行原样。
+// =============================================================================
+
+
+@media (max-width: 1024px) {
+  .flat-mobile-sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    margin: 10px 12px 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 95%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    min-height: 36px;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover,
+    &:active {
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    }
+
+    &__label {
+      line-height: 1;
+    }
+  }
+
+  // Backdrop: dims the chat/flat-map behind the drawer and captures taps
+  // to dismiss it.
+  .flat-mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 184;
+    background: color-mix(in srgb, #000 68%, transparent);
+    backdrop-filter: blur(2px);
+    animation: flat-inspector-fade-in 0.18s ease;
+  }
+
+  // Inspector renders as a fullscreen overlay on narrow viewports so it
+  // doesn't compete with the chat/agent columns for horizontal space.
+  // Slides in from the right (and back out) to mirror the agents drawer's
+  // slide-from-left animation, keeping the open/close gesture consistent.
+  .flat-inspector {
+    position: fixed;
+    inset: 0;
+    z-index: 186;
+    border-left: none;
+    animation: none;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+  }
+
+  .flat-inspector--open {
+    transform: translateX(0);
+  }
+
+  .flat-inspector--closing {
+    transform: translateX(100%);
+  }
+
+  // Inspector chrome at touch sizes (tabs measured 22px, close 24px)
+  .flat-inspector__tab {
+    min-height: 36px;
+    padding: 6px 14px;
+  }
+
+  .flat-inspector__close {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+}

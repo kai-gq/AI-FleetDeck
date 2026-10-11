@@ -1,0 +1,176 @@
+// =============================================================================
+// 更多动作下拉菜单与头部信息区(身份/名称/状态/任务/模型徽章)
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1130-1297 行,逐行原样。
+// =============================================================================
+
+
+.flat-terminal-wrapper {
+  // ── More-actions dropdown menu ──────────────────────────────────────────
+  &__more {
+    position: relative;
+    display: inline-flex;
+  }
+
+  &__more-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 220px;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px color-mix(in srgb, #000 45%, transparent);
+    z-index: 100;
+  }
+
+  &__more-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--border-color) 55%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    &--danger {
+      color: color-mix(in srgb, var(--accent-red) 90%, transparent);
+
+      &:hover:not(:disabled) {
+        color: var(--accent-red);
+        background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      }
+    }
+  }
+
+  &__more-divider {
+    height: 1px;
+    margin: 4px 2px;
+    background: color-mix(in srgb, var(--border-color) 55%, transparent);
+  }
+
+  &__header-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  &__header-identity {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  &__header-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  &__header-status {
+    font-size: 10px;
+    text-transform: capitalize;
+    flex-shrink: 0;
+  }
+
+  &__header-task {
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    flex-shrink: 1;
+  }
+
+  // Model + effort cluster — provider icon followed by a chip with the model
+  // name and reasoning effort. Visible next to the agent name so the user can
+  // tell at a glance which model is running.
+  &__header-model {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  &__header-provider-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px color-mix(in srgb, #000 25%, transparent));
+  }
+
+  &__header-model-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 999px;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+
+  // Older generation than the pickers offer: only the icon is tinted.
+  &__header-model-chip--outdated > svg {
+    flex-shrink: 0;
+    color: var(--accent-yellow);
+  }
+
+  &__header-model-name {
+    color: var(--text-primary);
+    text-transform: lowercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__header-model-sep {
+    opacity: 0.6;
+  }
+
+  &__header-model-effort {
+    color: var(--accent-purple);
+    text-transform: lowercase;
+  }
+}

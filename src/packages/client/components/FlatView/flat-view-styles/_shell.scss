@@ -1,0 +1,61 @@
+// =============================================================================
+// 外壳基础:布局变量 $middle-min-width / Flat 模式隐藏 Guake 终端 / 左列 .flat-view 网格
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 1-55 行,逐行原样。
+// =============================================================================
+
+
+/**
+ * FlatView Styles - 3-Column Layout
+ *
+ * Layout: Sidebar | Middle (Agents) | Right (Chat)
+ * Colors come from global theme CSS variables (applyTheme).
+ */
+
+// Layout dimensions
+$middle-min-width: 280px;
+
+// ============================================================================
+// Main Container - 2 Column Layout (middle agents + right chat)
+// ----------------------------------------------------------------------------
+// The in-view sidebar nav was removed: the global floating FAB menu
+// (settings/spotlight/spawn buttons) on the left edge covers navigation, so
+// reserving a column for an internal SidebarMenu is wasted space.
+// ============================================================================
+
+// In Flat UI mode the Guake-style dropdown terminal is redundant — the
+// FlatView's right column already hosts an AgentTerminalPane for the selected
+// agent. Rendering Guake on top would cover the global FAB buttons
+// (settings / spotlight / spawn) at z-index 200 > 150, so we hide it.
+.app.view-mode-flat .guake-terminal {
+  display: none;
+}
+
+.flat-view {
+  // User-resizable column widths. Defaults: middle 1fr (50/50 split),
+  // inspector 320px. FlatView/index.tsx sets these inline (as CSS custom
+  // properties) when the user drags a splitter, overriding both the base
+  // and the `@media (min-width: 1400px)` values via the usual inline-style
+  // cascade. Mobile (`max-width: 1024px`) sets grid-template-columns
+  // directly, bypassing the vars entirely.
+  --flat-middle-width: 1fr;
+  --flat-inspector-width: 320px;
+  display: grid;
+  grid-template-columns: var(--flat-middle-width) 3px 1fr;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+  overflow: hidden;
+  // The FAB rail auto-hides in flat mode, so only a peek strip is reserved.
+  // The revealed rail overlays the left edge instead of pushing the columns.
+  // Mobile (`max-width: 768px`) drops this to 0 — the rail is hidden there.
+  padding-left: 10px;
+  box-sizing: border-box;
+  transition: grid-template-columns 0.25s ease;
+
+  // When the inspector is open, slot in a 4th track plus a 2nd splitter
+  // between the chat and the inspector. Mid and inspector keep their
+  // (resizable) widths; the chat column soaks up what's left.
+  &--with-inspector {
+    grid-template-columns: var(--flat-middle-width) 3px 1fr 3px var(--flat-inspector-width);
+  }
+}

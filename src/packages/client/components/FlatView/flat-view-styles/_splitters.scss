@@ -1,0 +1,52 @@
+// =============================================================================
+// 可拖拽分隔柄(3px 可视条 + ±5px 命中区)与拖动中全局态
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 57-102 行,逐行原样。
+// =============================================================================
+
+
+// ============================================================================
+// Draggable splitters. The visible strip is 3px; a ±5px invisible hit-target
+// widens the grab area to 13px total so it stays easy to grab. Hidden on
+// mobile (see the `@media (max-width: 1024px)` block further down) since
+// the agents column becomes a slide-in drawer and the inspector renders
+// full-screen.
+// ============================================================================
+.flat-splitter {
+  position: relative;
+  cursor: col-resize;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  touch-action: none;
+  user-select: none;
+  transition: background 0.15s ease;
+  z-index: 2;
+
+  // Widen the hit target without growing the visible strip.
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -5px;
+    right: -5px;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+  }
+}
+
+// Global body flag set while the pointer is captured — keeps the splitter
+// highlighted even if the pointer temporarily leaves the 3px strip, and
+// disables the grid transition so each pointermove update lands immediately.
+body.flat-splitter-dragging {
+  cursor: col-resize !important;
+  user-select: none !important;
+
+  .flat-splitter {
+    background: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+  }
+
+  .flat-view {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,199 @@
+// =============================================================================
+// 外框底部状态栏(分隔/建筑按钮)与区域目录、分支
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 835-1025 行,逐行原样。
+// =============================================================================
+
+
+.flat-terminal-wrapper {
+  // ── Guake-style bottom status bar ───────────────────────────────────────
+  // Hosts the cwd chip, context/token usage, and theme selector under the
+  // terminal pane (below its input). Mirrors the look of the top header but
+  // stays visually subordinate so the terminal output remains the focus.
+  &__statusbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    min-height: 32px;
+    box-sizing: border-box;
+
+    // Keep the chips a little flatter on the status bar so they read as
+    // "status" rather than interactive header controls.
+    .flat-terminal-wrapper__cwd,
+    .flat-terminal-wrapper__context {
+      background: transparent;
+      border-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    }
+
+    // Statusbar type runs 2px below the header's: this is ambient status, not a
+    // control surface, so it should not compete with the conversation.
+    //
+    // Scoped INSIDE the statusbar on purpose — .flat-terminal-wrapper__cwd and
+    // __context also render in the header, and shrinking them at the source
+    // would shrink both. Everything not listed here (branch counters, the
+    // fetch button, building buttons, the directory name, and the context
+    // chip's token readout) has no size of its own and simply inherits.
+    .flat-terminal-wrapper__cwd,
+    .flat-terminal-wrapper__context,
+    .flat-terminal-wrapper__area-dir,
+    .flat-terminal-wrapper__detached {
+      font-size: 10px;
+    }
+
+    .flat-terminal-wrapper__usage-label,
+    .flat-terminal-wrapper__usage-value {
+      font-size: 9px;
+    }
+  }
+
+  &__statusbar-spacer {
+    flex: 1 1 auto;
+  }
+
+  // ── Area-scoped building shortcut buttons (terminal / logs / database) ──
+  &__buildings {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-radius: 10px;
+  }
+
+  &__building-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    }
+
+    &--offline {
+      color: color-mix(in srgb, var(--accent-orange) 75%, transparent);
+
+      &:hover {
+        color: var(--accent-orange);
+      }
+    }
+
+    // Zero-config area default terminal — cyan tint so it reads apart from
+    // configured terminal buildings (it exists for every area, no setup).
+    &--default {
+      color: color-mix(in srgb, var(--accent-cyan) 80%, var(--text-muted));
+
+      &:hover {
+        color: var(--accent-cyan);
+      }
+    }
+
+    &--slash-command {
+      color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
+      background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+
+      &:hover {
+        color: var(--text-primary);
+        background: color-mix(in srgb, var(--accent-purple) 24%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 38%, transparent);
+      }
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 45%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 36%, transparent);
+      }
+    }
+
+    // Tests building with a run in flight — shaking flask + pulsing glow,
+    // mirrors the guake buildings-panel working indicator.
+    &--tests-working {
+      color: var(--accent-cyan);
+      background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+      animation: flat-tests-glow 1.4s ease-in-out infinite;
+
+      svg {
+        animation: flat-tests-shake 1.1s ease-in-out infinite;
+      }
+
+      &:hover {
+        color: var(--accent-cyan);
+        background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+      }
+    }
+  }
+
+  &__building-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  // ── Detached (reattaching) badge ────────────────────────────────────────
+  &__detached {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
+    border-radius: 10px;
+    animation: blink 1.6s ease-in-out infinite;
+  }
+
+  // ── Area directory chips (one per area folder, with git branch info) ────
+  &__area-dir {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
+    border-radius: 10px;
+    cursor: pointer;
+    max-width: 240px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    }
+  }
+
+  &__area-dir-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

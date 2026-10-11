@@ -1,0 +1,22 @@
+// =============================================================================
+// ≥1400px 宽屏列宽上限(引用 $middle-min-width)与检查器淡入动画
+// 由 FlatView.scss 拆分(W4,2026-10-11):原文件第 2752-2766 行,逐行原样。
+// =============================================================================
+
+
+@use './shell' as *;
+@media (min-width: 1400px) {
+  .flat-view {
+    // On wide screens, cap the agents column at 400px and set the
+    // inspector to 360px by default. User drag overrides either of these
+    // via the matching inline CSS custom property (inline style trumps
+    // this regular rule for custom properties).
+    --flat-middle-width: minmax(#{$middle-min-width}, 400px);
+    --flat-inspector-width: 360px;
+  }
+}
+
+@keyframes flat-inspector-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
