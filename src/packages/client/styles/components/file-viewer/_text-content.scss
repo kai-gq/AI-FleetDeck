@@ -1,0 +1,354 @@
+// =============================================================================
+// Markdown 容器/代码行号/高亮/统一 diff/路径解析结果
+// 由 _file-viewer.scss 拆分(W4,2026-10-11):原文件第 1604-1950 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.file-viewer-markdown {
+  padding: 16px 20px;
+}
+
+.file-viewer-markdown-wrapper {
+  padding: 16px 20px;
+}
+
+// Code with line numbers layout (modal)
+.file-viewer-content > .file-viewer-code-with-lines {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+
+  .file-viewer-line-gutter {
+    position: sticky;
+    left: 0;
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--bg-tertiary);
+    user-select: none;
+    z-index: 1;
+  }
+
+  .file-viewer-line-num {
+    padding: 0 12px 0 8px;
+    text-align: right;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    opacity: 0.5;
+    min-width: 40px;
+  }
+
+  .file-viewer-line-num-target {
+    opacity: 1;
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+    border-left: 2px solid var(--accent-yellow);
+    padding-left: 6px;
+  }
+}
+
+.file-viewer-code {
+  margin: 0;
+  padding: 16px 20px;
+  background: transparent;
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre;
+  width: fit-content;
+  min-width: 100%;
+  // Parent .file-viewer-content handles scrolling (both x and y)
+  // This ensures j/k keyboard scrolling works on the content container
+
+  .file-viewer-code-with-lines & {
+    padding: 16px 16px;
+    min-width: 0;
+  }
+
+  code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+    display: block;
+    font-family: inherit;
+    white-space: inherit;
+    line-height: inherit !important;
+  }
+
+  .token {
+    line-height: inherit;
+  }
+}
+
+// Normal code view rendered line-by-line with Prism HTML
+.file-viewer-code-lines {
+  padding: 8px 0;
+
+  .file-line {
+    display: flex;
+    align-items: baseline;
+    min-height: calc(1.6em);
+    line-height: 1.6;
+    padding: 0 16px;
+
+    &.file-line-highlighted {
+      background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+      border-left: 2px solid var(--accent-yellow);
+      padding-left: 14px;
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    opacity: 0.55;
+    user-select: none;
+  }
+
+  .file-viewer-line-num-target {
+    opacity: 1;
+    color: var(--accent-yellow);
+  }
+
+  code {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    background: none;
+    padding: 0;
+    white-space: pre;
+    line-height: 1.6 !important;
+  }
+}
+
+
+// Highlight for Edit tool changes
+.file-viewer-highlight {
+  background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+  border-left: 2px solid var(--accent-green);
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 2px;
+  display: inline;
+}
+
+// File viewer with highlighted lines (Read tool with offset/limit)
+.file-viewer-code-highlighted {
+  // Rows are windowed (VirtualLineList), so each one is an only-child of its
+  // positioning wrapper — :first-child/:last-child padding would land on EVERY
+  // row and break the fixed row height the virtualizer relies on. The edge
+  // spacing lives on the container instead.
+  padding: 8px 0;
+
+  .file-line {
+    display: flex;
+    padding: 0 16px;
+    line-height: 1.5;
+
+    &.file-line-highlighted {
+      background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+      border-left: 3px solid var(--accent-yellow);
+      padding-left: 13px;
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 11px;
+    user-select: none;
+    opacity: 0.6;
+
+    .file-line-highlighted & {
+      opacity: 1;
+      color: var(--accent-yellow);
+    }
+  }
+
+  code {
+    flex: 1;
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    white-space: pre;
+  }
+}
+
+// Unified diff fallback view
+.file-viewer-unified-diff {
+  padding: 0;
+
+  .file-line {
+    display: flex;
+    padding: 0 16px;
+    line-height: 1.5;
+
+    &:first-child {
+      padding-top: 8px;
+    }
+
+    &:last-child {
+      padding-bottom: 8px;
+    }
+
+    &.file-line-diff-add {
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+
+      .file-line-num {
+        color: var(--accent-green);
+        opacity: 0.8;
+      }
+
+      code {
+        color: var(--text-primary);
+      }
+    }
+
+    &.file-line-diff-del {
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+
+      .file-line-num {
+        color: var(--accent-red);
+        opacity: 0.8;
+      }
+
+      code {
+        color: var(--text-primary);
+      }
+    }
+
+    &.file-line-diff-hdr {
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+
+      code {
+        color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary));
+        font-weight: 600;
+      }
+    }
+
+    &.file-line-diff-meta {
+      code {
+        color: var(--text-muted);
+        font-style: italic;
+      }
+    }
+  }
+
+  .file-line-num {
+    flex-shrink: 0;
+    width: 45px;
+    padding-right: 12px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 11px;
+    user-select: none;
+    opacity: 0.6;
+  }
+
+  code {
+    flex: 1;
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    white-space: pre;
+  }
+}
+
+// File resolve results (fallback search / directory listing)
+.file-viewer-resolve-results {
+  padding: 16px;
+  height: 100%;
+  overflow: auto;
+}
+
+.file-viewer-resolve-header {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.file-viewer-resolve-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-viewer-resolve-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: $radius-sm;
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  cursor: pointer;
+  transition: all $transition-fast;
+  text-align: left;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  width: 100%;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+    border-color: var(--accent-blue);
+
+    .file-viewer-resolve-name {
+      color: var(--accent-blue);
+    }
+  }
+}
+
+.file-viewer-resolve-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.file-viewer-resolve-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-viewer-resolve-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color $transition-fast;
+}
+
+.file-viewer-resolve-path {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-viewer-resolve-size {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+

@@ -1,0 +1,104 @@
+// =============================================================================
+// Prism 语法高亮 token 配色
+// 由 _file-viewer.scss 拆分(W4,2026-10-11):原文件第 1951-2047 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Prism.js syntax highlighting - using CSS variables for theme support
+.file-viewer-code {
+  .token {
+    &.comment,
+    &.prolog,
+    &.doctype,
+    &.cdata {
+      color: var(--text-muted);
+    }
+
+    &.punctuation {
+      color: var(--text-primary);
+    }
+
+    &.property,
+    &.tag,
+    &.constant,
+    &.symbol,
+    &.deleted {
+      color: var(--accent-pink);
+    }
+
+    &.boolean,
+    &.number {
+      color: var(--accent-purple);
+    }
+
+    &.selector,
+    &.attr-name,
+    &.string,
+    &.char,
+    &.builtin,
+    &.inserted {
+      color: var(--accent-green);
+    }
+
+    &.operator,
+    &.entity,
+    &.url,
+    &.variable {
+      color: var(--text-primary);
+    }
+
+    &.atrule,
+    &.attr-value,
+    &.function,
+    &.class-name {
+      color: var(--accent-yellow);
+    }
+
+    &.keyword {
+      color: var(--accent-pink);
+    }
+
+    &.regex,
+    &.important {
+      color: var(--accent-orange);
+    }
+
+    &.important,
+    &.bold {
+      font-weight: bold;
+    }
+
+    &.italic {
+      font-style: italic;
+    }
+
+    &.entity {
+      cursor: help;
+    }
+
+    // TypeScript/JavaScript specific
+    &.namespace {
+      color: var(--accent-cyan);
+    }
+
+    &.module {
+      color: var(--accent-cyan);
+    }
+
+    &.type-definition,
+    &.type {
+      color: var(--accent-cyan);
+    }
+
+    &.decorator,
+    &.meta {
+      color: var(--accent-green);
+    }
+
+    &.parameter {
+      color: var(--accent-orange);
+    }
+  }
+}
+
