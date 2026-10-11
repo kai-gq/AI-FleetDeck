@@ -5,8 +5,19 @@
  * Modeled after AgentDebugPanel — slides in from the right.
  * Clicking a modified/deleted file shows a diff modal; added/untracked shows content.
  * Supports flat and tree view modes.
+ * 类型 / 常量 / 助手与树节点渲染已拆入 ./guake-git/(2026-10-11 W2 拆分);
+ * 本文件保留懒加载查看器、二进制预览与主面板组件。
  */
 
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 常量 / 助手 / 树节点渲染已拆入 ./guake-git/;
+// 本文件保留懒加载查看器、二进制预览与主面板组件(导出面不变)。
+// ============================================================================
+
+import { type GuakeGitPanelProps, type RepoStatus, type DisplayRepo, type ExplorerMatch, type BinaryState, type ModalState, type ViewMode, type PanelMode } from './guake-git/types';
+import { AUTO_EXPAND_MAX_FILES, FILTER_RENDER_CAP, RECENT_FOLDER_LIMIT, EXPLORER_SEARCH_LIMIT, EXPLORER_SEARCH_DEBOUNCE_MS, FILTER_HELP } from './guake-git/constants';
+import { getLanguageForFile, getBinaryPreviewKind, isPositionInArea, hasDiff, parentPath, collectFilesFromGitNode, collectGitFilesFromExplorerNode } from './guake-git/helpers';
+import { HighlightedText, TreeNodeView } from './guake-git/tree-view';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl, authFetch, STORAGE_KEYS, getStorageString, setStorageString, getStorage, setStorage, getAuthToken } from '../../utils/storage';
@@ -14,24 +25,17 @@ import { store, useAreas, useGitDirStatuses } from '../../store';
 import { acquireGitWatch, requestGitRefresh } from '../../services/gitWatch';
 import { DiffViewer } from '../DiffViewer';
 import { ArchiveViewer } from '../shared/ArchiveViewer';
-import { ARCHIVE_EXTENSIONS } from '../../../shared/archive-types';
 import { SpreadsheetViewer } from '../shared/SpreadsheetViewer';
-import { SPREADSHEET_BINARY_EXTENSIONS } from '../../../shared/spreadsheet-types';
 import { DocumentViewer } from '../shared/DocumentViewer';
-import { DOCUMENT_EXTENSIONS } from '../../../shared/document-types';
 import { GIT_STATUS_CONFIG } from '../FileExplorerPanel/constants';
 import { downloadFile, downloadFolder, setNativeFileDrag } from '../../utils/file-download';
 import { agentRecency, getRecentAgentTimes } from '../../utils/agentRecency';
 import { getIconForFileName, buildGitTree } from '../FileExplorerPanel/fileUtils';
-import { getLanguageForExtension } from '../FileExplorerPanel/syntaxHighlighting';
-import type { GitTreeNode } from '../FileExplorerPanel/fileUtils';
-import type { GitStatus, GitFileStatus, GitFileStatusType, TreeNode } from '../FileExplorerPanel/types';
-import type { Agent } from '../../../shared/types';
+import { type GitTreeNode } from '../FileExplorerPanel/fileUtils';
+import { type GitFileStatus, type GitFileStatusType, type TreeNode } from '../FileExplorerPanel/types';
 import { useFileTree } from '../FileExplorerPanel/useFileTree';
 import { TreeNodeItem } from '../FileExplorerPanel/TreeNodeItem';
-import { parseFileFilter, filterFiles, scoreFile, highlightRanges } from './gitFileFilter';
-import type { ParsedFileFilter } from './gitFileFilter';
-import type { BranchInfo } from './useGitBranch';
+import { parseFileFilter, filterFiles, scoreFile } from './gitFileFilter';
 import { ContextMenu, type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { useToast } from '../Toast';
@@ -49,6 +53,7 @@ const FcStdViewer = React.lazy(async () => {
   const module = await import('../shared/FcStdViewer');
   return { default: module.FcStdViewer };
 });
+
 const GlbViewer = React.lazy(async () => {
   const module = await import('../shared/GlbViewer');
   return { default: module.GlbViewer };
@@ -62,209 +67,6 @@ const GcodeViewer = React.lazy(async () => {
 // ==========================================================================
 // TYPES
 // ==========================================================================
-
-interface GuakeGitPanelProps {
-  agentId: string;
-  agents: Map<string, Agent>;
-  onClose: () => void;
-  branchInfoMap: Map<string, BranchInfo>;
-  fetchRemote: (dir: string) => Promise<void>;
-  fetchingDirs: Set<string>;
-  // When provided, renders a drag-to-resize handle glued to the panel's own
-  // left edge. Used by surfaces (e.g. FlatView) where a sibling handle can't
-  // reliably sit at the panel edge. Mouse-down starts the resize drag.
-  onResizeStart?: (e: React.MouseEvent) => void;
-}
-
-interface RepoStatus {
-  dir: string;
-  dirName: string;
-  gitStatus: GitStatus;
-  /** Real change count — `gitStatus.files` is capped by the server watcher. */
-  totalFiles: number;
-  /** True when `gitStatus.files` holds only the first slice of the changes. */
-  truncated: boolean;
-}
-
-/** A repo with the filter applied: `files` is the ranked, capped match list. */
-interface DisplayRepo extends RepoStatus {
-  /** Files to render — filter matches, ranked best-first and capped. */
-  files: GitFileStatus[];
-  /** How many files matched before the render cap was applied. */
-  matchCount: number;
-  /** Matches dropped by the render cap (0 when everything is shown). */
-  hiddenMatches: number;
-}
-
-// A repo with this many changes is generated output (build dirs, caches), not
-// work in progress: expanding it renders one row per file and would lock up the
-// browser, so it stays collapsed until the user asks for it.
-const AUTO_EXPAND_MAX_FILES = 500;
-
-// Filter results auto-expand, so a loose query ("s") on a huge repo would
-// otherwise paint every change at once. Beyond this the user refines instead.
-const FILTER_RENDER_CAP = 300;
-/** How many recently-used agent working directories the Files tab lists. */
-const RECENT_FOLDER_LIMIT = 10;
-
-// The Files tab tree is lazy-loaded (3 levels), so a filter there also asks the
-// server to walk the folder — debounced, and only once the seed term is usable.
-const EXPLORER_SEARCH_LIMIT = 200;
-const EXPLORER_SEARCH_DEBOUNCE_MS = 220;
-
-const FILTER_HELP = [
-  'Filter files:',
-  '  runner          fuzzy match on the filename, then the path',
-  '  server/claude   a term with "/" matches the full path',
-  '  .tsx  *.tsx     extension',
-  '  "exact text"    contiguous match, no fuzzy scatter',
-  '  !test           exclude matches',
-  '  status:mod      only that status (m/a/d/u/r/c)',
-  'Terms combine with AND. Uppercase makes a term case-sensitive.',
-].join('\n');
-
-/** One filter hit in the Files tab — from the loaded tree or the server walk. */
-interface ExplorerMatch {
-  /** Node to open on click; absolute path, git status attached when known. */
-  node: TreeNode;
-  /** Path relative to the explorer folder — what gets matched and displayed. */
-  relPath: string;
-  status?: GitFileStatusType;
-}
-
-interface DiffState {
-  filePath: string;
-  fileName: string;
-  originalContent: string;
-  modifiedContent: string;
-  language: string;
-}
-
-interface ContentState {
-  filePath: string;
-  fileName: string;
-  content: string;
-  language: string;
-}
-
-type BinaryPreviewKind = 'image' | 'pdf' | 'stl' | 'fcstd' | 'glb' | 'gcode' | 'archive' | 'spreadsheet' | 'document' | 'binary';
-
-interface BinaryState {
-  filePath: string;
-  fileName: string;
-  previewKind: BinaryPreviewKind;
-  isDeleted: boolean;
-}
-
-type ModalState =
-  | { type: 'diff'; data: DiffState }
-  | { type: 'content'; data: ContentState; isNewFile?: boolean }
-  | { type: 'binary'; data: BinaryState }
-  | null;
-type ViewMode = 'flat' | 'tree';
-type PanelMode = 'changes' | 'explorer';
-
-// ==========================================================================
-// HELPERS
-// ==========================================================================
-
-function getLanguageForFile(filename: string): string {
-  const ext = filename.lastIndexOf('.') >= 0 ? filename.substring(filename.lastIndexOf('.')) : '';
-  return getLanguageForExtension(ext);
-}
-
-const GIT_BINARY_EXTENSIONS = new Set([
-  '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.ppt',
-  '.zip', '.tar', '.gz', '.rar', '.7z',
-  '.exe', '.dmg', '.app', '.deb', '.rpm', '.apk', '.aab', '.ipa', '.msi',
-  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flac', '.ogg', '.webm',
-  '.ttf', '.otf', '.woff', '.woff2', '.eot', '.sqlite', '.db',
-  '.so', '.dll', '.dylib', '.a', '.o', '.obj', '.bin', '.dat', '.iso', '.img',
-  '.jar', '.war', '.ear', '.class',
-]);
-
-function getBinaryPreviewKind(filename: string): BinaryPreviewKind | null {
-  const dot = filename.lastIndexOf('.');
-  const extension = dot >= 0 ? filename.slice(dot).toLowerCase() : '';
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico'].includes(extension)) return 'image';
-  if (extension === '.pdf') return 'pdf';
-  if (extension === '.stl') return 'stl';
-  if (extension === '.fcstd') return 'fcstd';
-  if (extension === '.glb' || extension === '.gbl') return 'glb';
-  if (extension === '.gcode' || extension === '.gco') return 'gcode';
-  // Compressed containers get a browsable entry tree instead of "binary".
-  if (ARCHIVE_EXTENSIONS.includes(extension)) return 'archive';
-  // Workbooks get the sheet grid (legacy .xls/.ods explain themselves inside it).
-  if (SPREADSHEET_BINARY_EXTENSIONS.includes(extension)) return 'spreadsheet';
-  // Word-processing documents get the reading page.
-  if (DOCUMENT_EXTENSIONS.includes(extension)) return 'document';
-  return GIT_BINARY_EXTENSIONS.has(extension) ? 'binary' : null;
-}
-
-function isPositionInArea(pos: { x: number; z: number }, area: { center: { x: number; z: number }; width: number; height: number; type: string }): boolean {
-  if (area.type === 'circle') {
-    const dx = pos.x - area.center.x;
-    const dz = pos.z - area.center.z;
-    const r = Math.max(area.width, area.height) / 2;
-    return dx * dx + dz * dz <= r * r;
-  }
-  const halfW = area.width / 2;
-  const halfH = area.height / 2;
-  return pos.x >= area.center.x - halfW && pos.x <= area.center.x + halfW
-    && pos.z >= area.center.z - halfH && pos.z <= area.center.z + halfH;
-}
-
-/** Returns true for statuses that have a previous git version to diff against */
-function hasDiff(status: GitFileStatusType): boolean {
-  return status === 'modified' || status === 'renamed' || status === 'deleted' || status === 'conflict';
-}
-
-/** Parent path for deleted git entries that no longer exist on disk. */
-function parentPath(filePath: string): string {
-  const clean = filePath.replace(/[\\/]+$/, '');
-  const separator = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
-  return separator > 0 ? clean.slice(0, separator) : clean;
-}
-
-/** Recursively collect every changed file under a git-tree (Changes tab) directory node. */
-function collectFilesFromGitNode(node: GitTreeNode): GitFileStatus[] {
-  if (!node.isDirectory) return node.file ? [node.file] : [];
-  const out: GitFileStatus[] = [];
-  for (const child of node.children) out.push(...collectFilesFromGitNode(child));
-  return out;
-}
-
-/** Recursively collect git-changed files under an explorer (Files tab) directory node. */
-function collectGitFilesFromExplorerNode(node: TreeNode): Array<{ path: string; status: GitFileStatusType }> {
-  if (!node.isDirectory) {
-    return node.gitStatus ? [{ path: node.path, status: node.gitStatus as GitFileStatusType }] : [];
-  }
-  const out: Array<{ path: string; status: GitFileStatusType }> = [];
-  for (const child of node.children || []) out.push(...collectGitFilesFromExplorerNode(child));
-  return out;
-}
-
-// ==========================================================================
-// FILTER MATCH HIGHLIGHT
-// ==========================================================================
-
-/** Renders `text` with the filter's matched characters wrapped in <mark>. */
-function HighlightedText({ text, filter }: { text: string; filter: ParsedFileFilter }) {
-  const ranges = useMemo(() => highlightRanges(filter, text), [filter, text]);
-  if (ranges.length === 0) return <>{text}</>;
-
-  const parts: React.ReactNode[] = [];
-  let cursor = 0;
-  for (const [start, end] of ranges) {
-    if (start > cursor) parts.push(text.slice(cursor, start));
-    parts.push(
-      <mark key={start} className="guake-git-filter-hit">{text.slice(start, end)}</mark>
-    );
-    cursor = end;
-  }
-  if (cursor < text.length) parts.push(text.slice(cursor));
-  return <>{parts}</>;
-}
 
 function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSelect: (path: string) => void }) {
   const { t } = useTranslation('terminal');
@@ -337,95 +139,6 @@ function GitBinaryPreview({ data, onFileSelect }: { data: BinaryState; onFileSel
 
 // ==========================================================================
 // TREE NODE RENDERER
-// ==========================================================================
-
-interface TreeNodeProps {
-  node: GitTreeNode;
-  depth: number;
-  expandedDirs: Set<string>;
-  onToggleDir: (path: string) => void;
-  onFileClick: (file: GitFileStatus, repoDir: string) => void;
-  onContextMenu?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
-  onFolderContextMenu?: (e: React.MouseEvent, node: GitTreeNode, repoDir: string) => void;
-  onDiscard?: (e: React.MouseEvent, file: GitFileStatus, repoDir: string) => void;
-  repoDir: string;
-  filter: ParsedFileFilter;
-}
-
-function TreeNodeView({ node, depth, expandedDirs, onToggleDir, onFileClick, onContextMenu, onFolderContextMenu, onDiscard, repoDir, filter }: TreeNodeProps) {
-  const { t } = useTranslation('terminal');
-  if (node.isDirectory) {
-    const isExpanded = expandedDirs.has(node.path);
-    const folderIconSrc = isExpanded
-      ? `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder_opened.svg`
-      : `${import.meta.env.BASE_URL}assets/vscode-icons/default_folder.svg`;
-    return (
-      <>
-        <div
-          className="guake-git-file guake-git-tree-dir"
-          style={{ paddingLeft: `${12 + depth * 20}px` }}
-          onClick={() => onToggleDir(node.path)}
-          onContextMenu={onFolderContextMenu ? (e) => onFolderContextMenu(e, node, repoDir) : undefined}
-        >
-          <span className="guake-git-repo-arrow" style={{ marginRight: 4 }}>
-            <Icon name={isExpanded ? 'caret-down' : 'caret-right'} size={12} />
-          </span>
-          <img src={folderIconSrc} alt="" className="guake-git-file-icon guake-git-folder-icon" />
-          <span className="guake-git-file-name"><HighlightedText text={node.name} filter={filter} /></span>
-          <span className="guake-git-repo-count" style={{ marginLeft: 'auto' }}>{node.fileCount}</span>
-        </div>
-        {isExpanded && node.children.map((child) => (
-          <TreeNodeView
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            expandedDirs={expandedDirs}
-            onToggleDir={onToggleDir}
-            onFileClick={onFileClick}
-            onContextMenu={onContextMenu}
-            onFolderContextMenu={onFolderContextMenu}
-            onDiscard={onDiscard}
-            repoDir={repoDir}
-            filter={filter}
-          />
-        ))}
-      </>
-    );
-  }
-
-  // File node
-  const file = node.file!;
-  const cfg = GIT_STATUS_CONFIG[file.status];
-  const iconSrc = getIconForFileName(file.name);
-  return (
-    <div
-      className="guake-git-file"
-      data-status={file.status}
-      style={{ paddingLeft: `${28 + depth * 20}px` }}
-      onClick={() => onFileClick(file, repoDir)}
-      onContextMenu={onContextMenu ? (e) => onContextMenu(e, file, repoDir) : undefined}
-      title={file.path}
-    >
-      {iconSrc && <img src={iconSrc} alt="" className="guake-git-file-icon" />}
-      <span className="guake-git-file-name"><HighlightedText text={file.name} filter={filter} /></span>
-      <span className="guake-git-file-status" style={{ color: cfg.color, marginLeft: 'auto' }} title={t(`terminal:fileExplorer.gitStatus.${file.status}`, { defaultValue: cfg.label })}>
-        {cfg.icon}
-      </span>
-      {onDiscard && (
-        <button
-          className="guake-git-discard-btn"
-          title={file.status === 'untracked' || file.status === 'added' ? t('gitPanel.discardBtnDeleteFile', { defaultValue: 'Delete file' }) : t('gitPanel.discardBtnDiscardChanges', { defaultValue: 'Discard changes' })}
-          onClick={(e) => onDiscard(e, file, repoDir)}
-        >
-          <Icon name="revert" size={12} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ==========================================================================
-// MAIN COMPONENT
 // ==========================================================================
 
 export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRemote, fetchingDirs, onResizeStart }: GuakeGitPanelProps) {
