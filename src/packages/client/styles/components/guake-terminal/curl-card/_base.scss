@@ -1,0 +1,79 @@
+// =============================================================================
+// curl 卡片基座:独立成行 / 卡片 / 折叠态 / 展开态
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 9-80 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.output-tool-param.bash-curl-param {
+  // Break out of the flex row onto its own line so the card can use full width.
+  flex: 1 1 100%;
+  min-width: 0;
+  margin-top: 4px;
+  margin-left: 0;
+  padding: 0;
+
+  &::before {
+    content: none;
+  }
+}
+
+.curl-card {
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--tool-use-text);
+  background: color-mix(in srgb, var(--tool-use-bg) 85%, var(--bg-primary, #111) 15%);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 60%, transparent);
+  border-radius: $radius-md;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+  }
+}
+
+.curl-card.curl-card-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-height: 24px;
+
+  .curl-card-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .curl-method {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .curl-collapsed-raw {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--tool-use-text);
+    font-size: 11px;
+    opacity: 0.95;
+  }
+
+  .curl-expand-btn {
+    margin-left: auto;
+  }
+}
+
+.curl-card.curl-card-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+

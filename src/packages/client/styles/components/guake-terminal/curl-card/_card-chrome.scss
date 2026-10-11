@@ -1,0 +1,103 @@
+// =============================================================================
+// 卡片通用件:头部 / 图标 / 标题 / 展开按钮 / 方法徽标 / 行 / 标签 / URL
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 668-763 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.curl-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--tool-use-border) 30%, transparent);
+}
+
+.curl-card-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.curl-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+}
+
+.curl-expand-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 50%, transparent);
+  border-radius: 3px;
+  color: var(--text-muted, #aaa);
+  font-family: $font-mono;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: var(--accent-blue, #5b9dff);
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 10%, transparent);
+  }
+}
+
+.curl-method {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: auto;
+  text-transform: uppercase;
+
+  &.method-get    { color: #7fd3a7; background: color-mix(in srgb, #7fd3a7 15%, transparent); border: 1px solid color-mix(in srgb, #7fd3a7 40%, transparent); }
+  &.method-post   { color: #f0b866; background: color-mix(in srgb, #f0b866 15%, transparent); border: 1px solid color-mix(in srgb, #f0b866 40%, transparent); }
+  &.method-put    { color: #5b9dff; background: color-mix(in srgb, #5b9dff 15%, transparent); border: 1px solid color-mix(in srgb, #5b9dff 40%, transparent); }
+  &.method-patch  { color: #c19bff; background: color-mix(in srgb, #c19bff 15%, transparent); border: 1px solid color-mix(in srgb, #c19bff 40%, transparent); }
+  &.method-delete { color: #ff8080; background: color-mix(in srgb, #ff8080 15%, transparent); border: 1px solid color-mix(in srgb, #ff8080 40%, transparent); }
+  &.method-head,
+  &.method-options,
+  &.method-trace,
+  &.method-connect { color: #aaa; background: color-mix(in srgb, #aaa 15%, transparent); border: 1px solid color-mix(in srgb, #aaa 40%, transparent); }
+}
+
+.curl-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.curl-label {
+  flex: 0 0 auto;
+  width: 60px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent-blue, #5b9dff);
+  text-transform: uppercase;
+  padding-top: 2px;
+  user-select: none;
+}
+
+.curl-url-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.curl-url-text {
+  flex: 1 1 auto;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  color: var(--tool-use-text);
+}
+

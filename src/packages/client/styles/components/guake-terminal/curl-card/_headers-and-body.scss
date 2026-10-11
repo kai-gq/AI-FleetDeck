@@ -1,0 +1,67 @@
+// =============================================================================
+// 请求头列表与条目 / 请求体行与代码块
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 764-823 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.curl-headers-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.curl-header-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.curl-header-name {
+  color: #7fc7ff;
+}
+
+.curl-header-sep {
+  color: var(--text-muted, #888);
+}
+
+.curl-header-value {
+  color: var(--tool-use-text);
+  min-width: 0;
+  flex: 1 1 auto;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.curl-body-row {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.curl-body-block {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+  border-radius: $radius-sm;
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+.curl-body-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--tool-use-text);
+}
+

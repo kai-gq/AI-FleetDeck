@@ -1,0 +1,185 @@
+// =============================================================================
+// 代理间聊天消息卡片
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 410-587 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.agent-chat-message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, #5cc8ff 30%, transparent);
+  border-left: 3px solid color-mix(in srgb, #5cc8ff 70%, transparent);
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--tool-use-bg) 88%, var(--bg-primary, #111) 12%);
+  color: var(--tool-use-text);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+
+  .agent-chat-message-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: color-mix(in srgb, #5cc8ff 92%, var(--tool-use-text));
+    padding-bottom: 1px;
+    min-width: 0;
+  }
+
+  .agent-chat-message-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: color-mix(in srgb, #5cc8ff 90%, var(--tool-use-text));
+  }
+
+  .agent-chat-message-title-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agent-chat-message-sender {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: none;
+    letter-spacing: 0.2px;
+
+    strong {
+      font-weight: 700;
+      color: color-mix(in srgb, #5cc8ff 100%, var(--tool-use-text));
+    }
+
+    &.clickable-agent-name {
+      cursor: pointer;
+      transition: opacity 120ms ease;
+
+      &:hover {
+        opacity: 0.85;
+      }
+    }
+  }
+
+  .agent-chat-message-sender-name {
+    text-transform: none;
+    letter-spacing: 0.2px;
+    font-weight: 700;
+    color: color-mix(in srgb, #5cc8ff 100%, var(--tool-use-text));
+  }
+
+  .agent-chat-message-sender-id {
+    font-family: $font-mono;
+    font-size: 9px;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+    color: var(--text-muted, #aaa);
+    border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+  }
+
+  .agent-chat-message-body {
+    position: relative;
+    margin-top: 1px;
+    padding: 5px 9px 5px 11px;
+    background: color-mix(in srgb, #5cc8ff 6%, transparent);
+    border-left: 2px solid color-mix(in srgb, #5cc8ff 35%, transparent);
+    border-radius: 4px;
+    color: var(--tool-use-text);
+    font-size: 10.5px;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+
+    > * { margin-block: 4px; }
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+
+    p { margin: 4px 0; }
+    pre {
+      margin: 4px 0;
+      padding: 6px 8px;
+      background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+      border-radius: 3px;
+      overflow-x: auto;
+      font-size: 10px;
+    }
+    code { font-size: 10px; }
+    ul, ol { margin: 4px 0; padding-left: 18px; }
+    li { margin: 2px 0; }
+  }
+
+  .agent-chat-message-body--collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-height: calc(1.45em * 5 + 12px);
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--tool-use-bg) 92%, #5cc8ff) 92%
+      );
+    }
+  }
+
+  .agent-chat-message-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1px;
+  }
+
+  .agent-chat-message-more-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, #5cc8ff 40%, transparent);
+    color: color-mix(in srgb, #5cc8ff 88%, var(--tool-use-text));
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: color-mix(in srgb, #5cc8ff 14%, transparent);
+      color: #5cc8ff;
+      border-color: color-mix(in srgb, #5cc8ff 65%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, #5cc8ff 55%, transparent);
+      outline-offset: 1px;
+    }
+  }
+}
+

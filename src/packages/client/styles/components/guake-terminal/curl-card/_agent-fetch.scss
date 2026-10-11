@@ -1,0 +1,87 @@
+// =============================================================================
+// GET /api/agents/<id> 变体
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 588-667 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Specialized variant: GET /api/agents/<id>
+.curl-card.curl-card--agent-fetch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, #c19bff 60%, transparent);
+
+  .curl-agent-fetch-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #c19bff;
+    padding-bottom: 2px;
+  }
+
+  .curl-agent-fetch-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .curl-agent-fetch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .curl-agent-fetch-label {
+    flex: 0 0 auto;
+    width: 44px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--accent-blue, #5b9dff);
+    user-select: none;
+  }
+
+  .curl-agent-fetch-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--tool-use-text);
+  }
+
+  .curl-agent-fetch-name-text {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .curl-agent-fetch-id-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .curl-agent-fetch-id {
+    font-family: $font-mono;
+    color: var(--text-muted, #aaa);
+    background: color-mix(in srgb, var(--bg-primary, #0c0c0c) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tool-use-border) 25%, transparent);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    word-break: break-all;
+  }
+}
+

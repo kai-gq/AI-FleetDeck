@@ -1,0 +1,157 @@
+// =============================================================================
+// agent 间消息变体(POST /api/agents/<id>/message)
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 81-230 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Specialized variant: POST /api/agents/<id>/message (agent-to-agent send)
+.curl-card.curl-card--agent-message {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  border-left: 3px solid color-mix(in srgb, #5cc8ff 60%, transparent);
+
+  .curl-agent-message-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #5cc8ff;
+    padding-bottom: 1px;
+  }
+
+  .curl-agent-message-icon {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .curl-agent-message-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .curl-agent-message-label {
+    flex: 0 0 auto;
+    width: 28px;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #5cc8ff;
+    user-select: none;
+  }
+
+  .curl-agent-message-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--tool-use-text);
+  }
+
+  .curl-agent-message-name-text {
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .curl-agent-message-body {
+    position: relative;
+    margin-top: 1px;
+    padding: 4px 8px 4px 11px;
+    background: color-mix(in srgb, #5cc8ff 8%, transparent);
+    border-left: 2px solid color-mix(in srgb, #5cc8ff 45%, transparent);
+    border-radius: 4px;
+    color: var(--tool-use-text);
+    font-size: 10.5px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .curl-agent-message-body--collapsed {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        color-mix(in srgb, var(--tool-use-bg) 92%, #5cc8ff) 92%
+      );
+    }
+  }
+
+  .curl-agent-message-quote-mark {
+    display: inline-block;
+    margin-right: 3px;
+    color: color-mix(in srgb, #5cc8ff 70%, transparent);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 13px;
+    line-height: 1;
+    vertical-align: -2px;
+  }
+
+  .curl-agent-message-text {
+    color: var(--tool-use-text);
+  }
+
+  .curl-agent-message-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1px;
+  }
+
+  .curl-agent-message-more-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid color-mix(in srgb, #5cc8ff 40%, transparent);
+    color: color-mix(in srgb, #5cc8ff 88%, var(--tool-use-text));
+    font-family: $font-mono;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+
+    &:hover {
+      background: color-mix(in srgb, #5cc8ff 14%, transparent);
+      color: #5cc8ff;
+      border-color: color-mix(in srgb, #5cc8ff 65%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, #5cc8ff 55%, transparent);
+      outline-offset: 1px;
+    }
+  }
+}
+

@@ -1,0 +1,53 @@
+// =============================================================================
+// JSON 着色单行 / flags 值 / 复制按钮
+// 由 _curl-card.scss 拆分(W4,2026-10-11):原文件第 824-869 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.curl-json-key     { color: #7fc7ff; }
+.curl-json-string  { color: #b5e3a5; }
+.curl-json-number  { color: #f0b866; }
+.curl-json-keyword { color: #c19bff; font-weight: 600; }
+
+.curl-flags-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-muted, #888);
+  word-break: break-word;
+}
+
+.curl-copy-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--tool-use-border) 50%, transparent);
+  border-radius: 3px;
+  color: var(--text-muted, #aaa);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+
+  &:hover {
+    color: var(--accent-blue, #5b9dff);
+    border-color: color-mix(in srgb, var(--accent-blue, #5b9dff) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 10%, transparent);
+  }
+
+  &.copied {
+    color: #7fd3a7;
+    border-color: color-mix(in srgb, #7fd3a7 50%, transparent);
+    background: color-mix(in srgb, #7fd3a7 10%, transparent);
+  }
+}
+
+.curl-body-block > .curl-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
