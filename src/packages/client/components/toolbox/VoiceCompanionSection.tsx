@@ -11,15 +11,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../Icon';
 import {
+  VOICE_EFFORT_LEVELS,
   loadVoiceCompanionConfig,
   saveVoiceCompanionConfig,
-  getVoiceCompanionMemory,
   getVoiceCompanionStatus,
   resetVoiceCompanionSession,
-  updateVoiceCompanionMemory,
-  type CompanionMemory,
   type CompanionStatus,
   type VoiceCompanionConfig,
+  type VoiceEffortLevel,
 } from '../../api/voiceCompanion';
 import { getSileroStatus, subscribeSileroStatus, type SileroStatus } from '../../voice/sileroVad';
 import { VOICE_PERSONAS, PERSONA_CUSTOM_ID, PERSONA_CUSTOM_MAX } from '../../../shared/voice-personas';
@@ -30,6 +29,15 @@ const RESOURCE_ID_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'volc.bigasr.sauc.concurrent', label: 'volc.bigasr.sauc.concurrent(并发版)' },
   { value: '', label: '不发送(平台预置模型,无需资源 ID)' },
 ];
+
+// 思考档位标签(中文默认;i18n 键 effort_<level>,值域与 VOICE_EFFORT_LEVELS 对齐)
+const EFFORT_LABELS: Record<VoiceEffortLevel, string> = {
+  low: 'Low(更快)',
+  medium: 'Medium(中等)',
+  high: 'High(较高)',
+  xhigh: 'XHigh(很高)',
+  max: 'Max(最强,更慢)',
+};
 
 // 紧凑开关(与 ConfigSection 内的私有 Toggle 同款;不复用 = 不动作者文件导出)
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
@@ -110,12 +118,9 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
   // 结束词用原始字符串编辑(数组双向绑定会让逗号输入被吞)
   const [endWordsText, setEndWordsText] = useState('');
 
-  const [memory, setMemory] = useState<CompanionMemory | null>(null);
-  const [memoryLoading, setMemoryLoading] = useState(false);
-  const [memoryError, setMemoryError] = useState<string | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
   const [status, setStatus] = useState<CompanionStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  // ASR 热词管理已迁到独立弹窗(components/AsrHotwordsModal.tsx;FAB 麦克风按钮打开)
   // 小模型加载状态(全局单例,面板只是订阅展示)
   const [silero, setSilero] = useState<SileroStatus>(() => getSileroStatus());
 
@@ -136,8 +141,6 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
       if (!alive) return;
       setStatus(s);
       setStatusLoaded(true);
-      // 状态里就带着记忆:直接预填,点「查看/刷新」再拉最新
-      if (s?.memory) setMemory(s.memory);
     });
     return () => {
       alive = false;
@@ -174,30 +177,6 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
       setSaving(false);
     }
   }, [config, endWordsText]);
-
-  // 只加载一次(tx/t 为稳定引用)
-  const refreshMemory = useCallback(async () => {
-    setMemoryLoading(true);
-    setMemoryError(null);
-    const next = await getVoiceCompanionMemory();
-    if (next) setMemory(next);
-    else setMemoryError(tx('memoryUnavailable', '记忆服务不可用(需服务端运行)'));
-    setMemoryLoading(false);
-  }, []);
-
-  const deleteNote = useCallback(async (id: string) => {
-    const next = await updateVoiceCompanionMemory({ ops: [{ op: 'remove', id }] });
-    if (next) setMemory(next);
-  }, []);
-
-  const clearMemory = useCallback(async () => {
-    const next = await updateVoiceCompanionMemory({ clear: true });
-    setConfirmClear(false);
-    if (next) {
-      setMemory(next);
-      void getVoiceCompanionStatus().then(setStatus);
-    }
-  }, []);
 
   const resetSession = useCallback(async () => {
     const ok = await resetVoiceCompanionSession(true);
@@ -239,6 +218,25 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
           <option value="haiku">{tx('modelHaiku', 'Haiku(快,默认)')}</option>
           <option value="sonnet">{tx('modelSonnet', 'Sonnet(更聪明,更慢)')}</option>
         </select>
+      </div>
+
+      <div className="config-row">
+        <span className="config-label"><Highlight text={tx('effort', '思考档位')} query={searchQuery} /></span>
+        <select
+          className="config-select"
+          value={config.effort}
+          onChange={(e) => patch((c) => ({ ...c, effort: e.target.value as VoiceCompanionConfig['effort'] }))}
+        >
+          <option value="">{tx('effortDefault', '默认(不覆盖)')}</option>
+          {VOICE_EFFORT_LEVELS.map((level) => (
+            <option key={level} value={level}>{tx(`effort_${level}`, EFFORT_LABELS[level])}</option>
+          ))}
+        </select>
+      </div>
+      <div className="config-row config-row-stacked">
+        <span className="config-hint">
+          {tx('effortHint', '越高越聪明也越慢;「默认」不覆盖(跟随环境变量或全局设置)。保存后下一回合生效。')}
+        </span>
       </div>
 
       <div className="config-row">
@@ -559,50 +557,7 @@ export function VoiceCompanionSection({ searchQuery = '' }: { searchQuery?: stri
         />
       </div>
 
-      {/* ---- 记忆与会话 ---- */}
-      <div className="config-row">
-        <span className="config-label"><Highlight text={tx('memory', '记忆')} query={searchQuery} /></span>
-        <button type="button" className="config-btn config-btn-sm" onClick={() => void refreshMemory()} disabled={memoryLoading}>
-          {memoryLoading ? tx('memoryLoading', '读取中…') : tx('memoryRefresh', '查看 / 刷新')}
-        </button>
-      </div>
-      {memory && (
-        <div className="config-row config-row-stacked">
-          {memory.summary && <span className="config-hint">{tx('memorySummary', '摘要')}: {memory.summary}</span>}
-          {memory.notes.length === 0 && <span className="config-hint">{tx('memoryEmpty', '还没有记忆条目——聊几次就攒起来了')}</span>}
-          {memory.notes.map((note) => (
-            <span className="config-hint" key={note.id}>
-              <button
-                type="button"
-                className="config-btn config-btn-sm"
-                title={tx('memoryDelete', '删除这条')}
-                onClick={() => void deleteNote(note.id)}
-              >
-                ×
-              </button>
-              {' '}
-              {note.text}
-              <em> ({note.source === 'auto' ? tx('memoryAuto', '自动') : tx('memoryUser', '手动')})</em>
-            </span>
-          ))}
-          {memory.notes.length > 0 && (
-            confirmClear ? (
-              <span className="config-hint">
-                {tx('memoryClearConfirm', '确定清空全部记忆?')}
-                <button type="button" className="config-btn config-btn-sm" onClick={() => void clearMemory()}>{tx('memoryClearYes', '清空')}</button>
-                <button type="button" className="config-btn config-btn-sm" onClick={() => setConfirmClear(false)}>{t('common:buttons.cancel', { defaultValue: '取消' })}</button>
-              </span>
-            ) : (
-              <span className="config-hint">
-                <button type="button" className="config-btn config-btn-sm" onClick={() => setConfirmClear(true)}>{tx('memoryClear', '清空记忆')}</button>
-                {memory.droppedCount > 0 && <em> ({tx('memoryDropped', '已裁掉')} {memory.droppedCount})</em>}
-              </span>
-            )
-          )}
-        </div>
-      )}
-      {memoryError && <div className="config-row config-row-stacked"><span className="config-hint">{memoryError}</span></div>}
-
+      {/* ---- 会话(记忆管理已迁到 ASR 热词弹窗的「记忆」Tab) ---- */}
       <div className="config-row">
         <span className="config-label"><Highlight text={tx('session', '会话')} query={searchQuery} /></span>
         <span className="config-hint">

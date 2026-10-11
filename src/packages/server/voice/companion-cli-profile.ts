@@ -19,8 +19,11 @@
  * 开关(缺省即新行为;回退逐字回今日):
  * - TC_VOICE_HOP_TOOLS=default|allowlist|nomcp|none(缺省 allowlist;非法值 warn 后回退)
  * - TC_VOICE_EFFORT=low|medium|high|xhigh|max(未设 = 不传,维持 user settings 现档)
+ *   ↑ 前端「语音伙伴」面板的 config.json `effort` 字段**优先**于此环境变量(面板可调);
+ *     面板「默认(不覆盖)」= 空串 → 回退本环境变量
  * - TC_VOICE_CWD=<path>|inherit(缺省 <data dir>/voice-cwd/;mkdir 失败降级 inherit)
  * - TC_VOICE_MCP_SOURCE=<path>(缺省 ~/.claude.json;测试与易位用)
+ * - TC_VOICE_CONFIG_SOURCE=<path>(缺省 <cwd>/tools/voice-companion/config.json;测试与易位用)
  */
 import fs from 'fs';
 import os from 'os';
@@ -37,6 +40,10 @@ export const HOP_TOOLS_ENV = 'TC_VOICE_HOP_TOOLS';
 export const HOP_EFFORT_ENV = 'TC_VOICE_EFFORT';
 export const VOICE_CWD_ENV = 'TC_VOICE_CWD';
 export const MCP_SOURCE_ENV = 'TC_VOICE_MCP_SOURCE';
+export const VOICE_CONFIG_SOURCE_ENV = 'TC_VOICE_CONFIG_SOURCE';
+
+/** 前端「语音伙伴」面板配置文件(缺省源;服务端 loadServerConfig 同源)。 */
+const VOICE_CONFIG_REL_PATH = path.join('tools', 'voice-companion', 'config.json');
 
 export type HopToolsMode = 'default' | 'allowlist' | 'nomcp' | 'none';
 export const HOP_TOOLS_MODES: readonly HopToolsMode[] = ['default', 'allowlist', 'nomcp', 'none'];
@@ -82,8 +89,33 @@ export function resolveHopToolsMode(env: NodeJS.ProcessEnv = process.env): HopTo
   return 'allowlist';
 }
 
-/** effort 档:未设 = null(不追加 --settings,维持 user settings 现档)。 */
-export function resolveHopEffort(env: NodeJS.ProcessEnv = process.env): HopEffort | null {
+/**
+ * 前端面板 config.json 里的 effort 原始值(裁小写;读不到/损坏/非字符串 → '')。
+ * 每次新鲜读取(文件很小)——面板保存后下一次解析即感知,指纹随之变化触发常驻进程重建。
+ */
+export function readConfigEffortRaw(env: NodeJS.ProcessEnv = process.env): string {
+  const source = (env[VOICE_CONFIG_SOURCE_ENV] ?? '').trim() || path.join(process.cwd(), VOICE_CONFIG_REL_PATH);
+  try {
+    const cfg = JSON.parse(fs.readFileSync(source, 'utf-8')) as { effort?: unknown };
+    return typeof cfg.effort === 'string' ? cfg.effort.trim().toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * effort 档:前端面板 config.json 的 `effort` 优先,其次 TC_VOICE_EFFORT;
+ * 皆无/非法 = null(不追加 --settings,维持 user settings 现档)。
+ */
+export function resolveHopEffort(env: NodeJS.ProcessEnv = process.env, configEffortRaw = ''): HopEffort | null {
+  const fromConfig = (configEffortRaw ?? '').trim().toLowerCase();
+  if (fromConfig) {
+    if ((HOP_EFFORTS as readonly string[]).includes(fromConfig)) return fromConfig as HopEffort;
+    warnOnce(
+      `effort-invalid-config:${fromConfig}`,
+      `语音伙伴配置 effort 非法值「${fromConfig}」(可选 ${HOP_EFFORTS.join('/')}),已忽略,继续看 ${HOP_EFFORT_ENV}`,
+    );
+  }
   const raw = (env[HOP_EFFORT_ENV] ?? '').trim().toLowerCase();
   if (!raw) return null;
   if ((HOP_EFFORTS as readonly string[]).includes(raw)) return raw as HopEffort;
@@ -214,12 +246,19 @@ export interface CompanionCliProfile {
 
 let cached: { fp: string; profile: CompanionCliProfile } | null = null;
 
-function envFingerprint(env: NodeJS.ProcessEnv, zeroTools: boolean, platform: NodeJS.Platform): string {
+function envFingerprint(
+  env: NodeJS.ProcessEnv,
+  zeroTools: boolean,
+  platform: NodeJS.Platform,
+  configEffortRaw: string,
+): string {
   return [
     env[HOP_TOOLS_ENV] ?? '',
     env[HOP_EFFORT_ENV] ?? '',
+    configEffortRaw,
     env[VOICE_CWD_ENV] ?? '',
     env[MCP_SOURCE_ENV] ?? '',
+    env[VOICE_CONFIG_SOURCE_ENV] ?? '',
     env.XDG_DATA_HOME ?? '',
     env.USERPROFILE ?? '',
     env.HOME ?? '',
@@ -246,18 +285,25 @@ export function resolveCompanionCliProfile(opts: {
   const env = opts.env ?? process.env;
   const platform = opts.platform ?? process.platform;
   const zeroTools = !!opts.zeroTools;
-  const fp = envFingerprint(env, zeroTools, platform);
+  // 面板配置每次新鲜读(小文件):内容变化 → 指纹变化 → 重建档案与常驻进程。
+  const configEffortRaw = readConfigEffortRaw(env);
+  const fp = envFingerprint(env, zeroTools, platform, configEffortRaw);
   if (cached && cached.fp === fp) return cached.profile;
-  const profile = computeProfile(env, platform, zeroTools);
+  const profile = computeProfile(env, platform, zeroTools, configEffortRaw);
   cached = { fp, profile };
   return profile;
 }
 
-function computeProfile(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, zeroTools: boolean): CompanionCliProfile {
+function computeProfile(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  zeroTools: boolean,
+  configEffortRaw: string,
+): CompanionCliProfile {
   const fallback: CompanionCliProfile = { toolsMode: 'default', effort: null, cwd: null, args: [], key: 'fallback', mcpConfigPath: null, settingsPath: null };
   try {
     const toolsMode = resolveHopToolsMode(env);
-    const effort = resolveHopEffort(env);
+    const effort = resolveHopEffort(env, configEffortRaw);
     const dataDir = resolveVoiceDataDir(env);
     const cwd = resolveVoiceCwd(env);
     const settingsPath = effort ? ensureEffortSettingsFile(effort, dataDir) : null;
