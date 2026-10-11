@@ -1,0 +1,447 @@
+// =============================================================================
+// agent-overview-panel 主体(单块深度嵌套,整体保留)
+// 由 _overview-panel.scss 拆分(W4,2026-10-11):原文件第 231-670 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.agent-overview-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--guake-side-panel-width);
+  background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
+  border-right: 2px solid var(--accent-cyan);
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  overflow: hidden;
+
+  // Unified stats + filters + close row
+  .aop-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+    font-family: $font-mono;
+    font-size: 11px;
+    flex-wrap: nowrap;
+
+    .stat {
+      color: var(--text-muted);
+      opacity: 0.55;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-weight: 400;
+      font-size: 10px;
+
+      &.stat-working { color: var(--accent-green); opacity: 0.65; }
+      &.stat-idle { color: var(--accent-purple); opacity: 0.65; }
+      &.stat-error { color: var(--accent-red); opacity: 0.65; }
+    }
+
+    .aop-row-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: auto;
+      flex-shrink: 1;
+      min-width: 0;
+      justify-content: flex-end;
+    }
+
+    .aop-mobile-size-toggle {
+      display: none;
+      border: 1px solid color-mix(in srgb, var(--accent-purple) 42%, transparent);
+      background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+      color: var(--accent-purple);
+      font-family: $font-mono;
+      font-size: 11px;
+      line-height: 1.2;
+      padding: 3px 6px;
+      border-radius: $radius-sm;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 18%, transparent);
+      }
+    }
+
+    .aop-search-toggle {
+      display: none;
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+      background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+      font-size: 13px;
+      line-height: 1;
+      padding: 3px 5px;
+      border-radius: $radius-sm;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+      }
+    }
+
+    .aop-filters-toggle {
+      display: none;
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+      background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+      color: var(--accent-cyan);
+      font-family: $font-mono;
+      font-size: 12px;
+      line-height: 1.2;
+      padding: 3px 6px;
+      border-radius: $radius-sm;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+      }
+    }
+
+    .filter-select {
+      padding: 3px 5px;
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+      border-radius: $radius-sm;
+      color: var(--text-secondary);
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      max-width: 90px;
+      transition: border-color 0.15s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-cyan);
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+        color: var(--text-primary);
+      }
+    }
+
+    .search-input {
+      padding: 3px 7px;
+      background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+      border-radius: $radius-sm;
+      color: var(--text-primary);
+      font-family: $font-mono;
+      font-size: 11px;
+      min-width: 70px;
+      max-width: 110px;
+      transition: border-color 0.15s, max-width 0.2s;
+
+      &::placeholder {
+        color: var(--text-muted);
+        opacity: 0.6;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-cyan);
+        max-width: 150px;
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+      }
+    }
+
+    // "Search area" input — a distinct purple accent separates it from the
+    // agents search sitting right beside it.
+    .area-search-input {
+      &:focus {
+        border-color: var(--accent-purple, var(--accent-purple));
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-purple, var(--accent-purple)) 40%, transparent);
+      }
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: $radius-sm;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 2px;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+        color: var(--accent-red);
+      }
+    }
+  }
+
+  // Action buttons & toggle switches bar
+  .aop-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 12px;
+    background: transparent;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    flex-wrap: wrap;
+
+    .action-btn {
+      padding: 2px 7px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: $radius-sm;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      white-space: nowrap;
+
+      &:hover {
+        background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+        border-color: color-mix(in srgb, var(--text-muted) 20%, transparent);
+        color: var(--text-secondary);
+      }
+
+      &:active {
+        background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+      }
+
+      // Toggle buttons (Areas, Same Area, Subagents, Activity)
+      &--toggle {
+        border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+
+        &.active {
+          background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+          border-color: color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+          color: var(--accent-cyan);
+        }
+
+        &.active:hover {
+          background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+          border-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+        }
+      }
+    }
+
+    .filter-select {
+      padding: 2px 5px;
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+      border-radius: $radius-sm;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 11px;
+      cursor: pointer;
+      max-width: 90px;
+      transition: border-color 0.15s, color 0.15s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-cyan);
+        color: var(--text-primary);
+      }
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+        color: var(--text-secondary);
+      }
+    }
+
+    .workspace-switcher {
+      flex-shrink: 0;
+
+      .workspace-switcher-trigger {
+        padding: 2px 7px;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: $radius-sm;
+        color: var(--text-muted);
+        font-family: $font-mono;
+        font-size: 11px;
+        box-shadow: none;
+        transition: all 0.12s ease;
+
+        &:hover {
+          background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+          border-color: color-mix(in srgb, var(--text-muted) 20%, transparent);
+          color: var(--text-secondary);
+        }
+      }
+
+      .workspace-switcher-label {
+        max-width: 100px;
+      }
+
+      .workspace-switcher-arrow {
+        font-size: 9px;
+        color: currentColor;
+        opacity: 0.6;
+      }
+    }
+
+    // Area filter dropdown
+    .aop-area-filter {
+      position: relative;
+
+      .aop-area-filter-caret {
+        margin-left: 3px;
+        font-size: 9px;
+        opacity: 0.7;
+      }
+    }
+
+    .aop-area-filter-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 100;
+      min-width: 180px;
+      max-width: 260px;
+      max-height: 280px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+      border-radius: $radius-sm;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      padding: 4px 0;
+      scrollbar-width: thin;
+    }
+
+    .aop-area-filter-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: $font-mono;
+      color: var(--text-secondary);
+      transition: background 0.1s;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+        color: var(--text-primary);
+      }
+
+      input[type="checkbox"] {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+        accent-color: var(--accent-cyan);
+        cursor: pointer;
+      }
+    }
+
+    .aop-area-filter-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .aop-area-filter-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .aop-area-filter-divider {
+      height: 1px;
+      margin: 3px 8px;
+      background: var(--border-color);
+    }
+
+    .aop-area-filter-search {
+      padding: 4px 6px;
+
+      input {
+        width: 100%;
+        padding: 4px 6px;
+        font-size: 11px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        color: var(--text-color);
+        outline: none;
+
+        &::placeholder {
+          color: var(--text-muted);
+          opacity: 0.6;
+        }
+
+        &:focus {
+          border-color: var(--accent-color, var(--text-muted));
+        }
+      }
+    }
+
+    .aop-area-filter-empty {
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    // Runtime (provider) filter dropdown — reuses the .aop-area-filter-* option,
+    // dropdown and divider styles; only needs its own positioning + icon rules.
+    .aop-runtime-filter {
+      position: relative;
+
+      .aop-area-filter-caret {
+        margin-left: 3px;
+        font-size: 9px;
+        opacity: 0.7;
+      }
+    }
+
+    .aop-runtime-filter-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border-radius: 3px;
+      object-fit: contain;
+    }
+  }
+
+
+  // Agent list (scrollable)
+  // touch-action: pan-y allows one-finger vertical scroll but blocks pinch-zoom,
+  // ensuring two-finger gestures are handled by our JS (useTwoFingerSelector).
+  .aop-agent-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    touch-action: pan-y;
+
+    .aop-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 80px;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 14px;
+    }
+  }
+}
+
+// =============================================================================
+// Area Group
+// =============================================================================
+

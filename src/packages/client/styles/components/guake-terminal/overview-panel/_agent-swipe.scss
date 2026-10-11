@@ -1,0 +1,49 @@
+// =============================================================================
+// agent 卡片滑动手势
+// 由 _overview-panel.scss 拆分(W4,2026-10-11):原文件第 878-919 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.aop-agent-swipe {
+  position: relative;
+  margin-bottom: 4px;
+  border-radius: $radius-sm;
+  overflow: hidden;
+
+  .aop-swipe-clear-action {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 112px;
+    border: none;
+    border-left: 1px solid color-mix(in srgb, var(--accent-red) 45%, transparent);
+    border-radius: 0;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-red) 45%, var(--bg-secondary)),
+      color-mix(in srgb, var(--accent-red) 72%, var(--bg-secondary))
+    );
+    color: #fff;
+    font-family: $font-mono;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 1;
+    pointer-events: none;
+  }
+
+  &.swipe-enabled.revealed .aop-swipe-clear-action {
+    pointer-events: auto;
+  }
+
+  &.swipe-enabled .aop-agent-card {
+    touch-action: pan-y;
+  }
+}
+

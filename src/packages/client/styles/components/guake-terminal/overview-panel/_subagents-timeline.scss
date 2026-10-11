@@ -1,0 +1,119 @@
+// =============================================================================
+// 子代理区块 + 最近活动时间线 + 移动端拖拽手柄
+// 由 _overview-panel.scss 拆分(W4,2026-10-11):原文件第 1535-1646 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.aop-subagents {
+  margin-bottom: 10px;
+
+  .aop-subagent-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    margin-bottom: 3px;
+    background: var(--bg-tertiary);
+    border-radius: $radius-sm;
+    font-family: $font-mono;
+    font-size: 14px;
+
+    &.working, &.spawning {
+      background: color-mix(in srgb, var(--accent-green) 12%, var(--bg-secondary));
+    }
+
+    &.completed {
+      opacity: 0.7;
+    }
+
+    &.failed {
+      background: color-mix(in srgb, var(--accent-red) 12%, var(--bg-secondary));
+    }
+
+    .sub-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .sub-name {
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sub-type {
+      color: var(--text-muted);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .sub-desc {
+      margin-left: auto;
+      color: var(--text-primary);
+      opacity: 0.55;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 180px;
+    }
+  }
+}
+
+// =============================================================================
+// Recent Activity Timeline
+// =============================================================================
+
+.aop-tool-timeline {
+  .aop-timeline-entry {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-family: $font-mono;
+    font-size: 13px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 20%, transparent);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .tl-time {
+      color: var(--text-muted);
+      font-size: 12px;
+      flex-shrink: 0;
+      min-width: 50px;
+    }
+
+    .tl-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .tl-tool {
+      color: var(--accent-cyan);
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .tl-param {
+      color: var(--text-primary);
+      opacity: 0.6;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+  }
+}
+
+// =============================================================================
+// Mobile Resize Handle (between overview panel and terminal content)
+// =============================================================================
+
+.aop-resize-handle {
+  display: none; // hidden on desktop
+}
+

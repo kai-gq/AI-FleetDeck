@@ -1,0 +1,622 @@
+// =============================================================================
+// agent 卡片(单块深度嵌套,整体保留)
+// 由 _overview-panel.scss 拆分(W4,2026-10-11):原文件第 920-1534 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.aop-agent-card {
+  --aop-selected: var(--accent-orange);
+
+  margin-bottom: 0;
+  background: var(--bg-secondary);
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--border-color);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-height: 36px;
+
+  .aop-card-avatar {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    margin: auto 0 auto 3px;
+    font-size: 16px;
+    line-height: 1;
+    position: relative;
+
+    // Class icon image
+    > img:not(.aop-provider-icon) {
+      border-radius: 3px;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      aspect-ratio: 1 / 1;
+    }
+
+    // Provider badge (Claude/Codex/OpenCode) — top-right overlap
+    .aop-provider-icon {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid var(--bg-secondary);
+      background: var(--bg-secondary);
+      object-fit: contain;
+    }
+
+    // Emoji spans from AgentIcon
+    > span {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    &.emoji {
+      border-radius: 6px;
+    }
+  }
+
+  .aop-card-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &.boss {
+    border-left-color: #f0c040;
+    border-color: color-mix(in srgb, #ffd700 45%, var(--border-color));
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, #ffd700 20%, var(--bg-secondary)) 0%,
+      color-mix(in srgb, #f0c040 12%, var(--bg-secondary)) 100%
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffd700 18%, transparent);
+  }
+
+  &.active,
+  &:has(.aop-agent-state-marker--active) {
+    border-color: var(--aop-selected);
+    border-left-color: var(--aop-selected);
+    background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 35%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--aop-selected) 55%, transparent),
+      0 2px 8px color-mix(in srgb, var(--aop-selected) 28%, transparent);
+
+    .aop-agent-name {
+      color: var(--aop-selected);
+      font-weight: 700;
+    }
+  }
+
+  &.active.boss,
+  &:has(.aop-agent-state-marker--active).boss {
+    border-color: color-mix(in srgb, #ffd700 58%, var(--aop-selected));
+    border-left-color: #ffd700;
+    background: color-mix(in srgb, var(--aop-selected) 18%, color-mix(in srgb, #ffd700 12%, var(--bg-secondary)));
+  }
+
+  &.working,
+  &.compacting {
+    border-left-color: var(--accent-green);
+    border-color: color-mix(in srgb, var(--accent-green) 35%, var(--border-color));
+    background: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--accent-green) 11%, var(--bg-secondary)),
+      color-mix(in srgb, var(--accent-cyan) 5%, var(--bg-secondary))
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-green) 15%, transparent);
+
+    // Activity now lives in a tiny SVG glyph. Keeping card-sized gradients and
+    // shadows static avoids one compositor layer per working agent.
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  &.error {
+    border-left-color: var(--accent-red);
+  }
+
+  &.idle {
+    border-left-color: var(--text-muted);
+    border-color: color-mix(in srgb, var(--text-muted) 30%, var(--border-color));
+    background: color-mix(in srgb, var(--text-muted) 8%, var(--bg-secondary));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 12%, transparent);
+  }
+
+  // Standby (待岗): reversible deactivation. Greyed out in place — declared
+  // after the status rules so it wins the cascade at equal specificity.
+  &.standby {
+    opacity: 0.55;
+    filter: grayscale(0.6);
+    border-left-color: var(--text-muted);
+  }
+
+  &.active.working,
+  &.active.compacting,
+  &.active.idle,
+  &.active.unread,
+  &.active.error,
+  &.active.waiting_input,
+  &.active.waiting_permission,
+  &.active.stopped,
+  &:has(.aop-agent-state-marker--active).working,
+  &:has(.aop-agent-state-marker--active).compacting,
+  &:has(.aop-agent-state-marker--active).idle,
+  &:has(.aop-agent-state-marker--active).unread,
+  &:has(.aop-agent-state-marker--active).error,
+  &:has(.aop-agent-state-marker--active).waiting_input,
+  &:has(.aop-agent-state-marker--active).waiting_permission,
+  &:has(.aop-agent-state-marker--active).stopped {
+    border-color: var(--aop-selected);
+    border-left-color: var(--aop-selected);
+    background: color-mix(in srgb, var(--aop-selected) 22%, var(--bg-secondary));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--aop-selected) 35%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--aop-selected) 55%, transparent),
+      0 2px 8px color-mix(in srgb, var(--aop-selected) 28%, transparent);
+  }
+
+  // Keep the selected-agent outline, but do not hide the working motion under
+  // the otherwise solid selected background.
+  &.active.working,
+  &.active.compacting,
+  &:has(.aop-agent-state-marker--active).working,
+  &:has(.aop-agent-state-marker--active).compacting {
+    background: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--accent-green) 12%, color-mix(in srgb, var(--aop-selected) 14%, var(--bg-secondary))),
+      color-mix(in srgb, var(--accent-cyan) 6%, color-mix(in srgb, var(--aop-selected) 10%, var(--bg-secondary)))
+    );
+  }
+
+  // Two-finger scroll selector hover highlight
+  &.two-finger-hover {
+    border-color: var(--accent-cyan);
+    border-left-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 22%, var(--bg-secondary));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 25%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
+  }
+
+  // Subordinate of currently selected boss agent — a quiet gold "tether" that
+  // breathes in sync with the badge so the connection feels alive, not loud.
+  &.subordinate-of-active-boss,
+  &:has(.aop-subordinate-badge) {
+    // Static tether: the gold left edge no longer animates border-color (a
+    // per-frame repaint of every subordinate card while a boss is selected);
+    // the chain-link badge keeps breathing (opacity/transform, compositor).
+    border-left-color: color-mix(in srgb, #ffd700 60%, var(--border-color));
+  }
+
+  // Active card retains its selection color even when also marked as subordinate.
+  &.active.subordinate-of-active-boss,
+  &:has(.aop-agent-state-marker--active):has(.aop-subordinate-badge) {
+    border-color: var(--aop-selected);
+    border-left-color: var(--aop-selected);
+    animation: none;
+  }
+
+  // The marker lets selection context update without rebuilding the card.
+  .aop-agent-state-marker--active {
+    display: none;
+  }
+
+  // Inline badge — chain-link glyph that gently breathes, suggesting the agent
+  // is "tied" to the currently selected boss.
+  .aop-subordinate-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1px;
+    line-height: 0;
+  }
+
+  // Card header (always visible)
+  .aop-agent-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: $font-mono;
+    font-size: 12px;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .aop-expand-icon {
+      appearance: none;
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: var(--text-muted);
+      font-size: 12px;
+      width: 12px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .aop-agent-status {
+      flex-shrink: 0;
+      font-size: 14px;
+    }
+
+    .aop-agent-working-glyph {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-green) 34%, transparent);
+      border-radius: $radius-sm;
+    }
+
+    .aop-provider-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border-radius: 2px;
+      object-fit: contain;
+    }
+
+    .copy-agent-identity-btn {
+      margin-left: -2px;
+    }
+
+    .aop-agent-name {
+      color: var(--text-primary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      flex: 0 1 auto;
+      padding: 0 4px;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      line-height: 1.15;
+
+      &:hover {
+        color: var(--accent-cyan);
+        text-decoration: underline;
+      }
+
+      .aop-boss-crown {
+        margin-right: 4px;
+        filter: drop-shadow(0 0 2px color-mix(in srgb, #ffd700 70%, transparent));
+      }
+    }
+
+    .aop-agent-class-icon {
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+      opacity: 0.95;
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .aop-agent-class {
+      font-size: 12px;
+      padding: 0 5px;
+      background: color-mix(in srgb, var(--border-color) 20%, transparent);
+      border-radius: $radius-sm;
+      border: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent);
+      flex-shrink: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 80px;
+      margin-left: auto;
+    }
+
+    .aop-area-chip {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 0 3px;
+      border-radius: 3px;
+      border: 1px solid;
+      flex-shrink: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 70px;
+    }
+
+    .aop-msg-count {
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+      padding: 0 4px;
+      border-radius: $radius-sm;
+      flex-shrink: 0;
+    }
+
+    .aop-pending-read-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #2f8cff;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 0 0 1px rgba(47, 140, 255, 0.35);
+    }
+
+    .aop-draft-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--accent-yellow, #f5c542) 22%, transparent);
+      color: var(--accent-yellow, #f5c542);
+      line-height: 1;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-yellow, #f5c542) 45%, transparent);
+    }
+
+    // Standby (待岗) badge — stands out next to the name even on the greyed card.
+    .aop-standby-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 0 5px;
+      border-radius: $radius-sm;
+      // The card's standby opacity/grayscale apply to this subtree too, so the
+      // chip is deliberately high-contrast to stay legible under them.
+      border: 1px solid color-mix(in srgb, var(--text-muted) 70%, transparent);
+      background: var(--bg-tertiary, color-mix(in srgb, var(--text-muted) 20%, transparent));
+      color: var(--text-primary);
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.5;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .aop-subagent-count {
+      color: var(--accent-orange);
+      font-size: 12px;
+      background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+      padding: 0 4px;
+      border-radius: $radius-sm;
+      flex-shrink: 0;
+    }
+  }
+
+  // Task label preview
+  .aop-task-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0px 8px 1px 8px;
+    font-family: $font-mono;
+    font-size: 11px;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
+    background: transparent;
+    position: relative;
+    z-index: 1;
+
+    .task-prefix {
+      color: var(--task-label-color);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .task-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--task-label-color);
+      line-height: 1.2;
+      opacity: 0.85;
+    }
+  }
+
+  // Last message preview (always visible below header)
+  .aop-last-message {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px 1px 8px;
+    font-family: $font-mono;
+    font-size: 11px;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 50%, var(--bg-secondary));
+    position: relative;
+    z-index: 1;
+
+    .lm-prefix {
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .lm-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-primary);
+      opacity: 0.75;
+      line-height: 1.3;
+    }
+
+    .lm-time {
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    &.user {
+      .lm-prefix { color: var(--accent-cyan); }
+      .lm-text { color: var(--accent-cyan); opacity: 0.7; }
+    }
+
+    &.assistant {
+      .lm-prefix { color: var(--accent-green); }
+    }
+  }
+
+  // Search match context (deep search result indicator)
+  .aop-match-context {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px 1px 8px;
+    font-family: $font-mono;
+    font-size: 11px;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
+    background: color-mix(in srgb, var(--accent-yellow) 4%, transparent);
+    position: relative;
+    z-index: 1;
+
+    .match-icon {
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .match-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      padding: 0 3px;
+      border-radius: 2px;
+      line-height: 1.4;
+    }
+
+    .match-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-primary);
+      opacity: 0.7;
+      line-height: 1.4;
+    }
+
+    &--history {
+      .match-label {
+        color: var(--accent-purple);
+        background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+      }
+    }
+
+    &--file {
+      .match-label {
+        color: var(--accent-green);
+        background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      }
+    }
+
+    &--task {
+      .match-label {
+        color: var(--accent-orange);
+        background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+      }
+    }
+  }
+
+  // Expanded body
+  .aop-agent-body {
+    padding: 6px 9px;
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-secondary));
+    position: relative;
+    z-index: 1;
+
+    .aop-section-label {
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      padding-bottom: 3px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+    }
+
+    .aop-no-activity {
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 14px;
+      padding: 8px 0;
+      text-align: center;
+    }
+  }
+
+  // Context usage bar (always at bottom of card, spans full width)
+  .aop-context-bar {
+    width: 100%;
+    height: 2px;
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+
+    .aop-context-fill {
+      height: 100%;
+      background: color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+      transition: width 0.4s ease;
+
+      &.warn {
+        background: color-mix(in srgb, var(--accent-orange) 70%, transparent);
+      }
+
+      &.critical {
+        background: color-mix(in srgb, var(--accent-red) 80%, transparent);
+      }
+    }
+  }
+}
+
+// =============================================================================
+// Subagents section
+// =============================================================================
+
