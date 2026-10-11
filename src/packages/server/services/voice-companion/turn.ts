@@ -109,64 +109,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       schedulePrewarm();
     };
 
-    if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey) || isContextCompactionDue(state, cfg)) {
-      // W3 预热点火:是否需要停常驻进程,取决于「确有待失效对象」——
-      // ① 有会话:旧 --resume/旧提示词必须废,停;
-      // ② 人设从有记录的旧值变化:常驻进程里的提示词过期,停;
-      // ③ 首次开局(状态无人设记录、无会话):轮换只是把当前人设写进状态,预热点火
-      //    建好的进程拿的本就是当前人设 → 不停,否则预热会在首个回合被白杀掉
-      //    (首个回合恰恰是最值得藏冷启动的一次)。
-      const hadSession = !!state.sessionId;
-      const personaChangedFromRecorded = state.personaKey != null && state.personaKey !== personaKey;
-      // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
-      // 任务18:上下文到阈值同样走此路径 = 压缩 v1「摘要续跑」。
-      // 任务39·F4:轮换前先认领交接便签——只认「本会话」的待收笔记(开关关则不认领);
-      // 认领文本即 summarizeSession 的摘要素材(新会话的工作记忆起点);未命中 → 降级
-      // 现状(summary 原样,旧笔记保留继续兜底)。
-      if (state.sessionId) {
-        const claim = isHandoffEnabled() && handoffRuntime.pending?.forSessionId === state.sessionId
-          ? handoffRuntime.pending
-          : null;
-        if (claim) {
-          state.memory.handoff = { text: claim.text, forSessionId: claim.forSessionId, at: claim.at };
-          handoffRuntime.pending = null;
-          log.log(`[VoiceCompanion] 交接笔记已认领(${Date.now() - claim.at}ms 前生成, ${claim.text.length} 字)`);
-        } else if (isHandoffEnabled()) {
-          log.log('[VoiceCompanion] 交接笔记未及生成(降级现状)');
-        }
-        await getJarvisMemory().engine.summarizeSession({
-          sessionId: state.sessionId,
-          summary: claim?.text ?? state.memory.summary,
-        });
-      }
-      await getJarvisMemory().engine.sweep();
-      resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
-      resetCancelClarificationSession(); // 任务16·⑬：撤回反问挂起随会话轮换一并清空
-      log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
-      // 系统活动 5：会话轮换留痕（超龄 → expired；轮数上限/人设切换/上下文压缩 → rotated）。
-      if (state.sessionId) {
-        const sessionAgeMs = state.sessionStartedAt != null ? Date.now() - state.sessionStartedAt : undefined;
-        const ageExpired = sessionAgeMs != null && sessionAgeMs > cfg.sessionMaxAgeDays * 86_400_000;
-        const rotateByTurns = state.turns >= cfg.maxTurns;
-        const rotateByPersona = shouldRotateForPersona(state, personaKey);
-        logSession({
-          phase: ageExpired ? 'expired' : 'rotated',
-          sessionId: state.sessionId,
-          reason: ageExpired ? 'max-age'
-            : rotateByTurns ? 'max-turns'
-              : rotateByPersona ? 'persona-changed'
-                : 'context-compact', // 任务18:压缩 v1 触发(percent 或绝对 token 闸口,见 isContextCompactionDue)
-          ageMs: sessionAgeMs,
-        });
-      }
-      state.sessionId = null;
-      state.sessionStartedAt = null;
-      state.turns = 0;
-      state.context = null; // 任务18:占用快照随会话一并清零
-      state.recentTurns = []; // 任务39·F2:环缓冲随轮换清空(新会话从零攒;F4 认领素材来自内存预生成,与此无关)
-      // 任务18:轮换后旧常驻进程(带旧 --resume/旧系统提示词)必须停掉,下一回合重新 spawn。
-      if (hadSession || personaChangedFromRecorded) stopCompanionProcess('session-rotation');
-    }
+    await rotateSessionIfDue(state, cfg, personaKey);
     state.personaKey = personaKey;
 
     // 任务 27·尾 挂点1(先写后回应):用户陈述命中触发词先落工作记忆再进 hop1;系统事件不算用户陈述。
@@ -232,28 +175,14 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       return r;
     };
 
-    // 任务14·⑪ 一次性消歧：上一回合挂了反问 → 本回合先按「回答」消费一次
-    // （确定性解析，不跑 hop1、不反问第二次；取消/命中/回落三分支见 consumeProjectClarification）。
-    if (!opts.isEvent && isProjectRoutingEnabled() && projectRoutingRuntime.pending) {
-      const clarified = await consumeProjectClarification(text, state, taskId, started);
-      if (clarified) {
-        state.turns += 1;
-        state.lastUsedAt = Date.now();
-        saveCompanionState(state);
-        return finish(clarified);
-      }
-    }
-
-    // 任务16·⑬ 撤回一次性反问：上一回合挂了撤回反问 → 本回合先按「回答」消费一次
-    // （确定性解析，不跑 hop1；编号/名字命中 → 直接撤回，放弃话术 → 不撤，其余丢弃挂起按普通回合继续）。
-    if (!opts.isEvent && getPendingCancelClarification()) {
-      const cancelled = await consumeCancelClarification(text, taskId, started);
-      if (cancelled) {
-        state.turns += 1;
-        state.lastUsedAt = Date.now();
-        saveCompanionState(state);
-        return finish(cancelled);
-      }
+    // 任务14·⑪/任务16·⑬ 一次性消歧:上一回合挂了项目路由/撤回反问 → 先按「回答」消费一次
+    // （确定性解析，不跑 hop1；命中即收尾，未命中按普通回合继续）。
+    const clarified = await consumePendingClarifications(text, opts, state, taskId, started);
+    if (clarified) {
+      state.turns += 1;
+      state.lastUsedAt = Date.now();
+      saveCompanionState(state);
+      return finish(clarified);
     }
 
     // W5:用户回合才武装垫话(事件回合可能 noop,不浪费一次生成)。
@@ -295,45 +224,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
       return finish({ action: 'general_response', response: DEGRADED_RESPONSE, degraded: true, elapsedMs: Date.now() - started });
     }
 
-    state.turns += 1;
-    state.lastUsedAt = Date.now();
-    // 任务 02：hop1 成功后 sessionId 才就绪（含 resume），回填链路上下文供后续埋点复用。
-    updateTraceContext({ sessionId: state.sessionId ?? undefined });
-
-    // 任务18:usage 采集落状态 + 观测(⑭ 系统活动 4 context_stats 采样通道;不新增 logSession 埋点)。
-    if (outcome.context) {
-      const ctx = computeContextState(outcome.context, cfg);
-      if (ctx) {
-        state.context = ctx;
-        logEvent('context_stats', {
-          source: 'voice-companion',
-          sessionId: state.sessionId ?? undefined,
-          body: {
-            tokensUsed: ctx.tokensUsed,
-            windowTokens: ctx.windowTokens,
-            percent: Math.round(ctx.percent * 1000) / 10,
-            compactPercent: Math.round(cfg.contextCompactPercent * 100),
-            // 任务39:绝对 token 闸口(0 = 关);列进采样便于 ⑭ 观测阈值命中分布。
-            compactTokens: cfg.contextCompactTokens || undefined,
-            // 任务39·F4:本回合交接状态(none/pending/attached/stale;开关关不给字段,
-            // 回退档采样与接入前逐字一致)——供 ⑮ 标定认领率与 72h 时效命中。
-            handoff: isHandoffEnabled()
-              ? handoffObservation(state.memory.handoff ?? null, handoffRuntime.pending, state.sessionId, Date.now())
-              : undefined,
-          },
-        });
-        // 任务39·F3:跨过预备线(触发线−0.1)即后台预生成交接便签——
-        // fire-and-forget 不进关键路径;轮换在下一回合起点,此处是最后的提前量。
-        maybePregenHandoff(state, cfg);
-      }
-    }
-    // W6 感知提速观测:每回合 usage/缓存命中/常驻复用(hop1 耗时已有独立行;首句 tMs 打点在路由)。
-    {
-      const u = outcome.context;
-      log.log(
-        `[VoiceCompanion] usage in=${u?.inputTokens ?? '-'} out=${u?.outputTokens ?? '-'} cacheRead=${u?.cacheReadInputTokens ?? '-'} cacheWrite=${u?.cacheCreationInputTokens ?? '-'} window=${u?.contextWindow ?? '-'} | resident=${outcome.reused ? 'reuse' : 'spawn'} | action=${outcome.contract.action}`,
-      );
-    }
+    recordHop1Outcome(state, cfg, outcome);
 
     const { contract } = outcome;
     // 任务 27·尾 挂点3(模型确认):契约 memoryOps 双写进 vault;下方 applyMemoryOps 块保持原样(旧 CompanionMemory 独立运转)。
@@ -418,6 +309,158 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
 
     return handleGeneralFallthrough(turnCtx);
   }));
+}
+
+// ============================================================================
+// E2 阶段(2026-10-11):原 processVoiceInput 的前置/收尾流程拆为阶段函数(行为不变)
+// ============================================================================
+
+/**
+ * 会话轮换:轮数/天数/人设变更/上下文压缩闸口命中时,先认领交接便签并摘要旧会话,
+ * 再清会话态与项目路由/撤回反问内存态;确有待失效对象时停常驻进程。
+ * (personaKey 的回写由调用方负责,与原流程一致。)
+ */
+async function rotateSessionIfDue(
+  state: ReturnType<typeof loadCompanionState>,
+  cfg: ReturnType<typeof loadServerConfig>,
+  personaKey: string,
+): Promise<void> {
+  if (shouldRotateSession(state, cfg) || shouldRotateForPersona(state, personaKey) || isContextCompactionDue(state, cfg)) {
+    // W3 预热点火:是否需要停常驻进程,取决于「确有待失效对象」——
+    // ① 有会话:旧 --resume/旧提示词必须废,停;
+    // ② 人设从有记录的旧值变化:常驻进程里的提示词过期,停;
+    // ③ 首次开局(状态无人设记录、无会话):轮换只是把当前人设写进状态,预热点火
+    //    建好的进程拿的本就是当前人设 → 不停,否则预热会在首个回合被白杀掉
+    //    (首个回合恰恰是最值得藏冷启动的一次)。
+    const hadSession = !!state.sessionId;
+    const personaChangedFromRecorded = state.personaKey != null && state.personaKey !== personaKey;
+    // 任务 27·尾 挂点2(会话结束):旧会话摘要先落工作记忆 + 生命周期裁剪,再清 session。
+    // 任务18:上下文到阈值同样走此路径 = 压缩 v1「摘要续跑」。
+    // 任务39·F4:轮换前先认领交接便签——只认「本会话」的待收笔记(开关关则不认领);
+    // 认领文本即 summarizeSession 的摘要素材(新会话的工作记忆起点);未命中 → 降级
+    // 现状(summary 原样,旧笔记保留继续兜底)。
+    if (state.sessionId) {
+      const claim = isHandoffEnabled() && handoffRuntime.pending?.forSessionId === state.sessionId
+        ? handoffRuntime.pending
+        : null;
+      if (claim) {
+        state.memory.handoff = { text: claim.text, forSessionId: claim.forSessionId, at: claim.at };
+        handoffRuntime.pending = null;
+        log.log(`[VoiceCompanion] 交接笔记已认领(${Date.now() - claim.at}ms 前生成, ${claim.text.length} 字)`);
+      } else if (isHandoffEnabled()) {
+        log.log('[VoiceCompanion] 交接笔记未及生成(降级现状)');
+      }
+      await getJarvisMemory().engine.summarizeSession({
+        sessionId: state.sessionId,
+        summary: claim?.text ?? state.memory.summary,
+      });
+    }
+    await getJarvisMemory().engine.sweep();
+    resetProjectRoutingSession(); // 任务14·⑪：项目路由内存态（最近提及/挂起反问）与 session 同生命周期
+    resetCancelClarificationSession(); // 任务16·⑬：撤回反问挂起随会话轮换一并清空
+    log.log(`[VoiceCompanion] 会话轮换(turns=${state.turns}),保留记忆`);
+    // 系统活动 5：会话轮换留痕（超龄 → expired；轮数上限/人设切换/上下文压缩 → rotated）。
+    if (state.sessionId) {
+      const sessionAgeMs = state.sessionStartedAt != null ? Date.now() - state.sessionStartedAt : undefined;
+      const ageExpired = sessionAgeMs != null && sessionAgeMs > cfg.sessionMaxAgeDays * 86_400_000;
+      const rotateByTurns = state.turns >= cfg.maxTurns;
+      const rotateByPersona = shouldRotateForPersona(state, personaKey);
+      logSession({
+        phase: ageExpired ? 'expired' : 'rotated',
+        sessionId: state.sessionId,
+        reason: ageExpired ? 'max-age'
+          : rotateByTurns ? 'max-turns'
+            : rotateByPersona ? 'persona-changed'
+              : 'context-compact', // 任务18:压缩 v1 触发(percent 或绝对 token 闸口,见 isContextCompactionDue)
+        ageMs: sessionAgeMs,
+      });
+    }
+    state.sessionId = null;
+    state.sessionStartedAt = null;
+    state.turns = 0;
+    state.context = null; // 任务18:占用快照随会话一并清零
+    state.recentTurns = []; // 任务39·F2:环缓冲随轮换清空(新会话从零攒;F4 认领素材来自内存预生成,与此无关)
+    // 任务18:轮换后旧常驻进程(带旧 --resume/旧系统提示词)必须停掉,下一回合重新 spawn。
+    if (hadSession || personaChangedFromRecorded) stopCompanionProcess('session-rotation');
+  }
+}
+
+/**
+ * 一次性消歧消费:上一回合挂了项目路由/撤回反问 → 本回合先按「回答」消费一次
+ * (确定性解析,不跑 hop1)。命中返回结果(调用方收尾),否则返回 null 按普通回合继续。
+ */
+async function consumePendingClarifications(
+  text: string,
+  opts: VoiceProcessOptions,
+  state: ReturnType<typeof loadCompanionState>,
+  taskId: string,
+  started: number,
+): Promise<VoiceProcessResult | null> {
+  // 任务14·⑪ 一次性消歧：上一回合挂了反问 → 本回合先按「回答」消费一次
+  // （确定性解析，不跑 hop1、不反问第二次；取消/命中/回落三分支见 consumeProjectClarification）。
+  if (!opts.isEvent && isProjectRoutingEnabled() && projectRoutingRuntime.pending) {
+    const clarified = await consumeProjectClarification(text, state, taskId, started);
+    if (clarified) return clarified;
+  }
+
+  // 任务16·⑬ 撤回一次性反问：上一回合挂了撤回反问 → 本回合先按「回答」消费一次
+  // （确定性解析，不跑 hop1；编号/名字命中 → 直接撤回，放弃话术 → 不撤，其余丢弃挂起按普通回合继续）。
+  if (!opts.isEvent && getPendingCancelClarification()) {
+    const cancelled = await consumeCancelClarification(text, taskId, started);
+    if (cancelled) return cancelled;
+  }
+
+  return null;
+}
+
+/**
+ * hop1 成功后的回合记账:计数/时间戳更新、链路上下文回填、context_stats 采样
+ * 与 usage 汇总日志(不改变回合状态机走向)。
+ */
+function recordHop1Outcome(
+  state: ReturnType<typeof loadCompanionState>,
+  cfg: ReturnType<typeof loadServerConfig>,
+  outcome: Hop1Outcome,
+): void {
+  state.turns += 1;
+  state.lastUsedAt = Date.now();
+  // 任务 02：hop1 成功后 sessionId 才就绪（含 resume），回填链路上下文供后续埋点复用。
+  updateTraceContext({ sessionId: state.sessionId ?? undefined });
+
+  // 任务18:usage 采集落状态 + 观测(⑭ 系统活动 4 context_stats 采样通道;不新增 logSession 埋点)。
+  if (outcome.context) {
+    const ctx = computeContextState(outcome.context, cfg);
+    if (ctx) {
+      state.context = ctx;
+      logEvent('context_stats', {
+        source: 'voice-companion',
+        sessionId: state.sessionId ?? undefined,
+        body: {
+          tokensUsed: ctx.tokensUsed,
+          windowTokens: ctx.windowTokens,
+          percent: Math.round(ctx.percent * 1000) / 10,
+          compactPercent: Math.round(cfg.contextCompactPercent * 100),
+          // 任务39:绝对 token 闸口(0 = 关);列进采样便于 ⑭ 观测阈值命中分布。
+          compactTokens: cfg.contextCompactTokens || undefined,
+          // 任务39·F4:本回合交接状态(none/pending/attached/stale;开关关不给字段,
+          // 回退档采样与接入前逐字一致)——供 ⑮ 标定认领率与 72h 时效命中。
+          handoff: isHandoffEnabled()
+            ? handoffObservation(state.memory.handoff ?? null, handoffRuntime.pending, state.sessionId, Date.now())
+            : undefined,
+        },
+      });
+      // 任务39·F3:跨过预备线(触发线−0.1)即后台预生成交接便签——
+      // fire-and-forget 不进关键路径;轮换在下一回合起点,此处是最后的提前量。
+      maybePregenHandoff(state, cfg);
+    }
+  }
+  // W6 感知提速观测:每回合 usage/缓存命中/常驻复用(hop1 耗时已有独立行;首句 tMs 打点在路由)。
+  {
+    const u = outcome.context;
+    log.log(
+      `[VoiceCompanion] usage in=${u?.inputTokens ?? '-'} out=${u?.outputTokens ?? '-'} cacheRead=${u?.cacheReadInputTokens ?? '-'} cacheWrite=${u?.cacheCreationInputTokens ?? '-'} window=${u?.contextWindow ?? '-'} | resident=${outcome.reused ? 'reuse' : 'spawn'} | action=${outcome.contract.action}`,
+    );
+  }
 }
 
 // ============================================================================
