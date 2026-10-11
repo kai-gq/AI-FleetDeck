@@ -1,8 +1,9 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useViewMode } from '../hooks/useViewMode';
 import { VIEW_MODE_LABELS, VIEW_MODES, type ViewMode } from '../types/viewModes';
 import { VoiceCompanion } from './VoiceCompanion';
+import { AsrHotwordsModal } from './AsrHotwordsModal';
 import { Icon, type IconName } from './Icon';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
@@ -56,6 +57,7 @@ export const MobileFabMenu = memo(function MobileFabMenu({
 }: MobileFabMenuProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const [viewMode, setViewMode] = useViewMode();
+  const [hotwordsOpen, setHotwordsOpen] = useState(false);
 
   const handleAction = (action: () => void) => {
     action();
@@ -81,6 +83,9 @@ export const MobileFabMenu = memo(function MobileFabMenu({
     <>
       {/* Voice Companion(同上;config.json enabled=false 时自身返回 null) */}
       <VoiceCompanion className="mobile-voice-companion" />
+
+      {/* ASR 热词管理弹窗(移动端菜单打开) */}
+      <AsrHotwordsModal isOpen={hotwordsOpen} onClose={() => setHotwordsOpen(false)} />
 
       {/* Mobile FAB toggle - hamburger button (hidden when in terminal view on mobile) */}
       {mobileView !== 'terminal' && (
@@ -162,6 +167,17 @@ export const MobileFabMenu = memo(function MobileFabMenu({
             title={t('common:floatingButtons.controls')}
           >
             <Icon name="keyboard" size={18} />
+          </button>
+          <button
+            className="mobile-fab-option"
+            onClick={() => handleAction(() => setHotwordsOpen(true))}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleAction(() => setHotwordsOpen(true));
+            }}
+            title={t('common:floatingButtons.hotwords', { defaultValue: 'ASR 热词' })}
+          >
+            <Icon name="microphone" size={18} />
           </button>
           <button
             className="mobile-fab-option"

@@ -96,9 +96,15 @@ export interface VoicePersonaConfig {
   custom: string;
 }
 
+/** 大脑思考档位(值域与 server/voice/companion-cli-profile.ts 的 HOP_EFFORTS 保持一致)。 */
+export const VOICE_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type VoiceEffortLevel = (typeof VOICE_EFFORT_LEVELS)[number];
+
 export interface VoiceCompanionConfig {
   enabled: boolean;
   model: 'haiku' | 'sonnet';
+  /** 思考档位;'' = 不覆盖(面板「默认」,跟随 TC_VOICE_EFFORT / 全局设置)。 */
+  effort: VoiceEffortLevel | '';
   persona: VoicePersonaConfig;
   stt: {
     mode: SttMode;
@@ -113,6 +119,7 @@ export interface VoiceCompanionConfig {
 export const DEFAULT_VOICE_COMPANION_CONFIG: VoiceCompanionConfig = {
   enabled: false,
   model: 'haiku',
+  effort: '',
   persona: {
     preset: DEFAULT_PERSONA_ID,
     custom: '',
@@ -215,6 +222,11 @@ export function sanitizeVoiceCompanionConfig(raw: unknown): VoiceCompanionConfig
 
   if (typeof obj.enabled === 'boolean') cfg.enabled = obj.enabled;
   if (obj.model === 'sonnet' || obj.model === 'haiku') cfg.model = obj.model;
+  // effort:'' = 面板「默认(不覆盖)」;非法值丢弃(回默认 '')
+  const effortRaw = str(obj.effort).toLowerCase();
+  if (effortRaw === '' || (VOICE_EFFORT_LEVELS as readonly string[]).includes(effortRaw)) {
+    cfg.effort = effortRaw as VoiceEffortLevel | '';
+  }
 
   const persona = obj.persona as Record<string, unknown> | undefined;
   if (persona && typeof persona === 'object') {
@@ -515,6 +527,128 @@ export async function ackVoiceReminder(id: string): Promise<void> {
     body: JSON.stringify({ id }),
   });
   if (!res.ok) throw new Error(`提醒回执失败(${res.status})`);
+}
+
+// ============================================================================
+// ASR 热词(routes/voice-companion.ts hotwordsSnapshot 的镜像)
+// ============================================================================
+
+/** 词来源:agent 名(实时来自 agent-service,锁定)/ 文件池(manual/agent)。 */
+export type VoiceHotwordSource = 'agent' | 'manual' | 'agent-name';
+
+export interface VoiceHotwordEntry {
+  word: string;
+  /** 1..10(agent 名恒 10);手动词权重不被 AI 覆盖。 */
+  weight: number;
+  /** 累计提及次数(代码统计;锁定层为 0)。 */
+  count: number;
+  source: VoiceHotwordSource;
+  lastSeenAt: string;
+  /** 是否在当前注入窗口内(有效词表按注入优先级排序,前 injectTopN 个)。 */
+  injected: boolean;
+}
+
+export interface VoiceHotwordsSnapshot {
+  /** 上次分析读到的最大消息时间;null = 尚未分析过。 */
+  lastAnalyzedAt: string | null;
+  blockedCount: number;
+  /** 注入窗口上限(硬锁 40~60,默认 50;超出窗口的词不注入)。 */
+  injectTopN: number;
+  /** agent 名(锁定,必进注入窗口;实时来自 agent-service;改名/删除自动同步)。 */
+  agentNames: VoiceHotwordEntry[];
+  /** 动态池(manual/agent;可删;按注入优先级排序)。 */
+  words: VoiceHotwordEntry[];
+}
+
+export interface VoiceHotwordRefreshResult {
+  ok: boolean;
+  message: string;
+  added: number;
+  updated: number;
+  touched: number;
+  evicted: number;
+  skippedBlocked: number;
+  rejected: number;
+  /** 池内与锁定层(agent 名)重复的存量条目清理数。 */
+  strippedDuplicates: number;
+  turnCount: number;
+  fileCount: number;
+  sampled: boolean;
+  analyzedFrom: string | null;
+  analyzedTo: string | null;
+  totalWords: number;
+  elapsedMs: number;
+}
+
+function pickHotwords(data: { hotwords?: VoiceHotwordsSnapshot }): VoiceHotwordsSnapshot {
+  if (!data.hotwords) throw new Error('热词响应缺少 hotwords');
+  return data.hotwords;
+}
+
+/** GET /hotwords:热词快照(文件缺失/损坏 → 服务端返回空表,不抛)。 */
+export async function fetchVoiceHotwords(): Promise<VoiceHotwordsSnapshot> {
+  const res = await authFetch(apiUrl('/api/voice-companion/hotwords'));
+  if (!res.ok) throw new Error(`热词读取失败(${res.status})`);
+  const data = (await res.json().catch(() => ({}))) as { hotwords?: VoiceHotwordsSnapshot };
+  return pickHotwords(data);
+}
+
+/**
+ * POST /hotwords/refresh  { since? }:智能更新(服务端增量读对话 + 筛选,同步等待 10~30s)。
+ * since(ISO,可选)= 分析起点覆写(面板「上次分析时间」可改选);缺省 = 节点/首次回看 7 天。
+ */
+export async function refreshVoiceHotwords(since?: string): Promise<{
+  result: VoiceHotwordRefreshResult;
+  hotwords: VoiceHotwordsSnapshot;
+}> {
+  const res = await authFetch(apiUrl('/api/voice-companion/hotwords/refresh'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(since ? { since } : {}),
+  });
+  if (!res.ok) throw new Error(`热词更新失败(${res.status})`);
+  const data = (await res.json().catch(() => ({}))) as {
+    result?: VoiceHotwordRefreshResult;
+    hotwords?: VoiceHotwordsSnapshot;
+  };
+  if (!data.result) throw new Error('热词更新响应缺少 result');
+  return { result: data.result, hotwords: pickHotwords(data) };
+}
+
+/** POST /hotwords/add  { word }:手动添加(已存在 → added=false;锁定词 → locked=true)。 */
+export async function addVoiceHotword(
+  word: string,
+): Promise<{ added: boolean; locked: boolean; hotwords: VoiceHotwordsSnapshot }> {
+  const res = await authFetch(apiUrl('/api/voice-companion/hotwords/add'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word }),
+  });
+  if (!res.ok) throw new Error(`热词添加失败(${res.status})`);
+  const data = (await res.json().catch(() => ({}))) as {
+    added?: boolean;
+    locked?: boolean;
+    hotwords?: VoiceHotwordsSnapshot;
+  };
+  return { added: data.added === true, locked: data.locked === true, hotwords: pickHotwords(data) };
+}
+
+/** POST /hotwords/remove  { word }:删除(= 拉黑,管家今后不再收录;不存在 → removed=false;锁定词 → locked=true)。 */
+export async function removeVoiceHotword(
+  word: string,
+): Promise<{ removed: boolean; locked: boolean; hotwords: VoiceHotwordsSnapshot }> {
+  const res = await authFetch(apiUrl('/api/voice-companion/hotwords/remove'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word }),
+  });
+  if (!res.ok) throw new Error(`热词删除失败(${res.status})`);
+  const data = (await res.json().catch(() => ({}))) as {
+    removed?: boolean;
+    locked?: boolean;
+    hotwords?: VoiceHotwordsSnapshot;
+  };
+  return { removed: data.removed === true, locked: data.locked === true, hotwords: pickHotwords(data) };
 }
 
 export interface CompanionMemoryNote {

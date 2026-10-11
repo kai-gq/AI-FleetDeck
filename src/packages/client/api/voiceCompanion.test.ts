@@ -4,6 +4,7 @@
  * 只测纯函数 sanitizeVoiceCompanionConfig,不触网:
  *   - startThreshold 是 0..1 的比值域,必须保留小数(旧实现 clampInt 会取整)
  *   - maxSegmentMs 走毫秒整数域,越界钳制
+ *   - effort 档位枚举白名单(非法丢弃,'' = 面板「默认(不覆盖)」)
  */
 
 import { describe, expect, it } from 'vitest';
@@ -40,6 +41,24 @@ describe('sanitizeVoiceCompanionConfig · listening', () => {
     expect(l.silenceMs).toBe(DEFAULT_VOICE_COMPANION_CONFIG.listening.silenceMs);
     expect(l.confirmMs).toBe(DEFAULT_VOICE_COMPANION_CONFIG.listening.confirmMs);
     expect(l.wakeWord).toBe('');
+  });
+});
+
+describe('sanitizeVoiceCompanionConfig · effort(思考档位)', () => {
+  const sanitizeEffort = (overrides: Record<string, unknown>) =>
+    sanitizeVoiceCompanionConfig(overrides).effort;
+
+  it('合法档位原样保留(大小写/空白归一);「默认」= 空串', () => {
+    expect(sanitizeEffort({ effort: 'low' })).toBe('low');
+    expect(sanitizeEffort({ effort: 'XHigh' })).toBe('xhigh');
+    expect(sanitizeEffort({ effort: ' max ' })).toBe('max');
+    expect(sanitizeEffort({ effort: '' })).toBe('');
+  });
+
+  it('非法/垃圾值丢弃回默认空串(不覆盖)', () => {
+    expect(sanitizeEffort({ effort: 'turbo' })).toBe('');
+    expect(sanitizeEffort({ effort: 42 })).toBe('');
+    expect(sanitizeEffort({})).toBe(DEFAULT_VOICE_COMPANION_CONFIG.effort);
   });
 });
 

@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { VoiceCompanion } from './VoiceCompanion';
+import { AsrHotwordsModal } from './AsrHotwordsModal';
 import { Tooltip } from './shared/Tooltip';
 import { Icon, type IconName } from './Icon';
 import { useViewMode } from '../hooks/useViewMode';
@@ -40,6 +41,7 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
   const { t } = useTranslation(['common', 'terminal']);
   const [viewMode, setViewMode] = useViewMode();
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [hotwordsOpen, setHotwordsOpen] = useState(false);
   const viewMenuRef = useRef<HTMLDivElement>(null);
 
   const handleSelectViewMode = useCallback((mode: ViewMode) => {
@@ -78,6 +80,9 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
     <>
       {/* Voice Companion(持续聆听/语音播报;config.json enabled=false 时自身返回 null) */}
       <VoiceCompanion />
+
+      {/* ASR 热词管理弹窗(FAB 按钮打开) */}
+      <AsrHotwordsModal isOpen={hotwordsOpen} onClose={() => setHotwordsOpen(false)} />
 
       {/* Floating settings button */}
       <Tooltip content={t('common:floatingButtons.settingsAndTools')} position="right">
@@ -120,6 +125,20 @@ export const FloatingActionButtons = memo(function FloatingActionButtons({
           aria-label={t('common:floatingButtons.controls')}
         >
           <Icon name="keyboard" size={18} />
+        </button>
+      </Tooltip>
+
+      {/* ASR Hotwords button(打开热词管理弹窗;与控制弹窗同款) */}
+      <Tooltip
+        content={t('common:floatingButtons.hotwords', { defaultValue: 'ASR 热词' })}
+        position="right"
+      >
+        <button
+          className="hotwords-toggle-btn"
+          onClick={() => setHotwordsOpen(true)}
+          aria-label={t('common:floatingButtons.hotwords', { defaultValue: 'ASR 热词' })}
+        >
+          <Icon name="microphone" size={18} />
         </button>
       </Tooltip>
 

@@ -1,0 +1,294 @@
+@use 'sass:color';
+@use '../variables' as *;
+
+// FAB 麦克风按钮(打开 ASR 热词弹窗)。基础样式供非 rail 场景兜底;
+// 实际渲染在 .fab-rail 内,定位由 toolbox/_core.scss 的组选择器中和。
+.hotwords-toggle-btn {
+  position: fixed;
+  top: 268px;     // 兜底值(rail 外的独立堆叠);rail 内 position/top/left 均被中和
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  &:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 94%, white) 0%, var(--bg-tertiary) 100%);
+  }
+}
+
+// ASR 热词管理弹窗(AsrHotwordsModal;外壳复用 shortcuts-modal,这里定义内容区)
+.asr-hotwords-modal {
+  // 工具栏行:智能更新按钮 + 上次分析(可选,= 分析起点) + 注入窗口徽章
+  .hotwords-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+  }
+
+  // 「上次分析」时间可选(datetime-local,= 智能更新的分析起点)
+  .hotwords-since {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+
+    .hotwords-since-input {
+      width: auto; // 覆盖 .config-input 的 60px(需完整显示日期+时间)
+      min-width: 172px;
+      padding: 3px 8px;
+      font-size: 12px;
+      color-scheme: dark; // 原生日历控件跟随暗色主题
+    }
+  }
+
+  .hotwords-since-clear {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color $transition-fast;
+
+    &:hover {
+      color: var(--accent-red);
+    }
+  }
+
+  .hotwords-window-badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    color: var(--accent-cyan);
+    white-space: nowrap;
+  }
+
+  // 反馈行(成功消息 / 错误)
+  .hotwords-msg {
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: $radius-sm;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .hotwords-msg--error {
+    border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
+    color: var(--accent-red);
+  }
+
+  // 分组(Agent 名 / 动态池)
+  .hotwords-group {
+    margin-bottom: 18px;
+  }
+
+  .hotwords-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hotwords-group-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .hotwords-lock-badge {
+    font-style: normal;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 30%, transparent);
+    color: var(--accent-purple);
+  }
+
+  .hotwords-group-count {
+    font-style: normal;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: $radius-sm;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+  }
+
+  .hotwords-group-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  // 词条 chips
+  .hotwords-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .hotwords-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    background: var(--bg-tertiary);
+    font-size: 12px;
+    color: var(--text-secondary);
+
+    strong {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    &.is-injected {
+      border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+
+      .hotwords-chip-dot {
+        color: var(--accent-cyan);
+      }
+    }
+  }
+
+  .hotwords-chip-dot {
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .hotwords-chip-meta {
+    font-style: normal;
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: $radius-sm;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+  }
+
+  .hotwords-chip-remove {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color $transition-fast;
+
+    &:hover {
+      color: var(--accent-red);
+    }
+  }
+
+  // 手动添加行
+  .hotwords-add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+
+    .config-input {
+      flex: 1;
+    }
+  }
+
+  // 标签页(热词 / 记忆)
+  .hotwords-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+  }
+
+  .hotwords-tab {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 9px 12px;
+    margin-bottom: -1px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color $transition-fast, border-color $transition-fast;
+
+    &:hover {
+      color: var(--text-secondary);
+    }
+
+    &.is-active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      font-weight: 600;
+    }
+  }
+
+  // 记忆 Tab:条目列表
+  .hotwords-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .hotwords-note {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: $radius-sm;
+    background: var(--bg-tertiary);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .hotwords-note-text {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+
+  .hotwords-note-source {
+    font-style: normal;
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: $radius-sm;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .hotwords-note-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+}
