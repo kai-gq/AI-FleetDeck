@@ -16,6 +16,7 @@ export const wechatSkill: BuiltinSkillDefinition = {
 通过 Tide Commander 的微信集成给个人微信回消息。底层是腾讯官方 ClawBot（iLink）通道，bot token 保存在服务端加密存储里，agent 永远不接触它；但每次调用 TC API **必须**带上 TC 自己的鉴权头（\`X-Auth-Token\`），与其他 TC API 调用一致。
 
 > **token 从哪来**：就是你调用 \`/api/notify\`、\`/api/exec\` 用的那个 token（系统提示词 API Calling Convention 段里有原值）。下面示例里的 \`abcd\` 是占位符，替换成真实值。
+> **地址**：本机服务端 HTTP 端口为 \`6200\`（与 \`/api/skills\`、\`/api/exec\` 同一地址）；下面示例统一用 \`http://localhost:6200\`。
 
 **前提：**
 - 微信集成已启用，且已在 TC 集成面板扫码绑定（状态为已连接）。
@@ -37,7 +38,7 @@ iLink 的 \`sendmessage\` 需要入站消息携带的 \`context_token\`。触发
 ### 1. 回复当前触发的这条微信消息
 
 \`\`\`bash
-curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/wechat/send-message \\
+curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:6200/api/wechat/send-message \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<'EOF'
 {"to":"{{wechat.from}}","text":"收到，我来处理。","contextToken":"{{wechat.contextToken}}"}
@@ -51,7 +52,7 @@ EOF
 只有当对方在最近 24 小时内给机器人发过消息、且服务端缓存仍持有其 \`context_token\` 时才能发。此时可以省掉 \`contextToken\`，服务端会从缓存回填：
 
 \`\`\`bash
-curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/wechat/send-message \\
+curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:6200/api/wechat/send-message \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<'EOF'
 {"to":"xxxx@im.wechat","text":"定时提醒：该喝水啦"}
@@ -77,7 +78,7 @@ EOF
 ### GET /api/wechat/status
 
 \`\`\`bash
-curl -s -H "X-Auth-Token: abcd" http://localhost:5174/api/wechat/status
+curl -s -H "X-Auth-Token: abcd" http://localhost:6200/api/wechat/status
 \`\`\`
 
 返回连接状态：\`state\` 取值 \`disabled / disconnected / qr_pending / connected / needs_reauth\`。\`needs_reauth\` 表示需人工去集成面板重新扫码 —— 遇到这个状态不要自行尝试重连。
@@ -87,7 +88,7 @@ curl -s -H "X-Auth-Token: abcd" http://localhost:5174/api/wechat/status
 最近 24h 内给机器人发过消息的用户列表（含显示名与预览，不含 token）。用它找 \`to\` 的值：
 
 \`\`\`bash
-curl -s -H "X-Auth-Token: abcd" http://localhost:5174/api/wechat/recent-inbound
+curl -s -H "X-Auth-Token: abcd" http://localhost:6200/api/wechat/recent-inbound
 \`\`\`
 
 ## 常见错误
