@@ -1,0 +1,152 @@
+// =============================================================================
+// 移动端全宽覆盖层媒体查询 / Diff 加载遮罩 / 面板加载条与扫光 keyframes
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 1044-1187 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// =============================================================================
+// Mobile responsive - full width overlay
+// =============================================================================
+
+@media (max-width: 768px) {
+  .guake-terminal.with-git-panel,
+  .guake-terminal.with-workflow-panel {
+    .guake-content {
+      margin-right: 0;
+    }
+  }
+
+  .guake-git-panel {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-bottom: 2px solid var(--accent-green);
+    z-index: 205;
+  }
+
+  // Hide resize handle on mobile
+  .guake-side-panel-resize.right {
+    display: none;
+  }
+
+  // When both git and buildings panels open on mobile, stack vertically
+  .guake-terminal.with-git-panel.with-buildings-panel {
+    .guake-git-panel {
+      bottom: 50%;
+    }
+
+    .guake-buildings-panel {
+      top: 50%;
+    }
+  }
+
+  .guake-git-header {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  // Keep the action buttons (refresh, view toggles, and crucially the close
+  // button) fully visible: they must never shrink or be clipped by the panel's
+  // overflow:hidden. The tabs area yields/scrolls instead so close stays reachable.
+  .guake-git-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .guake-git-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .guake-git-tab {
+    flex-shrink: 0;
+  }
+
+  .guake-git-header-actions {
+    flex-shrink: 0;
+  }
+
+  // Larger touch targets on mobile
+  .guake-git-fetch-btn,
+  .guake-git-view-toggle,
+  .guake-git-refresh,
+  .guake-git-close {
+    padding: 8px;
+  }
+
+  // Roomier filter row + 16px font so iOS doesn't zoom the page on focus
+  .guake-git-filter {
+    padding: 8px 12px;
+  }
+
+  .guake-git-filter-input {
+    font-size: 16px;
+    padding: 4px 0;
+  }
+
+  .guake-git-filter-clear {
+    padding: 6px;
+  }
+
+  .guake-git-file {
+    margin: 0;
+    padding: 0;
+    min-height: 36px;
+  }
+
+  .guake-git-repo-header {
+    padding: 8px 10px;
+    min-height: 36px;
+  }
+
+  .guake-git-diff-modal {
+    width: 100vw;
+    height: 90vh;
+    border-radius: 0;
+  }
+}
+
+// Loading feedback: modal overlay while switching files, and an indeterminate
+// top bar on the panel while the file tree (or a file's content) loads.
+.guake-git-diff-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+}
+
+.guake-git-panel-loadbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -40%;
+    width: 40%;
+    background: var(--accent-primary, #4a9eff);
+    animation: guake-git-loadbar-sweep 1s ease-in-out infinite;
+  }
+}
+
+@keyframes guake-git-loadbar-sweep {
+  to { left: 100%; }
+}
+

@@ -1,0 +1,117 @@
+// =============================================================================
+// 资源管理器文件树
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 865-973 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Explorer file tree
+.guake-git-explorer-tree {
+  padding: 2px 0;
+
+  // Reuse file-explorer tree styles at a smaller scale (dense: the point of
+  // this panel's tree is seeing as many files as possible at a glance)
+  .tree-node-wrapper {
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 8px;
+      cursor: pointer;
+      font-size: 11.5px;
+      line-height: 1.2;
+      font-family: $font-mono;
+      color: var(--text-primary);
+      transition: background 0.12s;
+      min-height: 18px;
+
+      &:hover {
+        background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+      }
+
+      &.selected {
+        background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+        color: var(--accent-purple);
+      }
+
+      &.directory {
+        color: color-mix(in srgb, var(--accent-yellow) 91%, white);
+
+        .tree-name {
+          color: color-mix(in srgb, var(--accent-yellow) 91%, white);
+          font-weight: 600;
+        }
+
+        &:hover {
+          background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
+        }
+
+        &.selected {
+          background: color-mix(in srgb, var(--accent-yellow) 14%, color-mix(in srgb, var(--accent-purple) 12%, transparent));
+          color: color-mix(in srgb, var(--accent-yellow) 88%, white);
+
+          .tree-name {
+            color: color-mix(in srgb, var(--accent-yellow) 88%, white);
+          }
+        }
+      }
+    }
+
+    .tree-arrow {
+      font-size: 8px;
+      color: var(--text-muted);
+      width: 12px;
+      text-align: center;
+      flex-shrink: 0;
+      transition: transform 0.12s;
+
+      &.expanded {
+        transform: rotate(90deg);
+      }
+    }
+
+    .tree-arrow-spacer {
+      width: 12px;
+      flex-shrink: 0;
+    }
+
+    .tree-icon,
+    .tree-folder-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .tree-folder-icon-wrapper {
+      position: relative;
+      display: inline-flex;
+      flex-shrink: 0;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+
+      .tree-folder-git-dot {
+        position: absolute;
+        top: -1px;
+        right: -2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+    }
+
+    .tree-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .tree-children {
+      // Nested children indentation handled by depth prop
+    }
+  }
+}
+

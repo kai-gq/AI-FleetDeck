@@ -1,0 +1,107 @@
+// =============================================================================
+// Diff 弹窗壳:遮罩与淡入 / 弹窗与上滑 / 头部 / 导航 / 导航按钮 / 计数 / 文件名
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 478-576 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-git-diff-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: guake-git-fade-in 0.15s ease;
+}
+
+@keyframes guake-git-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.guake-git-diff-modal {
+  width: 92vw;
+  height: 85vh;
+  max-width: 1400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: guake-git-slide-up 0.15s ease;
+}
+
+@keyframes guake-git-slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.guake-git-diff-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.guake-git-diff-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.guake-git-diff-nav-btn {
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-primary);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, border-color 0.1s;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+}
+
+.guake-git-diff-nav-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.guake-git-diff-filename {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+

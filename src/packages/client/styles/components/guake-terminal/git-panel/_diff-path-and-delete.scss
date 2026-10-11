@@ -1,0 +1,113 @@
+// =============================================================================
+// Diff 地址栏(路径 / 输入组)/ 删除确认 / 删除操作按钮
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 577-681 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// The header's filename doubles as an address bar: Back / Forward plus a field
+// you can type a path into. Takes the row's free space so long paths still get
+// the width the old static label had.
+.guake-git-diff-path {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+// Chromeless until touched, so the header keeps reading as a title rather than
+// a form. Same treatment as the file viewer's path box.
+.guake-git-diff-path-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: text;
+
+  &:hover:not(:focus) {
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  }
+
+  &:focus {
+    outline: none;
+    background: var(--bg-primary);
+    border-color: var(--accent-cyan);
+    text-overflow: clip;
+  }
+}
+
+// Delete confirmation dialog
+.guake-git-delete-confirm {
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-red);
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 480px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: guake-git-slide-up 0.15s ease;
+  text-align: center;
+
+  p {
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+
+    strong {
+      color: var(--accent-red);
+    }
+  }
+
+  .guake-git-delete-path {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: $font-mono;
+    word-break: break-all;
+    margin-bottom: 16px;
+  }
+}
+
+.guake-git-delete-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.guake-git-delete-cancel {
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+  }
+}
+
+.guake-git-delete-btn {
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-red) 35%, transparent);
+  }
+}
+

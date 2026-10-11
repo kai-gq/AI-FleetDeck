@@ -1,0 +1,175 @@
+// =============================================================================
+// 全部丢弃按钮 / 文件列表 / 文件行 / 图标 / 目录名 / 状态 / 丢弃按钮
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 311-477 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// "Discard all" button in each repo header — reveals on repo-header hover,
+// turns red on hover to signal the destructive action.
+.git-discard-all-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s, border-color 0.12s;
+
+  .guake-git-repo-header:hover & {
+    opacity: 0.6;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
+  }
+}
+
+// File list
+.guake-git-file-list {
+  padding: 1px 0;
+}
+
+.guake-git-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: $font-mono;
+  color: var(--text-primary);
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 0;
+  border-left: 3px solid transparent;
+  margin: 1px 0;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 35%, transparent);
+  }
+
+  // Status-colored left border + tinted hover per file type
+  &[data-status="modified"] {
+    border-left-color: var(--accent-orange);
+    .guake-git-file-name { color: var(--accent-orange); }
+    &:hover { background: color-mix(in srgb, var(--accent-orange) 8%, transparent); }
+  }
+
+  &[data-status="added"] {
+    border-left-color: var(--accent-green);
+    .guake-git-file-name { color: var(--accent-green); }
+    &:hover { background: color-mix(in srgb, var(--accent-green) 8%, transparent); }
+  }
+
+  &[data-status="deleted"] {
+    border-left-color: var(--accent-red);
+    .guake-git-file-name { color: var(--accent-red); text-decoration: line-through; opacity: 0.7; }
+    &:hover { background: color-mix(in srgb, var(--accent-red) 8%, transparent); }
+  }
+
+  &[data-status="untracked"] {
+    border-left-color: var(--accent-cyan);
+    .guake-git-file-name { color: var(--accent-cyan); }
+    &:hover { background: color-mix(in srgb, var(--accent-cyan) 8%, transparent); }
+  }
+
+  &[data-status="renamed"] {
+    border-left-color: var(--accent-purple);
+    .guake-git-file-name { color: var(--accent-purple); }
+    &:hover { background: color-mix(in srgb, var(--accent-purple) 8%, transparent); }
+  }
+
+  &[data-status="conflict"] {
+    border-left-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 4%, transparent);
+    .guake-git-file-name { color: var(--accent-pink); }
+    &:hover { background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
+  }
+}
+
+.guake-git-file-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.guake-git-folder-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.95;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+}
+
+.guake-git-file-name {
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.guake-git-file-dir {
+  color: var(--text-muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.guake-git-file-status {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 10px;
+  min-width: 18px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+// Inline discard button — appears on hover
+.guake-git-discard-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s, border-color 0.12s;
+
+  .guake-git-file:hover & {
+    opacity: 0.6;
+  }
+
+  &:hover {
+    opacity: 1 !important;
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 35%, transparent);
+  }
+}
+
+// Diff modal overlay

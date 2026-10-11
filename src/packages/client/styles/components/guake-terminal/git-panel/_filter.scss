@@ -1,0 +1,100 @@
+// =============================================================================
+// 文件名过滤条:外框 / 图标 / 输入 / 计数 / 清除 / 命中 / 重置
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 115-206 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Filename filter bar (Changes + Files tabs)
+.guake-git-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.guake-git-filter-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.guake-git-filter-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  padding: 2px 0;
+
+  &::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+}
+
+.guake-git-filter-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.guake-git-filter-clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  }
+}
+
+// Matched characters inside file/folder names
+.guake-git-filter-hit {
+  background: color-mix(in srgb, var(--accent-yellow) 28%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+// "Clear filter" action in the no-matches empty state
+.guake-git-filter-reset {
+  display: block;
+  margin: 8px auto 0;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  transition: color 0.12s, border-color 0.12s;
+
+  &:hover {
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  }
+}
+

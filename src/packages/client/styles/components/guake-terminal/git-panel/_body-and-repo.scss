@@ -1,0 +1,112 @@
+// =============================================================================
+// 面板主体(含 compact 树密度)/ 空态 / 仓库分组头 / 箭标 / 名称 / 分支 / 计数 / 截断提示
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 207-310 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-git-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+// Compact Files-tab tree: denser rows than the changes list (no inter-row
+// margins, shorter inline controls — the tallest child sets the row height).
+.guake-git-body.explorer-compact {
+  .guake-git-file {
+    margin: 0;
+    gap: 5px;
+    line-height: 1.15;
+  }
+
+  .guake-git-folder-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .guake-git-repo-count {
+    padding: 0 5px;
+    font-size: 9px;
+  }
+
+  .guake-git-file-status {
+    height: 14px;
+    line-height: 14px;
+  }
+
+  .guake-git-discard-btn {
+    height: 15px;
+  }
+}
+
+.guake-git-loading,
+.guake-git-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+// Repository section
+.guake-git-repo {
+  margin-bottom: 2px;
+}
+
+.guake-git-repo-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+  transition: background 0.12s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  }
+}
+
+.guake-git-repo-arrow {
+  font-size: 9px;
+  color: var(--text-muted);
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.guake-git-repo-name {
+  font-weight: 600;
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+}
+
+.guake-git-repo-branch {
+  color: var(--accent-green);
+  font-size: 11px;
+  opacity: 0.8;
+  margin-left: 2px;
+}
+
+.guake-git-repo-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+// Shown when the server capped a repo's file list (huge untracked tree).
+.guake-git-truncated-notice {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  padding: 4px 10px 6px 22px;
+  font-style: italic;
+}
+

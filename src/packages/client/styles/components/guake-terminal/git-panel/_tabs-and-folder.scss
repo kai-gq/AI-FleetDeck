@@ -1,0 +1,83 @@
+// =============================================================================
+// 面板模式标签页 / 标签 / 文件夹选择器与按钮
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 790-864 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Panel mode tabs
+.guake-git-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.guake-git-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+  }
+
+  &.active {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+  }
+
+  .guake-git-badge {
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+  }
+}
+
+// Folder selector (for explorer with multiple dirs)
+.guake-git-folder-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+}
+
+.guake-git-folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: $font-mono;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  }
+
+  &.active {
+    color: var(--accent-cyan);
+    border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+}
+

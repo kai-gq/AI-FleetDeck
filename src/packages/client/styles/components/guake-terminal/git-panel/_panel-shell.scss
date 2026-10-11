@@ -1,0 +1,115 @@
+// =============================================================================
+// 面板壳:终端并排 / 面板 / 拖拽条 / 头部与标题 / 徽标 / 操作 / 关闭按钮
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 8-114 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-terminal.with-git-panel,
+.guake-terminal.with-workflow-panel {
+  .guake-content {
+    margin-right: var(--guake-side-panel-width);
+  }
+}
+
+.guake-git-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--guake-side-panel-width);
+  // Opaque — translucent bg let chat text bleed through on mobile overlay mode
+  background: var(--bg-primary);
+  border-left: 2px solid var(--accent-green);
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  overflow: hidden;
+}
+
+// In-panel resize handle: rendered as a child of .guake-git-panel and pinned to
+// the panel's own left edge, so it can never visually detach from the panel.
+// (An edge-relative sibling handle depends on the container width matching
+// --guake-side-panel-width, which isn't guaranteed in narrower layouts like the
+// Flat view.) Sits just inside the panel; the panel's overflow:hidden keeps it
+// from being clipped, and z-index keeps it grabbable above the panel content.
+.guake-git-panel__resize.guake-side-panel-resize.right {
+  left: 0;
+  right: auto;
+}
+
+.guake-git-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.guake-git-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-green);
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.guake-git-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.guake-git-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  color: var(--accent-green);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.guake-git-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guake-git-refresh,
+.guake-git-close {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+
+  &:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+}
+
+.guake-git-close {
+  font-size: 18px;
+}
+

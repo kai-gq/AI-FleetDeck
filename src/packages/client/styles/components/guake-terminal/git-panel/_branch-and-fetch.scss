@@ -1,0 +1,78 @@
+// =============================================================================
+// Ahead/Behind 分支指示 + Git 拉取按钮(含 pulse keyframes)
+// 由 _git-panel.scss 拆分(W4,2026-10-11):原文件第 974-1043 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// =============================================================================
+// Ahead/Behind Branch Indicators
+// =============================================================================
+
+.guake-branch-ahead {
+  font-size: 10px;
+  color: var(--accent-green);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.guake-branch-behind {
+  font-size: 10px;
+  color: var(--accent-orange);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+// =============================================================================
+// Git Fetch Button
+// =============================================================================
+
+.guake-git-fetch-btn {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  color: var(--accent-cyan);
+  font-size: 13px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.fetching {
+    animation: pulse-fetch 1s ease-in-out infinite;
+  }
+}
+
+.guake-area-fetch-btn {
+  font-size: 11px;
+  color: var(--accent-cyan);
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.fetching {
+    opacity: 1;
+    animation: pulse-fetch 1s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-fetch {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
