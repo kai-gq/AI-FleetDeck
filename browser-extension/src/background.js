@@ -1289,7 +1289,7 @@ async function cdpDrive(cmd, args, tabId) {
   // 🤖 drive toggle is on (side panel), refuse so the debugger never even attaches to
   // it. 'detach' is always allowed so a tab can be cleaned up after being turned off.
   if (cmd !== 'detach' && !(await isTabDriveEnabled(tabId))) {
-    throw new Error('Agent manipulation is OFF for this tab — turn on the 🤖 drive toggle in the Tide Commander side panel to allow click/type/navigate.');
+    throw new Error('Agent manipulation is OFF for this tab — turn on the 🤖 drive toggle in the FleetDeck side panel to allow click/type/navigate.');
   }
 
   await cdpEnsureAwake(tabId); // wake discarded/slept tabs so the debugger can attach
@@ -1477,8 +1477,8 @@ async function handleElementPicked(context, sender) {
 function registerMenus() {
   try {
     chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({ id: 'tc-ask', title: 'Ask Tide Commander about this element', contexts: ['all'] });
-      chrome.contextMenus.create({ id: 'tc-pick', title: 'Pick an element for Tide Commander…', contexts: ['all'] });
+      chrome.contextMenus.create({ id: 'tc-ask', title: 'Ask FleetDeck about this element', contexts: ['all'] });
+      chrome.contextMenus.create({ id: 'tc-pick', title: 'Pick an element for FleetDeck…', contexts: ['all'] });
     });
   } catch (_e) {
     /* ignore */

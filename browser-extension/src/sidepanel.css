@@ -1,4 +1,4 @@
-/* Abyss theme — mirrors Tide Commander's "Abyss" Guake terminal palette
+/* Abyss theme — mirrors FleetDeck's "Abyss" Guake terminal palette
  * (src/packages/client/utils/themes.ts). Pitch-black void, vivid-but-muted accents. */
 :root {
   --bg: #08090c;        /* bgPrimary  — void */

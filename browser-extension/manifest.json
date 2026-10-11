@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tide Commander — Error Trigger",
+  "name": "FleetDeck — Error Trigger",
   "version": "0.2.0",
-  "description": "Capture browser errors, chat with the agent assigned to a page, and pick DOM elements to send as context to Tide Commander.",
+  "description": "Capture browser errors, chat with the agent assigned to a page, and pick DOM elements to send as context to FleetDeck.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "unlimitedStorage", "tabs", "sidePanel", "contextMenus", "debugger"],
   "host_permissions": ["<all_urls>"],
@@ -10,7 +10,7 @@
     "service_worker": "src/background.js"
   },
   "action": {
-    "default_title": "Tide Commander — toggle chat",
+    "default_title": "FleetDeck — toggle chat",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

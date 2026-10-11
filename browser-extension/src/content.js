@@ -718,11 +718,11 @@
       '.chip:hover .tip{opacity:1;visibility:visible;transform:translateY(0);}' +
       '.tip b{color:#fff;}' +
       '</style>' +
-      '<div class="chip" role="status" aria-label="Tide Commander puede controlar esta pestaña">' +
+      '<div class="chip" role="status" aria-label="FleetDeck puede controlar esta pestaña">' +
       '<span class="dot"></span>🤖 Agente puede controlar esta pestaña' +
-      '<div class="tip"><b>Tide Commander</b> tiene permiso para <b>manipular esta pestaña</b> ' +
+      '<div class="tip"><b>FleetDeck</b> tiene permiso para <b>manipular esta pestaña</b> ' +
       '(click, escritura y navegación) a través de la extensión.<br><br>' +
-      'Para <b>desactivarlo</b>: abre el panel lateral de Tide Commander y apaga el toggle ' +
+      'Para <b>desactivarlo</b>: abre el panel lateral de FleetDeck y apaga el toggle ' +
       '<b>🤖 drive</b> de esta pestaña.</div></div>';
     (document.body || document.documentElement).appendChild(host);
   }

@@ -1571,7 +1571,7 @@ async function handleBrowserCommand(payload) {
   if (config && config.bridgeEnabled === false) {
     try {
       if (ws && ws.readyState === 1) {
-        ws.send(JSON.stringify({ type: 'browser_result', payload: { reqId, ok: false, result: null, error: 'Browser control is disabled in the Tide Commander extension settings.' } }));
+        ws.send(JSON.stringify({ type: 'browser_result', payload: { reqId, ok: false, result: null, error: 'Browser control is disabled in the FleetDeck extension settings.' } }));
       }
     } catch (_e) {
       /* ignore */

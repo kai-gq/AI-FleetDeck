@@ -8,12 +8,12 @@
   </head>
   <body>
     <main class="wrap">
-      <h1>Tide Commander — Error Trigger</h1>
+      <h1>FleetDeck — Error Trigger</h1>
       <p class="sub">Capture browser errors, chat with the agent assigned to a page, and pick DOM elements as context.</p>
 
       <section class="card">
         <h2>Commanders</h2>
-        <p class="sub">Each Tide Commander server you connect to (by IP/host + optional token). The <strong>active</strong> one is the default; per-page agent assignment is remembered automatically from the chat panel.</p>
+        <p class="sub">Each FleetDeck server you connect to (by IP/host + optional token). The <strong>active</strong> one is the default; per-page agent assignment is remembered automatically from the chat panel.</p>
         <div id="commanders"></div>
         <button class="btn" id="addCommander" type="button">+ Add commander</button>
         <label style="margin-top:14px">Default agent id (optional)
@@ -45,7 +45,7 @@
       <section class="card">
         <h2>Agent browser control</h2>
         <label class="check"><input type="checkbox" id="bridgeEnabled" /> Allow agents to read &amp; drive the browser</label>
-        <p class="sub">Lets a connected Tide Commander server read the live page (DOM, console, network, screenshots) and drive it (click, type, navigate) through <code>/api/browser/*</code>, in your real session. Uncheck to fully disable this — the chat panel stops registering and refuses every command. Driving still requires the side panel open and the <strong>debugger</strong> permission; only pages in the allowlist below can be controlled.</p>
+        <p class="sub">Lets a connected FleetDeck server read the live page (DOM, console, network, screenshots) and drive it (click, type, navigate) through <code>/api/browser/*</code>, in your real session. Uncheck to fully disable this — the chat panel stops registering and refuses every command. Driving still requires the side panel open and the <strong>debugger</strong> permission; only pages in the allowlist below can be controlled.</p>
       </section>
 
       <section class="card">

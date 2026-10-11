@@ -1,12 +1,12 @@
-# Tide Commander — Error Trigger + Cockpit (browser extension)
+# FleetDeck — Error Trigger + Cockpit (browser extension)
 
-A browser-side cockpit for Tide Commander. It:
+A browser-side cockpit for FleetDeck. It:
 
 1. **Captures console/network errors**, dedupes them, and **auto-sends a brief**
    to the agent assigned to the page. The agent pulls *more* context itself via
    the **chrome-devtools MCP** (other requests, console logs, screenshots).
 2. **Chats** with that agent from a **side panel** (Guake-style terminal, live
-   token streaming over the TC WebSocket, markdown rendered). Clicking the
+   token streaming over the FleetDeck WebSocket, markdown rendered). Clicking the
    toolbar icon **toggles this chat** open/closed. The captured errors live in a
    collapsible **Errors** section at the top of the chat (send/mute/delete/clear),
    and a **Network** section lists *every* request for the active page (method,
@@ -48,7 +48,7 @@ the agent.
 2. Toggle **Developer mode** on (top-right).
 3. Click **Load unpacked** and select this `browser-extension/` folder.
 4. Click the toolbar icon to open the chat, then its **⚙ / Settings** and set:
-   - **Endpoint** — your Tide Commander URL (default `http://localhost:5174`).
+   - **Endpoint** — your FleetDeck URL (default `http://localhost:5174`).
    - **Auth token** — your `X-Auth-Token`.
    - **Target agent** — click *Load agents* and pick one, or leave blank to let
      the server route to its first agent.
