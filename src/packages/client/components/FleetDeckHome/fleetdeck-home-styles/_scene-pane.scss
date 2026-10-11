@@ -1,0 +1,14 @@
+// =============================================================================
+// 中栏 2D 现场窗格卡片观感
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 465-472 行,逐行原样。
+// =============================================================================
+
+
+// ─── 中栏 · 2D 现场窗格（B-35 用户口径：任务树占比太大 → 中栏切两半）───
+// 引擎容器（Scene2DCanvas 的 .scene-2d-container）自带暗底/溢出裁剪；这里只补
+// 卡片观感（1px 边框 + 12px 圆角，与左右栏 .fleetdeck-col 一致）。
+// 亮皮容器底色与「2D Mode」角标覆盖在 TopBar/fleetdeck-light-overrides.scss（html 级，本窗格自动命中）。
+.fleetdeck-home .scene-2d-pane {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}

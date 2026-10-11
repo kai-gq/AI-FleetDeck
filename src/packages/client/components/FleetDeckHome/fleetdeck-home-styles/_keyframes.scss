@@ -1,0 +1,38 @@
+// =============================================================================
+// spin/ripple/blink 关键帧与 reduced-motion 降级
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 432-463 行,逐行原样。
+// =============================================================================
+
+
+@keyframes fleetdeck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// 语音球涟漪环（原型 @keyframes ripple）
+@keyframes fleetdeck-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+// 流式光标闪烁（原型 @keyframes blink）
+@keyframes fleetdeck-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-stream__orb::after,
+  .voice-stream__caret {
+    animation: none;
+  }
+}

@@ -1,0 +1,85 @@
+// =============================================================================
+// 右栏语音流:舞台条/语音球/状态两行
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 594-670 行,逐行原样。
+// =============================================================================
+
+
+.voice-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; // 原型 .chat
+
+  // 舞台条（B-29 对齐原型 .voice-stage）：38px 语音球 + 状态两行 + 右侧启停控件
+  &__stage {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  // 语音球（原型 .voice-orb）：径向高光 + 涟漪环；is-off=静态灰、无涟漪
+  &__orb {
+    position: relative;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background:
+      radial-gradient(
+        circle at 35% 30%,
+        color-mix(in srgb, var(--fd-accent-ink) 35%, transparent),
+        color-mix(in srgb, var(--fd-accent) 25%, transparent) 40%,
+        transparent 65%
+      ),
+      var(--fd-accent);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--fd-accent) 35%, transparent);
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      border: 1px solid var(--fd-accent);
+      opacity: 0.35;
+      animation: fleetdeck-ripple 2.4s ease-out infinite;
+    }
+
+    &.is-off {
+      background: var(--text-muted);
+      box-shadow: none;
+
+      &::after {
+        display: none;
+      }
+    }
+  }
+
+  // 状态两行（原型 .voice-state）：b=短标签（与状态栏同一映射）/ span=相位副行
+  &__state {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+
+    b {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    span {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}

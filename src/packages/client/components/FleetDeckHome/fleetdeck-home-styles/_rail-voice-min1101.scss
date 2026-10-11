@@ -1,0 +1,21 @@
+// =============================================================================
+// ≥1101 语音收敛:两处 VoiceCompanion 实例悬浮元素全收起
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 105-119 行,逐行原样。
+// =============================================================================
+
+
+// B-26 · 语音收敛：≥1101 语音栏在场，VoiceCompanion 两处实例的悬浮话筒/气泡/pill 全部收起。
+// 实例一：.fab-rail（桌面主实例）；实例二：MobileFabMenu 常驻挂载的 .mobile-voice-companion
+//（上游桌面端也一并渲染，落在 .main-content 下——实测截图 2026-10-08 确认桌面端可见）。
+// ≤1100 语音栏折起 → 悬浮钮是唯一入口（保留）；≤760 rail 整条隐藏、移动实例本就是手机入口（不受影响）。
+// 隐藏只是视觉：DOM 代理合成点击对 display:none 照常派发，镜像扫描照常读取。
+@media (min-width: 1101px) {
+  .view-mode-home .fab-rail .voice-companion-btn,
+  .view-mode-home .fab-rail .voice-companion-bubble,
+  .view-mode-home .fab-rail .voice-companion-pill,
+  .view-mode-home .main-content > .mobile-voice-companion,
+  .view-mode-home .main-content > .voice-companion-bubble,
+  .view-mode-home .main-content > .voice-companion-pill {
+    display: none !important;
+  }
+}

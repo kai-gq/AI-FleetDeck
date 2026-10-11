@@ -1,0 +1,92 @@
+// =============================================================================
+// 指挥台三栏网格根容器(内嵌 ≥1320 四栏 / ≤1100 / ≥1101 / ≤760 四档断点媒体)
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 9-94 行,逐行原样。
+// =============================================================================
+
+
+.fleetdeck-home {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  // 原型尺寸（B-25）：268 定宽 / 中栏弹性 / 320 定宽，gap 12
+  grid-template-columns: 268px minmax(0, 1fr) 320px;
+  // 行1=三栏（吃满剩余高度）/ 行2=底部状态栏（B-27，内容高 30px）
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  // 左 64px 避让 .fab-rail（36px 宽 + 16px 左边距；B4 起 home 模式 rail 只留语音钮）
+  // 上 12px：顶栏 B-23 起 in-flow（本条处于其下），无需再让位
+  padding: 12px 12px 12px 64px;
+  background: var(--bg-primary);
+  overflow: hidden;
+
+  // B-35：中栏切两半（左=2D 窗格 / 右=任务树），两半等宽各吃弹性。
+  // 与 .scene-2d-pane 的挂载断点（Scene2DPane.tsx SCENE2D_PANE_MEDIA）保持一致。
+  @media (min-width: 1320px) {
+    grid-template-columns: 268px minmax(0, 1fr) minmax(0, 1fr) 320px;
+  }
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 240px minmax(0, 1fr);
+    padding-left: 56px;
+
+    .fleetdeck-col--voice {
+      display: none;
+    }
+  }
+
+  // B-26：≥1101 语音栏在场 → rail 里语音悬浮组已收敛（见文末），左避让收窄回 12px
+  @media (min-width: 1101px) {
+    padding-left: 12px;
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: none; // 失败回退自动行（min-content）：单列自然堆叠
+    grid-auto-rows: min-content;
+    align-content: start;
+    // 底边抬升 = .mobile-bottom-stack 高度（agent-bar+FAB+底部菜单，上游冻结件 fixed z2100；
+    // 高度由 App.tsx ResizeObserver 写入 --mobile-bottom-stack-height）：
+    // 否则 sticky 状态栏（bottom:0）会落进固定栈底下被盖住
+    inset: 0 0 var(--mobile-bottom-stack-height, 72px) 0;
+    padding: 10px 10px 10px 54px;
+    overflow-y: auto;
+
+    .fleetdeck-col--voice {
+      display: flex;
+    }
+
+    .fleetdeck-col {
+      max-height: none;
+      min-height: 160px;
+    }
+
+    .fleetdeck-col__body {
+      overflow: visible;
+    }
+
+    // 中栏列头（标题+计数+过滤段位+刷新）在手机上放不下 → 换行，防横向滚动
+    .fleetdeck-col__head {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+
+    .fleetdeck-col__filters {
+      margin-left: 0;
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    // 状态栏折叠（B-27）：手机只留 连接 + 语音 + 时钟；吸底随滚动（列内容长时仍可见）
+    .fleetdeck-statusbar {
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+    }
+
+    .fleetdeck-statusbar__item--team,
+    .fleetdeck-statusbar__item--ws {
+      display: none;
+    }
+  }
+}

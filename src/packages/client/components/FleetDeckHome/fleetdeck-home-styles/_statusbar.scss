@@ -1,0 +1,97 @@
+// =============================================================================
+// 底部状态栏(连接/语音相位/团队计数/工作区/时钟五项)
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 121-211 行,逐行原样。
+// =============================================================================
+
+
+// ─── 底部状态栏（B-27，仅指挥台页）───
+// 诚实数据五项：连接 / 语音相位镜像 / 团队计数（与左栏同口径）/ 工作区（0 个则整项不渲染）/ 时钟。
+// 右侧 72px 内边距避 fixed bottom-right 的 FPSMeter；不写死色值（双皮肤成立）。
+.fleetdeck-statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 30px;
+  min-width: 0;
+  // 左 34px：避 .agent-bar-version-outdated-indicator（固定左下 18×18，版本过旧时出现，
+  // 压住连接状态灯）；右 72px：避 fixed bottom-right 的 FPSMeter
+  padding: 0 72px 0 34px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__item--ws {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  &__item.is-on &__dot {
+    background: var(--accent-green);
+    opacity: 1;
+  }
+
+  &__item.is-off &__dot {
+    background: var(--accent-red);
+    opacity: 1;
+  }
+
+  &__item.is-voice-on &__dot {
+    background: var(--fd-accent);
+    opacity: 1;
+  }
+
+  &__spacer {
+    flex: 1;
+    min-width: 8px;
+  }
+
+  // 新手指引重看入口（B-33）：16px 圆钮，hover 走 --fd-accent
+  &__tour {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--fd-accent);
+      color: var(--fd-accent);
+    }
+  }
+
+  &__clock {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+}

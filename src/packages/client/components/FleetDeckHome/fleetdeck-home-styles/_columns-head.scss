@@ -1,0 +1,146 @@
+// =============================================================================
+// 栏容器 .fleetdeck-col:头部/计数/筛选/chip/刷新/帮助
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 214-351 行,逐行原样。
+// =============================================================================
+
+
+.fleetdeck-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px; // 原型 --radius
+  overflow: hidden;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 14px; // 原型 .col-head
+    border-bottom: 1px solid var(--border-color);
+    flex: 0 0 auto;
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+
+      svg {
+        flex: 0 0 auto;
+        color: var(--fd-accent); // 原型 .col-head h2 svg 强调色
+      }
+    }
+  }
+
+  // 计数胶囊（原型 .col-head .count）
+  &__count {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  // 状态筛选段位（B-25 收口 B-16；原型 .viewswitch 小号：panel2 底 + 活动段 accent 实底）
+  &__filters {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+    padding: 3px;
+    border-radius: 9px;
+    background: var(--bg-tertiary);
+  }
+
+  &__chip {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &.is-active {
+      background: var(--fd-accent);
+      color: var(--fd-accent-ink);
+      font-weight: 600;
+    }
+  }
+
+  &__refresh {
+    flex: 0 0 auto;
+    margin-left: auto; // 无过滤段位的栏（团队/语音）：刷新钮贴右
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .is-spinning {
+      animation: fleetdeck-spin 0.9s linear infinite;
+    }
+  }
+
+  // 过滤段位在场时由它吃掉剩余空间，刷新钮紧随其后（压过 &__refresh 的 margin-left）
+  &__filters + &__refresh {
+    margin-left: 0;
+  }
+
+  // 秘书「能做什么」入口（B-34 用户口径）：列头右上 18px 圆钮（语音栏无段位/刷新，问号贴右）
+  &__help {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--fd-accent);
+      color: var(--fd-accent);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--fd-accent);
+      outline-offset: 1px;
+    }
+  }
+}

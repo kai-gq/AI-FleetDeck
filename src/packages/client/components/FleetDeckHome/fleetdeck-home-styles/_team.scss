@@ -1,0 +1,122 @@
+// =============================================================================
+// 左栏团队状态:分组头与团队行
+// 由 FleetDeckHome.scss 拆分(W4,2026-10-11):原文件第 474-589 行,逐行原样。
+// =============================================================================
+
+
+// ─── 左栏：团队状态 ───
+
+// 分组头（原型 .section-tag：小字距标题 + 右侧延伸细线）
+.fleet-group {
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+
+    &::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+      opacity: 0.6;
+    }
+  }
+
+  &__n {
+    opacity: 0.75;
+  }
+}
+
+.fleet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg-tertiary);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--fd-accent);
+  }
+
+  &__badge {
+    flex: 0 0 auto;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  &__name-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__boss {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border: 1px solid var(--accent-orange);
+    border-radius: 4px;
+    font-size: 9px;
+    line-height: 1.5;
+    color: var(--accent-orange);
+  }
+
+  &__task {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+
+    b {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+  }
+
+  // 状态灯与 AgentBadge 状态环同一变量（--fleet-row-tone 由组件内联注入）
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--fleet-row-tone, var(--text-muted));
+  }
+}
