@@ -57,6 +57,15 @@ export function notifyWeChatSubscribers(payload: NormalizedWeChatMessage): void 
   }
 }
 
+/**
+ * 通用订阅口（秘书桥等消费者用）——与触发器共用同一条模块级总线；
+ * 返回退订函数。连接层零改动。
+ */
+export function subscribeWeChatMessages(cb: (msg: NormalizedWeChatMessage) => void): () => void {
+  triggerSubscribers.add(cb);
+  return () => triggerSubscribers.delete(cb);
+}
+
 // ─── Display-name resolution (three-layer fallback) ───
 
 /**

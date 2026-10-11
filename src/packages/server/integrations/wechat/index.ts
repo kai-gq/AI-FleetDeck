@@ -24,6 +24,7 @@ import {
   describeWeChatConnection,
 } from './wechat-connection.js';
 import { wechatTriggerHandler } from './wechat-trigger-handler.js';
+import { startWeChatCompanionBridge, stopWeChatCompanionBridge } from './wechat-companion-bridge.js';
 import { wechatSkill } from './wechat-skill.js';
 
 let integrationCtx: IntegrationContext | null = null;
@@ -39,6 +40,7 @@ export const wechatPlugin: IntegrationPlugin = {
     integrationCtx = ctx;
     initWeChatConnection(ctx);
     syncWeChatConnection(ctx);
+    startWeChatCompanionBridge();
     lastChecked = Date.now();
     const info = describeWeChatConnection();
     ctx.log.info(`WeChat integration ready (state=${info.state})`);
@@ -47,6 +49,7 @@ export const wechatPlugin: IntegrationPlugin = {
   async shutdown(): Promise<void> {
     // Must return immediately: the core force-kills integrations after
     // 4500ms. stop() aborts the in-flight long poll synchronously.
+    stopWeChatCompanionBridge();
     stopWeChatConnection();
     integrationCtx = null;
   },

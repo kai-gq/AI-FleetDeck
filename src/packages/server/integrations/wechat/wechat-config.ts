@@ -36,6 +36,11 @@ export interface WeChatConfig {
   sendRateLimitPerMinute?: number;
   /** Optional userId → display-name overrides (protocol may not carry nicknames). */
   aliases?: Record<string, string>;
+  /**
+   * 入站私聊交给「秘书大脑」（语音伙伴）处理，答复原样回发微信。
+   * 与触发器互相独立——同时启用且消息命中触发器会双回复，配置上应二选一。
+   */
+  companionBridge?: boolean;
   updatedAt: number;
   version: '1';
 }
@@ -122,6 +127,14 @@ export const wechatConfigSchema: ConfigField[] = [
     defaultValue: 20,
     group: 'General',
   },
+  {
+    key: 'companionBridge',
+    label: 'Route inbound to the voice companion (秘书)',
+    type: 'boolean',
+    description: 'Hand private messages to the 秘书 brain (voice companion) and send its reply back to WeChat. Independent of triggers — enable only one of the two.',
+    defaultValue: false,
+    group: 'General',
+  },
 ];
 
 // ─── Config Value Access (for IntegrationPlugin.getConfig/setConfig) ───
@@ -143,6 +156,7 @@ export function getConfigValues(secrets: { get: (key: string) => string | undefi
     lastError: config.lastError || '',
     sendRateLimitPerMinute: config.sendRateLimitPerMinute ?? 20,
     aliases: config.aliases ?? {},
+    companionBridge: config.companionBridge === true,
   };
 }
 
@@ -156,6 +170,7 @@ export async function setConfigValues(
   if (typeof values.sendRateLimitPerMinute === 'number' && Number.isFinite(values.sendRateLimitPerMinute)) {
     updates.sendRateLimitPerMinute = Math.max(1, Math.floor(values.sendRateLimitPerMinute));
   }
+  if (typeof values.companionBridge === 'boolean') updates.companionBridge = values.companionBridge;
   if (values.aliases && typeof values.aliases === 'object' && !Array.isArray(values.aliases)) {
     const aliases: Record<string, string> = {};
     for (const [key, value] of Object.entries(values.aliases as Record<string, unknown>)) {
