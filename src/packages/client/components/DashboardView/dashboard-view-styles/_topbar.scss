@@ -1,0 +1,91 @@
+// =============================================================================
+// 顶栏:指标按钮/数值/标签与搜索框
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 16-99 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Top Bar: Metrics + Search
+// ============================================================================
+
+.dashboard-view__topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  // Leave room for the fixed view-mode-toggle in the top-left corner
+  padding-left: 280px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.dashboard-view__metrics {
+  display: flex;
+  gap: 4px;
+}
+
+.dashboard-view__metric-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast ease;
+  min-width: 60px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  &--active {
+    background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 40%, transparent);
+  }
+
+  &--working .dashboard-view__metric-value { color: var(--accent-orange); }
+  &--idle .dashboard-view__metric-value { color: var(--accent-green); }
+  &--error .dashboard-view__metric-value { color: var(--accent-red); }
+}
+
+.dashboard-view__metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: $font-mono;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.dashboard-view__metric-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dashboard-view__search {
+  flex: 1;
+  max-width: 260px;
+  margin-left: auto;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: $font-mono;
+  outline: none;
+  transition: border-color $transition-fast ease;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    border-color: var(--accent-blue);
+  }
+}

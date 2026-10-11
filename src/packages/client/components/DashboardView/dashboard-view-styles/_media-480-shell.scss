@@ -1,0 +1,152 @@
+// =============================================================================
+// ≤480px:外壳/顶栏/搜索/分组/内容/Zone 紧凑化
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 885-1023 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Mobile Responsive - Phone (480px and below)
+// ============================================================================
+
+@media (max-width: 480px) {
+  .dashboard-view {
+    margin-top: 50px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  // Topbar: Compact and fixed height
+  .dashboard-view__topbar {
+    flex-direction: column;
+    padding: 8px 8px;
+    gap: 6px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .dashboard-view__metrics {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+  }
+
+  .dashboard-view__metric-btn {
+    padding: 5px 2px;
+    font-size: 8px;
+    min-width: auto;
+    border-radius: 3px;
+  }
+
+  .dashboard-view__metric-value {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1px;
+  }
+
+  .dashboard-view__search {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    order: 0;
+    flex-shrink: 0;
+  }
+
+  // Grouping: Full-width buttons
+  .dashboard-view__grouping {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    padding: 4px 8px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .dashboard-view__grouping-btn {
+    padding: 6px 8px;
+    font-size: 10px;
+    width: 100%;
+    border-radius: 3px;
+  }
+
+  // Content: Proper scrollable height
+  .dashboard-view__content {
+    flex: 1;
+    padding: 6px 6px 8px;
+    gap: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    min-width: 0; // Critical: prevent flex children from overflowing
+    width: 100%; // Force to fill available width
+  }
+
+  // Zone section: Minimal padding
+  .dashboard-view__zone {
+    border-radius: 3px;
+    flex-shrink: 0;
+    min-width: 0; // Prevent zone from overflowing
+    overflow: visible;
+  }
+
+  .dashboard-view__zone-header {
+    padding: 6px 8px;
+    gap: 6px;
+    min-width: 0; // Allow flex children to shrink
+    overflow: hidden; // Prevent overflow
+  }
+
+  .dashboard-view__zone-chevron {
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .dashboard-view__zone-left {
+    flex: 1;
+    min-width: 0; // Allow flex children to shrink
+    gap: 4px;
+    flex-wrap: nowrap; // Don't wrap to prevent width expansion
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .dashboard-view__zone-dot {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+
+  .dashboard-view__zone-name {
+    font-size: 11px;
+    max-width: 120px;
+    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-view__zone-count {
+    font-size: 9px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 3px 6px;
+    font-size: 8px;
+    min-height: 24px;
+    margin-top: 0;
+    width: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}

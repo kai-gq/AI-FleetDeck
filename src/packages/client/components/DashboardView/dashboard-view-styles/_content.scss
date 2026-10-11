@@ -1,0 +1,43 @@
+// =============================================================================
+// 滚动内容区与空态
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 135-170 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Scrollable Content
+// ============================================================================
+
+.dashboard-view__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0; // Critical for flex scrolling to work
+  -webkit-overflow-scrolling: touch; // Smooth momentum scrolling on mobile
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    &:hover { background: rgba(138, 138, 152, 0.4); }
+  }
+}
+
+.dashboard-view__empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}

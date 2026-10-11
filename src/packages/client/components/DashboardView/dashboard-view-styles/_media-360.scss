@@ -1,0 +1,156 @@
+// =============================================================================
+// ≤360px 小手机:指标两列/卡片/胶囊极紧凑
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 1190-1338 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Mobile Responsive - Small Phone (360px and below)
+// ============================================================================
+
+@media (max-width: 360px) {
+  .dashboard-view__metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+  }
+
+  .dashboard-view__metric-btn {
+    padding: 4px 2px;
+    font-size: 7px;
+  }
+
+  .dashboard-view__metric-value {
+    font-size: 11px;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 4px;
+    letter-spacing: 0px;
+  }
+
+  .dashboard-view__search {
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+
+  .dashboard-view__grouping-btn {
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+
+  .dashboard-view__zone-header {
+    padding: 5px 6px;
+  }
+
+  .dashboard-view__zone-name {
+    max-width: 90px;
+    font-size: 10px;
+  }
+
+  .dashboard-view__zone-count {
+    font-size: 8px;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 2px 5px;
+    font-size: 7px;
+    min-height: 22px;
+  }
+
+  .dashboard-view__zone-grid {
+    gap: 3px;
+    padding: 0 4px 4px;
+  }
+
+  .dash-card {
+    padding: 5px 6px;
+    gap: 3px;
+  }
+
+  .dash-card__row1 {
+    gap: 3px;
+  }
+
+  .dash-card__status-dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .dash-card__name {
+    font-size: 10px;
+  }
+
+  .dash-card__class {
+    font-size: 7px;
+    padding: 0px 3px;
+  }
+
+  .dash-card__provider {
+    font-size: 7px;
+    padding: 0px 2px;
+  }
+
+  .dash-card__row2 {
+    gap: 3px;
+  }
+
+  .dash-card__status {
+    font-size: 8px;
+    min-width: 35px;
+  }
+
+  .dash-card__workdir {
+    font-size: 7px;
+  }
+
+  .dash-card__context-bar {
+    height: 2px;
+  }
+
+  .dash-card__context-pct {
+    font-size: 7px;
+    min-width: 20px;
+  }
+
+  .dash-card__task {
+    font-size: 8px;
+  }
+
+  .dash-card__actions {
+    gap: 2px;
+  }
+
+  .dash-card__action-btn {
+    padding: 3px 2px;
+    min-height: 24px;
+    font-size: 8px;
+  }
+
+  .dashboard-view__buildings-title {
+    font-size: 8px;
+  }
+
+  .dashboard-view__buildings-count {
+    font-size: 7px;
+    padding: 0px 3px;
+  }
+
+  .dashboard-view__buildings-row {
+    gap: 2px;
+  }
+
+  .dash-pill {
+    padding: 2px 5px;
+    font-size: 8px;
+    min-height: 20px;
+  }
+
+  .dash-pill__icon {
+    font-size: 9px;
+  }
+
+  .dash-pill__name {
+    font-size: 8px;
+  }
+}

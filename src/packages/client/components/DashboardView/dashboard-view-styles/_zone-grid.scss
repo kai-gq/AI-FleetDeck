@@ -1,0 +1,20 @@
+// =============================================================================
+// Zone 内代理卡片网格
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 273-285 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Zone Grid (agent cards inside zone)
+// ============================================================================
+
+.dashboard-view__zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: auto;
+  align-items: start;
+  gap: 6px;
+  padding: 0 8px 8px;
+  min-width: 0; // Prevent grid from overflowing
+}

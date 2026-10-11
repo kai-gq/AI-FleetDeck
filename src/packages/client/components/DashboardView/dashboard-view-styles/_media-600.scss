@@ -1,0 +1,76 @@
+// =============================================================================
+// ≤600px 小屏平板响应式
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 810-878 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Mobile Responsive - Small Tablet (600px and below)
+// ============================================================================
+
+@media (max-width: 600px) {
+  .dashboard-view__topbar {
+    gap: 6px;
+  }
+
+  .dashboard-view__metrics {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .dashboard-view__metric-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 10px;
+  }
+
+  .dashboard-view__metric-value {
+    font-size: 14px;
+  }
+
+  .dashboard-view__metric-label {
+    font-size: 7px;
+    letter-spacing: 0.3px;
+  }
+
+  .dashboard-view__search {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .dashboard-view__grouping {
+    padding: 6px 10px;
+    justify-content: space-between;
+  }
+
+  .dashboard-view__grouping-btn {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  // Compact zone headers
+  .dashboard-view__zone-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .dashboard-view__zone-name {
+    max-width: 150px;
+  }
+
+  .dashboard-view__zone-focus {
+    padding: 4px 10px;
+    font-size: 10px;
+    min-height: 28px;
+  }
+
+  // Content spacing
+  .dashboard-view__content {
+    padding: 6px 8px 10px;
+    gap: 6px;
+  }
+}

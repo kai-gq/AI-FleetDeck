@@ -1,0 +1,298 @@
+// =============================================================================
+// 代理卡片 .dash-card 全部(行/状态点与脉冲/名称/类别/提供方/上下文条/任务/动作/未读徽章)
+// 由 DashboardView.scss 拆分(W4,2026-10-11):原文件第 287-577 行,逐行原样。
+// =============================================================================
+
+@use '../../../styles/variables' as *;
+
+// ============================================================================
+// Agent Card (compact)
+// ============================================================================
+
+.dash-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all $transition-fast ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; // Critical: allow card to shrink and prevent overflow
+  height: auto;
+  overflow: visible;
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--bg-tertiary);
+  }
+
+  &--selected {
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 5%, transparent);
+  }
+
+  &--keyboard-focused {
+    border-color: color-mix(in srgb, var(--accent-blue) 65%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  }
+
+  &--healthy { border-left: 3px solid var(--accent-green); }
+  &--working { border-left: 3px solid var(--accent-orange); }
+  &--error   { border-left: 3px solid var(--accent-red); }
+  &--unknown { border-left: 3px solid var(--text-muted); }
+}
+
+// Row 1: status dot + name + class
+.dash-card__row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dash-card__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--healthy { background: var(--accent-green); }
+  &--working { background: var(--accent-orange); animation: dash-pulse 2s ease-in-out infinite; }
+  &--error   { background: var(--accent-red); animation: dash-pulse 1.5s ease-in-out infinite; }
+  &--unknown { background: var(--text-muted); }
+}
+
+@keyframes dash-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.dash-card__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-card__idle-time {
+  font-size: 9px;
+  font-family: $font-mono;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dash-card__class {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dash-card__provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-transform: capitalize;
+
+  .dash-card__provider-icon {
+    width: 11px;
+    height: 11px;
+    object-fit: contain;
+  }
+
+  &--claude {
+    color: rgba(100, 200, 255, 0.8);
+    background: rgba(100, 200, 255, 0.05);
+  }
+
+  &--codex {
+    color: rgba(255, 165, 0, 0.8);
+    background: rgba(255, 165, 0, 0.05);
+  }
+}
+
+// Row 2: status text + context bar
+.dash-card__row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dash-card__status {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: capitalize;
+  flex-shrink: 0;
+  min-width: 50px;
+
+  &--healthy { color: var(--accent-green); }
+  &--working { color: var(--accent-orange); }
+  &--error   { color: var(--accent-red); }
+  &--unknown { color: var(--text-muted); }
+}
+
+.dash-card__context {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dash-card__context-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.dash-card__context-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+
+  &--green  { background: var(--accent-green); }
+  &--yellow { background: var(--accent-orange); }
+  &--red    { background: var(--accent-red); }
+}
+
+.dash-card__context-pct {
+  font-size: 10px;
+  font-family: $font-mono;
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+
+  &--green  { color: var(--accent-green); }
+  &--yellow { color: var(--accent-orange); }
+  &--red    { color: var(--accent-red); }
+}
+
+// Row 3: working directory
+.dash-card__row3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.dash-card__workdir {
+  font-size: 9px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  line-height: 1.2;
+  font-family: $font-mono;
+  flex: 1;
+  min-width: 0;
+}
+
+// Row 4: task preview
+.dash-card__row4 {
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.dash-card__task {
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  line-height: 1.3;
+}
+
+// Row 4: action buttons
+.dash-card__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.dash-card__action-btn {
+  flex: 1;
+  padding: 3px 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: $font-mono;
+  cursor: pointer;
+  transition: all $transition-fast ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+  }
+
+  &--chat:hover {
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+    color: var(--accent-blue);
+  }
+
+  &--danger:hover {
+    background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
+    color: var(--accent-red);
+  }
+}
+
+// Unseen output notification badge
+.dash-card__unseen-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 50%;
+  background: #4a9eff; // blue
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(74, 158, 255, 0.8);
+  animation: dash-badge-pulse 1.5s ease-in-out infinite;
+  line-height: 1;
+}
+
+@keyframes dash-badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.15);
+  }
+}
