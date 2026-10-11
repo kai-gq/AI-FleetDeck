@@ -1,0 +1,27 @@
+# 换行策略：仓库内统一以 LF 存储。
+# 批处理/脚本按 Windows 惯例钉 CRLF（GBK 编码文件换行被改写会损坏）。
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件禁止文本转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.bmp binary
+*.wav binary
+*.mp3 binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.exe binary
+*.dll binary
+*.zip binary
+*.gz binary
+*.7z binary
+*.pdf binary
