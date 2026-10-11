@@ -1,0 +1,246 @@
+// =============================================================================
+// 生成弹窗:恢复横幅 / 分区 / 预览 / 职业选择与搜索
+// 由 _modal.scss 拆分(W4,2026-10-11):原文件第 110-348 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.spawn-restore-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 45%, var(--border-color));
+  border-radius: $radius-lg;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-tertiary));
+
+  > svg {
+    flex: 0 0 auto;
+    color: var(--accent-color);
+  }
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 12px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spawn-restore-banner-hint {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+}
+
+// Card-style section used to group related fields
+.spawn-section {
+  background: color-mix(in srgb, var(--bg-tertiary) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
+  border-radius: $radius-lg;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spawn-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.spawn-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0;
+}
+
+.spawn-section-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+// Top section: Preview + Class chips
+.spawn-top-section {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+  padding: 0;
+  border-bottom: none;
+}
+
+.spawn-preview-compact {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  border-radius: $radius-lg;
+  min-width: 128px;
+
+  .model-preview {
+    border-radius: $radius-md;
+    border-color: color-mix(in srgb, var(--border-color) 60%, transparent);
+  }
+}
+
+.spawn-preview-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  max-width: 110px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spawn-class-section {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spawn-class-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0;
+}
+
+.class-selector-inline {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent);
+  border-radius: $radius-md;
+  scrollbar-gutter: stable;
+}
+
+.class-search-input {
+  margin-bottom: 0;
+  padding: 9px 12px;
+  font-size: 12px;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+.class-search-empty {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.skill-search-input {
+  margin-bottom: 0;
+  padding: 9px 12px;
+  font-size: 12px;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+.skill-search-empty {
+  width: 100%;
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  color: var(--text-primary);
+  min-width: 0;
+  justify-content: flex-start;
+
+  &:hover {
+    border-color: #3d3d52;
+    background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+    transform: translateY(-1px);
+  }
+
+  &.selected {
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-blue) 25%, transparent);
+    color: var(--text-primary);
+  }
+}
+
+.class-chip-icon {
+  font-size: 14px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+
+  // When AgentIcon renders an <img> directly with this class
+  &img {
+    object-fit: cover;
+    border-radius: 3px;
+  }
+}
+
+.class-chip-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+// Form section

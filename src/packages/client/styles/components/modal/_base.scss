@@ -1,0 +1,50 @@
+// =============================================================================
+// 基础弹窗(遮罩 / 头 / 体 / 脚)
+// 由 _modal.scss 拆分(W4,2026-10-11):原文件第 3-45 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity $transition-normal;
+
+  &.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-xl;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.modal-header {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.modal-body {
+  margin-bottom: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+}
+
+// Spawn / Edit agent modals — roomier layout with section cards

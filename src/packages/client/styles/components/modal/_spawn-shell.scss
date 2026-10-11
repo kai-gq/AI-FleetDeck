@@ -1,0 +1,71 @@
+// =============================================================================
+// 生成 / 编辑 agent 弹窗壳
+// 由 _modal.scss 拆分(W4,2026-10-11):原文件第 46-109 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.spawn-modal,
+.agent-edit-modal {
+  width: min(820px, 96vw);
+  max-width: 96vw;
+  max-height: 92vh;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 22px;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 60%, transparent) 0%, transparent 100%);
+  }
+
+  .modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--border-color);
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+  }
+}
+
+// Back-compat: keep .spawn-modal block if referenced alone
+.spawn-modal {
+  // styles inherited from shared rule above
+}
+
+.spawn-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 18px 22px 22px;
+  scrollbar-gutter: stable;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--border-color) 90%, transparent);
+    border-radius: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
