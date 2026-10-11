@@ -197,33 +197,8 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     recordHop1Outcome(state, cfg, outcome);
 
     const { contract } = outcome;
-    // 任务 27·尾 挂点3(模型确认):契约 memoryOps 双写进 vault;下方 applyMemoryOps 块保持原样(旧 CompanionMemory 独立运转)。
-    if (contract.memoryOps.length > 0) {
-      await getJarvisMemory().engine.bridgeVoiceMemoryOps(contract.memoryOps, { sessionId: state.sessionId ?? undefined });
-    }
-    // 流式期间若 action 尚未解析出来,这里兜底补上(缓冲的句子按语义放行/丢弃)。
-    speech.setHop1Action(contract.action);
-    let memoryOpsApplied = 0;
-    if (contract.memoryOps.length > 0) {
-      const { memory, applied, details } = applyMemoryOps(state.memory, contract.memoryOps, cfg.maxNotes);
-      if (applied > 0) {
-        state.memory = memory;
-        memoryOpsApplied = applied;
-        log.log(`[VoiceCompanion] 记忆更新 ${applied} 条(共 ${memory.notes.length} 条)`);
-      }
-      // 任务 02 埋点：系统活动 2 —— 每个 op 的生效明细与裁剪 droppedCount 全量落盘
-      logMemoryOps({
-        applied,
-        details,
-        notesTotal: state.memory.notes.length,
-        droppedTotal: state.memory.droppedCount,
-        sessionId: state.sessionId ?? undefined,
-        channel: 'voice',
-      });
-      // A13/H6-1:删除未命中(含文本兜底失败)必须可见,不能只有 details.applied=false。
-      warnUnappliedMemoryRemoves(details, 'voice');
-    }
-    saveCompanionState(state);
+    // 契约落账(E4,2026-10-11):memoryOps 双写 + 旧记忆块应用 + 统一落盘;条数供 result 携带。
+    const memoryOpsApplied = await applyContractMemoryOps(state, contract, speech, cfg);
 
     const result: VoiceProcessResult = {
       action: contract.action,
@@ -431,6 +406,46 @@ function recordHop1Outcome(
       `[VoiceCompanion] usage in=${u?.inputTokens ?? '-'} out=${u?.outputTokens ?? '-'} cacheRead=${u?.cacheReadInputTokens ?? '-'} cacheWrite=${u?.cacheCreationInputTokens ?? '-'} window=${u?.contextWindow ?? '-'} | resident=${outcome.reused ? 'reuse' : 'spawn'} | action=${outcome.contract.action}`,
     );
   }
+}
+
+/**
+ * 契约落账:memoryOps 双写 vault(任务 27·尾 挂点3)+ 旧 CompanionMemory 应用块(独立运转,
+ * 保持原样),顺带把 action 兜底塞给 SpeechGate,最后统一 saveCompanionState;返回实际生效条数。
+ */
+async function applyContractMemoryOps(
+  state: ReturnType<typeof loadCompanionState>,
+  contract: Hop1Outcome['contract'],
+  speech: ReturnType<typeof createSpeechPipeline>,
+  cfg: ReturnType<typeof loadServerConfig>,
+): Promise<number> {
+  // 任务 27·尾 挂点3(模型确认):契约 memoryOps 双写进 vault;下方 applyMemoryOps 块保持原样(旧 CompanionMemory 独立运转)。
+  if (contract.memoryOps.length > 0) {
+    await getJarvisMemory().engine.bridgeVoiceMemoryOps(contract.memoryOps, { sessionId: state.sessionId ?? undefined });
+  }
+  // 流式期间若 action 尚未解析出来,这里兜底补上(缓冲的句子按语义放行/丢弃)。
+  speech.setHop1Action(contract.action);
+  let memoryOpsApplied = 0;
+  if (contract.memoryOps.length > 0) {
+    const { memory, applied, details } = applyMemoryOps(state.memory, contract.memoryOps, cfg.maxNotes);
+    if (applied > 0) {
+      state.memory = memory;
+      memoryOpsApplied = applied;
+      log.log(`[VoiceCompanion] 记忆更新 ${applied} 条(共 ${memory.notes.length} 条)`);
+    }
+    // 任务 02 埋点：系统活动 2 —— 每个 op 的生效明细与裁剪 droppedCount 全量落盘
+    logMemoryOps({
+      applied,
+      details,
+      notesTotal: state.memory.notes.length,
+      droppedTotal: state.memory.droppedCount,
+      sessionId: state.sessionId ?? undefined,
+      channel: 'voice',
+    });
+    // A13/H6-1:删除未命中(含文本兜底失败)必须可见,不能只有 details.applied=false。
+    warnUnappliedMemoryRemoves(details, 'voice');
+  }
+  saveCompanionState(state);
+  return memoryOpsApplied;
 }
 
 // ----------------------------------------------------------------------------
