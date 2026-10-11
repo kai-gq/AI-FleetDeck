@@ -34,8 +34,6 @@ import os from 'os';
 import { ClaudeBackend } from '../claude/index.js';
 import * as agentService from './agent-service.js';
 import * as bossService from './boss-service.js';
-import * as workspaceService from './workspace-service.js';
-import { formatTimeSince } from './subordinate-context-service.js';
 import { loadAreas } from '../data/index.js';
 import { logger, sanitizeUnicode } from '../utils/index.js';
 import { findStringField, createJsonStringStream, type JsonStringStream, type SentenceChunkerOptions } from '../voice/contract-stream.js';
@@ -52,7 +50,6 @@ import { isStaticFillerMode, pickStaticFiller } from '../voice/filler-phrases.js
 // 任务39·F2/F3/F4:最近轮次环缓冲(交接材料源)+ 交接便签预生成/认领渲染(纯函数)。
 import {
   appendRecentTurn,
-  sanitizeRecentTurns,
   isHandoffEnabled,
   shouldPregenHandoff,
   buildHandoffUserContent,
@@ -61,9 +58,6 @@ import {
   handoffObservation,
   HANDOFF_SYSTEM_PROMPT,
   HANDOFF_PREGEN_TIMEOUT_MS,
-  HANDOFF_TEXT_MAX_CHARS,
-  type RecentTurn,
-  type HandoffNote,
   type HandoffPregenRuntime,
 } from '../voice/handoff.js';
 // 任务19:工具白名单/中立 cwd/effort —— spawn 档案唯一解析点(与常驻通道共用)。
@@ -82,14 +76,13 @@ import {
 } from '../voice/companion-runner.js';
 import type { Agent, DelegationDecision } from '../../shared/agent-types.js';
 import type { DrawingArea } from '../../shared/common-types.js';
-import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, sanitizePersonaCustom, sanitizePersonaId, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
+import { DEFAULT_PERSONA_ID, personaKeyOf, resolvePersonaStyle, VOICE_LENGTH_RULES } from '../../shared/voice-personas.js';
 import {
   logDialogMessage,
   logBroadcast,
   logDelegation,
   logMemoryOps,
   logSession,
-  type MemoryOpDetail,
 } from './activity-log.js';
 // 待岗(standby)守卫:单一事实源(派发/主管/HTTP 通路共用同一判定,勿另写)。
 import { AGENT_ON_STANDBY, isOnStandby } from './agent-standby.js';
@@ -100,24 +93,8 @@ import { buildPersonaInjection, isPersonaEnabled, recordPersonaSession } from '.
 import { runLogAnalysis, renderLogAnalysisReport } from '../log-analysis/index.js';
 import { logEvent } from '../data/system-log.js';
 // 任务14·⑪ 项目感知与路由：纯逻辑全在 jarvis-core/projects/**（本文件只做接线）。
-import { buildProjectCards, collectRecentProjectIds } from '../jarvis-core/projects/cards.js';
-import { emptyAliasTable, loadAliasTable, saveAliasTable, seedAliasesForWorkspaces } from '../jarvis-core/projects/aliases.js';
-import { planClarificationAnswer, resolveProjectTarget, type ClarificationAnswerPlan } from '../jarvis-core/projects/resolve.js';
-import { renderProjectSnapshotLines } from '../jarvis-core/projects/render.js';
-import { createProjectRoutingLogObserver } from '../jarvis-core/projects/observability.js';
 import { isProjectRoutingEnabled } from '../jarvis-core/projects/types.js';
-import type {
-  ProjectAgentInput,
-  ProjectAliasEntry,
-  ProjectAliasTable,
-  ProjectAreaInput,
-  ProjectBossRef,
-  ProjectCard,
-  ProjectResolveInput,
-  ProjectResolveResult,
-  ProjectRoutingEvent,
-  ProjectWorkspaceInput,
-} from '../jarvis-core/projects/types.js';
+import type { ProjectResolveResult } from '../jarvis-core/projects/types.js';
 // 任务13·⑩ 秘书 Bolba 桥：业务待办（报价/付款/会议…）的只读查询与创建/完成/重开。
 // 两本账边界：本文件里这四动作只碰 Bolba 账本，绝不进 ① 委派通道。
 import {
@@ -141,19 +118,13 @@ import {
   buildNoRatingTargetResponse,
   buildRatingConfirmResponse,
   buildRatingTargetQuestion,
-  consumeCancelClarifyAnswer,
   isActionableCancelState,
   planCancelAction,
   parseRatingPolarity,
   pickLatestUnratedCompletion,
-  rankCancelCandidates,
-  type CancelCandidate,
-  type CancelPlan,
   type QueryChainLogInput,
   type SubordinateQueryEntry,
 } from '../voice/delegation-query.js';
-import { getDelegationQuotaSnapshot } from './delegation-quota-gate.js';
-import type { CancelDelegationOutcome } from '../websocket/handlers/boss-response-handler.js';
 // 任务40 办结主动汇报：派活成功时登记「最近一次秘书→主管派活」（上行回执链登记簿）
 import { isBossUplinkReceiptEnabled, registerBossUplinkReceipt } from '../websocket/handlers/boss-uplink-receipt-registry.js';
 
@@ -176,22 +147,15 @@ import {
   type VoiceProcessResult,
 } from './voice-companion/types.js';
 import {
-  ACTIVE_AGENT_STATUSES,
   DEFAULT_MEMORY,
   DEGRADED_RESPONSE,
-  ERROR_TRUNCATE,
   HISTORY_EXCERPT_COUNT,
   HISTORY_ITEM_CHARS,
   HISTORY_MESSAGES,
   HISTORY_TOTAL_CHARS,
   MAX_DELEGATION_INJECT,
-  MAX_SNAPSHOT_AGENTS,
-  MAX_SNAPSHOT_SUBORDINATES,
   MEMORY_WARN_CHARS,
-  NOTES_MAX_TEXT,
   QUERY_LOG_PREVIEW_CHARS,
-  SUMMARY_MAX_TEXT,
-  TASK_TRUNCATE,
 } from './voice-companion/constants.js';
 import { isAgentBusy, isBossLikeAgent } from './voice-companion/agents.js';
 import { loadServerConfig } from './voice-companion/config.js';
@@ -199,615 +163,33 @@ import { loadCompanionState, saveCompanionState } from './voice-companion/state.
 // ---- 模块拆分(A2,2026-10-11):纯函数族(契约/会话/快照/派发路由)移入 voice-companion/ 子目录 ----
 import { applyMemoryOps, parseContractJson, stripCodeFences, truncate, warnUnappliedMemoryRemoves } from './voice-companion/contract.js';
 import { computeContextState, isContextCompactionDue, shouldRotateForPersona, shouldRotateSession } from './voice-companion/session.js';
-import { buildAgentSnapshotLines, buildDelegationSummaryLines, collectDelegationHistory, type SnapshotAgent } from './voice-companion/snapshot.js';
-import { resolveDispatchRoute, type DispatchTargetAgent } from './voice-companion/dispatch-route.js';
+import { buildAgentSnapshotLines, buildDelegationSummaryLines, collectDelegationHistory } from './voice-companion/snapshot.js';
+import { resolveDispatchRoute } from './voice-companion/dispatch-route.js';
+// ---- 模块拆分(B,2026-10-11):接线层(撤回/评价、派发执行、项目路由)移入 voice-companion/ 子目录 ----
+import {
+  cancelWaitBudgetMs,
+  collectCancelCandidates,
+  consumeCancelClarification,
+  executeCancel,
+  getLastBossDispatch,
+  getPendingCancelClarification,
+  recordLastBossDispatch,
+  resetCancelClarificationSession,
+  setPendingCancelClarification,
+  waitFreshDispatchCandidate,
+} from './voice-companion/cancel.js';
+import { deliverToAgent } from './voice-companion/deliver.js';
+import {
+  buildProjectRoutingSnapshotLines,
+  buildProjectRoutingWorld,
+  consumeProjectClarification,
+  logProjectRouting,
+  projectRoutingRuntime,
+  resetProjectRoutingSession,
+  resolveProjectRoutingForTurn,
+} from './voice-companion/project-routing.js';
 
 const log = logger.server;
-
-// ============================================================================
-// 任务16·⑬ 撤回/评价 · 接线层
-// 目标解析/反问/话术全在 voice/delegation-query.ts(纯逻辑);这里只做数据接线:
-// 从 activeDelegations(handler 导出面) + 配额排队快照 + 委派史拼候选,调 handler 导出执行。
-// **不静态 import boss-response-handler**(与 vcs 循环) —— 执行面用动态 import 取(同
-// deliverToAgent 的 index.js 惯例);类型用 import type(编译期擦除,无运行时环)。
-// ============================================================================
-
-/** 撤回反问挂起时效:超时丢弃挂起、按新一轮处理(从简实现,与任务14 同 10 分钟口径)。 */
-export const CANCEL_CLARIFY_TTL_MS = 10 * 60_000;
-/** 委派史兜底候选上限(仅做 done 拒撤/重启残留判定,不深追溯)。 */
-export const CANCEL_HISTORY_MAX = 20;
-/** B4 撤回窗口等待:轮询间隔。 */
-export const CANCEL_WAIT_POLL_MS = 500;
-/** B4 撤回窗口等待:默认上限(env TC_VOICE_CANCEL_WAIT_MS,0 = 关)。 */
-export const CANCEL_WAIT_DEFAULT_MS = 10_000;
-
-/**
- * B4/B5：最近一次「交给主管」的派活缓存（vcs 派发成功后写入；{@link LAST_BOSS_DISPATCH_TTL_MS} 内有效）。
- * - B4：撤回落在 dispatched→delegated 的秒级窗口（主管回合还没拆解完，无候选）时，
- *   借此识别「刚交办」并做有界等待（{@link waitFreshDispatchCandidate}）；
- * - B5：主管的委派决策漏填 taskCard.projectId 时，由此回填路由侧项目（与 14·B 别名表同 id 空间）。
- */
-export interface LastBossDispatch {
-  bossId: string;
-  at: number;
-  projectId?: string;
-  taskId?: string;
-}
-export const LAST_BOSS_DISPATCH_TTL_MS = 120_000;
-let lastBossDispatch: LastBossDispatch | null = null;
-
-/** 记录一次对主管的派发（vcs 派发成功点调用，供 B4/B5 消费）。 */
-export function recordLastBossDispatch(entry: LastBossDispatch): void {
-  lastBossDispatch = entry;
-}
-
-/** 取 TTL 内最近一次对主管的派发（过期返回 null；不主动清理，下次写入覆盖）。 */
-export function getLastBossDispatch(): LastBossDispatch | null {
-  if (!lastBossDispatch) return null;
-  if (Date.now() - lastBossDispatch.at > LAST_BOSS_DISPATCH_TTL_MS) return null;
-  return lastBossDispatch;
-}
-
-/** 清空派发缓存（测试隔离）。 */
-export function resetLastBossDispatchForTests(): void {
-  lastBossDispatch = null;
-}
-
-interface PendingCancelClarification {
-  question: string;
-  candidates: CancelCandidate[];
-  askedAt: number;
-  taskId?: string;
-}
-
-let pendingCancel: PendingCancelClarification | null = null;
-
-/** 清空撤回挂起(会话轮换/重置/测试)。 */
-export function resetCancelClarificationSession(): void {
-  pendingCancel = null;
-}
-
-/**
- * 撤回候选收集:
- * - live:activeDelegations(running 实时)+ 配额排队快照(queued),按 decisionId 去重;
- * - history:委派史(带卡;live 已有的剔除,取最近 CANCEL_HISTORY_MAX 条)——
- *   用于 done 拒撤/已撤过/重启后卡片残留(tracking)的定位。
- */
-async function collectCancelCandidates(): Promise<{ live: CancelCandidate[]; history: CancelCandidate[] }> {
-  const agents = agentService.getAllAgents();
-  const byId = new Map(agents.map((a) => [a.id, a]));
-  const handler = await import('../websocket/handlers/boss-response-handler.js');
-  handler.ensureActiveDelegationsRebuilt(); // HC-B7：重启后首个候选读取前重建追踪（不重建则撤回看不到在办）
-
-  const live: CancelCandidate[] = [];
-  const seen = new Set<string>();
-  for (const [subordinateId, entry] of handler.activeDelegations) {
-    const card = entry.taskCard;
-    live.push({
-      subordinateId,
-      subordinateName: byId.get(subordinateId)?.name,
-      bossId: entry.bossId,
-      decisionId: entry.decisionId,
-      taskId: entry.taskId,
-      label: card?.objective?.trim() || entry.taskDescription,
-      projectId: card?.projectId,
-      state: card?.status ?? 'running',
-      source: 'active',
-    });
-    if (entry.decisionId) seen.add(entry.decisionId);
-  }
-
-  try {
-    for (const payload of getDelegationQuotaSnapshot().queued) {
-      if (payload.decisionId && seen.has(payload.decisionId)) continue;
-      live.push({
-        subordinateId: payload.selectedAgentId,
-        subordinateName: byId.get(payload.selectedAgentId)?.name ?? payload.selectedAgentName,
-        bossId: payload.bossId,
-        decisionId: payload.decisionId,
-        taskId: payload.taskId,
-        label: payload.taskCard?.objective?.trim() || payload.taskCommand,
-        projectId: payload.taskCard?.projectId,
-        state: 'queued',
-        source: 'queued',
-      });
-      if (payload.decisionId) seen.add(payload.decisionId);
-    }
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 配额排队快照读取失败(撤回按 live 追踪兜底): ${(err as Error).message}`);
-  }
-
-  const history: CancelCandidate[] = [];
-  for (const decision of collectDelegationHistory(agents)) {
-    if (!decision.taskCard || seen.has(decision.id)) continue;
-    history.push({
-      subordinateId: decision.selectedAgentId,
-      subordinateName: byId.get(decision.selectedAgentId)?.name ?? decision.selectedAgentName,
-      bossId: decision.bossId,
-      decisionId: decision.id,
-      label: decision.taskCard.objective?.trim() || decision.userCommand,
-      projectId: decision.taskCard.projectId,
-      state: decision.taskCard.status,
-      source: 'history',
-    });
-    seen.add(decision.id);
-    if (history.length >= CANCEL_HISTORY_MAX) break;
-  }
-  return { live, history };
-}
-
-/** B4 等待预算:env TC_VOICE_CANCEL_WAIT_MS,默认 {@link CANCEL_WAIT_DEFAULT_MS};0 = 关闭(B4 整段回退旧行为)。 */
-function cancelWaitBudgetMs(): number {
-  const raw = Number(process.env.TC_VOICE_CANCEL_WAIT_MS ?? String(CANCEL_WAIT_DEFAULT_MS));
-  return Number.isFinite(raw) ? Math.max(0, raw) : CANCEL_WAIT_DEFAULT_MS;
-}
-
-/**
- * B4：撤回窗口等待——「刚交给主管、委派还没落地」时轮询新候选（每 {@link CANCEL_WAIT_POLL_MS}，
- * 有界 TC_VOICE_CANCEL_WAIT_MS，默认 {@link CANCEL_WAIT_DEFAULT_MS}）。只认快照后新出现、
- * 且属于该主管(bossId)的可撤候选，并按用户原话匹配（复用 rankCancelCandidates 词面逻辑）：
- * 唯一 → match；多个 → ask；超时/环境关闭(0)/信号中断 → null（信号中断抛 abort 语义）。
- * 新候选都不匹配原话时继续等（主管这回合可能先安排了别的活）。
- */
-async function waitFreshDispatchCandidate(
-  text: string,
-  initialLive: readonly CancelCandidate[],
-  initialHistory: readonly CancelCandidate[],
-  dispatch: LastBossDispatch,
-  signal?: AbortSignal,
-): Promise<CancelPlan | null> {
-  const waitMs = cancelWaitBudgetMs();
-  if (waitMs <= 0) return null;
-  const initialIds = new Set(
-    [...initialLive, ...initialHistory]
-      .map((c) => c.decisionId)
-      .filter((id): id is string => !!id),
-  );
-  const deadline = Date.now() + waitMs;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, CANCEL_WAIT_POLL_MS));
-    if (signal?.aborted) throw new VoiceCompanionAbortedError();
-    const { live, history } = await collectCancelCandidates();
-    const fresh = [...live, ...history].filter(
-      (c) =>
-        c.bossId === dispatch.bossId &&
-        !!c.decisionId &&
-        !initialIds.has(c.decisionId) &&
-        isActionableCancelState(c.state),
-    );
-    if (fresh.length === 0) continue;
-    const ranked = rankCancelCandidates(text, fresh);
-    if (ranked.length === 1) return { kind: 'match', candidate: ranked[0] };
-    if (ranked.length > 1) {
-      return { kind: 'ask', question: buildCancelClarifyQuestion(ranked), candidates: ranked };
-    }
-    // ranked 为空：新候选与用户原话对不上 → 继续等（见函数注释）
-  }
-  return null;
-}
-
-/** 撤回结论 → 确定性播报话术(done 拒撤/重复撤回/未送达都如实说,不硬造成功)。 */
-export function buildCancelOutcomeResponse(outcome: CancelDelegationOutcome, candidate?: CancelCandidate): string {
-  const who = outcome.subordinateName || candidate?.subordinateName || outcome.subordinateId || candidate?.subordinateId || '下属';
-  const what = truncate(outcome.label ?? candidate?.label ?? '(未记录任务)', 40);
-  switch (outcome.status) {
-    case 'cancelled': {
-      if (outcome.cancelledFrom === 'queued') {
-        // 排队目标从未派发 → 没有「通知停手」这件事，不播成「通知没送达」（如实优先）
-        return `好,已撤回「${who}」的「${what}」(还没开工,已从排队中撤下)。`;
-      }
-      const notify = outcome.notified
-        ? `已通知${who}停手。`
-        : outcome.stopFallbackUsed
-          ? `${who}那边的通知没送达,已先用停止操作兜底。`
-          : `${who}那边的停止通知没能送达。`;
-      return `好,已撤回「${who}」的「${what}」。${notify}`;
-    }
-    case 'already-cancelled':
-      return '这个任务之前已经撤过了,不用再撤一次。';
-    case 'rejected-done':
-      return `「${what}」已经完成了,撤不回来。`;
-    case 'not-found':
-    default:
-      return buildCancelNoneResponse();
-  }
-}
-
-/** 执行一次撤回(解析分支与反问消费共用);handler 绝不上抛,这里再包一层兜底。 */
-async function executeCancel(
-  candidate: CancelCandidate,
-  input: { initiator: string; reason?: string; taskId?: string },
-): Promise<{ response: string; outcome?: CancelDelegationOutcome }> {
-  try {
-    const handler = await import('../websocket/handlers/boss-response-handler.js');
-    const outcome = await handler.cancelDelegation({
-      subordinateId: candidate.subordinateId,
-      bossId: candidate.bossId,
-      ...(candidate.decisionId ? { decisionId: candidate.decisionId } : {}),
-      ...(candidate.taskId ? { taskId: candidate.taskId } : {}),
-      initiator: input.initiator,
-      ...(input.reason ? { reason: input.reason } : {}),
-    });
-    return { response: buildCancelOutcomeResponse(outcome, candidate), outcome };
-  } catch (err) {
-    log.error(`[VoiceCompanion] 撤回执行异常(降级为明确话术): ${(err as Error).message}`);
-    return { response: '撤回没能完成,过会儿再喊我试一次。' };
-  }
-}
-
-/**
- * 一次性反问消费(在 hop1 之前):上一回合撤回反问挂了 → 本回合先按「回答」消费一次。
- * 返回 null = 无挂起/已过期/回答指代不明(丢弃挂起,按普通回合继续,不再反问第二次)。
- */
-async function consumeCancelClarification(
-  text: string,
-  taskId: string,
-  started: number,
-): Promise<VoiceProcessResult | null> {
-  const pending = pendingCancel;
-  if (!pending) return null;
-  const now = Date.now();
-  if (now - pending.askedAt > CANCEL_CLARIFY_TTL_MS) {
-    pendingCancel = null;
-    logDelegation({
-      phase: 'cancelled',
-      channel: 'voice-companion',
-      status: 'clarify-expired',
-      initiator: 'user',
-      reason: truncate(text, 80),
-      taskId,
-    });
-    return null;
-  }
-  pendingCancel = null; // 一次性:无论解析结果如何都消费掉
-  const answer = consumeCancelClarifyAnswer(text, pending.candidates);
-  if (answer.kind === 'unmatched') return null;
-  if (answer.kind === 'abort') {
-    logDelegation({
-      phase: 'cancelled',
-      channel: 'voice-companion',
-      status: 'clarify-abandoned',
-      initiator: 'user',
-      reason: truncate(text, 80),
-      taskId,
-    });
-    return { action: 'general_response', response: '好,不撤了。', elapsedMs: Date.now() - started };
-  }
-  const exec = await executeCancel(answer.candidate, {
-    initiator: 'user',
-    reason: truncate(text, 80),
-    taskId,
-  });
-  return {
-    action: 'cancel_delegation',
-    response: exec.response,
-    targetAgent: { id: answer.candidate.subordinateId, name: answer.candidate.subordinateName ?? answer.candidate.subordinateId },
-    elapsedMs: Date.now() - started,
-  };
-}
-
-// ============================================================================
-// 任务14·⑪ 项目感知与路由 · 接线层
-// 世界构建（workspaces/areas/agents/委派史 → 项目卡）+ 快照行 + 一次调用完成的
-// 三层消歧 + 一次性反问消费；决策逻辑全在 jarvis-core/projects/**，本节只是服务侧
-// 数据接线与内存态。**开关关 = 本节零调用**（快照不注、路由无第 4 参、不产 ⑪ 观测）。
-// ============================================================================
-
-/** 消歧反问挂起时效：超时丢弃挂起、按新一轮处理（初始值非实测，待 ⑭ 标定回写）。 */
-export const PROJECT_CLARIFY_TTL_MS = 10 * 60_000;
-
-interface PendingProjectClarification {
-  question: string;
-  /** 单候选问句时的建议项目（回答「是/对」直接确认它）。 */
-  suggestionProjectId?: string;
-  /** 挂起时模型给出的任务指令（回答后直接派发，不再跑 hop1）。 */
-  message: string;
-  delivery: CompanionDelivery;
-  askedAt: number;
-  taskId?: string;
-  /** 挂起时的用户原话（message 为空时的兜底指令）。 */
-  originalText: string;
-}
-
-interface ProjectRoutingRuntime {
-  /** 会话内最近提及的项目（派发/命中携带 projectId 时更新；消歧② 输入）。 */
-  lastProjectId: string | null;
-  /** 本会话累计反问次数（⑪ 观测：反问多 = 记忆卡不准？）。 */
-  askCount: number;
-  /** 一次性消歧挂起态（在途任务等一句回答；最多反问一次）。 */
-  pending: PendingProjectClarification | null;
-}
-
-const projectRoutingRuntime: ProjectRoutingRuntime = { lastProjectId: null, askCount: 0, pending: null };
-
-/** 会话轮换/重置时清空项目路由内存态（不落盘，与 session 同生命周期）。 */
-export function resetProjectRoutingSession(): void {
-  projectRoutingRuntime.lastProjectId = null;
-  projectRoutingRuntime.askCount = 0;
-  projectRoutingRuntime.pending = null;
-}
-
-/** 项目路由世界（一次构建，快照与派发消歧共用同一形态）。 */
-export interface ProjectRoutingWorld {
-  cards: ProjectCard[];
-  aliasEntries: ProjectAliasEntry[];
-  /** 服务端激活工作区（null = All，即未切）。 */
-  activeWorkspaceId: string | null;
-  bosses: ProjectBossRef[];
-  delegationHistory: DelegationDecision[];
-  now: number;
-}
-
-export interface ProjectRoutingWorldDeps {
-  getWorkspaces?: () => readonly ProjectWorkspaceInput[];
-  getActiveWorkspace?: () => string | null;
-  loadAreasFn?: () => readonly ProjectAreaInput[];
-  getAllAgents?: () => readonly ProjectAgentInput[];
-  /** 已收集的委派史（传了就不再自读，防同回合重复读盘）。 */
-  delegationHistory?: readonly DelegationDecision[];
-  /** 别名表文件路径（测试注入临时路径；缺省 XDG 默认）。 */
-  aliasesFilePath?: string;
-  now?: () => number;
-}
-
-/** 别名表：读文件 → 补 workspace 名种子（有新增才落盘；读/写失败只告警不打断）。 */
-function loadSeededAliasTable(
-  workspaces: readonly ProjectWorkspaceInput[],
-  now: number,
-  filePath?: string,
-): ProjectAliasTable {
-  let table: ProjectAliasTable;
-  try {
-    table = loadAliasTable(filePath);
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 项目别名表读取失败(按空表): ${(err as Error).message}`);
-    table = emptyAliasTable(now);
-  }
-  const seeded = seedAliasesForWorkspaces(table, workspaces, now);
-  if (seeded !== table) {
-    try {
-      saveAliasTable(seeded, filePath);
-    } catch (err) {
-      log.warn(`[VoiceCompanion] 项目别名表落盘失败(仅内存生效): ${(err as Error).message}`);
-    }
-  }
-  return seeded;
-}
-
-/**
- * 构建项目路由世界（服务侧接线）：workspaces/areas/agents/委派史 → 项目卡 + 别名表。
- * 任一步读取失败都降级为空集，绝不打断 hop1/派发；测试可注入全部依赖（零 IO）。
- */
-export function buildProjectRoutingWorld(deps: ProjectRoutingWorldDeps = {}): ProjectRoutingWorld {
-  const now = (deps.now ?? (() => Date.now()))();
-  let workspaces: readonly ProjectWorkspaceInput[] = [];
-  try {
-    workspaces = (deps.getWorkspaces ?? workspaceService.getWorkspaces)();
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 项目路由:读工作区失败(按空处理): ${(err as Error).message}`);
-  }
-  let activeWorkspaceId: string | null = null;
-  try {
-    activeWorkspaceId = (deps.getActiveWorkspace ?? workspaceService.getActiveWorkspace)();
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 项目路由:读激活工作区失败(按 All 处理): ${(err as Error).message}`);
-  }
-  let areas: readonly ProjectAreaInput[] = [];
-  try {
-    areas = (deps.loadAreasFn ?? loadAreas)();
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 项目路由:读区域失败(按空处理): ${(err as Error).message}`);
-  }
-  let agents: readonly ProjectAgentInput[] = [];
-  try {
-    agents = (deps.getAllAgents ?? agentService.getAllAgents)();
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 项目路由:读 agent 失败(按空处理): ${(err as Error).message}`);
-  }
-  let delegationHistory: readonly DelegationDecision[] = deps.delegationHistory ?? [];
-  if (!deps.delegationHistory) {
-    try {
-      // collectDelegationHistory 只读 id/class/isBoss（内部逐 Boss 容错），结构型收窄安全。
-      delegationHistory = collectDelegationHistory(agents as readonly SnapshotAgent[]);
-    } catch (err) {
-      log.warn(`[VoiceCompanion] 项目路由:读委派史失败(按空处理): ${(err as Error).message}`);
-      delegationHistory = [];
-    }
-  }
-  const aliasTable = loadSeededAliasTable(workspaces, now, deps.aliasesFilePath);
-  const cards = buildProjectCards({ workspaces, areas, agents, delegationHistory, aliases: aliasTable.entries, now });
-  const bosses: ProjectBossRef[] = agents
-    .filter((a) => isBossLikeAgent(a))
-    .map((a) => ({ id: a.id, name: a.name }));
-  return { cards, aliasEntries: aliasTable.entries, activeWorkspaceId, bosses, delegationHistory: [...delegationHistory], now };
-}
-
-/** 项目快照行（render.ts 压缩版）；无卡返回 []（不注快照块）。 */
-export function buildProjectRoutingSnapshotLines(world: ProjectRoutingWorld): string[] {
-  return renderProjectSnapshotLines({
-    cards: world.cards,
-    activeWorkspaceId: world.activeWorkspaceId,
-    now: world.now,
-  });
-}
-
-/**
- * 一次调用完成三层消歧（接线薄胶水）：把服务侧状态（会话最近提及 / 模型显式 bossId /
- * 激活工作区 / 最近委派）拼成模块输入，决策逻辑全在 resolve.ts。
- */
-export function resolveProjectRoutingForTurn(input: {
-  text: string;
-  targetAgentId: string | null;
-  agents: readonly DispatchTargetAgent[];
-  world: ProjectRoutingWorld;
-  lastProjectId: string | null;
-  clarifySuggestion?: string;
-}): ProjectResolveResult {
-  const target = input.targetAgentId ? input.agents.find((a) => a.id === input.targetAgentId) : undefined;
-  const resolveInput: ProjectResolveInput = {
-    text: input.text,
-    cards: input.world.cards,
-    aliases: input.world.aliasEntries,
-    activeWorkspaceId: input.world.activeWorkspaceId,
-    lastProjectId: input.lastProjectId,
-    recentProjectIds: collectRecentProjectIds(input.world.delegationHistory, input.world.now),
-    bosses: input.world.bosses,
-    ...(target && isBossLikeAgent(target) ? { modelBossId: target.id } : {}),
-    ...(input.clarifySuggestion ? { clarifySuggestion: input.clarifySuggestion } : {}),
-  };
-  return resolveProjectTarget(resolveInput);
-}
-
-let projectRoutingObserver: ((event: ProjectRoutingEvent) => void) | undefined;
-
-/** ⑪ 观测出口（懒建；source='project-routing'，不改 activity-log 常量表；适配器自身不抛）。 */
-function logProjectRouting(event: ProjectRoutingEvent): void {
-  if (!projectRoutingObserver) {
-    projectRoutingObserver = createProjectRoutingLogObserver(logEvent, { channel: 'voice' });
-  }
-  projectRoutingObserver(event);
-}
-
-/**
- * 一次性消歧：上一回合挂了反问 → 本回合先按「回答」消费（不跑 hop1，也不反问第二次）：
- * - 取消话术 → 丢弃挂起任务（clarify-abandoned）；
- * - 解析出项目 → 直接派给该项目主管（clarify-resolved）；
- * - 仍消不掉 → 回落现状首位 Boss 并登记该选择（clarify-fallback，⑪ 落 warn）。
- * 返回 null = 无挂起/已过期，按普通回合继续 hop1。
- */
-async function consumeProjectClarification(
-  text: string,
-  state: VoiceCompanionState,
-  taskId: string,
-  started: number,
-): Promise<VoiceProcessResult | null> {
-  const pending = projectRoutingRuntime.pending;
-  if (!pending) return null;
-  const now = Date.now();
-  const sessionId = state.sessionId ?? undefined;
-  if (now - pending.askedAt > PROJECT_CLARIFY_TTL_MS) {
-    projectRoutingRuntime.pending = null;
-    logProjectRouting({
-      kind: 'clarify-expired',
-      at: now,
-      sessionId,
-      taskId,
-      askCount: projectRoutingRuntime.askCount,
-      text: truncate(text, 80),
-    });
-    return null;
-  }
-  projectRoutingRuntime.pending = null;
-
-  let plan: ClarificationAnswerPlan;
-  try {
-    const world = buildProjectRoutingWorld({ now: () => now });
-    plan = planClarificationAnswer({
-      text,
-      cards: world.cards,
-      aliases: world.aliasEntries,
-      activeWorkspaceId: world.activeWorkspaceId,
-      lastProjectId: projectRoutingRuntime.lastProjectId,
-      recentProjectIds: collectRecentProjectIds(world.delegationHistory, now),
-      bosses: world.bosses,
-      ...(pending.suggestionProjectId ? { clarifySuggestion: pending.suggestionProjectId } : {}),
-    });
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 消歧回答解析失败(回落首位 Boss): ${(err as Error).message}`);
-    plan = { kind: 'fallback', decision: { candidates: [], needAsk: false } };
-  }
-
-  if (plan.kind === 'abandon') {
-    logProjectRouting({
-      kind: 'clarify-abandoned',
-      at: now,
-      sessionId,
-      taskId,
-      askCount: projectRoutingRuntime.askCount,
-      text: truncate(text, 80),
-    });
-    return { action: 'general_response', response: '好，这活先不派了。', elapsedMs: Date.now() - started };
-  }
-
-  const agents = agentService.getAllAgents();
-  const fallbackBoss = agents.find((a) => isBossLikeAgent(a));
-  const bossId = plan.kind === 'resolve' ? plan.bossId : fallbackBoss?.id;
-  const target = bossId ? agents.find((a) => a.id === bossId && isBossLikeAgent(a)) : undefined;
-  const kind = plan.kind === 'resolve' ? 'clarify-resolved' : 'clarify-fallback';
-  if (!target) {
-    logProjectRouting({
-      kind,
-      at: now,
-      sessionId,
-      taskId,
-      askCount: projectRoutingRuntime.askCount,
-      text: truncate(text, 80),
-      decision: plan.decision,
-      fallbackToFirstBoss: true,
-    });
-    return { action: 'general_response', response: '团队里还没有主管(Boss)，这事我暂时派不出去。', elapsedMs: Date.now() - started };
-  }
-
-  const message = pending.message.trim() ? pending.message : pending.originalText;
-  let interrupted: boolean;
-  try {
-    interrupted = await deliverToAgent(target, message, pending.delivery);
-  } catch (err) {
-    logDelegation({
-      phase: 'failed',
-      channel: 'voice-companion',
-      toAgentId: target.id,
-      toAgentName: target.name,
-      message,
-      status: 'failed',
-      error: err instanceof Error ? err.message : String(err),
-      routedBy: 'project-clarify',
-      taskId,
-      sessionId,
-    });
-    throw err;
-  }
-  logProjectRouting({
-    kind,
-    at: now,
-    sessionId,
-    taskId,
-    askCount: projectRoutingRuntime.askCount,
-    text: truncate(text, 80),
-    decision: plan.decision,
-    finalBossId: target.id,
-    fallbackToFirstBoss: kind === 'clarify-fallback',
-    ...(kind === 'clarify-fallback' ? { level: 'warn' as const } : {}),
-  });
-  if (plan.kind === 'resolve' && plan.projectId) projectRoutingRuntime.lastProjectId = plan.projectId;
-  logDelegation({
-    phase: 'dispatched',
-    channel: 'voice-companion',
-    toAgentId: target.id,
-    toAgentName: target.name,
-    message,
-    delivery: pending.delivery,
-    interrupted,
-    status: kind,
-    routedBy: 'project-clarify',
-    taskId,
-    sessionId,
-  });
-  const projectLabel = plan.kind === 'resolve' && plan.projectName ? `「${plan.projectName}」的` : '';
-  const response = kind === 'clarify-resolved'
-    ? `好，这活交给${projectLabel}主管「${target.name}」安排。`
-    : `行，这活我先交给主管「${target.name}」安排。`;
-  log.log(`[VoiceCompanion] 消歧${kind === 'clarify-resolved' ? '命中' : '回落'} → ${target.name}: ${message}`);
-  return {
-    action: 'delegate_to_boss',
-    response,
-    targetAgent: { id: target.id, name: target.name },
-    messageSent: message,
-    delivery: pending.delivery,
-    interrupted,
-    elapsedMs: Date.now() - started,
-  };
-}
 
 function formatMemory(memory: CompanionMemory, opts?: { currentSessionId?: string | null; now?: number }): string {
   const parts: string[] = [];
@@ -1719,35 +1101,6 @@ function logQueryChain(input: QueryChainLogInput, ctx: { sessionId?: string; tas
 // Dispatch
 // ============================================================================
 
-async function deliverToAgent(agent: Agent, message: string, delivery: CompanionDelivery): Promise<boolean> {
-  const { runtimeService, bossMessageService } = await import('./index.js');
-  const { buildCustomAgentConfig } = await import('../websocket/handlers/command-handler.js');
-
-  let interrupted = false;
-  if (delivery === 'interrupt' && ACTIVE_AGENT_STATUSES.has(agent.status)) {
-    log.log(`[VoiceCompanion] 打断 ${agent.name}(${agent.id}) 当前工作`);
-    try {
-      // stopAgent 返回即该 agent 的进程槽已清、状态已置 idle(runner 内部负责
-      // SIGINT → 500ms SIGTERM → 1500ms SIGKILL 的升级链),紧随其后的
-      // sendCommand 直接拉起新回合,不再等固定 250ms(P9:打断延迟专项)。
-      await runtimeService.stopAgent(agent.id);
-      interrupted = true;
-    } catch (err) {
-      log.error(`[VoiceCompanion] stopAgent 失败: ${(err as Error).message}`);
-    }
-  }
-
-  if (isBossLikeAgent(agent)) {
-    // 委托消息带完整任务上下文:复用 buildBossMessage(团队快照 + Boss 指令注入)。
-    const { message: bossMessage, systemPrompt } = await bossMessageService.buildBossMessage(agent.id, message);
-    await runtimeService.sendCommand(agent.id, bossMessage, systemPrompt);
-  } else {
-    const customAgentConfig = buildCustomAgentConfig(agent.id, agent.class);
-    await runtimeService.sendCommand(agent.id, message, undefined, undefined, customAgentConfig);
-  }
-  return interrupted;
-}
-
 /**
  * list_agents 且模型没说人话时的确定性兜底汇报(不依赖模型)。
  * 待岗者不计入「忙/闲」(恢复前派不了活):忙/闲只数在岗者,待岗单独点名报出。
@@ -2209,7 +1562,7 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
 
     // 任务16·⑬ 撤回一次性反问：上一回合挂了撤回反问 → 本回合先按「回答」消费一次
     // （确定性解析，不跑 hop1；编号/名字命中 → 直接撤回，放弃话术 → 不撤，其余丢弃挂起按普通回合继续）。
-    if (!opts.isEvent && pendingCancel) {
+    if (!opts.isEvent && getPendingCancelClarification()) {
       const cancelled = await consumeCancelClarification(text, taskId, started);
       if (cancelled) {
         state.turns += 1;
@@ -2748,12 +2101,12 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
         }
       }
       if (plan.kind === 'ask') {
-        pendingCancel = {
+        setPendingCancelClarification({
           question: plan.question,
           candidates: plan.candidates,
           askedAt: Date.now(),
           taskId,
-        };
+        });
         result.response = plan.question;
         logDelegation({
           phase: 'cancelled',
@@ -3023,4 +2376,6 @@ export * from './voice-companion/contract.js';
 export * from './voice-companion/session.js';
 export * from './voice-companion/snapshot.js';
 export * from './voice-companion/dispatch-route.js';
-
+export * from './voice-companion/cancel.js';
+export * from './voice-companion/deliver.js';
+export * from './voice-companion/project-routing.js';
