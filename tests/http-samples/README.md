@@ -4,7 +4,7 @@ Sample `.http` / `.rest` files for the **HTTP Requests building** (IntelliJ HTTP
 Point an `http` building's folder at `tests/http-samples` and click it to browse and fire these.
 
 All requests use public endpoints ([httpbin.org](https://httpbin.org), [jsonplaceholder.typicode.com](https://jsonplaceholder.typicode.com))
-or the local Tide Commander API, so everything is safe to run.
+or the local FleetDeck API, so everything is safe to run.
 
 | File | Covers |
 |------|--------|
@@ -19,4 +19,4 @@ Environments live in `http-client.env.json` (shared) and `http-client.private.en
 (private overlay — wins over the shared file). Pick the environment in the modal's **Env** selector:
 
 - `httpbin` — public endpoints (needs internet)
-- `local` — Tide Commander's own API (works offline)
+- `local` — FleetDeck's own API (works offline)

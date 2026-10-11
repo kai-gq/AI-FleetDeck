@@ -24,7 +24,7 @@ POST https://jsonplaceholder.typicode.com/posts
 Content-Type: application/json
 
 {
-  "title": "Sample from Tide Commander",
+  "title": "Sample from FleetDeck",
   "body": "Created by the HTTP requests building",
   "userId": 7
 }

@@ -1,6 +1,6 @@
 # tools/edge-tts · 语音播报引擎(微软神经语音,在线)
 
-Tide Commander 的「语音播报」原本走 piper(`tools/piper/`),中文只有
+FleetDeck 的「语音播报」原本走 piper(`tools/piper/`),中文只有
 `zh_CN-huayan-medium` 一个模型,机器味重。这里把它换成 **edge-tts**(微软
 Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人级——当前用
 **晓晓(温柔女声)**,试听在 `E:\tide-commander\tts-audition\`。
@@ -26,7 +26,7 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 | --- | --- |
 | `shim/` | `piper.exe` 兼容垫片(解析 `--model/--output_file/--rate/--volume` + stdin,本进程合成) |
 | `voices.json` | 语言 → 音色映射(入库默认) |
-| `voices.local.json` | 工具箱「文字转语音」写入的用户覆盖:音色 + 语速/音量(gitignore;不存在 = 用 voices.json) |
+| `voices.local.json` | 顶栏话筒弹窗「文字转语音」写入的用户覆盖:音色 + 语速/音量(gitignore;不存在 = 用 voices.json) |
 | `venv/` | Python venv(edge-tts 7.2.8) |
 | `shim.log` | 排障日志(gitignore) |
 
@@ -38,7 +38,7 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 | en | `en-US-JennyNeural` |
 | es | `es-MX-DaliaNeural` |
 
-换音色:**在 TC 工具箱 →「文字转语音」里直接选**(中文 14 个:晓晓/晓伊/云希/云扬/方言/粤语/台湾,另有英文、西语;每行带「试听」)。
+换音色:**在顶栏话筒弹窗 →「文字转语音」标签里直接选**(中文 14 个:晓晓/晓伊/云希/云扬/方言/粤语/台湾,另有英文、西语;每行带「试听」)。
 
 - 保存写入 `voices.local.json`,垫片读取优先级:`voices.local.json` > `voices.json`(删除 local 文件 = 恢复默认);
 - 「试听」= 先保存当前选择、再播放该语言样句(浏览器直接播,走完整 tts.ts → 垫片链路);
@@ -53,7 +53,7 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 - 范围 `-100..100`(百分数,`10` = 快 10%),`0` = 原速原音量;
 - 优先级:**CLI `--rate/--volume`(如工具箱「试听」即时传参)> `voices.local.json` 的
   `rate/volume` 字段 > 0**;旧版 voices.local.json 没有这两个字段 = 默认,无需迁移;
-- 落点:工具箱 →「文字转语音」面板两行输入框,与音色存在同一份文件里一起保存;
+- 落点:顶栏话筒弹窗 →「文字转语音」标签里的两行输入框,与音色存在同一份文件里一起保存;
 - 垫片把百分数转成 edge-tts 需要的 `"+10%"/"-5%"` 形式,传入
   `edge_tts.Communicate(voice, rate=…, volume=…)`;
 - 回退 piper_real 时新参先剥离,rate 映射 `--length_scale = 1/(1+rate/100)`

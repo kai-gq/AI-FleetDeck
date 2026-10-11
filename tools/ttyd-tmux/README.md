@@ -1,6 +1,6 @@
-# tools/ttyd-tmux — Tide Commander 的 Windows 终端工具集
+# tools/ttyd-tmux — FleetDeck 的 Windows 终端工具集
 
-让 TC 的**建筑终端 / 区域终端 / agent(Classic TUI)终端**在 Windows 上跑起来:
+让 FleetDeck 的**建筑终端 / 区域终端 / agent(Classic TUI)终端**在 Windows 上跑起来:
 ttyd 把终端暴露成网页,tmux(arndawg 移植版)负责会话持久化。
 本目录把用到的二进制、包装器源码和配套脚本收拢到一处,方便重建与排障。
 

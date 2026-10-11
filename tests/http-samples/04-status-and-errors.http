@@ -23,5 +23,5 @@ GET http://localhost:59999/nobody-listens-here
 GET https://httpbin.org/image/png
 Accept: image/png
 
-### Local: Tide Commander's own health endpoint (works offline, env "local")
+### Local: FleetDeck's own health endpoint (works offline, env "local")
 GET {{baseUrl}}/api/health

@@ -13,7 +13,7 @@
 ```
 
 本目录 = 本地引擎的全部文件 —— 和 `tools/piper/`(TTS)同一个思路:
-本地跑、免费、离线、语音不出本机。云通道 2026-10-10 起**上移 TC 服务端**
+本地跑、免费、离线、语音不出本机。云通道 2026-10-10 起**上移 FleetDeck 服务端**
 (统一到火山引擎,垫片不再直连云),本目录的 `cloud.json` 只剩模式开关。
 
 ## 目录
@@ -60,7 +60,7 @@
    (server.py 启动时也会自愈 PATH,双保险)
 3. **模型** — whisper 在 `~/.cache/whisper/` 找;已建 **junction** 指向本目录 `models/`
 
-所以 PATH 里要加这两个目录(**加完必须重启 Tide Commander 服务**,进程启动时才读 PATH):
+所以 PATH 里要加这两个目录(**加完必须重启 FleetDeck 服务**,进程启动时才读 PATH):
 
 ```
 E:\tide-commander\tide-commander\tools\whisper\venv\Scripts
@@ -74,7 +74,7 @@ E:\tide-commander\tide-commander\tools\whisper\ffmpeg\bin
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\whisper\add_path.ps1
 ```
 
-看到 `ADDED: ...` 或 `ALREADY_PRESENT` 即成功,**必须重启 Tide Commander** 生效。
+看到 `ADDED: ...` 或 `ALREADY_PRESENT` 即成功,**必须重启 FleetDeck** 生效。
 
 ## 日常使用
 
@@ -95,7 +95,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\whisper\add_path.ps1
 ## 云通道(可选:火山引擎批量识别,云优先 + 本地兜底)
 
 本地 whisper 用 `turbo` 蒸馏模型,中文短句准确率一般。云通道 = **火山引擎
-「大模型流式语音识别」**,由 TC 服务端调用(`services/stt-volcengine.ts`,
+「大模型流式语音识别」**,由 FleetDeck 服务端调用(`services/stt-volcengine.ts`,
 复用已验证的 `VolcengineAsrSession` 协议客户端:把整段音频喂完再收末包,
 当批量用),**凭据复用「语音伙伴」的 `tools/voice-companion/config.json`**
 (`stt.volcengine` 一节)—— 与流式转写同一家供应商、同一套凭据。
@@ -112,9 +112,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\whisper\add_path.ps1
 | `local` | 完全离线,行为不变 |
 | `cloud` | 只走云;失败 → 报错,**不回退**(避免"以为在云上实际在本地");无凭据时退化为本地 |
 
-- **配凭据**:工具箱 → **语音伙伴**(火山引擎 stt.volcengine,apiKey 或
-  appId+accessToken);「语音转文字」区块只显示「已配置/未配置」状态
-- **改模式**:工具箱 → 语音(引擎模式),或手改本文件;`mode: local`(或删掉文件)= 纯本地
+- **配凭据**:顶栏话筒弹窗 →「语音伙伴」(火山引擎 stt.volcengine,apiKey 或
+  appId+accessToken);「语音转文字」标签只显示「已配置/未配置」状态
+- **改模式**:顶栏话筒弹窗 →「语音转文字」(引擎模式),或手改本文件;`mode: local`(或删掉文件)= 纯本地
 - 云路径细节:服务端先用本地 ffmpeg 把录音转 **PCM16LE/16k/单声道** 再喂
   火山(录音是 webm/opus,火山不收);此时 CLI 的 `--language`/`--model`
   不参与云识别;单次整体超时 30s(自动模式超时即回退)
@@ -171,7 +171,7 @@ tools/whisper/venv/Scripts/whisper.exe t.wav --model turbo --language Chinese --
 
 ## 常见问题
 
-- **语音输入 500 / `spawn whisper ENOENT`** → PATH 没加或没重启 Tide Commander
+- **语音输入 500 / `spawn whisper ENOENT`** → PATH 没加或没重启 FleetDeck
   (进程启动时才读 PATH);照上面「三条链路」检查
 - **每次都要 30 秒** → 常驻服务没起来:看 `server.log` 有没有报错(端口被占、
   预加载失败);手动跑 `venv\Scripts\python.exe tools/whisper/server.py` 看输出

@@ -1,6 +1,6 @@
 # 手机 HTTPS(局域网)本地工具
 
-**目的**: iPhone/iPad 在局域网上访问 Tide Commander 时,浏览器只在**安全上下文**
+**目的**: iPhone/iPad 在局域网上访问 FleetDeck 时,浏览器只在**安全上下文**
 (https 或 localhost)里给麦克风。http://<PC-IP>:5173 下 `window.isSecureContext=false`,
 语音伙伴与终端语音输入会被客户端直接拦下(`useContinuousListening.ts` /
 `useSTT.ts` 内均有「麦克风需要 HTTPS」检查)——这个目录提供本地 CA + 服务器证书,
