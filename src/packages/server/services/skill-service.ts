@@ -13,7 +13,7 @@ import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/bu
 import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
 import { markInstructionsDirty } from './instruction-refresh.js';
-import { renameDefaultAgentSkillSlug } from './default-agent-skills-service.js';
+import { getDefaultAgentSkillSlugs, renameDefaultAgentSkillSlug } from './default-agent-skills-service.js';
 import { skillAssignmentSource } from '../../shared/skill-assignment.js';
 
 const log = createLogger('SkillService');
@@ -427,6 +427,22 @@ export function removeSkillForAgent(skillId: string, agent: Pick<Agent, 'id' | '
 }
 
 /**
+ * Resolve the skill ids to assign when an agent is created.
+ *
+ * An explicit list (including an empty one) is respected verbatim — callers
+ * that mean "no skills" pass []. Only a missing list (undefined) falls back
+ * to the installation's default-agent-skills setting (the same list the spawn
+ * dialogs pre-select), so agents spawned by a boss spawn block or any other
+ * programmatic path still land with the standard set.
+ */
+export function resolveInitialSkillIdsForCreate(requestedSkillIds?: string[]): string[] {
+  if (requestedSkillIds !== undefined) return requestedSkillIds;
+  return getDefaultAgentSkillSlugs()
+    .map((slug) => getSkillBySlug(slug)?.id)
+    .filter((id): id is string => typeof id === 'string');
+}
+
+/**
  * Get all skills assigned to a specific agent
  * Includes skills assigned directly AND skills assigned to the agent's class
  */
@@ -774,6 +790,7 @@ export const skillService = {
   assignSkillToAgent,
   unassignSkillFromAgent,
   getSkillsForAgent,
+  resolveInitialSkillIdsForCreate,
   buildSkillPromptContent,
   getAllowedToolsForAgent,
   removeAgentFromAllSkills,

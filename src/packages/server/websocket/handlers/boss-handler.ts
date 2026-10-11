@@ -51,10 +51,11 @@ export async function handleSpawnBossAgent(
       payload.codexConfig
     );
 
-    // Assign initial skills if provided (same pattern as agent-handler)
+    // Assign initial skills (same pattern as agent-handler; a missing list
+    // falls back to the installation's default agent skills).
     // Always include boss-instructions skill regardless of agent class
     const bossSkillId = getBuiltinSkillId('boss-instructions');
-    const initialSkillIds = payload.initialSkillIds || [];
+    const initialSkillIds = skillService.resolveInitialSkillIdsForCreate(payload.initialSkillIds);
     const classDefaultSkills = customClassService.getClassDefaultSkillIds(agent.class);
     const allSkillIds = [...new Set([bossSkillId, ...initialSkillIds, ...classDefaultSkills])];
 

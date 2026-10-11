@@ -124,8 +124,9 @@ export async function handleSpawnAgent(
       sessionId: agent.sessionId,
     });
 
-    // Assign initial skills if provided
-    const initialSkillIds = payload.initialSkillIds || [];
+    // Assign initial skills: an explicit list wins (empty means none); a
+    // missing list falls back to the installation's default agent skills.
+    const initialSkillIds = skillService.resolveInitialSkillIdsForCreate(payload.initialSkillIds);
 
     // Also get default skills from custom class if applicable
     const classDefaultSkills = customClassService.getClassDefaultSkillIds(agent.class);

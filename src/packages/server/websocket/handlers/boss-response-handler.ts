@@ -1429,8 +1429,10 @@ export async function parseBossSpawn(
         );
 
         // Assign initial skills (mirrors agent-handler behavior). Combine
-        // explicitly requested skills with the class's default skills.
-        const requestedSkills = safeSkillIds ?? [];
+        // explicitly requested skills with the class's default skills; when
+        // the spawn block omits initialSkillIds, the installation's default
+        // agent skills fill in.
+        const requestedSkills = skillService.resolveInitialSkillIdsForCreate(safeSkillIds);
         const classDefaultSkills = getClassDefaultSkillIds(newAgent.class);
         const allSkillIds = [...new Set([...requestedSkills, ...classDefaultSkills])];
         for (const skillId of allSkillIds) {

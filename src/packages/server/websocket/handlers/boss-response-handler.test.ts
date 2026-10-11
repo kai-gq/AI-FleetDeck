@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseBossDelegation, resetBossDelegationStateForTests } from './boss-response-handler.js';
+import { parseBossDelegation, parseBossSpawn, resetBossDelegationStateForTests } from './boss-response-handler.js';
 
 vi.mock('../../services/index.js', () => ({
   agentService: {
     getAgent: vi.fn(),
+    createAgent: vi.fn(),
   },
   runtimeService: {
     sendCommand: vi.fn(() => Promise.resolve()),
@@ -11,6 +12,8 @@ vi.mock('../../services/index.js', () => ({
   bossService: {
     addDelegationToHistory: vi.fn(),
     updateDelegationTaskCardStatus: vi.fn(),
+    getSubordinates: vi.fn(() => []),
+    assignSubordinates: vi.fn(),
   },
   workPlanService: {
     parseWorkPlanBlock: vi.fn(),
@@ -18,6 +21,10 @@ vi.mock('../../services/index.js', () => ({
     parseAnalysisRequestBlock: vi.fn(() => []),
     createAnalysisRequest: vi.fn(),
     startAnalysisRequest: vi.fn(),
+  },
+  skillService: {
+    assignSkillToAgent: vi.fn(),
+    resolveInitialSkillIdsForCreate: vi.fn(),
   },
 }));
 
@@ -46,9 +53,10 @@ vi.mock('./command-handler.js', () => ({
 
 vi.mock('../../services/custom-class-service.js', () => ({
   getAllCustomClasses: vi.fn(() => []),
+  getClassDefaultSkillIds: vi.fn(() => []),
 }));
 
-import { agentService, runtimeService, bossService } from '../../services/index.js';
+import { agentService, runtimeService, bossService, skillService } from '../../services/index.js';
 import { getLastBossCommand } from './command-handler.js';
 import { bossInstructions } from '../../data/builtin-skills/boss-instructions.js';
 
@@ -214,6 +222,19 @@ More notes between blocks.
     expect(content).toContain('isProcessRunning, standby');
   });
 
+  it('本地规范规格守卫:三段本地团队规范已并入内置技能(所有 boss 出生自带)', () => {
+    const content = bossInstructions.content;
+    expect(content).toContain('LOCAL TEAM PROTOCOL');
+    expect(content).toContain('【派活前 · 先扫团队笔记】');
+    expect(content).toContain('【委派格式 · 收尾固定要求】');
+    expect(content).toContain('【建队纪律 · 编制清单制】');
+    expect(content).toContain('.team-notes');
+    // 默认禁令仍在,例外指针指向同文件(自洽,不再靠跨文件「以本条为准」)
+    expect(content).toContain('NEVER spawn automatically');
+    expect(content).toContain('唯一例外(EXCEPTION)');
+    expect(content).not.toContain('本条与内置技能冲突时');
+  });
+
   it('任务卡(⑦):格式错误只降级无卡,派活与委派史仍按纯文本完成(向后兼容)', async () => {
     const resultText = `\`\`\`delegation
 [{"selectedAgentId":"agent-1","selectedAgentName":"Builder One","taskCommand":"纯文本任务","confidence":"high","taskCard":{"acceptanceCriteria":["缺少 objective"]}}]
@@ -245,5 +266,51 @@ This is not JSON and has no parseable payload.
       .map((call) => call[0])
       .filter((msg) => msg?.type === 'output' && typeof msg?.payload?.text === 'string' && msg.payload.text.includes('Delegation parse error'));
     expect(errorOutputs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('boss-response-handler parseBossSpawn initial skills', () => {
+  const broadcast = vi.fn();
+  const sendActivity = vi.fn();
+
+  const spawnText = (entry: Record<string, unknown>) =>
+    `Spawning a specialist.\n\n\`\`\`spawn\n${JSON.stringify([entry])}\n\`\`\``;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(agentService.getAgent).mockImplementation(((id: string) => ({
+      id, name: id, class: 'boss', cwd: '/repo',
+    })) as any);
+    vi.mocked(agentService.createAgent).mockResolvedValue({
+      id: 'new-1', name: 'Nova', class: 'builder',
+    } as any);
+    // Mirrors the real resolver: explicit list wins verbatim; a missing list
+    // yields the installation defaults (here two builtin slugs).
+    vi.mocked(skillService.resolveInitialSkillIdsForCreate).mockImplementation(
+      (requested?: string[]) => requested ?? ['builtin-agent-memory', 'builtin-streaming-exec'],
+    );
+  });
+
+  it('fills in the installation defaults when the spawn block omits initialSkillIds', async () => {
+    await parseBossSpawn(
+      'boss-1', 'Boss',
+      spawnText({ name: 'Nova', class: 'builder' }),
+      broadcast, sendActivity,
+    );
+
+    expect(skillService.resolveInitialSkillIdsForCreate).toHaveBeenCalledWith(undefined);
+    expect(skillService.assignSkillToAgent).toHaveBeenCalledWith('builtin-agent-memory', 'new-1');
+    expect(skillService.assignSkillToAgent).toHaveBeenCalledWith('builtin-streaming-exec', 'new-1');
+  });
+
+  it('respects an explicit empty list — no default fill-in', async () => {
+    await parseBossSpawn(
+      'boss-1', 'Boss',
+      spawnText({ name: 'Nova', class: 'builder', initialSkillIds: [] }),
+      broadcast, sendActivity,
+    );
+
+    expect(skillService.resolveInitialSkillIdsForCreate).toHaveBeenCalledWith([]);
+    expect(skillService.assignSkillToAgent).not.toHaveBeenCalled();
   });
 });
