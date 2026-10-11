@@ -300,6 +300,24 @@ export function createWeChatConnection(deps: WeChatConnectionDeps): WeChatConnec
           updateConfig({ cursor });
         }
         updateConfig({ lastPollAt: now() });
+        // Raw-round audit: log every message the poll returns — including ones
+        // the filter chain below drops (e.g. type=2 echoes) — so "API accepted
+        // the send" vs "message is actually in the stream" is decidable from the
+        // log alone. Ids masked, bodies log as length only.
+        if (round.msgs.length > 0) {
+          const masked = (s?: string): string => (s ? `${s.slice(0, 12)}…` : '(none)');
+          const brief = round.msgs
+            .map((m) => {
+              try {
+                const p = parseWeChatMessage(m);
+                return `type=${p.messageType ?? '?'} from=${masked(p.fromUserId)} to=${masked(p.toUserId)} mid=${masked(p.messageId)} items=[${p.itemTypes.join(',')}] txt=${p.text.length} ctx=${p.contextToken ? p.contextToken.length : 0}`;
+              } catch {
+                return 'unparsed';
+              }
+            })
+            .join(' | ');
+          log.log(`wechat.poll.msgs n=${round.msgs.length} ${brief}`.slice(0, 800));
+        }
         for (const rawMsg of round.msgs) {
           dispatchMessage(rawMsg);
         }
@@ -527,7 +545,12 @@ export function createWeChatConnection(deps: WeChatConnectionDeps): WeChatConnec
     }
     checkRateLimit();
     const client = createClient({ baseUrl: config.baseUrl, botToken: token });
-    return client.sendText({ toUserId: opts.toUserId, text: opts.text, contextToken });
+    const sent = await client.sendText({ toUserId: opts.toUserId, text: opts.text, contextToken });
+    // Raw sendmessage response kept on the record: ensureOk() treats a missing
+    // `ret` field as success (multi-candidate defensive parsing), so logging the
+    // actual payload is the only way to tell "Tencent accepted" from "we misread".
+    log.log(`wechat.send raw=${JSON.stringify(sent.raw).slice(0, 400)}`);
+    return sent;
   }
 
   return {
