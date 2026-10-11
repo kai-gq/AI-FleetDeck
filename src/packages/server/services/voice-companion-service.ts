@@ -157,481 +157,47 @@ import type { CancelDelegationOutcome } from '../websocket/handlers/boss-respons
 // 任务40 办结主动汇报：派活成功时登记「最近一次秘书→主管派活」（上行回执链登记簿）
 import { isBossUplinkReceiptEnabled, registerBossUplinkReceipt } from '../websocket/handlers/boss-uplink-receipt-registry.js';
 
+// ---- 模块拆分(A1,2026-10-11):类型/常量/谓词/配置 IO/状态 IO 移入 voice-companion/ 子目录 ----
+// 对外导出继续经本文件 re-export(见文件末尾),外部 import 路径与名字不变。
+import {
+  COMPANION_ACTIONS,
+  VoiceCompanionAbortedError,
+  type CompanionAction,
+  type CompanionDelivery,
+  type CompanionMemory,
+  type CompanionMemoryNote,
+  type VoiceCompanionContextState,
+  type VoiceCompanionState,
+  type VoiceCompanionServerConfig,
+  type VoiceContract,
+  type VoiceMemoryOp,
+  type VoicePersonaConfig,
+  type VoiceProcessOptions,
+  type VoiceProcessResult,
+} from './voice-companion/types.js';
+import {
+  ACTIVE_AGENT_STATUSES,
+  DEFAULT_MEMORY,
+  DEGRADED_RESPONSE,
+  ERROR_TRUNCATE,
+  HISTORY_EXCERPT_COUNT,
+  HISTORY_ITEM_CHARS,
+  HISTORY_MESSAGES,
+  HISTORY_TOTAL_CHARS,
+  MAX_DELEGATION_INJECT,
+  MAX_SNAPSHOT_AGENTS,
+  MAX_SNAPSHOT_SUBORDINATES,
+  MEMORY_WARN_CHARS,
+  NOTES_MAX_TEXT,
+  QUERY_LOG_PREVIEW_CHARS,
+  SUMMARY_MAX_TEXT,
+  TASK_TRUNCATE,
+} from './voice-companion/constants.js';
+import { isAgentBusy, isBossLikeAgent } from './voice-companion/agents.js';
+import { loadServerConfig } from './voice-companion/config.js';
+import { loadCompanionState, saveCompanionState } from './voice-companion/state.js';
+
 const log = logger.server;
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface CompanionMemoryNote {
-  id: string;
-  text: string;
-  createdAt: number;
-  source: 'user' | 'auto';
-}
-
-export interface CompanionMemory {
-  summary: string;
-  notes: CompanionMemoryNote[];
-  updatedAt: number;
-  droppedCount: number;
-  /**
-   * 任务39·F4:上段会话交接便签(轮换点认领时写入;渲染受「非本会话 + 72h」门控,
-   * 见 formatMemory)。未验证内容**不自动晋升**为长期 notes,只渲染 + 一条工作记忆。
-   */
-  handoff?: HandoffNote | null;
-}
-
-/**
- * 任务18·上下文占用快照(callClaudeOnce 原先 usage 全丢;常驻化后采集自 result 事件)。
- * 观测点:⑭ 系统活动 4(context_stats)+ ⑮ 压缩触发率标定;压缩 v1 缺省 80%。
- */
-export interface VoiceCompanionContextState {
-  /** 最近一次 result 的输入侧用量(input + cache_read + cache_creation)。 */
-  tokensUsed: number;
-  /** 判定用窗口尺寸(CLI modelUsage.contextWindow 优先,缺失用配置缺省)。 */
-  windowTokens: number;
-  /** tokensUsed / windowTokens(可能 >1)。 */
-  percent: number;
-  updatedAt: number;
-}
-
-export interface VoiceCompanionState {
-  sessionId: string | null;
-  sessionStartedAt: number | null;
-  turns: number;
-  lastUsedAt: number | null;
-  /** 上次使用的人设键(shared/voice-personas 的 personaKeyOf);变化 → 轮换会话。null = 旧状态。 */
-  personaKey: string | null;
-  memory: CompanionMemory;
-  /** 任务18:上下文占用(可选——旧状态文件/测试内联构造无此字段)。 */
-  context?: VoiceCompanionContextState | null;
-  /** 任务39·F2:最近轮次环缓冲(交接材料源;旧状态文件缺字段 → [];轮换时清空)。 */
-  recentTurns?: RecentTurn[];
-}
-
-export type CompanionAction =
-  | 'general_response'
-  /** 任务语义的唯一出口(改①):目标由系统解析为团队主管(Boss),模型不选执行人。 */
-  | 'delegate_to_boss'
-  | 'send_to_agent'
-  | 'list_agents'
-  | 'query_agent_output'
-  /** 任务03·尾：⑮ P1 只读日志分析（秘书自留区：不派活、不计 ⑫ 配额）。 */
-  | 'analyze_logs'
-  /** 任务13·⑩ 秘书 Bolba 桥:业务待办(报价/付款/会议/证书…)四动作,只碰 Bolba 账本。 */
-  | 'query_bolba_tasks'
-  | 'create_bolba_task'
-  | 'complete_bolba_task'
-  | 'reopen_bolba_task'
-  /** 任务16·⑬ 撤回:撤回/取消某个在办任务(独立于派活通道,系统负责定位目标)。 */
-  | 'cancel_delegation'
-  /** 任务16·⑬ 评价:对最近完成且未评价的任务回写满意/不满意(承接任务11 API)。 */
-  | 'rate_delegation'
-  | 'noop';
-
-/**
- * 契约 action 全集——模板字符串 / 解析白名单 / 流式 GATE_ACTIONS 同源,防多处漂移
- * (改① 新增 delegate_to_boss 时只需改这里与 CompanionAction)。
- */
-export const COMPANION_ACTIONS: readonly CompanionAction[] = [
-  'general_response', 'delegate_to_boss', 'send_to_agent', 'list_agents', 'query_agent_output', 'analyze_logs',
-  'query_bolba_tasks', 'create_bolba_task', 'complete_bolba_task', 'reopen_bolba_task',
-  'cancel_delegation', 'rate_delegation', 'noop',
-];
-
-export type CompanionDelivery = 'queue' | 'interrupt';
-
-export interface VoiceMemoryOp {
-  op: 'add' | 'remove' | 'setSummary';
-  text?: string;
-  id?: string;
-  summary?: string;
-}
-
-export interface VoiceContract {
-  action: CompanionAction;
-  targetAgentId: string | null;
-  targetAgentName: string | null;
-  messageToAgent: string;
-  delivery: CompanionDelivery;
-  query: string;
-  /** 任务13·⑩：Bolba 动作的指代/事项（create 填去时间词的事项；complete/reopen 填编号或标题）。 */
-  bolbaTask: string;
-  responseToUser: string;
-  memoryOps: VoiceMemoryOp[];
-}
-
-export interface VoiceProcessOptions {
-  /** true = 由客户端主动汇报模块送来的 ⟦系统事件⟧ 文本(noop 时保持安静)。 */
-  isEvent?: boolean;
-  /**
-   * 分句流式播报:模型边生成,responseToUser 里每完成一句就回调一次
-   * (已经过 action 语义门控:noop 不出声、send_to_agent 等派发成功才放行)。
-   * meta.pre=true 的过渡/垫话句照播但不参与客户端最终对账(W4)。
-   * 不传则完全走旧的整段返回路径。
-   */
-  onSentence?: (sentence: string, meta?: SentenceMeta) => void;
-  /** 客户端断开时中止本轮 claude 调用(否则废弃请求会占着互斥队列)。 */
-  signal?: AbortSignal;
-}
-
-export interface VoiceProcessResult {
-  action: CompanionAction;
-  response: string;
-  targetAgent?: { id: string; name: string };
-  messageSent?: string;
-  delivery?: CompanionDelivery;
-  interrupted?: boolean;
-  secondHopMs?: number;
-  memoryOpsApplied?: number;
-  /** 模型超时/输出无法解析时的兜底标记。 */
-  degraded?: boolean;
-  /** 已通过 onSentence 播报过(客户端据此决定是否整段补播 response)。 */
-  spoke?: boolean;
-  elapsedMs: number;
-}
-
-/** callClaudeOnce 被 opts.signal 中止时抛出的错误(name 供路由识别后静默收尾)。 */
-export class VoiceCompanionAbortedError extends Error {
-  constructor() {
-    super('VoiceCompanion call aborted');
-    this.name = 'VoiceCompanionAborted';
-  }
-}
-
-export interface VoicePersonaConfig {
-  preset: string;
-  custom: string;
-}
-
-export interface VoiceCompanionServerConfig {
-  model: 'haiku' | 'sonnet';
-  persona: VoicePersonaConfig;
-  hop1TimeoutMs: number;
-  hop2TimeoutMs: number;
-  maxTurns: number;
-  sessionMaxAgeDays: number;
-  maxNotes: number;
-  /** 任务18:上下文压缩阈值(0-1;任务39 实测推导,缺省 0.3 = 60K@200K——见 06-10 §1e)。 */
-  contextCompactPercent: number;
-  /** 任务18:压缩判定窗口兜底(CLI modelUsage.contextWindow 缺失时用;缺省 200K)。 */
-  contextWindowTokens: number;
-  /** 任务39:绝对 token 闸口(>0 生效;与 percent 取或,缺省 0 = 关)。 */
-  contextCompactTokens: number;
-  /** W2 阶段2:首句机械上限(>0 生效;0 = 关,缺省)。建议开启值 24。 */
-  firstSentenceMaxChars: number;
-  /** W5 慢档续垫:等待超过阈值仍无声时,动态生成一句安抚垫话(≤10 字,pre 通道)。 */
-  slowFiller: SlowFillerTiming;
-}
-
-/** W5 慢档续垫参数(armMs/emitMs 为未命中兜底档;W7 预生成命中时用 armMs=0 + pregenEmitMs)。 */
-export interface SlowFillerTiming {
-  enabled: boolean;
-  /** 开始预生成的时间点(ms,自回合开始;预生成命中时不用,取 0 立即取用)。 */
-  armMs: number;
-  /** 允许吐出的最早时间点(ms,自回合开始)。 */
-  emitMs: number;
-  /** W7:预生成命中时的吐出底线(ms,自回合开始)——生成已在说话期间埋单,只需压过 TTS 合成。 */
-  pregenEmitMs: number;
-}
-
-export const DEFAULT_SERVER_CONFIG: VoiceCompanionServerConfig = {
-  model: 'haiku',
-  persona: { preset: DEFAULT_PERSONA_ID, custom: '' },
-  hop1TimeoutMs: 60_000,
-  hop2TimeoutMs: 45_000,
-  maxTurns: 120,
-  sessionMaxAgeDays: 7,
-  maxNotes: 40,
-  // 任务39 改判:原 0.8 是行业推导(非实测)。任务39 实测(06-10 §1e):同一句话
-  // 新会话 3.6s vs 长会话 74.4s(thinking ~140× 退化,主因=会话历史;in≈82K、cacheR≈0,
-  // 中继无 prompt 缓存 → 每回合成本 ∝ 会话长度)。55.8%(111K/200K)已达显著退化区,
-  // 等 80% 永远等不到(轮换块先于阈值触发前会话早已拖垮)。故提前到 0.3(=60K@200K)。
-  // 窗口 200K 为 claude sonnet/haiku 当代缺省,运行时以 CLI 上报为准。
-  contextCompactPercent: 0.3,
-  contextWindowTokens: 200_000,
-  // 任务39:绝对值闸口(与 percent 取或)。缺省 0 = 关;窗口被 CLI 上报为更大值
-  // (e.g. 1M)时,percent 阈值不够用,可用它钉死绝对开销上界。
-  contextCompactTokens: 0,
-  // W2 阶段2:默认关(首句短化先走提示词版;机械上限开启值建议 24,观察切碎风险)。
-  firstSentenceMaxChars: 0,
-  // W5/C13 兜底档:生成跳过 MCP 加载(冷启动 4.9→2.2s),吐出 ≈3.0–3.5s。
-  // W7/C15 预生成档(命中):说话期间已生成 + 客户端预合成,吐出 = 回合开始 + pregenEmitMs
-  // (只等 TTS 合成这一个尾巴)。
-  // C16:pregenEmitMs 缺省 3000 = 兜底档的吐出底线 —— 预生成只消掉「到点后还要等生成/合成」
-  // 那一段(真麦实测兜底档 3.5–6s),不改变触发阈值(1.2s 版实测「简单问题也垫话」);
-  // 调小 = 更早出声但会垫给快回合,调大 = 更稀疏。
-  // 未命中/失败/禁用 → 全链回退兜底档(逐字节等同旧行为)。
-  // 首字节取消信号仍挂着,快回合(hop1 先出字)照样不垫。无出字的慢回合才轮得到垫话。
-  slowFiller: { enabled: true, armMs: 500, emitMs: 2_500, pregenEmitMs: 3_000 },
-};
-
-const DEFAULT_MEMORY: CompanionMemory = {
-  summary: '',
-  notes: [],
-  updatedAt: 0,
-  droppedCount: 0,
-  handoff: null,
-};
-
-const DEFAULT_STATE: VoiceCompanionState = {
-  sessionId: null,
-  sessionStartedAt: null,
-  turns: 0,
-  lastUsedAt: null,
-  personaKey: null,
-  memory: DEFAULT_MEMORY,
-  context: null,
-  recentTurns: [],
-};
-
-/** Agent 状态里算「正在干活」(打断有代价)的三种。 */
-export const ACTIVE_AGENT_STATUSES = new Set(['working', 'waiting', 'waiting_permission']);
-
-/**
- * 语音侧「忙」的统一口径:在岗(未待岗)且状态属于 ACTIVE_AGENT_STATUSES。
- * 待岗者进程已停、恢复前派不了活 —— 既不算忙也不算闲,忙/闲统计一律走这里。
- */
-function isAgentBusy(agent: { status: string; standby?: boolean }): boolean {
-  return !isOnStandby(agent) && ACTIVE_AGENT_STATUSES.has(agent.status);
-}
-
-const NOTES_MAX_TEXT = 300;
-const SUMMARY_MAX_TEXT = 1500;
-const MAX_SNAPSHOT_AGENTS = 60;
-const TASK_TRUNCATE = 60;
-const ERROR_TRUNCATE = 80;
-/** 🔴 决策观测点④ 查询链路:请求/返回摘要的截断长度(Spec §4.14「返回摘要(截断)」)。 */
-const QUERY_LOG_PREVIEW_CHARS = 120;
-/** 注入 prompt 的委派史条数上限:§8.1 已验证常量,镜像 subordinate-context-service.ts:135 的 slice(0,5),不改值。 */
-const MAX_DELEGATION_INJECT = 5;
-/** Boss 卡片最多展开的下属个数,超出只报「…另N人」——防单行随团队规模失控(60 快照上限之外的体积护栏)。 */
-const MAX_SNAPSHOT_SUBORDINATES = 8;
-const HISTORY_MESSAGES = 30;
-const HISTORY_EXCERPT_COUNT = 6;
-const HISTORY_ITEM_CHARS = 400;
-const HISTORY_TOTAL_CHARS = 1500;
-/** 记忆注入体积告警阈值(P9):笔记上限 40×300 + 总结 1500,超此值先看记忆该不该清。 */
-const MEMORY_WARN_CHARS = 4_000;
-
-// XDG-compliant(与 data/index.ts 惯例一致):测试沙箱靠 XDG_DATA_HOME 重定向,
-// 避免测试进程误写真实状态文件。未设 XDG 的机器解析结果与旧路径完全相同。
-const STATE_FILE = path.join(
-  process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
-  'tide-commander',
-  'voice-companion.json',
-);
-const CONFIG_FILE = path.join(process.cwd(), 'tools/voice-companion/config.json');
-
-// 故障分型(HC-B9):上游故障(超时/解析失败/进程退出/报错)不播「没听清」——
-// 「没听清」族保留给输入语义问题(见 contract 缺 messageToAgent 分支),避免用户误以为是自己没说清。
-const DEGRADED_RESPONSE = '抱歉,我这会儿有点问题,稍等再说。';
-
-// ============================================================================
-// Config / state IO
-// ============================================================================
-
-function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(value)));
-}
-
-/** 小数版钳制(任务18:压缩阈值 0-1 不能被 Math.round 取整)。 */
-function clampFloat(value: unknown, min: number, max: number, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
-  return Math.min(max, Math.max(min, value));
-}
-
-/** W5:垫话参数解析(brain.slowFiller;env TC_VOICE_SLOW_FILLER=0 为硬回退开关)。 */
-function slowFillerConfigFrom(brain: Record<string, unknown> | undefined): SlowFillerTiming {
-  const sf = brain?.slowFiller as Record<string, unknown> | undefined;
-  const envOff = process.env.TC_VOICE_SLOW_FILLER === '0';
-  return {
-    enabled: !envOff && sf?.enabled !== false,
-    armMs: clampNumber(sf?.armMs, 500, 10_000, DEFAULT_SERVER_CONFIG.slowFiller.armMs),
-    emitMs: clampNumber(sf?.emitMs, 1_000, 30_000, DEFAULT_SERVER_CONFIG.slowFiller.emitMs),
-    pregenEmitMs: clampNumber(sf?.pregenEmitMs, 300, 10_000, DEFAULT_SERVER_CONFIG.slowFiller.pregenEmitMs),
-  };
-}
-
-/** 读取 tools/voice-companion/config.json(服务端只关心 model / persona / brain.*);缺失回默认。 */
-export function loadServerConfig(): VoiceCompanionServerConfig {
-  try {
-    if (!fs.existsSync(CONFIG_FILE)) {
-      return {
-        ...DEFAULT_SERVER_CONFIG,
-        persona: { ...DEFAULT_SERVER_CONFIG.persona },
-        slowFiller: slowFillerConfigFrom(undefined),
-      };
-    }
-    const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-    const brain = raw?.brain ?? {};
-    return {
-      model: raw?.model === 'sonnet' ? 'sonnet' : 'haiku',
-      persona: {
-        preset: sanitizePersonaId(raw?.persona?.preset),
-        custom: sanitizePersonaCustom(raw?.persona?.custom),
-      },
-      hop1TimeoutMs: clampNumber(brain.hop1TimeoutMs, 5_000, 180_000, DEFAULT_SERVER_CONFIG.hop1TimeoutMs),
-      hop2TimeoutMs: clampNumber(brain.hop2TimeoutMs, 5_000, 180_000, DEFAULT_SERVER_CONFIG.hop2TimeoutMs),
-      maxTurns: clampNumber(brain.maxTurns, 10, 2_000, DEFAULT_SERVER_CONFIG.maxTurns),
-      sessionMaxAgeDays: clampNumber(brain.sessionMaxAgeDays, 1, 365, DEFAULT_SERVER_CONFIG.sessionMaxAgeDays),
-      maxNotes: clampNumber(brain.maxNotes, 5, 200, DEFAULT_SERVER_CONFIG.maxNotes),
-      // 任务18:可配置压缩阈值/窗口;任务39:百分比缺省 0.3、下限放宽到 0.1(上限原样),
-      // 并新增绝对 token 闸口(0 = 关;上限 1M 与窗口上限对齐)。
-      contextCompactPercent: clampFloat(brain.contextCompactPercent, 0.1, 0.95, DEFAULT_SERVER_CONFIG.contextCompactPercent),
-      contextWindowTokens: clampNumber(brain.contextWindowTokens, 50_000, 1_000_000, DEFAULT_SERVER_CONFIG.contextWindowTokens),
-      contextCompactTokens: clampNumber(brain.contextCompactTokens, 0, 1_000_000, DEFAULT_SERVER_CONFIG.contextCompactTokens),
-      firstSentenceMaxChars: clampNumber(brain.firstSentenceMaxChars, 0, 60, DEFAULT_SERVER_CONFIG.firstSentenceMaxChars),
-      slowFiller: slowFillerConfigFrom(brain),
-    };
-  } catch (err) {
-    log.warn(`[VoiceCompanion] config.json 读取失败,用默认配置: ${(err as Error).message}`);
-    return {
-      ...DEFAULT_SERVER_CONFIG,
-      persona: { ...DEFAULT_SERVER_CONFIG.persona },
-      slowFiller: slowFillerConfigFrom(undefined),
-    };
-  }
-}
-
-// ----------------------------------------------------------------------------
-// 流式转写(火山引擎)凭据 —— 与上同文件(config.json 的 stt.volcengine 节)
-// ----------------------------------------------------------------------------
-
-export type VolcengineEndpoint = 'bigmodel_async' | 'bigmodel' | 'bigmodel_nostream';
-
-export interface VolcengineSttConfig {
-  /** 新版控制台 ApiKey(优先);为空则用旧版 appId + accessToken。 */
-  apiKey: string;
-  appId: string;
-  accessToken: string;
-  resourceId: string;
-  endpoint: VolcengineEndpoint;
-}
-
-export const DEFAULT_VOLCENGINE_STT_CONFIG: VolcengineSttConfig = {
-  apiKey: '',
-  appId: '',
-  accessToken: '',
-  resourceId: 'volc.bigasr.sauc.duration',
-  endpoint: 'bigmodel_async',
-};
-
-const VOLC_ENDPOINTS: VolcengineEndpoint[] = ['bigmodel_async', 'bigmodel', 'bigmodel_nostream'];
-const CREDENTIAL_MAX_CHARS = 512;
-
-/** 凭据字符串清洗:去空白、限长;绝不写日志。 */
-function sanitizeCredential(value: unknown): string {
-  return typeof value === 'string' ? value.trim().slice(0, CREDENTIAL_MAX_CHARS) : '';
-}
-
-/** 读取 config.json 的 stt.volcengine 节;缺失回默认(空凭据 = 客户端走批量回退)。 */
-export function loadVolcengineSttConfig(): VolcengineSttConfig {
-  try {
-    if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULT_VOLCENGINE_STT_CONFIG };
-    const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-    const volc = raw?.stt?.volcengine ?? {};
-    const endpoint = VOLC_ENDPOINTS.includes(volc?.endpoint)
-      ? (volc.endpoint as VolcengineEndpoint)
-      : DEFAULT_VOLCENGINE_STT_CONFIG.endpoint;
-    return {
-      apiKey: sanitizeCredential(volc?.apiKey),
-      appId: sanitizeCredential(volc?.appId),
-      accessToken: sanitizeCredential(volc?.accessToken),
-      // 显式留空 = 握手时不发送 X-Api-Resource-Id(平台预置模型);未配置才回默认
-      resourceId: typeof volc?.resourceId === 'string'
-        ? sanitizeCredential(volc.resourceId)
-        : DEFAULT_VOLCENGINE_STT_CONFIG.resourceId,
-      endpoint,
-    };
-  } catch (err) {
-    log.warn(`[VoiceCompanion] 读取火山凭据失败,视为未配置: ${(err as Error).message}`);
-    return { ...DEFAULT_VOLCENGINE_STT_CONFIG };
-  }
-}
-
-function sanitizeMemory(raw: unknown): CompanionMemory {
-  const memory: CompanionMemory = { ...DEFAULT_MEMORY, notes: [] };
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>;
-    if (typeof obj.summary === 'string') memory.summary = obj.summary.slice(0, SUMMARY_MAX_TEXT);
-    if (Array.isArray(obj.notes)) {
-      for (const n of obj.notes) {
-        if (!n || typeof n !== 'object') continue;
-        const note = n as Record<string, unknown>;
-        if (typeof note.id !== 'string' || typeof note.text !== 'string' || !note.text.trim()) continue;
-        memory.notes.push({
-          id: note.id,
-          text: note.text.slice(0, NOTES_MAX_TEXT),
-          createdAt: typeof note.createdAt === 'number' ? note.createdAt : 0,
-          source: note.source === 'auto' ? 'auto' : 'user',
-        });
-      }
-    }
-    if (typeof obj.updatedAt === 'number') memory.updatedAt = obj.updatedAt;
-    if (typeof obj.droppedCount === 'number') memory.droppedCount = obj.droppedCount;
-    // 任务39·F4:交接便签容错(坏类型/空文本 → null;文本再防御性截断到 300 字)。
-    if (obj.handoff && typeof obj.handoff === 'object') {
-      const h = obj.handoff as Record<string, unknown>;
-      const text = typeof h.text === 'string' ? h.text.trim().slice(0, HANDOFF_TEXT_MAX_CHARS) : '';
-      if (text && typeof h.forSessionId === 'string' && typeof h.at === 'number' && Number.isFinite(h.at)) {
-        memory.handoff = { text, forSessionId: h.forSessionId, at: h.at };
-      }
-    }
-  }
-  return memory;
-}
-
-/** 任务18:旧状态文件无 context 字段 → null;非法值一律丢弃。 */
-function sanitizeContextState(raw: unknown): VoiceCompanionContextState | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const r = raw as Partial<VoiceCompanionContextState>;
-  if (typeof r.tokensUsed !== 'number' || !Number.isFinite(r.tokensUsed)) return null;
-  if (typeof r.windowTokens !== 'number' || !(r.windowTokens > 0)) return null;
-  if (typeof r.percent !== 'number' || !Number.isFinite(r.percent)) return null;
-  return {
-    tokensUsed: r.tokensUsed,
-    windowTokens: r.windowTokens,
-    percent: r.percent,
-    updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : 0,
-  };
-}
-
-export function loadCompanionState(): VoiceCompanionState {
-  try {
-    if (!fs.existsSync(STATE_FILE)) return { ...structuredClone(DEFAULT_STATE) };
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
-    const state: VoiceCompanionState = {
-      sessionId: typeof raw?.sessionId === 'string' ? raw.sessionId : null,
-      sessionStartedAt: typeof raw?.sessionStartedAt === 'number' ? raw.sessionStartedAt : null,
-      turns: typeof raw?.turns === 'number' ? raw.turns : 0,
-      lastUsedAt: typeof raw?.lastUsedAt === 'number' ? raw.lastUsedAt : null,
-      personaKey: typeof raw?.personaKey === 'string' ? raw.personaKey : null,
-      memory: sanitizeMemory(raw?.memory),
-      context: sanitizeContextState(raw?.context),
-      // 任务39·F2:环缓冲逐条容错;旧状态文件缺字段 → []。
-      recentTurns: sanitizeRecentTurns(raw?.recentTurns),
-    };
-    return state;
-  } catch (err) {
-    log.error(`[VoiceCompanion] 状态文件读取失败:`, err);
-    return { ...structuredClone(DEFAULT_STATE) };
-  }
-}
-
-export function saveCompanionState(state: VoiceCompanionState): void {
-  try {
-    const dir = path.dirname(STATE_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const tmp = `${STATE_FILE}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
-    fs.renameSync(tmp, STATE_FILE);
-  } catch (err) {
-    log.error(`[VoiceCompanion] 状态文件写入失败:`, err);
-  }
-}
 
 // ============================================================================
 // Pure helpers (unit-tested)
@@ -1071,11 +637,6 @@ export interface DispatchTargetAgent {
   name: string;
   class?: string;
   isBoss?: boolean;
-}
-
-/** 主管判定:与 boss-service / deliverToAgent 一致(isBoss 或 class==='boss')。 */
-export function isBossLikeAgent(agent: { isBoss?: boolean; class?: string }): boolean {
-  return agent.isBoss === true || agent.class === 'boss';
 }
 
 /** 违规直派记录:模型仍想把任务直接派给普通 agent 时,告警要落这份信息。 */
@@ -3955,3 +3516,12 @@ export function updateCompanionMemory(input: { ops?: VoiceMemoryOp[]; clear?: bo
   saveCompanionState(state);
   return state.memory;
 }
+
+// ============================================================================
+// 模块拆分(A1):re-export 保持本文件为对外唯一门面(历史 import 路径与名字不变)
+// ============================================================================
+export * from './voice-companion/types.js';
+export * from './voice-companion/constants.js';
+export * from './voice-companion/agents.js';
+export * from './voice-companion/config.js';
+export * from './voice-companion/state.js';
