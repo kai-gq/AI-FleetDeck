@@ -11,42 +11,28 @@
  * - File attachments and image paste
  * - Resizable terminal height
  * - Agent switcher bar
+ * 类型 / 常量 / 助手与底部终端 iframe 已拆入 ./guake-panel/(2026-10-11 W2 拆分);
+ * 本文件保留主组件与对外导出。
  */
 
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 常量 / 助手 / 底部终端 iframe 已拆入
+// ./guake-panel/;本文件保留 GuakeOutputPanel 主组件(尾部的既有再导出行原样透传)。
+// ============================================================================
+
+import { type BottomPanelType, type BottomPanel, type SplitDirection } from './guake-panel/types';
+import { MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX, MOBILE_CLOSE_SWIPE_RELEASE_MS } from './guake-panel/constants';
+import { isPositionInArea, makePanelId } from './guake-panel/helpers';
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  useAgent,
-  useAgentCount,
-  useSelectedAgentIds,
-  useTerminalOpen,
-  useMobileView,
-  store,
-  useFileViewerPath,
-  useContextModalAgentId,
-  useOverviewPanelOpen,
-  useTrackingBoardVisible,
-  useAreas,
-  useBuildings,
-} from '../../store';
-import {
-  STORAGE_KEYS,
-  apiUrl,
-  authFetch,
-  getStorageBoolean,
-  getStorageString,
-  setStorageBoolean,
-} from '../../utils/storage';
+import { useAgent, useAgentCount, useSelectedAgentIds, useTerminalOpen, useMobileView, store, useFileViewerPath, useContextModalAgentId, useOverviewPanelOpen, useTrackingBoardVisible, useAreas, useBuildings } from '../../store';
+import { STORAGE_KEYS, apiUrl, authFetch, getStorageBoolean, getStorageString, setStorageBoolean } from '../../utils/storage';
 import { parseFilePathReference } from '../../utils/filePaths';
 import { buildImageGallery, type ImageGalleryModalState } from './imageGallery';
 import { getDisplayContextInfo } from '../../utils/context';
-import {
-  BOTTOM_PM2_LOG_RETENTION_OPTIONS,
-  readBottomPm2LogRetention,
-  writeBottomPm2LogRetention,
-} from '../../utils/logRetention';
+import { BOTTOM_PM2_LOG_RETENTION_OPTIONS, readBottomPm2LogRetention, writeBottomPm2LogRetention } from '../../utils/logRetention';
 import { ContextMenu } from '../ContextMenu';
-import type { ContextMenuAction } from '../ContextMenu';
+import { type ContextMenuAction } from '../ContextMenu';
 import { Icon } from '../Icon';
 import { ModalPortal } from '../shared/ModalPortal';
 import { DatabasePanelInline } from '../database/DatabasePanelInline';
@@ -54,18 +40,9 @@ import { HttpRequestsBrowser } from '../HttpRequestsBuildingModal';
 import { TestsBrowser } from '../TestsBuildingModal';
 import { BottomPm2LogContent } from './BottomPm2LogContent';
 import { getBuildingViewMode, expandBuilding } from '../../utils/buildingViewMode';
-import {
-  areaTerminalId,
-  isAreaTerminalId,
-  areaIdFromTerminalId,
-  startAreaTerminal,
-} from '../../api/area-terminal';
-import type { Agent } from '../../../shared/types';
-
-// Import types
-import type { ViewMode } from './types';
-
-// Import extracted hooks
+import { areaTerminalId, isAreaTerminalId, areaIdFromTerminalId, startAreaTerminal } from '../../api/area-terminal';
+import { type Agent } from '../../../shared/types';
+import { type ViewMode } from './types';
 import { useKeyboardHeight } from './useKeyboardHeight';
 import { useBottomTerminalResize } from './useBottomTerminalResize';
 import { useTerminalResize } from './useTerminalResize';
@@ -74,18 +51,9 @@ import { useMobileOverviewResize } from './useMobileOverviewResize';
 import { useSwipeNavigation } from './useSwipeNavigation';
 import { useGitBranches } from './useGitBranch';
 import { useModalStackRegistration, hasModalsAbove } from '../../hooks/useModalStack';
-
-// Import extracted components
 import { TerminalHeader } from './TerminalHeader';
 import { GuakeTaskBanner } from './GuakeTaskBanner';
-import {
-  ImageModal,
-  BashModal,
-  ContextConfirmModal,
-  AgentInfoModal,
-  AgentResponseModalWrapper,
-  type BashModalState,
-} from './TerminalModals';
+import { ImageModal, BashModal, ContextConfirmModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from './TerminalModals';
 import { AgentDebugPanel } from './AgentDebugPanel';
 import { GuakeGitPanel } from './GuakeGitPanel';
 import { AgentOverviewPanel } from './AgentOverviewPanel';
@@ -99,126 +67,6 @@ import { ThemeSelector } from './ThemeSelector';
 import { Tooltip } from '../shared/Tooltip';
 import TerminalEmbed from '../TerminalEmbed';
 import { TrackingBoard } from './TrackingBoard';
-
-const MOBILE_CLOSE_SWIPE_MAX_OFFSET_PX = 128;
-const MOBILE_CLOSE_SWIPE_RELEASE_MS = 95;
-
-function isPositionInArea(
-  pos: { x: number; z: number },
-  area: { type: string; center: { x: number; z: number }; width?: number; height?: number; radius?: number }
-): boolean {
-  if (area.type === 'rectangle' && area.width && area.height) {
-    const halfW = area.width / 2;
-    const halfH = area.height / 2;
-    return (
-      pos.x >= area.center.x - halfW &&
-      pos.x <= area.center.x + halfW &&
-      pos.z >= area.center.z - halfH &&
-      pos.z <= area.center.z + halfH
-    );
-  }
-
-  if (area.type === 'circle' && area.radius) {
-    const dx = pos.x - area.center.x;
-    const dz = pos.z - area.center.z;
-    return dx * dx + dz * dz <= area.radius * area.radius;
-  }
-
-  return false;
-}
-
-/** A single bottom panel descriptor */
-type BottomPanelType = 'terminal' | 'pm2-logs' | 'database' | 'http' | 'tests';
-
-interface BottomPanel {
-  id: string;
-  type: BottomPanelType;
-  buildingId: string;
-  areaId?: string;
-}
-
-type SplitDirection = 'horizontal' | 'vertical';
-
-let nextPanelId = 1;
-function makePanelId(): string {
-  return `bp-${nextPanelId++}`;
-}
-
-const _BottomTerminalIframe = memo(function BottomTerminalIframe({
-  src,
-  title,
-}: {
-  src: string;
-  title: string;
-}) {
-  const { t } = useTranslation(['terminal', 'common']);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [loaded, setLoaded] = useState(false);
-  // Defer src assignment so the UI paints first, then the iframe loads in the background
-  const [deferredSrc, setDeferredSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoaded(false);
-    setDeferredSrc(null);
-    // Delay iframe src assignment so the UI transition/animation completes first.
-    // requestIdleCallback fires too soon; use a fixed 400ms delay to let the
-    // area-switch paint settle before xterm.js starts blocking the main thread.
-    const timer = setTimeout(() => setDeferredSrc(src), 400);
-    return () => clearTimeout(timer);
-  }, [src]);
-
-  const suppressIframeFocus = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-    if (document.activeElement === iframe) iframe.blur();
-    try { iframe.contentWindow?.blur(); } catch { /* cross-origin */ }
-  }, []);
-
-  const restoreGuakeInputFocus = useCallback(() => {
-    const container = document.querySelector('.guake-input-container') as HTMLDivElement | null;
-    const input = container?.querySelector('textarea, input') as HTMLTextAreaElement | HTMLInputElement | null;
-    container?.focus({ preventScroll: true });
-    input?.focus({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    if (!deferredSrc) return;
-    const startedAt = Date.now();
-    const handleFocusSteal = () => {
-      if (Date.now() - startedAt > 1500) return;
-      suppressIframeFocus();
-      restoreGuakeInputFocus();
-    };
-    window.addEventListener('focus', handleFocusSteal, true);
-    document.addEventListener('focusin', handleFocusSteal, true);
-    return () => {
-      window.removeEventListener('focus', handleFocusSteal, true);
-      document.removeEventListener('focusin', handleFocusSteal, true);
-    };
-  }, [restoreGuakeInputFocus, suppressIframeFocus, deferredSrc]);
-
-  return (
-    <>
-      {!loaded && (
-        <div className="guake-bottom-terminal-starting"><span>{t('terminal:terminalPane.loading', { defaultValue: 'Loading terminal...' })}</span></div>
-      )}
-      <iframe
-        ref={iframeRef}
-        src={deferredSrc ?? undefined}
-        className={`guake-bottom-terminal-iframe${loaded ? '' : ' iframe-loading'}`}
-        title={title}
-        allow="clipboard-read; clipboard-write"
-        loading="lazy"
-        tabIndex={-1}
-        onLoad={() => {
-          setLoaded(true);
-          suppressIframeFocus();
-          restoreGuakeInputFocus();
-        }}
-      />
-    </>
-  );
-});
 
 export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const { t } = useTranslation(['terminal', 'common']);
@@ -2363,4 +2211,5 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 });
 
 // Re-export types for convenience
+
 export type { HistoryMessage, AttachedFile, ViewMode, EditData } from './types';
