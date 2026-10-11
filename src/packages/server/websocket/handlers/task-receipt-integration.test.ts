@@ -62,7 +62,7 @@ vi.mock('../../services/custom-class-service.js', () => ({
 vi.mock('../../../shared/broadcast-gates.js', { spy: true });
 
 import { parseBossDelegation, resetBossDelegationStateForTests, clearDelegation } from './boss-response-handler.js';
-import { notifyTaskCompletion, notifyBossUplinkCompletion, resetTaskReceiptNotifierForTests } from './task-receipt-notifier.js';
+import { notifyTaskCompletion, notifyBossUplinkCompletion, resetTaskReceiptNotifierForTests, MAX_TURN_FULL_LENGTH } from './task-receipt-notifier.js';
 import { registerPendingReceipt, pendingReceiptCount, resetPendingReceiptsForTests } from './pending-receipt-registry.js';
 import {
   canFireBossUplink,
@@ -72,7 +72,7 @@ import {
   registerBossUplinkReceipt,
   resetBossUplinksForTests,
 } from './boss-uplink-receipt-registry.js';
-import { decideBroadcast } from '../../../shared/broadcast-gates.js';
+import { REQUESTED_RECEIPT_SCORE, decideBroadcast } from '../../../shared/broadcast-gates.js';
 import { closeEventDb, initEventDb } from '../../data/event-db.js';
 import { querySystemLog } from '../../data/system-log.js';
 import { bossService } from '../../services/index.js';
@@ -573,5 +573,82 @@ describe('任务40 上行回执链：就绪判定 → 消费 → task_receipt + 
       broadcast: broadcast2,
     });
     expect(lastReceiptBroadcast(broadcast2).payload.text).toBe('Vision 已回复:第二件');
+  });
+
+  // ---- 任务41 老板问的（登记带语音会话）：完整回复 + 提分过破例线 ----
+
+  it('任务41 老板问的（T1，登记带会话）→ 文本带完整回复（非末句）+ requested 标记 + 提分 95（SPEAK）', () => {
+    registerBossUplinkReceipt({
+      bossId: 'boss-1',
+      taskSummary: '看下手机验证码',
+      taskId: 't-47',
+      sessionId: 'sess-1',
+      registeredAt: AT,
+    });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    // 答案在开头、结尾是客套（2026-10-06 实况形态）；完整回复 > 40 字，末句摘录会丢答案
+    const reply = `手机通知共 3 条:①健康提醒 ②掌上生活 ③未接电话，没有验证码。${'这只是一句收尾客套。'.repeat(4)}`;
+    expect(reply.length).toBeGreaterThan(40);
+
+    const broadcast = vi.fn();
+    const outcome = notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'turn-close',
+      turnTextTail: reply,
+      at: AT,
+      broadcast,
+    });
+
+    expect(outcome).toMatchObject({ matched: true, tier: 'SPEAK', score: REQUESTED_RECEIPT_SCORE, forwarded: true });
+    const message = lastReceiptBroadcast(broadcast);
+    expect(message.payload.requested).toBe(true);
+    expect(message.payload.text).toBe(`Jarvis 已回复:看下手机验证码——${reply}`); // 完整回复，不是末句 40 字
+    expect(message.payload.observed).toMatchObject({ tier: 'SPEAK', score: REQUESTED_RECEIPT_SCORE });
+    const rows = newReceiptRows();
+    expect(rows[0]).toMatchObject({ requested: true, tier: 'SPEAK', score: REQUESTED_RECEIPT_SCORE });
+  });
+
+  it('任务41 老板问的：超长回复取开头 ≤800 字（安全帽，答案段保留、截断后缀 …）', () => {
+    registerBossUplinkReceipt({
+      bossId: 'boss-1',
+      taskSummary: '写段长报告',
+      taskId: 't-48',
+      sessionId: 'sess-2',
+      registeredAt: AT,
+    });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    const reply = `答案开头:一切正常。${'补'.repeat(900)}`;
+    const broadcast = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'turn-close',
+      turnTextTail: reply,
+      at: AT,
+      broadcast,
+    });
+    const text = lastReceiptBroadcast(broadcast).payload.text;
+    expect(text).toBe(`Jarvis 已回复:写段长报告——${reply.slice(0, MAX_TURN_FULL_LENGTH)}…`);
+  });
+
+  it('任务41 非老板问的（登记无会话）→ requested 缺省，普通回执零变化', () => {
+    registerBossUplinkReceipt({ bossId: 'boss-1', taskSummary: '改文案', taskId: 't-49', registeredAt: AT });
+    const entry = consumeBossUplinkReceipt('boss-1', AT)!;
+    const broadcast = vi.fn();
+    notifyBossUplinkCompletion({
+      bossId: 'boss-1',
+      agentName: 'Jarvis',
+      entry,
+      trigger: 'turn-close',
+      turnTextTail: '已改好',
+      at: AT,
+      broadcast,
+    });
+    const message = lastReceiptBroadcast(broadcast);
+    expect(message.payload.requested).toBeUndefined();
+    expect(message.payload.text).toBe('Jarvis 已回复:改文案——已改好');
   });
 });

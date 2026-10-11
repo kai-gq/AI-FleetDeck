@@ -1042,6 +1042,11 @@ export interface TaskReceiptMessage extends WSMessage {
     source: 'runtime' | 'report-task';
     /** 稳定幂等键：agent-completed:{agentId}:{taskId}（无 taskId 回退 @ts 唯一键）。 */
     dedupeKey: string;
+    /**
+     * 任务41：老板语音直接问的派活回执（登记快照带语音会话 id）。text 为完整回复
+     * （非回合末句），客户端在「人还在场」时提分过破例线即刻播；缺省 = 普通回执。
+     */
+    requested?: boolean;
     /** 服务端观测判定（DEFAULT_GATES_CONFIG 口径；客户端权威判定以其本地判断层为准）。 */
     observed: {
       tier: 'SPEAK' | 'PREPARE' | 'STORE' | 'SILENT';

@@ -26,6 +26,8 @@
  * (回执文本更全:带任务摘要,故回执优先;两通道到达次序不定,先到先占、后到合并/被抑制)。
  * 回执用稳定键 `agent-{completed|failed}:{agentId}:{taskId}`(06-11 §11.1);
  * diff 通道维持逐次唯一占位键防误去重(合并回执时原位升级为稳定键)。
+ * 任务41:「老板问的」回执(receipt.requested,text=主管完整回复)——人还在场
+ * (窗内有过用户提交)时显式提分过深夜破例线,回来即播;人不在场照常挂到白天。
  *
  * diffSnapshots / formatEvents / signalForEvent 为纯函数,单测覆盖;上报器本体只做计时与订阅。
  */
@@ -35,6 +37,7 @@ import { wasStandbyJustRequested } from '../store/standbyRequests';
 import type { AgentStatus } from '../../shared/types';
 import {
   DEFAULT_GATES_CONFIG,
+  REQUESTED_RECEIPT_SCORE,
   applyGatesDelta,
   createGatesState,
   decideBroadcast,
@@ -73,6 +76,8 @@ export interface ProactiveEvent {
   text: string;
   /** 任务08②：回执通道的稳定幂等键(`agent-{kind}:{agentId}:{taskId}`)；diff 通道缺省 → 逐次唯一占位。 */
   dedupeKey?: string;
+  /** 任务41：显式评分覆盖（「老板问的」回执提分）；给了直接采用（score 优先语义见 broadcast-gates）。 */
+  score?: number;
 }
 
 /** 队列条目:准入时已过闸门并预扣预算,出队只做时机放行。 */
@@ -133,6 +138,11 @@ const MAX_SEEN_KEYS = 200;
 const MAX_DECISION_RECORDS = 100;
 /** 任务08②:同目标覆盖抑制窗口(初始值非实测:回执与状态 diff 同时到达,10 分钟远超正常到达间隔)。 */
 const RECEIPT_COVERAGE_MS = 10 * 60_000;
+/**
+ * 任务41:「老板问的」回执的「人还在场」护栏窗(初始值非实测,按用户拍板 30 分钟取):
+ * 窗内最后一次用户提交才算人还在,提分即刻播;人不在场照常挂起(白天/早上再报)。
+ */
+export const REQUESTED_ACTIVE_WINDOW_MS = 30 * 60_000;
 
 /** 纯函数:两次快照对比,产出事件(不依赖 store / 计时器,便于单测)。 */
 export function diffSnapshots(
@@ -221,15 +231,17 @@ export function signalForEvent(event: ProactiveEvent): Signal {
     dedupeKey: event.dedupeKey ?? `agent-${event.kind}:${event.agentId}@${event.at}`,
     text: event.text,
   };
+  // 任务41：显式评分覆盖（「老板问的」回执提分）——score 优先语义见 broadcast-gates。
+  const override = typeof event.score === 'number' ? { score: event.score } : {};
   switch (event.kind) {
     case 'failed':
-      return { ...base, urgency: 90, relevance: 80, certainty: 90 };
+      return { ...base, ...override, urgency: 90, relevance: 80, certainty: 90 };
     case 'waiting':
-      return { ...base, urgency: 85, relevance: 80, certainty: 90, timeSensitive: true };
+      return { ...base, ...override, urgency: 85, relevance: 80, certainty: 90, timeSensitive: true };
     case 'completed':
-      return { ...base, urgency: 60, relevance: 70, certainty: 95 };
+      return { ...base, ...override, urgency: 60, relevance: 70, certainty: 95 };
     case 'task-changed':
-      return { ...base, urgency: 40, relevance: 80, certainty: 85 };
+      return { ...base, ...override, urgency: 40, relevance: 80, certainty: 85 };
   }
 }
 
@@ -272,6 +284,11 @@ export interface ProactiveReporterOptions {
   gatesEnv?: () => EnvironmentContext;
   /** 判定时刻注入(单测用);默认 Date.now。 */
   now?: () => number;
+  /**
+   * 任务41:最近一次用户提交(语音终稿/文本)时刻(ms;0=从未)——「老板问的」回执的
+   * 人还在场护栏输入;缺省视为从未提交(不提分,按普通回执档)。
+   */
+  userActivityAt?: () => number;
   /** 数据源(默认 store;测试注入)。 */
   source?: ProactiveSource;
 }
@@ -304,6 +321,8 @@ export interface ProactiveReceipt {
   at: number;
   dedupeKey: string;
   taskId?: string;
+  /** 任务41:老板语音直接问的派活回执(text 为完整回复)——人还在场时提分即刻播。 */
+  requested?: boolean;
 }
 
 /** ingestReceipt 判定结果:queued=进队列；merged=并入既有 diff 条目；stored=仅上屏；silent=丢弃。 */
@@ -487,23 +506,41 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
    *   稳定幂等键(闸门已过,零增量登记键,不重复扣预算、不改准入档位);
    * - 否则过闸分流(与 diff 通道同口径);进队/上屏时登记**同目标覆盖**,
    *   使稍后到达的 diff 同 kind 事件被抑制——同一次完成不再双播。
+   * 任务41:「老板问的」回执(requested)且人还在场(窗内提交过)→ 显式提分过破例线,
+   * 深夜/焦点也即刻播;合并路径同款升级队列条目评分(diff 先到是深夜的常见序)。
    */
   function ingestReceipt(receipt: ProactiveReceipt): ReceiptIngestResult {
     const now = nowMs();
     const kind: 'completed' | 'failed' = receipt.success ? 'completed' : 'failed';
+    // 任务41:人还在场 = 护栏窗内有过用户提交;不在场照常走普通档(挂起到白天)
+    const activeAt = options.userActivityAt ? options.userActivityAt() : 0;
+    const boost =
+      receipt.requested === true && now - activeAt <= REQUESTED_ACTIVE_WINDOW_MS
+        ? REQUESTED_RECEIPT_SCORE
+        : undefined;
 
     const queuedIdx = events.findIndex(
       (q) => q.source === 'diff' && q.event.agentId === receipt.agentId && q.event.kind === kind,
     );
     if (queuedIdx >= 0) {
       // 先到的是 diff(文本较简),原位合并升级;同 kind 评分常量一致,档位/破例线沿用
+      // (任务41:带回执提分时同步升级条目评分,否则深夜会被按 diff 的 70 分挂起)
+      const upgradedScore =
+        boost !== undefined && boost > events[queuedIdx].score ? boost : undefined;
       const merged: ProactiveEvent = {
         ...events[queuedIdx].event,
         text: receipt.text,
         dedupeKey: receipt.dedupeKey,
+        ...(upgradedScore !== undefined ? { score: upgradedScore } : {}),
       };
-      events[queuedIdx] = { ...events[queuedIdx], event: merged, source: 'receipt' };
+      events[queuedIdx] = {
+        ...events[queuedIdx],
+        event: merged,
+        source: 'receipt',
+        ...(upgradedScore !== undefined ? { score: upgradedScore } : {}),
+      };
       applyDelta({ seenKeysToAdd: [receipt.dedupeKey], dailySpokenDelta: 0, instantSpeechDelta: 0 });
+      if (upgradedScore !== undefined) scheduleQuietFlush(); // 提分过破例线:重排静默窗,尽快交播
       return { action: 'merged', tier: events[queuedIdx].tier };
     }
 
@@ -513,6 +550,7 @@ export function createProactiveReporter(options: ProactiveReporterOptions): Proa
       agentId: receipt.agentId,
       text: receipt.text,
       dedupeKey: receipt.dedupeKey,
+      ...(boost !== undefined ? { score: boost } : {}),
     };
     const { queued, decisions } = admitEvents([event], now, 'receipt');
     const decision = decisions[0]?.decision;

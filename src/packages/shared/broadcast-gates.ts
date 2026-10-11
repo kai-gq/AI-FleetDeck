@@ -31,6 +31,12 @@ export const DISRUPTION_THRESHOLD = 70;
 export const DEEP_NIGHT_DISRUPTION = 90;
 /** 深夜 / focus time 的破例线:评分 > 90 才允许主动播报。 */
 export const QUIET_BYPASS_SCORE = 90;
+/**
+ * 任务41:「老板语音问的」派活回执的显式提分 —— 直接替换回执默认评分(70),
+ * 过深夜/焦点破例线(>90),让老板亲口问的答案回来时即刻播报;客户端另有
+ * 「人还在场」护栏(最近 30 分钟有提交)才采用该分,见 proactiveReporter。
+ */
+export const REQUESTED_RECEIPT_SCORE = 95;
 /** 闸门④ 立即播报线:评分 > 85 视为紧急,立即说;否则攒批。 */
 export const IMMEDIATE_SCORE = 85;
 /** 每日主动播报预算起点(条),可配 0–50;自适应在它基础上增减。 */

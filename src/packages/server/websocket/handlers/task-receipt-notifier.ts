@@ -19,6 +19,7 @@
 import type { ServerMessage } from '../../../shared/types.js';
 import {
   DEFAULT_GATES_CONFIG,
+  REQUESTED_RECEIPT_SCORE,
   applyGatesDelta,
   createGatesState,
   decideBroadcast,
@@ -223,11 +224,21 @@ export function notifyTaskCompletion(input: TaskReceiptInput): TaskReceiptOutcom
 /** T1 回合末句摘录显示长度（初值非实测最优，待 L3 标定）。 */
 export const MAX_TURN_TAIL_LENGTH = 40;
 
+/** 任务41：老板问的回执用「完整回复」的显示上限（安全帽防极端长文；初值非实测）。 */
+export const MAX_TURN_FULL_LENGTH = 800;
+
 /** 尾摘清洗：空白压缩 + 取结尾 ≤40 字（截断时前缀 … 表明由来），空文本舍弃。 */
 function truncateTurnTail(text: string | undefined): string | undefined {
   const clean = (text ?? '').replace(/\s+/g, ' ').trim();
   if (!clean) return undefined;
   return clean.length > MAX_TURN_TAIL_LENGTH ? `…${clean.slice(-MAX_TURN_TAIL_LENGTH)}` : clean;
+}
+
+/** 任务41 全文清洗：空白压缩 + 取开头 ≤800 字（截断时后缀 …；答案通常在开头）。 */
+function truncateTurnFull(text: string | undefined): string | undefined {
+  const clean = (text ?? '').replace(/\s+/g, ' ').trim();
+  if (!clean) return undefined;
+  return clean.length > MAX_TURN_FULL_LENGTH ? `${clean.slice(0, MAX_TURN_FULL_LENGTH)}…` : clean;
 }
 
 export interface BossUplinkReceiptInput {
@@ -256,22 +267,30 @@ export function notifyBossUplinkCompletion(input: BossUplinkReceiptInput): TaskR
     // 任务14·B：前缀【项目别名】（登记快照 entry.projectId；别名不可得 → 不加前缀、不占位）
     const projectAlias = resolveProjectAlias(input.entry.projectId);
     const projectPrefix = projectAlias ? `【${projectAlias}】` : '';
-    const tail = input.trigger === 'turn-close' ? truncateTurnTail(input.turnTextTail) : undefined;
+    // 任务41：老板语音直接问的（登记带会话 id）用「完整回复」而非回合末句——2026-10-06
+    // 实锤：答案在主管回复开头，末句 40 字只剩收尾客套；完整文本塞进事件回合，大脑
+    // 说得出结果、也记得住内容（后续追问可答）。「人还在场」护栏在客户端判定。
+    const requested = !!input.entry.sessionId;
+    const tail =
+      input.trigger === 'turn-close'
+        ? requested
+          ? truncateTurnFull(input.turnTextTail)
+          : truncateTurnTail(input.turnTextTail)
+        : undefined;
     const verb = input.trigger === 'turn-close' ? '已回复' : '已办结';
     const text = `${projectPrefix}${name} ${verb}:${input.entry.taskSummary}${tail ? `——${tail}` : ''}`;
     // 稳定幂等键：一次派活一条（秘书侧 taskId；无 taskId 回退 @ts 唯一键）
     const dedupeKey = `boss-uplink:${input.bossId}:${input.entry.taskId ?? `@${at}`}`;
 
-    // 评分子项与成功完成同常量（观测口径统一；不新增 kind —— 复用既有评分与客户端 kind 映射）
+    // 评分子项与成功完成同常量（观测口径统一；不新增 kind —— 复用既有评分与客户端 kind 映射）；
+    // 任务41：老板问的回执显式提分过破例线（观测口径同改：深夜也判 SPEAK，与实际意图一致）。
     const signal: Signal = {
       source: 'agent',
       kind: 'agent_completed',
       ts: at,
       dedupeKey,
       text,
-      urgency: 60,
-      relevance: 70,
-      certainty: 95,
+      ...(requested ? { score: REQUESTED_RECEIPT_SCORE } : { urgency: 60, relevance: 70, certainty: 95 }),
     };
 
     refreshGatesDay(at);
@@ -294,6 +313,7 @@ export function notifyBossUplinkCompletion(input: BossUplinkReceiptInput): TaskR
           at,
           source: 'runtime',
           dedupeKey,
+          ...(requested ? { requested: true } : {}),
           observed: { tier: decision.tier, reason: decision.reason, score: decision.score },
         },
       } as ServerMessage);
@@ -314,6 +334,7 @@ export function notifyBossUplinkCompletion(input: BossUplinkReceiptInput): TaskR
         entry: 'runtime',
         uplink: 'boss',
         trigger: input.trigger,
+        ...(requested ? { requested: true } : {}),
         tier: decision.tier,
         reason: decision.reason,
         score: decision.score,

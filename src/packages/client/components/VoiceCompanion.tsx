@@ -76,6 +76,8 @@ export function VoiceCompanion({ className }: { className?: string }) {
   const speakGenRef = useRef(0);
   const streamAbortRef = useRef<AbortController | null>(null);
   const lastBargeInAtRef = useRef(0);
+  // 任务41:最近一次用户提交(语音终稿/文本)时刻 —— 「老板问的」回执人还在场护栏
+  const lastUserTurnAtRef = useRef(0);
   const sentencesRef = useRef<string[]>([]); // 本轮已播句子(dev 钩子 E2E 断言用)
   const tabIdRef = useRef(`vc-${Math.random().toString(36).slice(2, 10)}`);
   const queueRef = useRef<string[]>([]);
@@ -298,6 +300,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      lastUserTurnAtRef.current = Date.now(); // 任务41:人还在场证据(「老板问的」回执护栏)
       pushEntry('user', trimmed);
       if (tryOpenCommand(trimmed)) return; // 「打开X」本地直达:不进大脑
       queueRef.current.push(trimmed);
@@ -329,6 +332,7 @@ export function VoiceCompanion({ className }: { className?: string }) {
       // 手动提交回放的同一文本已上屏过,不再重复 push(P11)
       if (!meta.fromPending) pushEntry('user', text);
       if (!meta.submit) return; // 仅上屏:等用户点「提交」或说结束词
+      lastUserTurnAtRef.current = Date.now(); // 任务41:人还在场证据(「老板问的」回执护栏)
       if (tryOpenCommand(text)) return; // 「打开X」本地直达:不进大脑
       queueRef.current.push(text);
       void drainQueue();
@@ -389,6 +393,8 @@ export function VoiceCompanion({ className }: { className?: string }) {
       onStore: (text) => pushEntry('system', text),
       gatesConfig: () => toGatesConfig(loadBroadcastGatesSettings()),
       gatesEnv: () => ({ speaking: ttsSpeakingRef.current }),
+      // 任务41:「老板问的」回执人还在场护栏 —— 窗内最后一次用户提交才算人在
+      userActivityAt: () => lastUserTurnAtRef.current,
       onSubmit: (text) => {
         void (async () => {
           try {

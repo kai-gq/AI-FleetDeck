@@ -817,4 +817,69 @@ describe('createProactiveReporter', () => {
     expect(reporter.pendingCount()).toBe(0);
     reporter.stop();
   });
+
+  // ---- 任务41 「老板问的」回执(requested):人在场提分过破例线 ----
+
+  /** 任务41 样例:boss-uplink 回执(文本 = 主管完整回复)。 */
+  function bossReceiptOf(overrides: Partial<ProactiveReceipt> = {}): ProactiveReceipt {
+    return receiptOf({
+      agentId: 'boss-1',
+      text: 'Jarvis 已回复:看下手机验证码——手机通知共 3 条,没有验证码',
+      dedupeKey: 'boss-uplink:boss-1:t-41',
+      taskId: 't-41',
+      requested: true,
+      ...overrides,
+    });
+  }
+
+  it('任务41 深夜:老板问的回执 + 人还在场(窗内提交过)→ 提分过破例线,即刻交播', () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 23, 30)); // 深夜
+    const activeAt = new Date(2026, 9, 4, 23, 20).getTime(); // 10 分钟前刚提交过
+    const reporter = makeReporter({ userActivityAt: () => activeAt });
+    reporter.start();
+
+    const result = reporter.ingestReceipt(bossReceiptOf());
+    expect(result).toMatchObject({ action: 'queued', tier: 'SPEAK' }); // 提分 95 → 立即档
+    expect(reporter.flushNow()).toContain('没有验证码'); // 深夜不挂起
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
+
+  it('任务41 深夜:老板问的回执 + 人不在场(超护栏窗)→ 照常挂起,白天再放行', () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 23, 30));
+    const activeAt = new Date(2026, 9, 4, 22, 50).getTime(); // 40 分钟前,超 30 分钟窗
+    const reporter = makeReporter({ userActivityAt: () => activeAt });
+    reporter.start();
+
+    const result = reporter.ingestReceipt(bossReceiptOf());
+    expect(result).toMatchObject({ action: 'queued', tier: 'PREPARE' }); // 普通档
+    expect(reporter.flushNow()).toBeNull(); // 深夜挂起,不打扰
+    expect(submitted).toHaveLength(0);
+
+    vi.setSystemTime(new Date(2026, 9, 5, 8, 0)); // 白天
+    expect(reporter.flushNow()).toContain('没有验证码');
+    reporter.stop();
+  });
+
+  it('任务41 深夜:diff 先到(70 分挂起),老板问的回执后到合并 → 提分放行且不新增条目', () => {
+    vi.setSystemTime(new Date(2026, 9, 4, 23, 30));
+    const activeAt = new Date(2026, 9, 4, 23, 29).getTime();
+    const reporter = makeReporter({ userActivityAt: () => activeAt });
+    reporter.start();
+    ctl.agents.set('boss-1', { name: 'Jarvis', status: 'working' });
+    vi.advanceTimersByTime(600);
+    fire();
+    ctl.agents.set('boss-1', { name: 'Jarvis', status: 'idle' });
+    vi.advanceTimersByTime(600);
+    fire();
+    expect(reporter.pendingCount()).toBe(1); // diff 版(70 分)
+    expect(reporter.flushNow()).toBeNull(); // 深夜挂起
+
+    const result = reporter.ingestReceipt(bossReceiptOf());
+    expect(result.action).toBe('merged'); // 原位合并
+    expect(reporter.pendingCount()).toBe(1);
+    expect(reporter.flushNow()).toContain('没有验证码'); // 提分后放行,文本用回执完整版
+    expect(submitted).toHaveLength(1);
+    reporter.stop();
+  });
 });
