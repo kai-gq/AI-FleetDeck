@@ -1,0 +1,89 @@
+// =============================================================================
+// 上下文用量条 / 面板内容区
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 340-420 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Context usage bar in agent panel header
+.agent-panel-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 60px;
+  height: 10px;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+}
+
+.agent-panel-context-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.agent-panel-context-text {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+.agent-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  // Hosts the same VirtualizedOutputList as .guake-output: the virtualizer
+  // applies its own scroll corrections, so native scroll anchoring must be
+  // off or the two compensate for the same row-measurement movement twice.
+  overflow-anchor: none;
+  padding: 6px 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  color: var(--text-primary);
+  min-height: 0; // Allow flex shrinking
+
+  a {
+    color: var(--accent-cyan);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    text-underline-offset: 2px;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: var(--accent-pink);
+      text-decoration-color: var(--accent-pink);
+    }
+
+    &:visited {
+      color: var(--accent-purple);
+      text-decoration-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    }
+  }
+
+  // Ensure code blocks match panel font size
+  pre, code {
+    font-size: inherit;
+  }
+
+  pre {
+    padding: 6px 8px;
+    margin: 4px 0;
+
+    code {
+      font-size: inherit;
+      line-height: inherit;
+    }
+  }
+}
+

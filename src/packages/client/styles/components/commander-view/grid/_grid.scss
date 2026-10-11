@@ -1,0 +1,104 @@
+// =============================================================================
+// 指挥台网格(自适应列 / 滚动行为)
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 4-99 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.commander-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(180px, 200px);
+  align-content: start;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  &.has-expanded {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    align-content: stretch;
+    overflow: hidden;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // Intelligent layout based on agent count
+  // 1 agent: full screen
+  &[data-agent-count="1"] {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 2 agents: 2 columns, full height
+  &[data-agent-count="2"] {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 1fr;
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 3 agents: 3 columns, full height
+  &[data-agent-count="3"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr;
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 4 agents: 2x2 grid
+  &[data-agent-count="4"] {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 5-6 agents: 3x2 grid
+  &[data-agent-count="5"],
+  &[data-agent-count="6"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 7-9 agents: 3x3 grid
+  &[data-agent-count="7"],
+  &[data-agent-count="8"],
+  &[data-agent-count="9"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    align-content: stretch;
+
+    .agent-panel {
+      max-height: none;
+    }
+  }
+
+  // 10+ agents: scrollable grid with fixed row heights
+  // (default behavior - already defined above)
+}
+

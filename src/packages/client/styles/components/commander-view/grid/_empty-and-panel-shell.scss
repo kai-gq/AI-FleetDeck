@@ -1,0 +1,137 @@
+// =============================================================================
+// 空态 / 代理面板壳 / 头部 / 信息 / 操作 / 展开 / 状态 / 名称 / Boss 冠
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 100-228 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.commander-empty {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: $font-mono;
+}
+
+// Agent Panel in commander view
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 90%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%);
+  border: 1px solid var(--bg-tertiary);
+  border-radius: $radius-lg;
+  overflow: hidden;
+  transition: all $transition-normal;
+  backdrop-filter: blur(8px);
+  max-height: 200px;
+  min-height: 0;
+
+  &.working {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent-green) 12%, transparent) 0%, color-mix(in srgb, var(--accent-green) 6%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--accent-green) 60%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent-green) 20%, transparent);
+
+    .agent-panel-header {
+      background: color-mix(in srgb, color-mix(in srgb, var(--accent-green) 12%, var(--bg-secondary)) 95%, transparent);
+      border-bottom-color: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    }
+
+    .agent-panel-content {
+      background: color-mix(in srgb, color-mix(in srgb, var(--accent-green) 8%, var(--bg-primary)) 70%, transparent);
+    }
+  }
+
+  &.expanded {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+    max-height: none;
+
+    .agent-panel-expand {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+    }
+  }
+
+  &.focused:not(.expanded) {
+    border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-green) 15%, transparent);
+
+    .agent-panel-input input,
+    .agent-panel-input textarea {
+      border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
+    }
+  }
+}
+
+.agent-panel-header {
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.agent-panel-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agent-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.agent-panel-expand {
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+  }
+}
+
+.agent-panel-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.agent-panel-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-panel-boss-crown {
+  margin-right: 4px;
+  font-size: 11px;
+}
+

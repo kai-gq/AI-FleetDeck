@@ -1,0 +1,76 @@
+// =============================================================================
+// 加载/空提示 / 加载更多 / 计数 / 输入框行
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 421-488 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.agent-panel-loading,
+.agent-panel-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+  font-size: 11px;
+  font-family: $font-mono;
+}
+
+.agent-panel-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 30%, transparent);
+
+  span {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-family: $font-mono;
+  }
+
+  button {
+    background: transparent;
+    border: 1px solid var(--bg-tertiary);
+    color: var(--accent-cyan);
+    padding: 2px 8px;
+    border-radius: $radius-sm;
+    font-size: 10px;
+    font-family: $font-mono;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+      border-color: var(--accent-cyan);
+    }
+  }
+}
+
+.agent-panel-count {
+  font-family: $font-mono;
+  font-size: 10px;
+  display: none; // Hide to save space
+}
+
+.agent-panel-input {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+
+  .queue-badge {
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    color: var(--accent-orange);
+    padding: 3px 8px;
+    border-radius: $radius-sm;
+    font-size: 10px;
+    font-family: $font-mono;
+    font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    white-space: nowrap;
+  }
+}
+

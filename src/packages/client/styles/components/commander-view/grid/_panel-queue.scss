@@ -1,0 +1,28 @@
+// =============================================================================
+// 面板队列显示
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 623-642 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Queue display in agent panel
+.agent-panel-queue {
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
+  padding: 4px 8px;
+  max-height: 60px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.agent-panel-queue-item {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

@@ -1,0 +1,85 @@
+// =============================================================================
+// 文件附件(面板区重复块)+ 附件按钮
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 925-1001 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// File attachments for agent panels
+.agent-panel-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.agent-panel-attachment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 10px;
+
+  &.is-image {
+    background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-pink) 30%, transparent);
+
+    .agent-panel-attachment-icon {
+      color: var(--accent-pink);
+    }
+  }
+}
+
+.agent-panel-attachment-icon {
+  font-size: 12px;
+}
+
+.agent-panel-attachment-name {
+  color: var(--text-primary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-panel-attachment-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: var(--accent-red);
+  }
+}
+
+.agent-panel-attach-btn {
+  background: transparent;
+  border: 1px solid var(--bg-tertiary);
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  }
+}
+

@@ -1,0 +1,119 @@
+// =============================================================================
+// 状态标签 / 职业 / provider 徽标 / ID / 任务与标签
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 229-339 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.agent-panel-status-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+
+  &.working {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  }
+
+  &.idle {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  }
+
+  &.error, &.waiting, &.waiting_permission {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  }
+
+  &.offline, &.orphaned {
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+    opacity: 0.6;
+  }
+}
+
+.agent-panel-class {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+}
+
+.agent-panel-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+
+  .agent-panel-provider-icon {
+    width: 11px;
+    height: 11px;
+    object-fit: contain;
+  }
+
+  &.claude {
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 15%, transparent);
+  }
+
+  &.codex {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  }
+
+  &.opencode {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+  }
+
+  &.grok {
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.15);
+  }
+
+  &.pi {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.15);
+  }
+}
+
+.agent-panel-id {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  opacity: 0.6;
+  display: none; // Hide to save space
+}
+
+.agent-panel-task {
+  font-size: 10px;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: $font-mono;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-panel-task-label {
+  font-weight: 600;
+  font-style: italic;
+  font-family: $font-mono;
+}
+

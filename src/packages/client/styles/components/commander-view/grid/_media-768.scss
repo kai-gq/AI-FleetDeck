@@ -1,0 +1,162 @@
+// =============================================================================
+// ≤768px 手风琴布局(intersect-size 动画)
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 1010-1163 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Mobile: accordion layout with smooth expand/collapse
+// Uses interpolate-size to animate height: 0 ↔ auto
+@media (max-width: 768px) {
+  .commander-grid {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    interpolate-size: allow-keywords;
+    padding: 4px;
+    gap: 2px;
+
+    // Override ALL data-agent-count layouts on mobile
+    &,
+    &[data-agent-count="1"],
+    &[data-agent-count="2"],
+    &[data-agent-count="3"],
+    &[data-agent-count="4"],
+    &[data-agent-count="5"],
+    &[data-agent-count="6"],
+    &[data-agent-count="7"],
+    &[data-agent-count="8"],
+    &[data-agent-count="9"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    // Expanded mode (full-screen button): single agent fills viewport
+    &.has-expanded {
+      overflow: hidden;
+
+      .agent-panel {
+        height: auto;
+        max-height: none;
+        flex: 1;
+      }
+    }
+  }
+
+  // Panel expand: max-height grows from header to full, content fades in staggered
+  @keyframes panelExpand {
+    0% {
+      max-height: 44px;
+      overflow: hidden;
+    }
+    60% {
+      max-height: 75vh;
+      overflow: hidden;
+    }
+    100% {
+      max-height: 100vh;
+      overflow: hidden;
+    }
+  }
+
+  @keyframes contentFadeIn {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes inputSlideIn {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  // Focused panel: takes remaining space, content scrolls inside
+  .agent-panel.focused {
+    flex: 1 1 0%;
+    height: auto;
+    min-height: 50vh;
+    overflow: hidden;
+    animation: panelExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+    .agent-panel-content {
+      font-size: 12px;
+      padding: 8px 10px;
+      animation: contentFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+    }
+
+    .guake-input-wrapper {
+      animation: inputSlideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+    }
+  }
+
+  // Collapsed panels: header-only, instant hide
+  .agent-panel:not(.focused):not(.expanded) {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: none;
+    overflow: hidden;
+    cursor: pointer;
+
+    .agent-panel-content,
+    .guake-input-wrapper {
+      display: none;
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+    }
+  }
+
+  // Expanded card (full-screen button) overrides
+  .agent-panel.expanded {
+    height: auto;
+    min-height: 0;
+    flex: 1;
+    max-height: none;
+  }
+
+  // Larger touch targets
+  .agent-panel-expand {
+    width: 32px;
+    height: 32px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .agent-panel-header {
+    padding: 8px 10px;
+  }
+
+  .agent-panel-input {
+    padding: 8px 10px;
+  }
+
+  .agent-panel-input-container {
+    min-height: 44px;
+  }
+
+  .agent-panel-attach-btn,
+  .agent-panel-send-btn {
+    width: 44px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .agent-panel-name {
+    font-size: 13px;
+  }
+
+  // Wrap info row so taskLabel drops below name/badges
+  .agent-panel-info {
+    flex-wrap: wrap;
+  }
+
+  .agent-panel-task {
+    flex: 0 0 100%;
+    font-size: 9px;
+    margin-top: 2px;
+    padding-left: 14px; // align with name (past status dot)
+  }
+}

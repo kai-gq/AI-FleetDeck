@@ -1,0 +1,142 @@
+// =============================================================================
+// 输入容器 / textarea 两段 / 展开态 / 附件按钮 / 发送按钮
+// 由 _grid.scss 拆分(W4,2026-10-11):原文件第 489-622 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Container that groups attach + input + send together (like Guake)
+.agent-panel-input-container {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+  border-radius: $radius-md;
+  transition: all $transition-fast;
+  min-height: 32px;
+  // Disable middle-click paste
+  user-select: none;
+
+  &:focus-within {
+    border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-purple) 12%, transparent);
+  }
+}
+
+.agent-panel-input input,
+.agent-panel-input textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: $font-mono;
+  line-height: 1.4;
+  min-width: 0; // Allow shrinking
+  // Allow text selection in input/textarea (override container's user-select: none)
+  user-select: text;
+
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+  }
+}
+
+.agent-panel-input textarea {
+  resize: none;
+  min-height: 20px;
+  max-height: 120px;
+  overflow-y: auto;
+  height: auto;
+  field-sizing: content;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 2px;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    }
+  }
+}
+
+// Expanded mode (multiline)
+.agent-panel-input-expanded {
+  .agent-panel-input-container {
+    align-items: flex-end;
+  }
+
+  .agent-panel-attach-btn,
+  .agent-panel-send-btn {
+    align-self: flex-end;
+    margin-bottom: 2px;
+  }
+}
+
+// Attach button - left side of input
+.agent-panel-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 30px;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  border-radius: $radius-md 0 0 $radius-md;
+
+  &:hover {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+}
+
+// Send button - right side of input
+.agent-panel-send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 30px;
+  background: transparent;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 0 $radius-md $radius-md 0;
+
+  &:hover:not(:disabled) {
+    color: color-mix(in srgb, var(--accent-cyan) 88%, white);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    color: var(--text-muted);
+  }
+}
+
