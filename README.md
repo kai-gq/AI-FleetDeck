@@ -1,15 +1,13 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="360" />
-</p>
-
-<h1 align="center">Tide Commander</h1>
-
-<p align="center">
-  <strong>The visual AI build suite for a new generation of creators.</strong>
+  <strong style="font-size:2.2em;letter-spacing:.02em;">⚓ FleetDeck</strong>
 </p>
 
 <p align="center">
-  Turn ideas into software, automations, workflows, documents, data tools, and 3D projects—without living inside an IDE.
+  <strong>舰队甲板 · 多智能体指挥台</strong>
+</p>
+
+<p align="center">
+  <em>Your fleet, one deck.</em> —— 一个人，指挥一支智能体舰队。
 </p>
 
 <p align="center">
@@ -17,527 +15,191 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/tide-commander"><img src="https://img.shields.io/npm/v/tide-commander?style=flat-square&logo=npm" alt="npm version" /></a>
-  <a href="https://github.com/deivid11/tide-commander/stargazers"><img src="https://img.shields.io/github/stars/deivid11/tide-commander?style=flat-square&logo=github" alt="GitHub stars" /></a>
-  <a href="https://github.com/deivid11/tide-commander/blob/master/LICENSE"><img src="https://img.shields.io/github/license/deivid11/tide-commander?style=flat-square" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-2563EB?style=flat-square" alt="AGPL-3.0 license" />
   <img src="https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 18+" />
+  <img src="https://img.shields.io/badge/tests-4198%20cases-16a34a?style=flat-square" alt="4198 test cases" />
+  <img src="https://img.shields.io/badge/UI-简体中文%20%2F%2010%20languages-0ea5e9?style=flat-square" alt="Chinese-first UI" />
 </p>
 
-<p align="center">
-  <a href="https://tidecommander.com/app"><img src="https://img.shields.io/badge/TRY_LIVE_DEMO-OPEN-2563EB?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Try the live demo" /></a>
-  <a href="https://www.youtube.com/watch?v=r1Op_xfhqOM"><img src="https://img.shields.io/badge/WATCH_DEMO-YOUTUBE-DC2626?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo" /></a>
-</p>
+> **不是聊天窗口，是指挥台。** FleetDeck 把已经装好的 CLI 编码代理组织成一支有上下级的舰队：Boss 负责拆解与选人，下属真实执行，办结自动向你汇报。每一个角色都是跑在项目文件上的真实进程——真工具、真凭据、真会话历史。
 
-![Tide Commander visual multi-agent command center](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
+> **English:** **FleetDeck** is a Chinese-first community edition of [Tide Commander](https://github.com/deivid11/tide-commander) (MIT). It keeps the full multi-agent mission-control platform and adds a zh-CN localization (5,497 entries across 187 client files), a Chinese voice companion, Boss orchestration governance, and a commercial-grade UI reskin. Licensed under **AGPL-3.0**; upstream MIT notices are preserved in [NOTICE](NOTICE).
 
-> **More than an agent manager. More than an IDE.** Tide Commander is a complete build environment designed around teams of AI agents. Every character is a real process working on real project files with native tools, credentials, context, and session history.
+传统工具链把工作割裂在 IDE、终端、Git 客户端、文件浏览器、自动化画布和一堆 AI 聊天窗口之间。FleetDeck 把这些表面收拢到一个甲板上：你站在舰桥上说一句需求，整支舰队开始干活，结果自动回执。
 
-Traditional creation tools split the work across an IDE, terminal multiplexer, Git client, file browser, automation canvas, infrastructure dashboard, and a growing pile of AI chats. Tide Commander brings those surfaces together so you can move from intent to finished output in one place.
+你不需要住在代码里。用自然语言和可视化控件下达意图，需要深控时再打开文件、命令、diff、数据与基础设施。
 
-You do not have to live in code to use it. Start with natural language and visual controls; open the exact files, commands, diffs, data, or infrastructure only when you want deeper control.
-
-## ⚡ Run it in 30 seconds
+## ⚡ 30 秒跑起来
 
 ```bash
-npx tide-commander@latest
+# 安装依赖（Bun 或 npm）
+bun install        # npm install
+
+# 启动（Vite 5173 + API 6200）
+bun run dev        # npm run dev
 ```
 
-Open **[http://localhost:6200](http://localhost:6200)**. If Claude Code, Codex, OpenCode, Grok, or Pi is already installed and authenticated, you are ready to spawn your first agent.
+打开 **[http://localhost:6200](http://localhost:6200)**。只要本机已安装并登录任意一个支持的 CLI（`claude` / `codex` / `opencode` / `grok` / `pi`），就能拉起你的第一个智能体。
 
-Prefer Bun? Use `bunx tide-commander@latest`.
+## 为什么用 FleetDeck
 
-## Why creators use Tide Commander
+传统 IDE 是为「一个人一次编辑一个文件」设计的。AI 原生开发不同：多个智能体可以并行研究、规划、构建、测试、文档化、自动化和运维。FleetDeck 是面向这种转变的工作区——你负责方向，团队负责执行。
 
-Traditional IDEs were designed for one person editing one file at a time. AI-native creation is different: multiple agents can research, plan, build, test, document, automate, and operate in parallel. Tide Commander is a workspace for that shift—a visual build suite where you direct the outcome while the team handles the execution.
-
-<p align="center"><strong>For solo creators, founders, researchers, operators, engineers, product teams, and anyone who builds with AI.</strong></p>
+<p align="center"><strong>为一人开发者、独立创业者、研究者与所有用 AI 构建的人设计。</strong></p>
 
 <table>
   <tr>
     <td width="33%" valign="top">
-      <h3>✨ Create from intent</h3>
-      Start with the outcome you want. Spawn specialists, give them context, and let boss agents coordinate the work.
+      <h3>🧭 从意图出发</h3>
+      对主管说一句需求，Boss 拆解任务、按类型与负载选人，产出合规派活书——不用自己挑执行的人。
     </td>
     <td width="33%" valign="top">
-      <h3>👀 See the work happen</h3>
-      Follow tool calls, PTY output, background jobs, queues, context usage, and blockers live instead of watching silent spinners.
+      <h3>👀 看着工作发生</h3>
+      实时看每个智能体的忙闲、当前任务、最近委派与工具调用，而不是盯着转圈等待。
     </td>
     <td width="33%" valign="top">
-      <h3>🛠️ Replace tool switching</h3>
-      Work with files, source, Git, tests, documents, data, terminals, services, and rich previews in the same build suite.
+      <h3>🗂️ 一个工作台</h3>
+      文件、Git、数据库、测试、终端、服务与专业预览，同一套工作区里完成，不用来回切工具。
     </td>
   </tr>
   <tr>
     <td width="33%" valign="top">
-      <h3>🔀 Use the right harness</h3>
-      Mix Claude, Codex, OpenCode, Grok, and Pi in one team—and migrate a conversation when another runtime fits better.
+      <h3>🔀 用对的运行时</h3>
+      Claude、Codex、OpenCode、Grok、Pi 混编在一支舰队里，任务中途可迁移会话。
     </td>
     <td width="33%" valign="top">
-      <h3>⚙️ Automate the repeatable</h3>
-      Build workflows and triggers, connect your services, or add local plugins and slash commands that bypass the LLM.
+      <h3>📢 主动汇报</h3>
+      办结、进展、异常自动播报回你，语音场景直接开口告知——不用反复追问进度。
     </td>
     <td width="33%" valign="top">
-      <h3>📱 Pick up anywhere</h3>
-      Reconnect to the same server-side sessions from desktop, mobile, Android, or the browser extension.
+      <h3>🎙️ 中文语音伙伴</h3>
+      秘书角色常驻：本地识别、流式应答、打断、分钟级提醒，像有个秘书在替你调度团队。
     </td>
   </tr>
 </table>
 
-## Everything you need to create
+## 你要的一切，都在甲板上
 
 | | |
 |---|---|
-| **🎯 Orchestration**<br>Boss/subordinate teams, delegation reports, project areas, task labels, tracking boards, agent memory, prompt stacking, skills, and runtime migration. | **📡 Observability**<br>Structured tool cards, streamed PTY commands, a live background-task rail, server-side message queues, interrupts, context gauges, account limits, and reconnect recovery. |
-| **📁 Unified build workspace**<br>Multi-root file explorer, source editing, Git status/diffs/history, branch comparison, project-wide filename/content search, tests, and `@file` / `@folder` / `@agent` context. | **🧩 Extensibility**<br>Trusted plugins, slash commands, shell scripts, workflows, webhooks, integrations, custom skills/classes/models, REST API, WebSocket API, and browser automation. |
-| **🖼️ Rich previews**<br>Markdown, Mermaid, PlantUML, Office documents, spreadsheets, archives, images, PDF, audio/video, STL, GLB, FreeCAD, and G-code. | **🌐 Flexible UI**<br>3D, 2D, Flat, Dashboard, Commander, and Guake views; Android support; custom themes, shortcuts, sounds, haptics, and 10 UI languages. |
+| **🎯 编排**<br>Boss/下属委派树、合规派活书、并发配额与排队、待岗/恢复、编制清单纪律、任务看板、团队笔记沉淀。 | **📡 可观测**<br>忙闲状态、当前任务、最近委派、工具卡、实时终端输出、后台任务轨、主动播报队列、会话恢复。 |
+| **📁 统一工作台**<br>多根文件树、内嵌编辑、Git diff/历史/分支对比、全项目搜索、测试浏览器、`@file` / `@folder` / `@agent` 上下文。 | **🧩 可扩展**<br>约 29 个内置技能、服务端/客户端插件、7 类外部触发器（Webhook / 邮件 / Slack / Jira / 定时 / WhatsApp / Bitbucket）、状态机工作流编辑器。 |
+| **🎙️ 语音伙伴**<br>中文语音、本地识别、流式分句、打断（barge-in）、分钟级确定性提醒（15s–24h，≤10 条）、主动播报通道。 | **📱 随处接手**<br>会话活在服务端，桌面、手机浏览器、Android 随时续上；另有浏览器桥驱动你已登录的真实浏览器。 |
 
-## 🤖 Bring your favorite AI harness
+## 🤖 支持的五种运行时
 
-Use different harnesses side by side—even inside the same project. Tide Commander normalizes their event streams into one conversation, tool, status, context, and file-diff experience without hiding each provider's native sessions or strengths.
+FleetDeck 把不同 harness 归一成同一种对话、工具、状态、上下文与 diff 体验，同时保留各厂商原生会话的完整能力。
 
-| Harness | Required command | Default runtime | Optional persistent/streaming mode |
+| Harness | 必需命令 | 默认模式 | 可选持久/流式模式 |
 |---|---|---|---|
-| **Claude Code** | `claude` | Headless `stream-json` process with stdin follow-ups | Interactive Claude TUI in tmux; general tmux mode can preserve processes across Commander restarts |
-| **Codex** | `codex` | `codex exec --experimental-json` with native session resume | Persistent `codex app-server` for token streaming, detached turns, reconnect, and native thread forking |
-| **OpenCode** | `opencode` | `opencode run --format json` with session resume | Persistent `opencode serve` daemon with streaming and restart recovery |
-| **Grok** | `grok` | Headless `streaming-json` with native resume | Model/effort selection, account profiles, context tracking, and usage gauges |
-| **Pi** | `pi` | `pi --mode json` NDJSON sessions | Persistent `pi --mode rpc` with mid-turn steering, native `/compact`, live model/provider switching, and tmux reconnect |
+| **Claude Code** | `claude` | 无头 `stream-json` 进程 + stdin 追问 | tmux 内交互式 TUI；一般 tmux 模式可在 FleetDeck 重启后保留进程 |
+| **Codex** | `codex` | `codex exec --experimental-json` + 原生会话恢复 | 持久 `codex app-server`：token 流式、分离回合、重连 |
+| **OpenCode** | `opencode` | `opencode run --format json` + 会话恢复 | 持久 `opencode serve` 守护进程，流式与重启恢复 |
+| **Grok** | `grok` | 无头 `streaming-json` + 原生恢复 | 模型/effort 选择、账户档案、上下文与用量仪表 |
+| **Pi** | `pi` | `pi --mode json` NDJSON 会话 | 持久 `pi --mode rpc`：回合中引导、原生 `/compact`、实时切换模型，tmux 重连 |
 
-Persistent modes are opt-in under **Settings → General**. Pi can use any model provider loaded by Pi—for example Anthropic, OpenAI Codex, xAI, Gemini, Copilot, OpenCode Go, or a local provider—and Tide displays the active model provider separately from the Pi harness.
+## 🎖️ 核心概念
 
-### Switch harness without throwing the conversation away
+### 智能体、主管与委派
 
-The agent editor can change any agent to any supported harness:
+每个角色都是一个真实 harness 进程，拥有自己的工作目录、运行时、模型、会话、提示词栈、记忆、权限、技能与任务状态。**Boss（主管）** 拥有下属，按工作量与类型选人，产出派活书，等待回执并核对收口。
 
-- **Smart Context** — a compact hand-off fitted to the target context window
-- **Visible Transcript** — a budgeted readable copy of the conversation
-- **Fresh Start** — change the runtime without importing conversation content
+任务有标签与状态（待命 / 执行中 / 已办结），工作在聊天之外可见。智能体可报告自己在思考、干活、受阻、等下属、待审或可清理。
 
-Claude, Codex, Grok, and Pi have writable native session stores and support imported context. OpenCode can be selected with Fresh Start. Every provider can be the source of a migration. Tide validates the new session, reports imported/dropped content, archives the original, and provides rollback through session history.
+### 项目区与多项目
 
-## 📦 Installation and CLI
+矩形或圆形区域按项目/职责组织智能体。每个项目区可挂多个项目文件夹、为区内智能体注入专属指令、提供扎根于项目的即时 tmux 终端。**切换工作目录即切换整支团队**——每个项目有自己的一套主管与下属。
 
-### Requirements
+### 语音伙伴（秘书）与语音大脑
 
-- **Node.js 18+** (Node.js 22 is used in CI), or Bun for `bunx`
-- At least one supported AI agent CLI installed and authenticated: `claude`, `codex`, `opencode`, `grok`, or `pi`
-- Optional: `tmux` for process persistence, Pi RPC restart recovery, and Claude interactive TUI mode
+秘书是常驻的语音入口：所有派活都转交 Boss 编排，查询走只读通道，业务待办走 Bolba 板。它背后是一套**前后脑分工**的语音大脑：
 
-### Run without installing
+- **前脑（快通道）**：常驻进程，识别、裁决与应答在同一热轮内完成——聊天、确认、简单问答、分钟级提醒 1-3 秒应声，不用等冷启动（实测热轮 2.1s，对照冷启动 16.6s）。
+- **后脑（深通道）**：真正干活交给编码智能体后台执行，办结、进展、异常通过主动汇报通道播报给你——重活慢是慢，但不用你盯着等。
+- **裁决纪律**：同一处歧义只裁一次、零对象指令直接最短反问、承诺边界只认系统真实存在的机制——长会话里不过度思考、不空口承诺。
 
-```bash
-# Bun
-bunx tide-commander@latest
+支持打断（barge-in）、主动播报队列、分钟级提醒的确定性兑现（15s–24h，≤10 条）。
 
-# Or npm
-npx tide-commander@latest
-```
+### 技能、插件与工作流
 
-Open `http://localhost:6200`.
+- **技能**：可复用的指令集 + 工具权限，可分配或按类继承；内置覆盖通知、委派回执、持久记忆、流式执行、Git/发布、日志、测试、数据库、浏览器/电脑控制、HTTP 请求、工作流与触发器。
+- **插件**：斜杠命令、结构化结果卡、右侧栏视图、服务端处理器与集成配置。
+- **工作流**：状态机编辑器（action / wait / decision / end），动作可派任务、等事件、设变量，按完成事件、条件、超时、cron 或手动决策流转；触发器接 Webhook、邮件、Slack、Jira、WhatsApp、Bitbucket。
 
-### Install globally
+### 建筑
 
-```bash
-npm install -g tide-commander@latest
-tide-commander start
-```
+建筑是功能性对象，不是装饰：
 
-The server starts in the background by default:
-
-```bash
-tide-commander start                 # Start in background
-tide-commander start --foreground    # Keep attached to this terminal
-tide-commander stop
-tide-commander status
-tide-commander logs
-tide-commander logs --follow
-tide-commander version
-```
-
-Common server options:
-
-```bash
-tide-commander start --port 8080 --host 127.0.0.1
-tide-commander start --listen-all --port 8080
-tide-commander start --restart
-tide-commander start --https --tls-key ./certs/key.pem --tls-cert ./certs/cert.pem
-tide-commander start --install-local-cert --https
-tide-commander start --https --generate-auth-token
-```
-
-Run `tide-commander --help` for the complete CLI reference.
-
-## 🔒 Remote Access and HTTPS
-
-Tide Commander executes local tools and exposes project files, so use HTTPS/WSS and an auth token whenever it is reachable beyond localhost.
-
-```bash
-tide-commander start \
-  --listen-all \
-  --https \
-  --install-local-cert \
-  --generate-auth-token
-```
-
-You can also serve HTTP and HTTPS from the same process. `PORT` keeps the plain listener and `HTTPS_PORT` adds TLS; both listeners share the same agents and WebSocket clients.
-
-```bash
-PORT=6200 \
-HTTPS_PORT=6201 \
-TLS_KEY_PATH=~/.tide-commander/certs/localhost-key.pem \
-TLS_CERT_PATH=~/.tide-commander/certs/localhost.pem \
-tide-commander start
-```
-
-This is useful when localhost can stay on HTTP while a phone or another computer needs a secure context. If `HTTPS=1` is used without `HTTPS_PORT`, HTTPS replaces the plain listener.
-
-Notes:
-
-- `--install-local-cert` uses `mkcert` and stores certificates in `~/.tide-commander/certs/`.
-- Add LAN or VPN addresses to the certificate SAN list when remote clients use those addresses.
-- Keep generated auth tokens in a password manager.
-- HTTPS protects transport; `AUTH_TOKEN` controls access. Use both remotely.
-
-## 🎖️ Core Concepts
-
-### Agents, bosses, and delegation
-
-Every character is a real AI harness process with its own working directory, provider, model, session, prompt stack, memory, permissions, skills, context usage, and task state. A **boss** can own subordinate agents, choose specialists, send tasks through the Tide Commander API, wait for reports, and summarize the team's progress.
-
-Task labels and tracking states make the work visible outside the chat. Agents can report that they are thinking, working, blocked, waiting for subordinates, ready for review, or safe to clear from context.
-
-### Areas
-
-Rectangle or circular areas organize agents by project or responsibility. Areas can own multiple project folders, add area-specific instructions to agents inside them, expose an instant tmux terminal rooted in the project, and group agents in Commander and Flat views. Finished areas can be archived and restored without deleting their agents.
-
-### Agent classes and custom models
-
-Classes bundle a role, model, instructions, and default skills. Tide includes Scout, Builder, Debugger, Architect, Warrior, Support, and Boss classes. Custom classes can use uploaded GLB character models with scale, offsets, and idle/walk/working animation mappings.
-
-![Create Agent Class](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/create_agent_class.png)
-
-### Prompt stacking and memory
-
-Instructions are composed in layers:
-
-1. Tide Commander base rules
-2. Global system prompt
-3. Area prompt
-4. Agent-class instructions
-5. Individual agent instructions
-6. Assigned skills, identity, and persistent agent memory
-
-This lets you define organization-wide conventions once, specialize them by project/class, and keep durable notes per agent without copying the same prompt everywhere.
-
-### Skills
-
-Skills are reusable instruction sets with tool permissions and optional model/context behavior. They can be assigned directly or inherited from a class. Built-ins cover notifications, inter-agent messaging, delegation reports, tracking, persistent memory, streaming execution, Git/release workflows, server/PM2 logs, tests, databases, browser/computer control, HTTP requests, workflows, triggers, Mermaid, Bitbucket review, and backup/restore.
-
-Custom skills are Markdown-based and can be managed from the UI. Changes hot-reload into assigned agents while preserving their sessions.
-
-### Plugins
-
-Trusted local plugins can add:
-
-- slash commands that bypass the LLM
-- structured Guake/Spotlight result cards
-- right-sidebar views and modals
-- interactive actions and WebSocket patches
-- browser-side UI bundles and styles
-- server handlers and integration-backed settings
-- configurable global shortcuts
-
-Recent built-ins expose Gmail inbox cards, Jira ticket search/details, account usage across every harness, task boards, and managed shell commands. Plugins run with Tide Commander's local privileges, so only install code you trust.
-
-### Workflows and triggers
-
-The workflow editor builds state machines from action, wait, decision, and end states. Actions can assign agent tasks, wait for events, set variables, and transition on agent completion, variable conditions, timeouts, cron schedules, triggers, or manual decisions. Running instances support pause, resume, cancel, timelines, variables, reasoning traces, and scoped workflow chat.
-
-Triggers can react to webhooks, cron/one-shot schedules, Gmail, Slack, Jira, WhatsApp, and Bitbucket. Matching can be structural, LLM-based, or hybrid, with optional variable extraction, signature validation, delivery deduplication, and fire/matcher history.
-
-### Buildings
-
-Buildings are functional objects, not decoration:
-
-| Type | What it does |
+| 类型 | 作用 |
 |---|---|
-| **Server** | Custom or PM2 start/stop/restart, logs, health, CPU/memory, and port detection |
-| **Docker** | Create/adopt containers or control Compose projects, logs, health, and ports |
-| **Database** | MySQL, PostgreSQL, and Oracle connections, schema browser, SQL editor, and history |
-| **Terminal** | Persistent browser terminal through ttyd |
-| **Tests** | Scan and run Maven/JUnit, Cucumber, Vitest, and PHPUnit suites down to a method |
-| **HTTP Requests** | Browse and run IntelliJ-style `.http`/`.rest` requests with environments |
-| **Monitor** | System metrics and monitoring |
-| **Folder** | Open a project path in the file explorer |
-| **Link** | Open a dashboard, admin panel, or other URL |
-| **Boss Building** | Aggregate subordinate buildings and control them together |
+| **Server** | PM2/自定义启停、日志、健康、CPU/内存与端口检测 |
+| **Docker** | 创建/接管容器或 Compose 项目，日志、健康与端口 |
+| **Database** | MySQL / PostgreSQL / Oracle / SQLite / SQL Server，schema 浏览、SQL 编辑与历史（可选 SSH 隧道） |
+| **Terminal** | 通过 ttyd 的持久浏览器终端（tmux 会话） |
+| **Tests** | Maven/JUnit、Cucumber、Vitest、PHPUnit 套件扫描与运行 |
+| **HTTP Requests** | IntelliJ 风格 `.http` / `.rest` 请求集 |
+| **Folder / Link** | 打开项目路径或外部面板 |
+| **Boss Building** | 聚合下属建筑，统一控制 |
 
-## 🖥️ Views and Navigation
+## 📐 实测数字，不是 PPT 数字
 
-### 3D battlefield
+以下来自本机开发记录（2026-10 实测），非实验室理想值：
 
-The default Three.js view provides RTS-style selection, movement, camera controls, buildings, project areas, custom characters, and animated work/status effects.
-
-![3D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/example-battlefield.png)
-
-### 2D view
-
-A lightweight top-down canvas with the same agents, areas, and buildings for lower-power devices or very large teams.
-
-![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
-
-### Flat view
-
-An IDE-style, low-overhead project layout with area status bars, buildings, agent lists, and embedded conversations. It keeps the operational controls without rendering a battlefield.
-
-### Dashboard
-
-Metrics and cards for agent state, current work, errors, context, and infrastructure.
-
-![Dashboard View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/dashboard_view.png)
-
-### Commander view
-
-A live multi-terminal grid grouped by area. See every conversation at once, switch area tabs, and expand an agent without losing the overview.
-
-![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
-
-### Guake terminal
-
-The main agent conversation surface supports multiple rendering levels, Markdown, syntax highlighting, structured tool cards, permission prompts, Git/building/workflow/tracking side panels, message search, pinned/recent agents, file attachments, screenshots, interrupts, and queued follow-ups.
-
-### Spotlight
-
-Press **Ctrl+K** (or **Alt+P**) to search and act across Tide Commander. Spotlight finds:
-
-- agents by name, class, area, provider, status, current task, or recent activity
-- current and archived conversations, with ranked matching extracts
-- filenames and file contents across every area project
-- modified files and Git changes
-- buildings, areas, folders, settings, sessions, and commands
-- plugin slash commands and their structured results
-
-Search is accent-insensitive, supports multi-word matches across different fields, and can open a file directly at the matching line.
-
-## 🧰 The build workspace that can replace your IDE
-
-For many projects, the whole creation loop—from brief and research to files, commands, diffs, tests, previews, and operations—can stay inside Tide Commander. The file explorer supports multiple project roots, project-scoped tabs and expanded folders, source editing, Git status, working-tree diffs, binary/image/PDF diffs, branch comparison, file history, and test results. Files changed by an agent are clickable directly from its tool card or message.
-
-![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view_2.png)
-
-![Inline File Inspection](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/edit_dtails_while_chatting.png)
-
-Specialized viewers include:
-
-- rendered Markdown, Mermaid, PlantUML, SVG, images, and PDF
-- `.docx`, `.docm`, `.odt`, `.fodt`, `.doc`, and `.rtf` documents
-- `.xlsx`, `.xlsm`, `.xls`, `.ods`, `.csv`, and `.tsv` spreadsheets with virtualized grids, filter/sort, selections, and statistics
-- zip/tar/7z/rar and many package/archive formats as browsable trees
-- audio waveforms and video playback
-- interactive STL, GLB, FreeCAD (`.FCStd`), and layer-aware G-code previews
-
-You can browse from inside a viewer, drag files out to the desktop, download folders as streaming zip files, and export rendered Markdown to PDF.
-
-## 🔌 Integrations and External Control
-
-Built-in integrations provide settings, secure secrets, API routes, agent skills, and trigger handlers for:
-
-- Slack (including multiple instances, messages, threads, files, reactions, and inbound events)
-- Gmail
-- Google Calendar
-- Google Drive
-- Jira Cloud / Service Desk
-- WhatsApp through the local bridge
-- DOCX document generation
-
-Tide Commander also ships an optional Chromium browser extension that captures console/network failures, opens an agent chat side panel, sends requests or selected DOM/React components as context, and supports multiple Commander servers. macOS Alfred and KDE KRunner launch/search integrations are included in the repository.
-
-## 📡 Live Execution and Session Control
-
-Long commands can run through Tide Commander's exec API in a PTY-backed card. Output streams with ANSI color and terminal redraw handling, survives UI reconnects, can be stopped with its whole process tree, and returns a bounded tail to the agent without hiding the full live output from the user. Active ordinary CLI Bash/Task jobs also appear in the background-task rail.
-
-Prompts sent while an agent is busy are kept in a server-side queue. Message bursts are merged into one follow-up, queued items can be interrupted or removed, and supported persistent runtimes reconnect to in-flight turns after a Commander restart. **Ctrl+C** in an open terminal interrupts the active run when no text selection is being copied.
-
-Session history can restore a past conversation onto the same or a new agent, pre-filling its original harness/model/reasoning configuration. Spotlight searches both active and archived sessions.
-
-## 📲 Resume Anywhere
-
-Agent sessions live on the server rather than in one browser tab. Start on desktop and reconnect from a phone, tablet, browser extension, or another computer. The Android app adds local notifications, haptics, optional background connectivity, and in-app APK/UI updates.
-
-![Mobile Remote Session Resume](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/mobile-remote-resume.png)
-
-## 🎮 What a real workflow looks like
-
-1. **Create a project area** and attach one or more project folders.
-2. **Spawn a small team**—for example a boss, a researcher, a builder, and a test/review specialist—using whichever harness fits each role.
-3. **Give the boss the outcome**, not a list of terminal commands. It can delegate focused tasks and collect reports from its subordinates.
-4. **Watch execution live** in Commander view: tool cards, streamed commands, background jobs, current prompts, blockers, and context pressure stay visible.
-5. **Review the result in place** through rendered documents, data grids, 3D previews, file viewers, Git diffs, and test output.
-6. **Keep the useful context** by sending follow-ups, restoring an older session, or moving the conversation to another harness.
-7. **Walk away without losing visibility**—notifications and the mobile clients keep you connected to the same running team.
-
-## ⌨️ Default Keyboard Shortcuts
-
-| Key | Action |
+| 数字 | 含义 |
 |---|---|
-| `Ctrl+K` / `Alt+P` | Open Spotlight |
-| `Tab` | Toggle Commander view |
-| `Alt+N` | Spawn an agent |
-| `Ctrl+1` … `Ctrl+9` | Select agent by index |
-| `Space` | Open the selected agent terminal |
-| `Alt+2` | Cycle 3D / 2D / Flat / Dashboard |
-| `Alt+E` | Toggle file explorer |
-| `Ctrl+L` | Open recent agents and buildings |
-| `Ctrl+Shift+F` | Open the global session finder |
-| `Ctrl+T` | Toggle test results |
-| `Alt+J` / `Alt+K` | Cycle pinned agents in the terminal |
-| `Alt+H` / `Alt+L` | Previous / next agent |
-| `Escape` | Deselect or close the active surface |
+| **3.9s** | 语音首句出声（播完回到聆听 7.7s） |
+| **≈8×** | 语音伙伴常驻化提速：冷启动 16.6s → 热轮 2.1s，省 87% |
+| **21.9×** | 长会话治理收益：p50 3.4s，对照退化基线 74.4s |
+| **42.7s** | 一句话到回执播报全链闭环（派活 → 执行 → 核对 → 播报） |
+| **4198** | 全量测试用例（329 个测试文件，墙钟约 55 秒） |
+| **5497** | 界面文案中文本地化条目（187 个客户端文件接线） |
 
-Shortcuts can be rebound or disabled in Settings. Plugin commands can also define global shortcuts.
+## 🎮 一个真实的工作流长什么样
 
-## 🔐 Permission Modes and Secrets
+1. **建一个项目区**，挂上项目文件夹。
+2. **拉起一支小队**——一个 Boss，配上研究、构建、测试等角色，各用合适的运行时。
+3. **把结果交给 Boss**，而不是一列终端命令。它拆解、选人、发派活书。
+4. **在指挥官视图里看执行**：工具卡、流式命令、后台任务、当前提示词、阻塞与上下文压力实时可见。
+5. **原地审查产出**：渲染文档、数据网格、3D 预览、文件查看、Git diff 与测试输出。
+6. **办结自动播报**：不用追问，回执主动送到你（语音场景直接开口）。
 
-- **Bypass mode** lets a trusted autonomous CLI execute without approval prompts.
-- **Interactive mode** asks for approval on protected operations and supports remembered file/command patterns. Claude uses Tide's hook-based approval bridge; other harness behavior follows the capabilities of their CLI runtime.
-- **Plugin command sudo** always requires a short-lived user authorization flow. Passwords are not persisted, logged, put in command arguments/environment variables, or exposed to agents.
-- **Secrets** are encrypted in the server store and referenced as `{{SECRET_NAME}}`; the real value is injected server-side instead of being saved in agent prompts.
+## ⚙️ 配置
 
-## ⚙️ Configuration
+常用环境变量：
 
-The most common environment variables are:
-
-| Variable | Default | Description |
+| 变量 | 默认 | 说明 |
 |---|---:|---|
-| `PORT` | `6200` | Backend and production web-app port |
-| `HOST` | `127.0.0.1` | Backend bind host |
-| `VITE_PORT` | `5173` | Development frontend port |
-| `LISTEN_ALL_INTERFACES` | unset | Set to `1` to bind `0.0.0.0` |
-| `AUTH_TOKEN` | unset | HTTP and WebSocket authentication token |
-| `HTTPS` | unset | Set to `1` to replace HTTP with HTTPS/WSS |
-| `HTTPS_PORT` | unset | Add an HTTPS/WSS listener alongside `PORT` |
-| `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | Backend TLS private key |
-| `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | Backend TLS certificate |
-| `DEV_HTTPS` | unset | Enable HTTPS for Vite development |
-| `DEV_TLS_KEY_PATH` | unset | Vite TLS private key |
-| `DEV_TLS_CERT_PATH` | unset | Vite TLS certificate |
-| `CODEX_BINARY` | auto | Override the Codex executable path |
+| `PORT` | `6200` | 后端与生产 Web 端口 |
+| `HOST` | `127.0.0.1` | 后端绑定主机 |
+| `VITE_PORT` | `5173` | 开发前端端口 |
+| `AUTH_TOKEN` | 未设置 | HTTP 与 WebSocket 鉴权令牌 |
+| `LISTEN_ALL_INTERFACES` | 未设置 | 设为 `1` 绑定 `0.0.0.0` |
 
-See [`.env.example`](.env.example) for the maintained template.
+应用状态存放在 XDG 数据目录（通常 `~/.local/share/fleetdeck/`）：智能体、区域、建筑、技能、类、密钥、会话历史、工作流、触发器与集成事件。各运行时对话保留在其原生会话存储中，FleetDeck 只引用读取，不替换厂商历史格式。
 
-### Data storage
-
-Tide Commander stores application state under the XDG data directory, normally `~/.local/share/tide-commander/`. This includes agents, areas, buildings, skills, classes, secrets, session history, workflows, triggers, plugin state, command definitions, and the SQLite integration/monitoring event store. Runtime-only process state is also persisted there for recovery.
-
-Provider conversations remain in each CLI's native session store. Tide references and reads those sessions rather than replacing the provider's own history format. Custom 3D models are stored under `~/.tide-commander/custom-models/`.
-
-## 🧑‍💻 Development
+## 🧑‍💻 开发
 
 ```bash
-# Install dependencies
-bun install
-
-# Start Vite (5173) and the API server (6200)
-bun run dev
-
-# Individual processes
-bun run dev:client
-bun run dev:server
-
-# Quality checks
-bun run lint:types
-bun run lint
-bun run test
-
-# Production build
-bun run build
+bun install          # 安装依赖
+bun run dev          # Vite(5173) + API(6200)
+bun run dev:client   # 仅前端
+bun run dev:server   # 仅后端
+bun run lint:types   # 类型检查
+bun run lint         # 代码规范
+bun run test         # 全量测试（4198 用例）
+bun run build        # 生产构建
 ```
 
-## 🐳 Docker
+## 📚 文档
 
-```bash
-docker build -t tide-commander .
-docker run -p 6200:6200 \
-  -v ~/.local/share/tide-commander:/root/.local/share/tide-commander \
-  tide-commander
-```
+项目设计文档（Spec / 任务拆解 / 功能域专题）与迭代日志不包含在本公开仓库中；代码注释与提交历史保留了完整的演进脉络。
 
-At least one supported AI agent CLI and its credentials must also be available inside the container for agents to run. See the Docker guide for host CLI mounts and deployment details.
+## ⚓ 致谢
 
-## 📱 Android APK
-
-Prerequisites: Android SDK and Java 17+.
-
-```bash
-make apk
-make apk-release
-make dev-apk CAP_SERVER_URL=http://192.168.1.100:5173
-```
-
-The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. For a normal APK, leave `CAP_SERVER_URL` unset and configure the Commander server URL in the app. Remote Android connections require the server to listen beyond localhost; HTTPS is strongly recommended.
-
-## 📚 Documentation
-
-| Topic | Guide |
-|---|---|
-| Architecture | [Runtime and server architecture](docs/architecture.md) |
-| Buildings | [Servers, Docker, databases, tests, HTTP requests, and more](docs/buildings.md) |
-| Views | [3D, 2D, Dashboard, Commander, Guake, and UI navigation](docs/views.md) |
-| Custom classes | [Custom classes, GLB models, and animation mapping](docs/custom-classes.md) |
-| Skills | [Built-in/custom skills, permissions, assignment, and hot reload](docs/skills.md) |
-| Plugins | [Trusted local plugins, slash commands, renderers, sidebars, and actions](docs/plugins.md) |
-| Secrets | [Encrypted values and prompt placeholders](docs/secrets.md) |
-| Browser bridge | [Browser control and integration](docs/browser-bridge.md) |
-| Headless CAD | [FreeCAD jobs and generated previews](docs/headless-cad.md) |
-| Bitbucket review | [Automated pull-request review triggers](docs/bitbucket-pr-review.md) |
-| Android | [Build and configure the Android app](docs/android.md) |
-| Docker | [Container deployment](docs/docker.md) |
-| REST API | [OpenAPI 3.1 specification](docs/openapi.yaml) |
-| WebSocket API | [AsyncAPI 2.6 specification](docs/asyncapi.yaml) |
-| Releases | [Full changelog](CHANGELOG.md) |
-| Contributing | [Contributor guide](CONTRIBUTING.md) |
-| Security | [Security policy](SECURITY.md) |
-
-## 🐛 Troubleshooting
-
-**A harness is not detected**
-
-- Run `which claude`, `which codex`, `which opencode`, `which grok`, or `which pi` as appropriate.
-- Authenticate the CLI outside Tide Commander once before spawning an agent.
-- Pi validates that `pi` is the coding agent rather than the unrelated Anaconda utility with the same command name.
-
-**An agent is stuck in “working”**
-
-- Open its background-task rail and server logs to check for a live child process.
-- Use the terminal interrupt/stop action before killing the agent.
-- Persistent Codex, OpenCode, and Pi modes may reconnect to a still-running detached turn after a server restart.
-
-**The web app cannot connect**
-
-- The production default is `http://localhost:6200`; development uses `http://localhost:5173` for Vite and proxies to port `6200`.
-- Verify `tide-commander status`, then inspect `tide-commander logs`.
-- For remote clients, verify bind host, firewall, URL scheme, certificate, and auth token.
-
-## Ready to command the team?
-
-```bash
-npx tide-commander@latest
-```
-
-<p align="center">
-  <a href="https://tidecommander.com/app"><strong>Try the live demo</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://www.youtube.com/watch?v=r1Op_xfhqOM"><strong>Watch it in action</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/deivid11/tide-commander/stargazers"><strong>Star the project</strong></a>
-</p>
-
-## 💬 Community
-
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/MymXXDCvf)
-
-Found a bug or have a feature idea? Open a [GitHub issue](https://github.com/deivid11/tide-commander/issues) or join the Discord community. If Tide Commander improves your workflow, a GitHub star helps more creators find it.
+FleetDeck 借鉴了 [Tide Commander](https://github.com/deivid11/tide-commander)（MIT，作者 deivid11）的架构与设计思路，并在此基础上围绕中文语音伙伴、Boss 编排治理与一人舰队场景做了深度改造与再设计。
 
 ## 📄 License
 
-MIT
+本仓库整体以 [GNU Affero General Public License v3.0](LICENSE) 发布（SPDX：`AGPL-3.0-only`）。
+
+本项目基于 [Tide Commander](https://github.com/deivid11/tide-commander)（MIT License，© 2026 David Alcalá）二次开发。上游 MIT 许可允许再许可（sublicense），本仓库以 AGPL-3.0 整体分发；依 MIT 条款要求，上游版权与许可声明完整保留于 [NOTICE](NOTICE)，适用于源自上游的部分。
