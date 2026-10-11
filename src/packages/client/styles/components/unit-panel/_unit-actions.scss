@@ -1,0 +1,78 @@
+// =============================================================================
+// 单位操作按钮 + agent 状态点 + 状态脉冲 keyframes
+// 由 _unit-panel.scss 拆分(W4,2026-10-11):原文件第 961-1030 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.unit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.unit-action-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: $radius-md;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: var(--border-color);
+  }
+
+  &.danger:hover {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+}
+
+// Agent status dots
+.agent-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.idle { background: var(--accent-green); }
+  &.working { background: var(--accent-blue); }
+  &.waiting { background: var(--accent-orange); }
+  &.waiting_permission {
+    background: #ffcc00;
+    animation: pulse-permission 1.5s ease-in-out infinite;
+  }
+  &.error { background: var(--accent-red); }
+  &.offline { background: var(--text-secondary); }
+  &.orphaned {
+    background: #ff00ff;
+    animation: pulse-orphaned 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-orphaned {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 0, 255, 0);
+    transform: scale(1.15);
+  }
+}
+
+@keyframes pulse-permission {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 204, 0, 0);
+    transform: scale(1.1);
+  }
+}
+
+// Agents list view

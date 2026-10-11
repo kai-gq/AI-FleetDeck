@@ -1,0 +1,367 @@
+// =============================================================================
+// 单位面板头部(名称/状态/区域/目录/最近提示语)
+// 由 _unit-panel.scss 拆分(W4,2026-10-11):原文件第 4-362 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.unit-section {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.unit-panel {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.unit-model-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: $radius-md;
+  overflow: hidden;
+  padding: 4px;
+  min-height: 138px;
+}
+
+.unit-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.unit-header-actions {
+  display: flex;
+  flex-direction: row;
+  // Wrap into a right-aligned grid instead of squeezing the name column:
+  // with the standby button the row is 8-9 icons, which used to crush
+  // .unit-header-info to ~26px and wrap the agent name vertically.
+  // (Small-screen layout already wraps this row.)
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.unit-action-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all $transition-fast;
+  padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-color: var(--accent-blue);
+    transform: scale(1.1);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.warning:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    border-color: var(--accent-orange);
+  }
+
+  &.danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
+  }
+
+  // Restore-from-standby: green tint hints the single click that brings the
+  // agent back (set-standby keeps the neutral look and only asks for confirm).
+  &.standby-restore {
+    color: var(--accent-green);
+    border-color: color-mix(in srgb, var(--accent-green) 45%, var(--border-color));
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+      border-color: var(--accent-green);
+    }
+  }
+}
+
+.unit-header-info {
+  flex: 1;
+  // Keep the name column readable — the action row wraps (see above) instead
+  // of crushing this block to an unreadable sliver.
+  min-width: 96px;
+}
+
+.unit-class-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.unit-name {
+  font-weight: 600;
+  font-size: 15px;
+
+  &.unit-name-editable {
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: $radius-sm;
+    transition: background $transition-fast;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+}
+
+.unit-name-input {
+  font-weight: 600;
+  font-size: 15px;
+  font-family: inherit;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-blue);
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  padding: 2px 4px;
+  margin: -2px -4px;
+  width: calc(100% + 8px);
+  outline: none;
+
+  &:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  }
+}
+
+.unit-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+// Standby (待岗) in the single-agent detail panel: only the identity block
+// (model preview + name/status) greys out — the toolbar stays vivid so the
+// restore button remains visibly clickable. The chip mirrors .aop-standby-badge
+// and is deliberately high-contrast to stay legible under the greyscale.
+.unit-panel.standby {
+  .unit-model-preview,
+  .unit-header-info {
+    opacity: 0.6;
+    filter: grayscale(0.6);
+  }
+}
+
+.unit-standby-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: $radius-sm;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 70%, transparent);
+  background: var(--bg-tertiary, color-mix(in srgb, var(--text-muted) 20%, transparent));
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  flex-shrink: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.unit-id {
+  margin-top: 2px;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  user-select: all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--text-secondary);
+  }
+}
+
+.unit-idle-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-family: $font-mono;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  border-radius: $radius-sm;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
+}
+
+.unit-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-sm;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.unit-area-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.unit-area-name {
+  color: var(--text-secondary);
+}
+
+.unit-directories {
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-md;
+  margin-bottom: 8px;
+}
+
+.unit-directories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.unit-directory-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: color-mix(in srgb, var(--bg-tertiary) 30%, transparent);
+  border-radius: $radius-sm;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: default;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  }
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+      border-left: 2px solid var(--accent-green);
+      padding-left: 4px;
+    }
+  }
+}
+
+.unit-directory-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.unit-directory-path {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unit-last-prompt {
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-md;
+  margin-bottom: 8px;
+  border-left: 2px solid var(--accent-cyan);
+}
+
+.unit-last-prompt-text {
+  font-size: 11px;
+  font-family: $font-mono;
+  color: var(--accent-cyan);
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 60px;
+  overflow-y: auto;
+  opacity: 0.9;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+  }
+}
+
+.unit-last-message {
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-md;
+  margin-bottom: 8px;
+  border-left: 2px solid var(--accent-purple);
+}
+
+.unit-last-message-text {
+  font-size: 11px;
+  font-family: $font-mono;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 80px;
+  overflow-y: auto;
+  opacity: 0.9;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+  }
+}
+

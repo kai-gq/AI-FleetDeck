@@ -1,0 +1,76 @@
+// =============================================================================
+// 列表项上下文条 + agent 分组
+// 由 _unit-panel.scss 拆分(W4,2026-10-11):原文件第 1776-1843 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.agent-item-context-bar {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 1px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+
+.agent-item-context-fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.3s ease;
+}
+
+// Agents grouped by area
+.agents-group {
+  margin-bottom: 4px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.agents-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: 0 $radius-sm $radius-sm 0;
+  margin-bottom: 2px;
+}
+
+.agents-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agents-group-name {
+  flex: 1;
+
+  &.unassigned {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+}
+
+.agents-group-count {
+  font-size: 8px;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: $radius-sm;
+  color: var(--text-muted);
+}
+
+.agents-group-items {
+  border-radius: $radius-sm;
+  padding: 2px;
+}
+
+// Empty state

@@ -1,0 +1,229 @@
+// =============================================================================
+// agent 列表(统计条/搜索/筛选芯片/空结果)
+// 由 _unit-panel.scss 拆分(W4,2026-10-11):原文件第 1031-1251 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.agents-list {
+  padding: 6px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agents-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+// ── Quick Stats Bar ──────────────────────────────────────────────────────────
+.agents-stats-bar {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  margin-bottom: 4px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-sm;
+}
+
+.agents-stats-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  color: var(--text-secondary);
+
+  &.working .agents-stats-count { color: var(--accent-blue); }
+  &.idle .agents-stats-count { color: var(--accent-green); }
+  &.waiting .agents-stats-count { color: var(--accent-orange); }
+  &.error .agents-stats-count { color: var(--accent-red); }
+}
+
+.agents-stats-count {
+  font-weight: 700;
+  font-size: 12px;
+  font-family: $font-mono;
+}
+
+.agents-stats-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.7;
+}
+
+// ── Search Bar ───────────────────────────────────────────────────────────────
+.agents-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  margin-bottom: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  transition: border-color $transition-fast;
+
+  &:focus-within {
+    border-color: var(--accent-blue);
+  }
+}
+
+.agents-search-icon {
+  font-size: 10px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.agents-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 1px 0;
+  min-width: 0;
+
+  &::placeholder {
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+}
+
+.agents-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+    color: var(--text-primary);
+  }
+}
+
+.agents-search-highlight {
+  background: rgba(255, 200, 50, 0.3);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+// ── Status Filter Chips ──────────────────────────────────────────────────────
+.agents-filter-chips {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.agents-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all $transition-fast;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+
+  &:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  &.selected {
+    color: var(--text-primary);
+
+    &.all {
+      border-color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    &.active {
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+      color: var(--accent-blue);
+    }
+    &.idle {
+      border-color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      color: var(--accent-green);
+    }
+    &.waiting {
+      border-color: var(--accent-orange);
+      background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+      color: var(--accent-orange);
+    }
+    &.error {
+      border-color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      color: var(--accent-red);
+    }
+  }
+}
+
+.agents-filter-chip-count {
+  font-family: $font-mono;
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+// ── Filter Info Bar ──────────────────────────────────────────────────────────
+.agents-filter-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  margin-bottom: 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.agents-filter-clear {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+
+  &:hover {
+    color: color-mix(in srgb, var(--accent-blue) 88%, white);
+  }
+}
+
+// ── No Results ───────────────────────────────────────────────────────────────
+.agents-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.agents-no-results-icon {
+  font-size: 20px;
+  opacity: 0.5;
+}
+
+// ── Agent Item (Enhanced) ────────────────────────────────────────────────────

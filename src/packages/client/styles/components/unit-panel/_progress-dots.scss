@@ -1,0 +1,297 @@
+// =============================================================================
+// 任务进度点与下属进度点(含提示框)
+// 由 _unit-panel.scss 拆分(W4,2026-10-11):原文件第 1487-1775 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../variables' as *;
+
+.task-progress-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.task-progress-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: $font-mono;
+}
+
+.task-progress-tooltip-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.task-progress-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.task-progress-tooltip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+
+  &.status-completed {
+    .task-progress-tooltip-icon { color: var(--accent-green); }
+    .task-progress-tooltip-text { color: var(--text-muted); text-decoration: line-through; }
+  }
+
+  &.status-in_progress {
+    .task-progress-tooltip-icon { color: var(--accent-blue); }
+    .task-progress-tooltip-text { color: var(--accent-blue); font-weight: 500; }
+  }
+
+  &.status-pending {
+    .task-progress-tooltip-icon { color: var(--text-muted); }
+    .task-progress-tooltip-text { color: var(--text-primary); }
+  }
+}
+
+.task-progress-tooltip-icon {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.task-progress-tooltip-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.task-progress-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
+  background: transparent;
+
+  &.task-progress-dot-completed {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+  }
+
+  &.task-progress-dot-in_progress {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  }
+
+  &.task-progress-dot-pending {
+    background: transparent;
+  }
+}
+
+.task-progress-overflow {
+  font-family: $font-mono;
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+
+// ── Subordinate progress dots (boss watching its team) ───────────────────────
+.subordinate-progress-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  cursor: help;
+}
+
+.subordinate-progress-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
+  background: transparent;
+
+  &.status-working {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  }
+  &.status-idle {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+  }
+  &.status-waiting,
+  &.status-waiting_permission {
+    background: var(--accent-orange);
+    border-color: var(--accent-orange);
+  }
+  &.status-error,
+  &.status-orphaned {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+  &.status-offline {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    opacity: 0.5;
+  }
+}
+
+.subordinate-progress-overflow {
+  font-family: $font-mono;
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.subordinate-progress-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: $font-mono;
+}
+
+.subordinate-progress-tooltip-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.subordinate-progress-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.subordinate-progress-tooltip-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 4px 0;
+
+  & + & {
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  }
+}
+
+.subordinate-progress-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subordinate-progress-tooltip-preview {
+  margin-left: 14px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  word-break: break-word;
+  line-height: 1.35;
+
+  &.source-detail {
+    font-style: italic;
+    color: var(--text-muted);
+  }
+  &.source-task {
+    color: var(--accent-blue);
+  }
+  &.source-lastAssigned {
+    color: var(--text-muted);
+  }
+}
+
+.subordinate-progress-tooltip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 14px;
+
+  &:empty { display: none; }
+}
+
+.subordinate-progress-tooltip-meta-chip {
+  font-family: $font-mono;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+
+  &.muted {
+    color: var(--text-muted);
+  }
+}
+
+.subordinate-progress-tooltip-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
+
+  &.status-working {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+  }
+  &.status-idle {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+  }
+  &.status-waiting,
+  &.status-waiting_permission {
+    background: var(--accent-orange);
+    border-color: var(--accent-orange);
+  }
+  &.status-error,
+  &.status-orphaned {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+  &.status-offline {
+    background: transparent;
+    opacity: 0.5;
+  }
+}
+
+.subordinate-progress-tooltip-name {
+  flex: 1;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.subordinate-progress-tooltip-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+// ── Mini Context Bar ─────────────────────────────────────────────────────────
