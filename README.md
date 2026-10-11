@@ -17,13 +17,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-2563EB?style=flat-square" alt="AGPL-3.0 license" />
   <img src="https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 18+" />
-  <img src="https://img.shields.io/badge/tests-4198%20cases-16a34a?style=flat-square" alt="4198 test cases" />
+  <img src="https://img.shields.io/badge/tests-4461%20cases-16a34a?style=flat-square" alt="4461 test cases" />
   <img src="https://img.shields.io/badge/UI-简体中文%20%2F%2010%20languages-0ea5e9?style=flat-square" alt="Chinese-first UI" />
 </p>
 
 > **不是聊天窗口，是指挥台。** FleetDeck 把已经装好的 CLI 编码代理组织成一支有上下级的舰队：Boss 负责拆解与选人，下属真实执行，办结自动向你汇报。每一个角色都是跑在项目文件上的真实进程——真工具、真凭据、真会话历史。
 
-> **English:** **FleetDeck** is a Chinese-first community edition of [Tide Commander](https://github.com/deivid11/tide-commander) (MIT). It keeps the full multi-agent mission-control platform and adds a zh-CN localization (5,497 entries across 187 client files), a Chinese voice companion, Boss orchestration governance, and a commercial-grade UI reskin. Licensed under **AGPL-3.0**; upstream MIT notices are preserved in [NOTICE](NOTICE).
+> **English:** **FleetDeck** is a Chinese-first community edition of [Tide Commander](https://github.com/deivid11/tide-commander) (MIT). It keeps the full multi-agent mission-control platform and adds a zh-CN localization (5,584 entries across 202 client files), a Chinese voice companion, a WeChat (ClawBot) integration, a six-agent starter fleet seeded on first launch, Boss orchestration governance, and a commercial-grade UI reskin. Licensed under **AGPL-3.0**; upstream MIT notices are preserved in [NOTICE](NOTICE).
 
 传统工具链把工作割裂在 IDE、终端、Git 客户端、文件浏览器、自动化画布和一堆 AI 聊天窗口之间。FleetDeck 把这些表面收拢到一个甲板上：你站在舰桥上说一句需求，整支舰队开始干活，结果自动回执。
 
@@ -39,7 +39,7 @@ bun install        # npm install
 bun run dev        # npm run dev
 ```
 
-打开 **[http://localhost:6200](http://localhost:6200)**。只要本机已安装并登录任意一个支持的 CLI（`claude` / `codex` / `opencode` / `grok` / `pi`），就能拉起你的第一个智能体。
+打开 **[http://localhost:6200](http://localhost:6200)**。只要本机已安装并登录任意一个支持的 CLI（`claude` / `codex` / `opencode` / `grok` / `pi`），就能拉起你的第一个智能体。全新数据目录首次启动会自动种下一支 6 人待岗编队（六个职业各一名），开箱就有一队人可用。
 
 ## 为什么用 FleetDeck
 
@@ -83,8 +83,8 @@ bun run dev        # npm run dev
 | | |
 |---|---|
 | **🎯 编排**<br>Boss/下属委派树、合规派活书、并发配额与排队、待岗/恢复、编制清单纪律、任务看板、团队笔记沉淀。 | **📡 可观测**<br>忙闲状态、当前任务、最近委派、工具卡、实时终端输出、后台任务轨、主动播报队列、会话恢复。 |
-| **📁 统一工作台**<br>多根文件树、内嵌编辑、Git diff/历史/分支对比、全项目搜索、测试浏览器、`@file` / `@folder` / `@agent` 上下文。 | **🧩 可扩展**<br>约 29 个内置技能、服务端/客户端插件、7 类外部触发器（Webhook / 邮件 / Slack / Jira / 定时 / WhatsApp / Bitbucket）、状态机工作流编辑器。 |
-| **🎙️ 语音伙伴**<br>中文语音、本地识别、流式分句、打断（barge-in）、分钟级确定性提醒（15s–24h，≤10 条）、主动播报通道。 | **📱 随处接手**<br>会话活在服务端，桌面、手机浏览器、Android 随时续上；另有浏览器桥驱动你已登录的真实浏览器。 |
+| **📁 统一工作台**<br>多根文件树、内嵌编辑、Git diff/历史/分支对比、全项目搜索、测试浏览器、`@file` / `@folder` / `@agent` 上下文。 | **🧩 可扩展**<br>约 29 个内置技能、服务端/客户端插件、8 类外部触发器（Webhook / 邮件 / Slack / Jira / 定时 / WhatsApp / 微信 ClawBot / Bitbucket）、状态机工作流编辑器。 |
+| **🎙️ 语音伙伴**<br>中文语音、本地识别、流式分句、打断（barge-in）、分钟级确定性提醒（15s–24h，≤10 条）、主动播报通道、可选声纹门禁（只认主人声纹）。 | **📱 随处接手**<br>会话活在服务端，桌面、手机浏览器、Android 随时续上；另有浏览器桥驱动你已登录的真实浏览器。 |
 
 ## 🤖 支持的五种运行时
 
@@ -124,7 +124,7 @@ FleetDeck 把不同 harness 归一成同一种对话、工具、状态、上下�
 
 - **技能**：可复用的指令集 + 工具权限，可分配或按类继承；内置覆盖通知、委派回执、持久记忆、流式执行、Git/发布、日志、测试、数据库、浏览器/电脑控制、HTTP 请求、工作流与触发器。
 - **插件**：斜杠命令、结构化结果卡、右侧栏视图、服务端处理器与集成配置。
-- **工作流**：状态机编辑器（action / wait / decision / end），动作可派任务、等事件、设变量，按完成事件、条件、超时、cron 或手动决策流转；触发器接 Webhook、邮件、Slack、Jira、WhatsApp、Bitbucket。
+- **工作流**：状态机编辑器（action / wait / decision / end），动作可派任务、等事件、设变量，按完成事件、条件、超时、cron 或手动决策流转；触发器接 Webhook、邮件、Slack、Jira、WhatsApp、微信（ClawBot）、Bitbucket。
 
 ### 建筑
 
@@ -151,8 +151,9 @@ FleetDeck 把不同 harness 归一成同一种对话、工具、状态、上下�
 | **≈8×** | 语音伙伴常驻化提速：冷启动 16.6s → 热轮 2.1s，省 87% |
 | **21.9×** | 长会话治理收益：p50 3.4s，对照退化基线 74.4s |
 | **42.7s** | 一句话到回执播报全链闭环（派活 → 执行 → 核对 → 播报） |
-| **4198** | 全量测试用例（329 个测试文件，墙钟约 55 秒） |
-| **5497** | 界面文案中文本地化条目（187 个客户端文件接线） |
+| **2ms** | 分钟级提醒到点偏差（回执约 4s） |
+| **4461** | 全量测试用例（353 个测试文件） |
+| **5584** | 界面文案中文本地化条目（202 个客户端文件接线） |
 
 ## 🎮 一个真实的工作流长什么样
 
@@ -175,7 +176,7 @@ FleetDeck 把不同 harness 归一成同一种对话、工具、状态、上下�
 | `AUTH_TOKEN` | 未设置 | HTTP 与 WebSocket 鉴权令牌 |
 | `LISTEN_ALL_INTERFACES` | 未设置 | 设为 `1` 绑定 `0.0.0.0` |
 
-应用状态存放在 XDG 数据目录（通常 `~/.local/share/fleetdeck/`）：智能体、区域、建筑、技能、类、密钥、会话历史、工作流、触发器与集成事件。各运行时对话保留在其原生会话存储中，FleetDeck 只引用读取，不替换厂商历史格式。
+应用状态存放在 XDG 数据目录（通常 `~/.local/share/tide-commander/`）：智能体、区域、建筑、技能、类、密钥、会话历史、工作流、触发器与集成事件。各运行时对话保留在其原生会话存储中，FleetDeck 只引用读取，不替换厂商历史格式。
 
 ## 🧑‍💻 开发
 
@@ -186,7 +187,7 @@ bun run dev:client   # 仅前端
 bun run dev:server   # 仅后端
 bun run lint:types   # 类型检查
 bun run lint         # 代码规范
-bun run test         # 全量测试（4198 用例）
+bun run test         # 全量测试（4461 用例）
 bun run build        # 生产构建
 ```
 
