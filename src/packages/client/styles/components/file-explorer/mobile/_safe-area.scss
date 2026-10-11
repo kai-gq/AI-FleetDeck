@@ -1,0 +1,30 @@
+// =============================================================================
+// 刘海屏安全区(嵌套 ≤768px)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 1013-1034 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+// =============================================================================
+// SAFE AREA INSETS (notched devices)
+// =============================================================================
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  @media (max-width: $breakpoint-mobile) {
+    .file-explorer-panel {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    .file-explorer-panel-header {
+      padding-top: calc(8px + env(safe-area-inset-top));
+    }
+
+    .file-viewer-code-wrapper {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+}

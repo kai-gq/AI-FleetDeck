@@ -1,0 +1,44 @@
+// =============================================================================
+// 横屏移动端布局
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 976-1011 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+// =============================================================================
+// LANDSCAPE MOBILE
+// =============================================================================
+
+@media (max-width: $breakpoint-mobile) and (orientation: landscape) {
+  .file-explorer-main {
+    flex-direction: row;
+  }
+
+  .file-explorer-tree-panel {
+    width: 40%;
+    min-width: 200px;
+    max-width: 300px;
+    height: 100%;
+    max-height: 100%;
+    border-right: 1px solid var(--border-color);
+    border-bottom: none;
+  }
+
+  .fe-mobile-resize-handle {
+    display: none;
+  }
+
+  .file-explorer-viewer-panel {
+    flex: 1;
+    min-height: 100%;
+  }
+
+  .file-explorer-folders {
+    max-height: 60px;
+  }
+
+  .file-explorer-tree-content {
+    max-height: calc(100% - 140px);
+  }
+}

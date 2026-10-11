@@ -1,0 +1,111 @@
+// =============================================================================
+// 文件查看器:占位 / 头 / 定位与下载 / 代码 / 图片 / 二进制
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 566-666 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  .file-viewer-placeholder {
+    padding: 20px;
+
+    .placeholder-icon {
+      font-size: 36px;
+    }
+
+    .placeholder-text {
+      font-size: 13px;
+    }
+  }
+
+  .file-viewer-header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .file-viewer-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .file-viewer-header-right {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .file-viewer-filename {
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .file-viewer-meta {
+    font-size: 10px;
+  }
+
+  .file-viewer-locate-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .file-viewer-download-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-height: 32px;
+
+    &.large {
+      padding: 12px 20px;
+      font-size: 13px;
+    }
+  }
+
+  .file-viewer-code-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .file-viewer-pre {
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    tab-size: 2;
+
+    code {
+      font-size: inherit;
+    }
+  }
+
+  // Image viewer
+  .file-viewer-image-wrapper {
+    padding: 12px;
+  }
+
+  .file-viewer-image {
+    max-width: 100%;
+    max-height: calc(55dvh - 80px);
+  }
+
+  // Binary viewer
+  .file-viewer-binary {
+    padding: 24px 16px;
+    gap: 12px;
+  }
+
+  .file-viewer-binary-icon {
+    font-size: 48px;
+  }
+
+  .file-viewer-binary-name {
+    font-size: 14px;
+  }
+
+  .file-viewer-binary-size {
+    font-size: 11px;
+  }
+
+  .file-viewer-binary-message {
+    font-size: 12px;
+  }
+
+}

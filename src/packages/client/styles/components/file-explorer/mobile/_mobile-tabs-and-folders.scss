@@ -1,0 +1,95 @@
+// =============================================================================
+// 标签页紧凑化 / 文件夹区(头/标题/添加/列表/条目/移除/提示/空态)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 242-326 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  // Tabs - compact
+  .file-explorer-tabs {
+    padding: 4px 6px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .file-explorer-tab {
+    padding: 4px 8px;
+    font-size: 10px;
+    min-height: 26px;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    .tab-icon {
+      font-size: 9px;
+      margin-right: 2px;
+    }
+
+    .tab-badge {
+      font-size: 8px;
+      padding: 1px 3px;
+      margin-left: 3px;
+    }
+  }
+
+  // Folders section - hidden on mobile to save space
+  .file-explorer-folders {
+    display: none;
+  }
+
+  .file-explorer-folders-header {
+    padding: 4px 8px 1px;
+  }
+
+  .file-explorer-folders-title {
+    font-size: 8px;
+  }
+
+  .file-explorer-add-folder-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 16px;
+  }
+
+  .file-explorer-folders-list {
+    padding: 2px 8px 6px;
+    gap: 2px;
+  }
+
+  .file-explorer-folder-item {
+    padding: 4px 6px;
+    font-size: 10px;
+    min-height: 28px;
+  }
+
+  .file-explorer-folder-icon {
+    font-size: 9px;
+  }
+
+  .file-explorer-folder-path {
+    font-size: 10px;
+  }
+
+  .file-explorer-folder-remove {
+    font-size: 16px;
+    padding: 0 4px;
+  }
+
+  // Hide tooltip on mobile - touch doesn't hover
+  .file-explorer-folder-tooltip {
+    display: none;
+  }
+
+  .file-explorer-no-folders {
+    padding: 6px;
+    font-size: 10px;
+  }
+
+}

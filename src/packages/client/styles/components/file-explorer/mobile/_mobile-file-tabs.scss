@@ -1,0 +1,56 @@
+// =============================================================================
+// 文件标签栏与查看器面板
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 520-565 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  // File tabs bar
+  .file-tabs-bar {
+    min-height: 32px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .file-tabs-container {
+    min-height: 32px;
+    padding: 0 4px;
+  }
+
+  .file-tab {
+    padding: 6px 10px;
+    padding-right: 6px;
+    min-width: 80px;
+    max-width: 140px;
+    min-height: 32px;
+    gap: 4px;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    }
+  }
+
+  .file-tab-icon {
+    font-size: 12px;
+  }
+
+  .file-tab-name {
+    font-size: 11px;
+  }
+
+  .file-tab-close {
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    opacity: 0.7; // Always visible on mobile
+  }
+
+  // Viewer panel
+  .file-explorer-viewer-panel {
+    flex: 1;
+    min-height: 200px;
+  }
+
+}

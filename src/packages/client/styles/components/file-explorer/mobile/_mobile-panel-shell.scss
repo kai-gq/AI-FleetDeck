@@ -1,0 +1,112 @@
+// =============================================================================
+// ≤768px:全屏面板外壳 / 面板头与标题 / 文件夹选择与下拉 / 当前文件 / 关闭钮
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 43-144 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  // Full screen panel
+  .file-explorer-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    height: 100dvh;
+    z-index: 300; // Above everything
+    border: none;
+    border-radius: 0;
+
+    &.ide-style {
+      width: 100% !important;
+    }
+  }
+
+  // Header - compact
+  .file-explorer-panel-header {
+    padding: 6px 10px;
+    min-height: 36px;
+    gap: 6px;
+  }
+
+  .file-explorer-panel-title {
+    font-size: 12px;
+    gap: 3px;
+    flex-wrap: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .file-explorer-panel-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .file-explorer-folder-selector {
+    padding: 3px 5px;
+    margin: -1px -3px;
+  }
+
+  .file-explorer-folder-dropdown-icon {
+    font-size: 6px;
+  }
+
+  .file-explorer-path-separator {
+    margin: 0;
+    font-size: 9px;
+  }
+
+  .file-explorer-folder-name {
+    font-size: 10px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-explorer-folder-path-hint {
+    display: none;
+  }
+
+  .file-explorer-current-file {
+    display: none;
+  }
+
+  .file-explorer-panel-close {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  // Dropdowns - full width on mobile
+  .file-explorer-folder-dropdown {
+    position: fixed;
+    top: 52px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    min-width: auto;
+    max-width: none;
+    max-height: 50vh;
+    z-index: 1100;
+  }
+
+  .file-explorer-folder-option {
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+
+  .file-explorer-folder-option-name {
+    font-size: 14px;
+  }
+
+  .file-explorer-folder-option-path {
+    margin-left: 14px;
+    font-size: 10px;
+  }
+
+}

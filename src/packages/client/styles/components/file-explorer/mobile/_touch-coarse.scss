@@ -1,0 +1,61 @@
+// =============================================================================
+// 触屏设备优化(增大点按目标)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 921-974 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// TOUCH DEVICE OPTIMIZATIONS
+// =============================================================================
+
+@media (pointer: coarse) {
+  // Larger touch targets (except tree and git items which need to stay compact)
+  .search-result-item,
+  .content-search-header,
+  .content-search-match,
+  .file-tab {
+    min-height: 44px;
+  }
+
+  // Tree nodes stay compact - 24px is minimum for reliable touch
+  .tree-node {
+    min-height: 24px !important;
+  }
+
+  // Git file items stay compact
+  .git-file-item {
+    min-height: 28px !important;
+  }
+
+  .file-explorer-panel-close,
+  .file-explorer-toolbar-btn,
+  .file-explorer-add-folder-btn,
+  .git-refresh-btn,
+  .file-viewer-locate-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  // Disable hover effects
+  .tree-node:hover,
+  .search-result-item:hover,
+  .git-file-item:hover,
+  .file-tab:hover {
+    background: transparent;
+  }
+
+  // Use active states instead
+  .tree-node:active,
+  .search-result-item:active,
+  .git-file-item:active,
+  .file-tab:active {
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  }
+
+  // Always show close buttons on touch
+  .file-tab-close,
+  .file-explorer-folder-remove {
+    opacity: 0.7;
+  }
+}

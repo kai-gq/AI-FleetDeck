@@ -1,0 +1,203 @@
+// =============================================================================
+// 工具栏 / 搜索 / 树节点族 / 搜索结果 / 统一搜索与内容搜索
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 327-519 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  // Toolbar - compact
+  .file-explorer-toolbar {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .file-explorer-search {
+    padding: 0;
+  }
+
+  .file-explorer-search-input {
+    padding: 6px 8px;
+    padding-right: 24px;
+    font-size: 13px;
+    min-height: 28px;
+
+    &::placeholder {
+      font-size: 10px;
+    }
+  }
+
+  .file-explorer-search-icon {
+    font-size: 10px;
+  }
+
+  .file-explorer-search-clear {
+    right: 12px;
+    font-size: 14px;
+    padding: 4px;
+  }
+
+  .file-explorer-toolbar-buttons {
+    gap: 2px;
+  }
+
+  .file-explorer-toolbar-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  // Tree content
+  .file-explorer-tree-content {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .file-tree {
+    padding: 2px 0;
+  }
+
+  .tree-loading,
+  .tree-empty {
+    padding: 16px;
+    font-size: 12px;
+  }
+
+  // Tree nodes - compact for mobile
+  .tree-node {
+    padding: 1px 4px 1px 0 !important;
+    min-height: 20px !important;
+    gap: 2px;
+    margin: 0 !important;
+    border-radius: 2px;
+    line-height: 1 !important;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
+    }
+  }
+
+  .tree-node-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+
+  .tree-children {
+    margin-left: 20px !important;
+    margin-top: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+  }
+
+  .tree-arrow {
+    font-size: 7px;
+    width: 9px;
+    line-height: 1;
+  }
+
+  .tree-folder-icon {
+    font-size: 11px;
+    width: 12px;
+    line-height: 1;
+  }
+
+  .tree-icon {
+    font-size: 10px;
+    width: 12px;
+    line-height: 1;
+  }
+
+  .tree-name {
+    font-size: 11px;
+    line-height: 1 !important;
+  }
+
+  // Search results
+  .search-results {
+    padding: 2px 0;
+  }
+
+  .search-no-results {
+    padding: 16px;
+    font-size: 12px;
+  }
+
+  .search-result-item {
+    padding: 10px 12px;
+    min-height: 44px;
+    gap: 10px;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    }
+  }
+
+  .search-result-icon {
+    font-size: 16px;
+  }
+
+  .search-result-name {
+    font-size: 13px;
+  }
+
+  .search-result-path {
+    font-size: 10px;
+  }
+
+  // Unified search sections
+  .unified-search-section-header {
+    padding: 8px 10px;
+    font-size: 10px;
+    position: sticky;
+    top: 0;
+  }
+
+  .unified-search-section-icon {
+    font-size: 11px;
+  }
+
+  // Content search
+  .content-search-summary {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  .content-search-header {
+    padding: 10px 12px;
+    min-height: 40px;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    }
+  }
+
+  .content-search-name {
+    font-size: 12px;
+  }
+
+  .content-search-count {
+    font-size: 10px;
+  }
+
+  .content-search-match {
+    padding: 8px 12px;
+    min-height: 36px;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    }
+  }
+
+  .content-search-line-num {
+    font-size: 10px;
+    min-width: 30px;
+  }
+
+  .content-search-line-content {
+    font-size: 11px;
+  }
+
+}

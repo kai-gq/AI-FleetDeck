@@ -1,0 +1,17 @@
+// =============================================================================
+// 断点变量(与 _responsive.scss 一致)+ 移动端树分隔柄(桌面隐藏)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 9-18 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Breakpoints (matching _responsive.scss)
+$breakpoint-tablet: 1024px;
+$breakpoint-mobile: 768px;
+$breakpoint-small: 480px;
+
+// Mobile tree resize handle - hidden on desktop
+.fe-mobile-resize-handle {
+  display: none;
+}
+

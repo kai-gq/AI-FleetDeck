@@ -1,0 +1,115 @@
+// =============================================================================
+// Git 变更区 / 语法高亮收尾(code/pre 字号)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 667-771 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+@use './breakpoints' as *;
+@media (max-width: $breakpoint-mobile) {
+  // Git changes - compact
+  .git-changes {
+    height: 100%;
+  }
+
+  .git-changes-loading {
+    padding: 12px;
+    font-size: 11px;
+  }
+
+  .git-changes-empty {
+    padding: 16px 12px;
+  }
+
+  .git-empty-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+
+  .git-empty-text {
+    font-size: 12px;
+  }
+
+  .git-empty-branch {
+    font-size: 9px;
+  }
+
+  .git-changes-header {
+    padding: 4px 8px;
+    min-height: 24px;
+    gap: 6px;
+  }
+
+  .git-branch {
+    font-size: 9px;
+    gap: 3px;
+  }
+
+  .git-branch-icon {
+    font-size: 10px;
+  }
+
+  .git-changes-summary {
+    gap: 3px;
+  }
+
+  .git-count {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+
+  .git-refresh-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .git-changes-list {
+    padding: 2px 0;
+  }
+
+  .git-status-group {
+    margin-bottom: 4px;
+  }
+
+  .git-status-group-header {
+    padding: 3px 8px;
+    font-size: 9px;
+  }
+
+  .git-status-badge {
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+  }
+
+  .git-file-item {
+    padding: 2px 8px 2px 12px;
+    min-height: 24px;
+    gap: 4px;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    }
+  }
+
+  .git-file-status {
+    font-size: 9px;
+    width: 10px;
+  }
+
+  .git-file-name {
+    font-size: 11px;
+  }
+
+  .git-file-renamed {
+    font-size: 8px;
+  }
+
+  // Syntax highlighting - smaller on mobile
+  code[class*="language-"],
+  pre[class*="language-"] {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
