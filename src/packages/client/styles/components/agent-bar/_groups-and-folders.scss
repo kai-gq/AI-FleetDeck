@@ -1,0 +1,133 @@
+// =============================================================================
+// 代理分组 / 文件夹列表与提示 / 区域标签与名称
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 382-507 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Agent group container with border
+.agent-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  border-radius: $radius-lg;
+  border: 1px solid;
+  position: relative;
+  background: color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+  transition: all $transition-fast;
+  margin-top: 4px;
+
+  &:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  &.unassigned {
+    border-style: dashed;
+    border-color: var(--text-muted);
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
+  }
+}
+
+// Area folders within group
+.agent-bar-folders {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 2px 4px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-radius: $radius-sm;
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+}
+
+.agent-bar-folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
+  position: relative;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    transform: scale(1.1);
+
+    .agent-bar-folder-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+}
+
+.agent-bar-folder-icon {
+  font-size: 12px;
+}
+
+.agent-bar-folder-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border: 1px solid var(--accent-green);
+  border-radius: $radius-sm;
+  padding: 6px 10px;
+  font-family: $font-mono;
+  z-index: 300;
+  opacity: 0;
+  visibility: hidden;
+  transition: all $transition-fast;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--accent-green);
+  }
+}
+
+.agent-bar-folder-tooltip-path {
+  font-size: 10px;
+  color: var(--accent-green);
+  white-space: nowrap;
+}
+
+.agent-bar-folder-tooltip-hint {
+  font-size: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+// Area label positioned at top of group border
+.agent-bar-area-label {
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  padding: 1px 6px;
+  border-radius: $radius-sm;
+  background: var(--bg-secondary);
+  z-index: 1;
+}
+
+.agent-bar-area-name {
+  font-size: 8px;
+  font-family: $font-mono;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+

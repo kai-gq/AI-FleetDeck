@@ -1,0 +1,106 @@
+// =============================================================================
+// 工具气泡(含入场动画)/ 最近提问预览 / 提示框区域与提问
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 961-1059 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Tool bubble that appears above agent when using a tool
+// Rendered with position:fixed via inline style (outside scroll wrapper)
+.agent-bar-tool-bubble {
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--accent-pink);
+  border-radius: $radius-md;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  animation: tool-bubble-appear 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px color-mix(in srgb, var(--accent-pink) 30%, transparent);
+  z-index: 201;
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--accent-pink);
+  }
+}
+
+@keyframes tool-bubble-appear {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.8);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-4px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.agent-bar-tool-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.agent-bar-tool-name {
+  font-size: 10px;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: var(--accent-pink);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+// Last query preview below agent
+.agent-bar-last-query {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--text-muted);
+  border-radius: $radius-sm;
+  padding: 3px 8px;
+  font-size: 9px;
+  font-family: $font-mono;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity $transition-fast;
+
+  .agent-bar-item:hover & {
+    opacity: 1;
+  }
+}
+
+// Tooltip area style
+.agent-bar-tooltip-area {
+  font-weight: 600;
+}
+
+// Tooltip query style
+.agent-bar-tooltip-query {
+  color: var(--accent-green);
+  font-style: italic;
+  font-size: 9px;
+  word-break: break-word;
+  line-height: 1.2;
+  max-height: 60px;
+  overflow-y: auto;
+}
+

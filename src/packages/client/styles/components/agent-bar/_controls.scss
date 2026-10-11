@@ -1,0 +1,76 @@
+// =============================================================================
+// 隐藏 / 显示按钮
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 45-113 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Hide button sits just above the top-right corner of the agent bar
+.agent-bar-hide-btn {
+  position: fixed;
+  bottom: 72px; // height of .agent-bar
+  right: 16px;
+  width: 44px;
+  height: 20px;
+  padding: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-tertiary);
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  z-index: 101;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--accent-purple);
+    outline-offset: 1px;
+  }
+}
+
+// Show button displayed when the agent bar is hidden
+.agent-bar-show-btn {
+  position: fixed;
+  bottom: 0;
+  right: 16px;
+  width: 44px;
+  height: 20px;
+  padding: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 95%, transparent) 0%, color-mix(in srgb, var(--bg-primary) 98%, transparent) 100%);
+  border: 1px solid var(--bg-tertiary);
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  z-index: 100;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--accent-purple);
+    outline-offset: 1px;
+  }
+}
+

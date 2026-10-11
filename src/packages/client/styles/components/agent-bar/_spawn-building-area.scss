@@ -1,0 +1,84 @@
+// =============================================================================
+// 生成代理按钮 / 建筑按钮 / 区域按钮
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 305-381 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// New Agent spawn button
+.agent-bar-spawn-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-lg;
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 2px dashed var(--accent-green);
+  cursor: pointer;
+  transition: all $transition-fast;
+  padding: 4px;
+  margin-right: 4px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-green) 30%, transparent);
+    border-style: solid;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-green) 30%, transparent);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.agent-bar-spawn-icon {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-green);
+  line-height: 1;
+}
+
+.agent-bar-spawn-label {
+  font-size: 7px;
+  font-family: $font-mono;
+  font-weight: 600;
+  color: var(--accent-green);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+}
+
+// New Building button variant
+.agent-bar-building-btn {
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border-color: var(--accent-cyan);
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  }
+
+  .agent-bar-spawn-icon,
+  .agent-bar-spawn-label {
+    color: var(--accent-cyan);
+  }
+}
+
+// New Area button variant
+.agent-bar-area-btn {
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  border-color: var(--accent-purple);
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  }
+
+  .agent-bar-spawn-icon,
+  .agent-bar-spawn-label {
+    color: var(--accent-purple);
+  }
+}
+

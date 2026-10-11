@@ -1,0 +1,95 @@
+// =============================================================================
+// 条目动画 keyframes(选中环/工作/弹跳/错误/等待/Boss/拖放指示)
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 649-736 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+@keyframes selected-ring-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+    border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+    border-color: color-mix(in srgb, var(--accent-green) 80%, transparent);
+  }
+}
+
+@keyframes selected-ring-pulse-gold {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+    border-color: rgba(#ffd700, 0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+    border-color: rgba(#ffd700, 0.8);
+  }
+}
+
+@keyframes agent-working-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent-cyan) 70%, transparent), 0 0 30px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    transform: scale(1.05);
+  }
+}
+
+@keyframes agent-icon-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes agent-error-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-red) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 16px color-mix(in srgb, var(--accent-red) 80%, transparent), 0 0 24px color-mix(in srgb, var(--accent-red) 40%, transparent);
+  }
+}
+
+@keyframes agent-waiting-pulse {
+  0%, 100% {
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-orange) 30%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 90%, transparent);
+  }
+}
+
+@keyframes boss-working-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(#ffd700, 0.4), inset 0 0 8px rgba(#ffd700, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(#ffd700, 0.7), 0 0 36px rgba(#ffd700, 0.3), inset 0 0 12px rgba(#ffd700, 0.2);
+    transform: scale(1.05);
+  }
+}
+
+@keyframes drop-indicator-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-50%) scaleY(0.8);
+  }
+}
+

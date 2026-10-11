@@ -1,0 +1,75 @@
+// =============================================================================
+// 悬停弹窗(战场风格)+ 固定开关
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 1060-1127 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Agent hover popup (battlefield tooltip)
+.agent-hover-popup {
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--accent-purple);
+  border-radius: $radius-md;
+  padding: 12px 14px;
+  min-width: 240px;
+  max-width: 300px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  animation: hover-popup-appear 0.15s ease-out;
+  pointer-events: auto;
+  font-size: 0.9em;
+}
+
+@keyframes hover-popup-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// Pin toggle on each agent-bar item — bottom-left corner (the only free one;
+// status dot is bottom-right, hotkey/badge top-right, idle clock top-left).
+// Always faintly visible so it's discoverable; lit when pinned or hovered.
+.agent-bar-pin {
+  position: absolute;
+  bottom: -7px;
+  left: -7px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--text-muted);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+  filter: grayscale(1);
+  transition: opacity $transition-fast, filter $transition-fast, transform $transition-fast, border-color $transition-fast;
+  z-index: 12;
+
+  &:hover {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.15);
+    border-color: var(--accent-cyan);
+  }
+
+  &.pinned {
+    opacity: 1;
+    filter: none;
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+  }
+}
+
+.agent-bar-item:hover .agent-bar-pin {
+  opacity: 1;
+  filter: none;
+}

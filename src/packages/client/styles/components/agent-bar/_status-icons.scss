@@ -1,0 +1,56 @@
+// =============================================================================
+// 区域圆点 / 头像 / 图标 / 状态 / 空闲时钟
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 737-785 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Area indicator dot (top-left corner)
+.agent-bar-area-dot {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+  z-index: 2;
+  transition: transform $transition-fast;
+
+  .agent-bar-item:hover & {
+    transform: scale(1.2);
+  }
+}
+
+.agent-bar-avatar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-bar-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.agent-bar-status {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+}
+
+.agent-bar-idle-clock {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  font-size: 10px;
+  line-height: 1;
+}
+

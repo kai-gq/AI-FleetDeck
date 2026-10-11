@@ -1,0 +1,46 @@
+// =============================================================================
+// 横向滚动容器 / 列表
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 114-152 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Inner scrollable wrapper — scrolls the agent list horizontally
+.agent-bar-scroll {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 20px 2px;
+  height: 100%;
+
+  // Thin custom scrollbar
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+    border-radius: 2px;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-muted) 70%, transparent);
+    }
+  }
+  // Firefox
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
+}
+
+.agent-bar-list {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: max-content; // Prevent wrapping, allow scroll
+}
+

@@ -1,0 +1,120 @@
+// =============================================================================
+// 代理提示框:框体 / 头 / 图标 / 名称 / provider / 状态 / 信息行 / 队列 / 工具
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 848-960 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Tooltip - positioned via inline style (fixed, above hovered agent)
+.agent-bar-tooltip {
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border: 1px solid var(--accent-purple);
+  border-radius: $radius-sm;
+  padding: 6px 10px;
+  min-width: 220px;
+  max-width: 340px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  animation: tooltip-appear 0.15s ease-out;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--accent-purple);
+  }
+}
+
+@keyframes tooltip-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.agent-bar-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.agent-bar-tooltip-icon {
+  font-size: 14px;
+}
+
+.agent-bar-tooltip-name {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+// Provider icon in agent bar tooltip
+.agent-bar-provider-icon {
+  width: 11px;
+  height: 11px;
+  display: inline-block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.agent-bar-tooltip-status {
+  font-size: 9px;
+  font-weight: 600;
+  font-family: $font-mono;
+  text-transform: uppercase;
+}
+
+.agent-bar-tooltip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agent-bar-tooltip-row {
+  display: flex;
+  gap: 6px;
+  font-size: 9px;
+  font-family: $font-mono;
+}
+
+.agent-bar-tooltip-label {
+  color: var(--text-muted);
+  min-width: 50px;
+  flex-shrink: 0;
+}
+
+.agent-bar-tooltip-value {
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.agent-bar-tooltip-path {
+  color: var(--accent-cyan);
+  word-break: break-all;
+  font-size: 9px;
+}
+
+.agent-bar-tooltip-queue {
+  color: var(--accent-orange);
+}
+
+.agent-bar-tooltip-tool {
+  color: var(--accent-pink);
+}
+

@@ -1,0 +1,159 @@
+// =============================================================================
+// 版本指示(徽标/前后状态/过期脉冲)+ HMR 刷新按钮
+// 由 _agent-bar.scss 拆分(W4,2026-10-11):原文件第 153-304 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Version indicator - inline flex item before the buttons list
+.agent-bar-version {
+  font-size: 10px;
+  font-family: $font-mono;
+  color: rgba(255, 255, 255, 0.4);
+  user-select: none;
+  transition: color $transition-fast;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-right: 8px;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.85);
+  }
+}
+
+.agent-bar-version-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent-green);
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+
+  &::before {
+    content: '→ ';
+  }
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+  }
+}
+
+.agent-bar-version-badge-behind {
+  background: var(--accent-orange);
+}
+
+.agent-bar-version-badge-ahead {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+.agent-bar-version-status {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: var(--accent-blue);
+  }
+}
+
+.agent-bar-version-status-behind {
+  color: var(--accent-orange);
+}
+
+.agent-bar-version-status-ahead {
+  color: var(--accent-blue);
+}
+
+// Fixed bottom-left circle indicator: highly visible "outdated" signal
+.agent-bar-version-outdated-indicator {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  pointer-events: auto;
+
+  &:hover .agent-bar-version-outdated-dot {
+    transform: scale(1.35);
+    box-shadow:
+      0 0 0 2px rgba(0, 0, 0, 0.5),
+      0 0 14px color-mix(in srgb, var(--accent-orange) 95%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-orange);
+    outline-offset: 3px;
+    border-radius: 50%;
+  }
+}
+
+.agent-bar-version-outdated-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent-orange);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.45),
+    0 0 8px color-mix(in srgb, var(--accent-orange) 75%, transparent);
+  animation: outdated-version-pulse 1.6s ease-in-out infinite;
+  transition: transform $transition-fast, box-shadow $transition-fast;
+}
+
+@keyframes outdated-version-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
+// HMR refresh button - shows when 3D scene changes are pending
+.agent-bar-hmr-refresh {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+  border: 1px solid var(--accent-orange);
+  color: var(--accent-orange);
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-family: $font-mono;
+  animation: hmr-pulse 2s ease-in-out infinite;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+@keyframes hmr-pulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 8px color-mix(in srgb, var(--accent-orange) 60%, transparent); }
+}
+
