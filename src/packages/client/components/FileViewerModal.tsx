@@ -1,9 +1,16 @@
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 常量 / 助手 / Markdown 组件表已拆入
+// ./file-viewer-modal/;懒加载查看器因动态导入路径保留主文件,导出面不变。
+// ============================================================================
+
+import { type FileViewerModalProps, type ResolveResult, type FileData, type NotFoundDetail } from './file-viewer-modal/types';
+import { CODE_LINE_HEIGHT, HIGHLIGHT_LINE_HEIGHT, MARKDOWN_EXTENSIONS, HTML_EXTENSIONS, IMAGE_EXTENSIONS, PDF_EXTENSIONS, STL_EXTENSIONS, FCSTD_EXTENSIONS, GLB_EXTENSIONS, GCODE_EXTENSIONS } from './file-viewer-modal/constants';
+import { reconstructOriginalFromUnifiedDiff, hasFileExtension } from './file-viewer-modal/helpers';
+import { MARKDOWN_COMPONENTS } from './file-viewer-modal/markdown-components';
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { PlantUmlDiagram } from './PlantUmlDiagram';
 import { DiffViewer } from './DiffViewer';
 import { PdfJsViewer } from './shared/PdfJsViewer';
 import { apiUrl, authFetch, getAuthToken } from '../utils/storage';
@@ -32,240 +39,31 @@ const StlViewer = React.lazy(async () => {
   const module = await import('./shared/StlViewer');
   return { default: module.StlViewer };
 });
+
 const FcStdViewer = React.lazy(async () => {
   const module = await import('./shared/FcStdViewer');
   return { default: module.FcStdViewer };
 });
+
 const GlbViewer = React.lazy(async () => {
   const module = await import('./shared/GlbViewer');
   return { default: module.GlbViewer };
 });
+
 const GcodeViewer = React.lazy(async () => {
   const module = await import('./shared/GcodeViewer');
   return { default: module.GcodeViewer };
 });
+
 const AudioPlayer = React.lazy(async () => {
   const module = await import('./shared/AudioPlayer');
   return { default: module.AudioPlayer };
 });
+
 const VideoPlayer = React.lazy(async () => {
   const module = await import('./shared/VideoPlayer');
   return { default: module.VideoPlayer };
 });
-
-// Row heights from _file-viewer.scss: 12px font at line-height 1.6 (normal
-// view) and 1.5 (read-highlight view). Rows never wrap (`white-space: pre`),
-// so these are exact and the windowed list keeps the real scroll height.
-const CODE_LINE_HEIGHT = 19.2;
-const HIGHLIGHT_LINE_HEIGHT = 18;
-
-interface FileViewerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  filePath: string;
-  action: 'created' | 'modified' | 'deleted' | 'read';
-  // Optional: edit data for showing diff view OR line highlight
-  editData?: {
-    oldString?: string;
-    newString?: string;
-    operation?: string;
-    unifiedDiff?: string;
-    /** Literal replacements a shell/script edit performed, newest state last. */
-    replacements?: Array<{ oldText: string; newText: string }>;
-    // For Read tool - highlight these lines
-    highlightRange?: { offset: number; limit: number };
-    // For direct file references like path/to/file.ts:16
-    targetLine?: number;
-  };
-  // Optional: project root for fallback file search when file not found
-  searchRoot?: string;
-}
-
-interface ResolveResult {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  size: number;
-  extension: string;
-}
-
-type ResolutionStrategy =
-  | 'exact'
-  | 'cached'
-  | 'parent-walk'
-  | 'git-root'
-  | 'suffix-match'
-  | 'node-modules-match'
-  | 'area-root'
-  | 'area-suffix-match'
-  | 'child-anchor';
-
-interface FileData {
-  path: string;
-  filename: string;
-  extension: string;
-  content: string;
-  size: number;
-  modified: string;
-  strategy?: ResolutionStrategy;
-  areaId?: string;
-  areaName?: string;
-  /** Delimited file too large for the text pane — only the grid can show it. */
-  gridOnly?: boolean;
-}
-
-interface NotFoundDetail {
-  message: string;
-  triedRoots: string[];
-  requested?: string;
-  /** Server's explanation of the miss (deleted vs. folder gone, similar names, git). */
-  diagnosis?: MissingFileDiagnosis;
-}
-
-/**
- * Reconstruct the original file content from the current (modified) content
- * and a unified diff. Reverses the diff: removes added lines, restores removed lines.
- */
-function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: string): string | null {
-  try {
-    if (/^\*\*\* (?:Update|Add|Delete) File:/m.test(diffText)) {
-      const header = diffText.match(/^\*\*\* (Update|Add|Delete) File:/m)?.[1];
-      if (header === 'Add') return '';
-      let reconstructed = currentContent;
-      const body = diffText.replace(/^\*\*\* (?:Update|Add|Delete) File:.*$/m, '');
-      const hunks = body.split(/^@@.*$/m).filter((part) => part.trim());
-      for (const hunk of hunks) {
-        const oldLines: string[] = [];
-        const newLines: string[] = [];
-        for (const line of hunk.replace(/^\n/, '').split('\n')) {
-          if (line.startsWith('***')) continue;
-          if (line.startsWith('-')) oldLines.push(line.slice(1));
-          else if (line.startsWith('+')) newLines.push(line.slice(1));
-          else {
-            const context = line.startsWith(' ') ? line.slice(1) : line;
-            oldLines.push(context);
-            newLines.push(context);
-          }
-        }
-        const oldBlock = oldLines.join('\n');
-        const newBlock = newLines.join('\n');
-        if (!newBlock) continue;
-        const index = reconstructed.indexOf(newBlock);
-        if (index < 0) return null;
-        reconstructed = reconstructed.slice(0, index) + oldBlock + reconstructed.slice(index + newBlock.length);
-      }
-      return reconstructed;
-    }
-    const currentLines = currentContent.split('\n');
-    const diffLines = diffText.split('\n');
-    const result: string[] = [];
-    let currentIdx = 0; // 0-based index into currentLines
-
-    for (let d = 0; d < diffLines.length; d++) {
-      const line = diffLines[d];
-      // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
-      const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
-      if (!hunkMatch) continue;
-
-      const newStart = parseInt(hunkMatch[3], 10); // 1-based line in modified file
-      const _newCount = parseInt(hunkMatch[4] ?? '1', 10);
-
-      // Copy unchanged lines before this hunk
-      const hunkStartIdx = newStart - 1; // 0-based
-      while (currentIdx < hunkStartIdx && currentIdx < currentLines.length) {
-        result.push(currentLines[currentIdx]);
-        currentIdx++;
-      }
-
-      // Process hunk lines
-      let _newLinesConsumed = 0;
-      for (let h = d + 1; h < diffLines.length; h++) {
-        const hLine = diffLines[h];
-        if (hLine.startsWith('@@') || hLine.startsWith('diff ')) break;
-        if (hLine.startsWith('---') || hLine.startsWith('+++') ||
-            hLine.startsWith('index ') || hLine.startsWith('new file') ||
-            hLine.startsWith('deleted file') || hLine.startsWith('\\')) continue;
-
-        if (hLine.startsWith('-')) {
-          // Removed line: add to original (restore it)
-          result.push(hLine.slice(1));
-        } else if (hLine.startsWith('+')) {
-          // Added line: skip (don't include in original), consume from current
-          _newLinesConsumed++;
-          currentIdx++;
-        } else {
-          // Context line: include in original, consume from current
-          result.push(hLine.startsWith(' ') ? hLine.slice(1) : hLine);
-          _newLinesConsumed++;
-          currentIdx++;
-        }
-      }
-    }
-
-    // Copy remaining unchanged lines after last hunk
-    while (currentIdx < currentLines.length) {
-      result.push(currentLines[currentIdx]);
-      currentIdx++;
-    }
-
-    return result.join('\n');
-  } catch {
-    return null;
-  }
-}
-
-
-const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
-const HTML_EXTENSIONS = ['.html', '.htm'];
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
-const PDF_EXTENSIONS = ['.pdf'];
-const STL_EXTENSIONS = ['.stl'];
-const FCSTD_EXTENSIONS = ['.fcstd'];
-const GLB_EXTENSIONS = ['.glb', '.gbl'];
-const GCODE_EXTENSIONS = ['.gcode', '.gco'];
-
-function hasFileExtension(extension: string | undefined, path: string, extensions: string[]): boolean {
-  const normalizedExtension = extension?.toLowerCase();
-  if (normalizedExtension && extensions.includes(normalizedExtension)) return true;
-  const normalizedPath = path.toLowerCase().split(/[?#]/, 1)[0];
-  return extensions.some((candidate) => normalizedPath.endsWith(candidate));
-}
-
-/** Flatten react-markdown code children into the raw fenced-block text. */
-function extractCodeText(children: React.ReactNode): string {
-  if (typeof children === 'string') return children;
-  if (Array.isArray(children)) return children.map(extractCodeText).join('');
-  return children == null ? '' : String(children);
-}
-
-function getCodeLanguage(className: string | undefined): string | undefined {
-  return /language-(\w+)/.exec(className || '')?.[1];
-}
-
-/**
- * Markdown renderer overrides for the file viewer:
- *  - fenced ```plantuml blocks render as actual diagrams (PlantUmlDiagram)
- *  - all other code blocks and inline code keep rendering normally
- */
-const MARKDOWN_COMPONENTS: Components = {
-  code({ node: _node, className, children, ...rest }) {
-    if (getCodeLanguage(className) === 'plantuml') {
-      return <PlantUmlDiagram source={extractCodeText(children).replace(/\n$/, '')} />;
-    }
-    return <code className={className} {...rest}>{children}</code>;
-  },
-  pre({ children }) {
-    // PlantUmlDiagram renders its own block container, so unwrap the <pre> for
-    // plantuml blocks to avoid invalid <pre><div> nesting. Other blocks keep <pre>.
-    const child = Array.isArray(children) ? children[0] : children;
-    const childClass =
-      React.isValidElement<{ className?: string }>(child) ? child.props.className : undefined;
-    if (getCodeLanguage(childClass) === 'plantuml') {
-      return <>{children}</>;
-    }
-    return <pre>{children}</pre>;
-  },
-};
 
 export function FileViewerModal({ isOpen, onClose, filePath, action, editData, searchRoot }: FileViewerModalProps) {
   const { t } = useTranslation(['terminal', 'common']);
