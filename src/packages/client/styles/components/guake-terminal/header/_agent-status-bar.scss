@@ -1,0 +1,187 @@
+// =============================================================================
+// agent 状态条(CWD / 区域目录 / 分支 / 上下文)+ 终端状态
+// 由 _header.scss 拆分(W4,2026-10-11):原文件第 354-532 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-agent-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 4px 14px;
+  height: 30px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid var(--bg-tertiary);
+
+  // Hide on mobile devices
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.guake-agent-cwd {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-family: $font-mono;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.guake-agent-area-dir {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+}
+
+.guake-agent-area-branch {
+  color: var(--accent-blue);
+  margin-left: 2px;
+  opacity: 0.85;
+}
+
+.guake-agent-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: $font-mono;
+  flex-shrink: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  .context-icon {
+    display: none;
+  }
+
+  .context-label {
+    display: none;
+  }
+
+  .context-bar-mini {
+    display: none;
+  }
+
+  .context-bar-mini-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+  }
+
+  .context-tokens {
+    font-weight: 600;
+  }
+
+  .context-free {
+    display: none;
+  }
+
+  .context-warning {
+    font-size: 10px;
+    color: var(--accent-orange);
+    opacity: 0.8;
+  }
+}
+
+// Right-aligned group in the status bar (terminals + theme selector)
+.guake-status-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+// Terminal toggle buttons in the status bar
+.guake-status-terminals {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guake-status-terminal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+
+  &:hover {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  }
+
+  &.active {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  }
+
+  &.offline {
+    opacity: 0.55;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 0.85;
+      color: var(--accent-orange);
+      border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+      background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+    }
+  }
+
+  // Zero-config area default terminal — cyan-tinted idle state so it reads
+  // apart from configured terminal buildings (it exists for every area).
+  &.default:not(.active) {
+    color: color-mix(in srgb, var(--accent-cyan) 80%, var(--text-muted));
+  }
+}
+

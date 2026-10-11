@@ -1,0 +1,139 @@
+// =============================================================================
+// agent 链接 chip 与状态 keyframes
+// 由 _header.scss 拆分(W4,2026-10-11):原文件第 533-663 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-agent-link {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    border-color: var(--text-muted);
+    transform: translateY(-1px);
+  }
+
+  &.selected {
+    border-color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-purple) 40%, transparent);
+  }
+
+  // Status-based animations
+  &.working {
+    border-color: color-mix(in srgb, var(--accent-cyan) 70%, transparent);
+    animation: guake-link-working 1.5s ease-in-out infinite;
+  }
+
+  &.error {
+    border-color: color-mix(in srgb, var(--accent-red) 70%, transparent);
+    animation: guake-link-error 0.8s ease-in-out infinite;
+  }
+
+  &.waiting {
+    border-color: color-mix(in srgb, var(--accent-orange) 60%, transparent);
+    animation: guake-link-waiting 2s ease-in-out infinite;
+  }
+}
+
+@keyframes guake-link-working {
+  0%, 100% {
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+  }
+}
+
+@keyframes guake-link-error {
+  0%, 100% {
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent-red) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-red) 70%, transparent);
+  }
+}
+
+@keyframes guake-link-waiting {
+  0%, 100% {
+    box-shadow: 0 0 3px color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-orange) 40%, transparent);
+    border-color: color-mix(in srgb, var(--accent-orange) 80%, transparent);
+  }
+}
+
+.guake-agent-link-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.guake-agent-link-status {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-secondary);
+  box-shadow: 0 0 3px currentColor;
+}
+
+.guake-agent-link-idle {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-family: $font-mono;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+
+.guake-agent-link-tool {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 10px;
+  line-height: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-pink);
+  border-radius: $radius-sm;
+  padding: 1px 3px;
+  animation: guake-tool-pop 0.3s ease-out;
+}
+
+@keyframes guake-tool-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// Provider icon in header (next to agent name)

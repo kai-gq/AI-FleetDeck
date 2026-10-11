@@ -1,0 +1,58 @@
+// =============================================================================
+// 头部 ≤768px 微调
+// 由 _header.scss 拆分(W4,2026-10-11):原文件第 1006-1055 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+@media (max-width: 768px) {
+  .guake-swipe-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+    padding: 0 4px;
+    flex-shrink: 0;
+
+    &-arrow {
+      font-size: 12px;
+      opacity: 0.6;
+    }
+  }
+
+  // Add swipe cursor hint on header when multiple agents exist
+  .guake-header.has-multiple-agents {
+    cursor: ew-resize;
+
+    // Subtle left/right edge indicators
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 60%;
+      border-radius: 2px;
+      background: transparent;
+      transition: background 0.2s ease;
+      pointer-events: none;
+    }
+
+    &::before {
+      left: 2px;
+    }
+
+    &::after {
+      right: 2px;
+    }
+
+    &:active::before,
+    &:active::after {
+      background: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    }
+  }
+}
+

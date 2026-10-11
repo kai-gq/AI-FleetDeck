@@ -1,0 +1,205 @@
+// =============================================================================
+// 头部结构 / 标题列 / 标题块与头像 / 任务 chip / 移动标题上下文
+// 由 _header.scss 拆分(W4,2026-10-11):原文件第 8-204 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-header {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: nowrap;
+  padding: 6px 16px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--bg-secondary) 98%, transparent),
+      color-mix(in srgb, var(--bg-primary) 92%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.18);
+  overflow: visible;
+  min-height: 0;
+}
+
+.guake-header-left {
+  display: flex;
+  flex: 1 1 420px;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  // Visible so the working avatar ring/glow is not clipped
+  overflow: visible;
+}
+
+.guake-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  // Visible so the working avatar ring/glow is not clipped
+  overflow: visible;
+}
+
+.guake-header-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.guake-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 14px;
+  font-family: $font-family;
+  line-height: 1.15;
+}
+
+.guake-agent-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  // Visible so the working ring/glow is not clipped
+  overflow: visible;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--accent-pink) 22%, var(--bg-primary)),
+      color-mix(in srgb, var(--accent-cyan) 14%, var(--bg-primary)));
+  border: 1.5px solid color-mix(in srgb, var(--accent-pink) 28%, var(--border-color));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 8px 18px rgba(0, 0, 0, 0.18);
+  font-size: 14px;
+  transform-origin: center center;
+  box-sizing: border-box;
+
+  // Clip icon art to the rounded rect without clipping the outer pulse ring
+  > * {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 7px;
+  }
+
+  &.is-working {
+    border-color: color-mix(in srgb, var(--accent-cyan) 55%, var(--border-color));
+    z-index: 1;
+  }
+}
+
+.guake-agent-activity {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 12px;
+  height: 12px;
+  padding: 1px;
+  border-radius: 50%;
+  color: var(--accent-green);
+  box-sizing: content-box;
+}
+
+.guake-title-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.guake-title-main-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.guake-title-task-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 240px;
+  min-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 24%, transparent);
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-family: $font-mono;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.guake-mobile-title-context {
+  display: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: $font-mono;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.guake-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
+  .guake-title-info {
+    color: var(--text-secondary);
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-primary) 84%, var(--accent-cyan) 6%);
+    border-color: color-mix(in srgb, var(--accent-cyan) 34%, var(--border-color));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 12px 26px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+
+    .guake-title-info {
+      color: var(--accent-cyan);
+    }
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-cyan) 42%, var(--border-color));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+  }
+}
+
