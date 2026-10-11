@@ -1,0 +1,92 @@
+// =============================================================================
+// 待发(排队)消息:头部 / 列表 / chip / 文本 / 移除
+// 由 _attachments.scss 拆分(W4,2026-10-11):原文件第 852-936 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Pending (Queued) Messages
+// =============================================================================
+
+.guake-pending-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
+}
+
+.guake-pending-messages-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-yellow);
+  font-weight: 500;
+
+  svg,
+  img {
+    flex-shrink: 0;
+  }
+}
+
+.guake-pending-messages-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guake-pending-message-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--accent-yellow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 35%, transparent);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-yellow);
+  transition: all $transition-fast;
+  max-width: 100%;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent-yellow) 60%, transparent);
+  }
+}
+
+.guake-pending-message-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.guake-pending-message-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--accent-yellow) 60%, transparent);
+  font-size: 12px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  }
+}
+

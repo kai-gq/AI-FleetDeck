@@ -1,0 +1,94 @@
+// =============================================================================
+// 粘贴文本条:chip 家族(图标/标签/计数/移除/编辑)
+// 由 _attachments.scss 拆分(W4,2026-10-11):原文件第 192-278 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Pasted Text Chips
+// =============================================================================
+
+.guake-pasted-texts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
+}
+
+.pasted-text-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-cyan);
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    border-color: var(--accent-cyan);
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  }
+}
+
+.pasted-text-chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pasted-text-chip-label {
+  font-weight: 500;
+}
+
+.pasted-text-chip-count {
+  color: color-mix(in srgb, var(--accent-cyan) 80%, transparent);
+  font-size: 9px;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.pasted-text-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+  font-size: 12px;
+  line-height: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  }
+}
+
+.pasted-text-chip-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity $transition-fast;
+  color: color-mix(in srgb, var(--accent-cyan) 70%, transparent);
+
+  .pasted-text-chip:hover & {
+    opacity: 1;
+  }
+}
+

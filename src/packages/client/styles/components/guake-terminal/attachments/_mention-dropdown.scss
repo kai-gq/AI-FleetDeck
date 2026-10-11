@@ -1,0 +1,125 @@
+// =============================================================================
+// 文件提及自动补全下拉:容器 / 列表 / 条目 / 斜杠命令 / 图标 / 名称 / 路径 / 提示行
+// 由 _attachments.scss 拆分(W4,2026-10-11):原文件第 937-1054 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// File mention autocomplete dropdown
+// =============================================================================
+
+.file-mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: $radius-md;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 500;
+  overflow: hidden;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-mention-dropdown__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.file-mention-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-primary);
+  transition: background $transition-fast;
+
+  &:hover,
+  &.is-selected {
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  }
+
+  &.is-selected {
+    .file-mention-dropdown__name {
+      color: var(--accent-cyan);
+    }
+  }
+
+  // Agent mentions: accent the row so tagging an agent reads distinct from a file.
+  &.is-agent {
+    box-shadow: inset 2px 0 0 var(--accent-purple);
+
+    .file-mention-dropdown__icon {
+      color: var(--accent-purple);
+    }
+
+    .file-mention-dropdown__path {
+      color: color-mix(in srgb, var(--accent-purple) 85%, transparent);
+    }
+  }
+
+  // Slash commands: green edge, so `/` never reads as a file or an agent.
+  &.is-slash {
+    box-shadow: inset 2px 0 0 var(--accent-green, #4ade80);
+
+    .file-mention-dropdown__icon {
+      color: var(--accent-green, #4ade80);
+    }
+
+    .file-mention-dropdown__name {
+      color: var(--accent-green, #4ade80);
+    }
+  }
+}
+
+.slash-command-dropdown {
+  border-color: color-mix(in srgb, var(--accent-green, #4ade80) 35%, transparent);
+
+  .file-mention-dropdown__item.is-selected {
+    background: color-mix(in srgb, var(--accent-green, #4ade80) 14%, transparent);
+  }
+}
+
+.file-mention-dropdown__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  width: 14px;
+}
+
+.file-mention-dropdown__name {
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-mention-dropdown__path {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-mention-dropdown__hint {
+  padding: 4px 12px;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+}

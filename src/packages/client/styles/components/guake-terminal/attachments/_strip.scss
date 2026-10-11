@@ -1,0 +1,116 @@
+// =============================================================================
+// 附件条:容器 / 条目卡与悬停 / 缩略图 / 图标 / 信息与名称 / 大小
+// 由 _attachments.scss 拆分(W4,2026-10-11):原文件第 7-115 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// File attachments - shown above input
+.guake-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
+}
+
+.guake-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+  border-radius: $radius-md;
+  font-family: $font-mono;
+  font-size: 11px;
+  transition: all $transition-fast;
+  position: relative;
+
+  &.is-image {
+    border-color: color-mix(in srgb, var(--accent-pink) 40%, transparent);
+    padding: 4px;
+    gap: 0;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--accent-pink) 80%, transparent);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--accent-pink) 30%, transparent);
+    }
+  }
+
+  &.is-document {
+    border-color: color-mix(in srgb, var(--accent-orange) 30%, transparent);
+
+    .guake-attachment-icon {
+      color: var(--accent-orange);
+    }
+  }
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-pink) 15%, transparent);
+      border-color: color-mix(in srgb, var(--accent-pink) 50%, transparent);
+    }
+  }
+}
+
+.guake-attachment-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: $radius-sm;
+  border: 1px solid color-mix(in srgb, var(--accent-pink) 40%, transparent);
+  flex-shrink: 0;
+}
+
+.guake-attachment-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.guake-attachment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.guake-attachment-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.guake-attachment-type-icon {
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.guake-attachment-name {
+  color: var(--text-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.guake-attachment-size {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
