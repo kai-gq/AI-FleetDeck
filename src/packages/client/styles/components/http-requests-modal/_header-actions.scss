@@ -1,0 +1,17 @@
+// =============================================================================
+// 模态头部操作区(最小化/停靠 + 关闭;含停靠变体说明注释)
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 954-963 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Modal header action cluster (minimize/dock + close).
+.http-requests-building-modal .hrm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Docked bottom-panel variant: fill the host panel instead of the fixed modal
+// footprint, and drop the window chrome (the panel provides its own header).

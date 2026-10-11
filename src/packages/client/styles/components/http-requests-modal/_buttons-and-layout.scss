@@ -1,0 +1,96 @@
+// =============================================================================
+// 操作按钮 / 主体三栏与分隔条
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 172-257 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-requests-building-modal,
+.http-requests-panel-host {
+  .hrm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: $font-family;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-fast;
+
+    &:hover:not(:disabled) {
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &.primary {
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
+      color: var(--accent-green);
+
+      &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+        color: var(--accent-green);
+      }
+    }
+
+    &.small {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    &.active {
+      color: var(--accent-blue);
+      border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    }
+  }
+
+  // --- Body layout --------------------------------------------------------------
+  .hrm-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .hrm-left {
+    width: 40%; // overridden by the inline style from useSplitPane
+    min-width: 160px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    background: var(--bg-primary);
+  }
+
+  // Draggable divider between the request list and the detail pane.
+  .hrm-split {
+    flex: 0 0 5px;
+    margin-left: -1px; // sit on the left pane's border
+    cursor: col-resize;
+    transition: background 0.15s ease;
+
+    &:hover,
+    &:active {
+      background: color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+    }
+  }
+
+  .hrm-right {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  // --- Left: env files strip ----------------------------------------------------
+}

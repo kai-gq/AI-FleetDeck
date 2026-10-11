@@ -1,0 +1,68 @@
+// =============================================================================
+// 停靠底板壳:尺寸 / 工具栏 / 文件条 / 行布局紧凑覆盖
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 965-1023 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-requests-panel-host {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  font-size: 12px;
+
+  // Compact chrome — the dock is short, every px counts.
+  .hrm-toolbar {
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .hrm-search {
+    padding: 2px 8px;
+    gap: 5px;
+
+    input {
+      font-size: 12px;
+    }
+  }
+
+  .hrm-scan-counts {
+    font-size: 11px;
+  }
+
+  .hrm-env {
+    font-size: 11px;
+  }
+
+  .hrm-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .hrm-env-files {
+    padding: 2px 8px;
+    gap: 4px;
+  }
+
+  .hrm-env-file-chip {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  .hrm-left {
+    min-width: 140px;
+  }
+
+  .hrm-row {
+    padding: 1px 8px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+}

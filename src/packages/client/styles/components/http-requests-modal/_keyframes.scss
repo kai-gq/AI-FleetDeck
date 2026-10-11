@@ -1,0 +1,23 @@
+// =============================================================================
+// 旋转与地球脉冲 keyframes
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 915-930 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+@keyframes hrm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hrm-globe-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+

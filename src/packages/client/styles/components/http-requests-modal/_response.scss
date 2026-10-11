@@ -1,0 +1,170 @@
+// =============================================================================
+// 响应面板:头 / 状态胶囊 / 元信息 / 已发送请求 / 告警与错误横幅 / 最终 URL / 响应体 / 空态
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 572-731 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-requests-building-modal,
+.http-requests-panel-host {
+  .hrm-response {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .hrm-response-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+
+  .hrm-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid;
+    border-radius: $radius-md;
+    padding: 3px 10px;
+
+    &.error {
+      color: var(--accent-red);
+      border-color: color-mix(in srgb, var(--accent-red) 60%, transparent);
+    }
+  }
+
+  .hrm-response-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+
+    &.type {
+      font-family: $font-mono;
+      font-size: 11px;
+    }
+  }
+
+  .hrm-sent-request {
+    margin: 0 16px 8px;
+    padding: 10px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+
+    .hrm-sent-request-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .hrm-request-line {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: $font-mono;
+      font-size: 12px;
+      word-break: break-all;
+
+      .hrm-url {
+        color: var(--text-primary);
+      }
+    }
+
+    .hrm-headers-table.request {
+      margin-top: 6px;
+    }
+  }
+
+  .hrm-error-banner,
+  .hrm-warn-banner {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin: 0 16px 8px;
+    padding: 8px 12px;
+    border-radius: $radius-md;
+    font-size: 12px;
+
+    &.banner {
+      margin: 8px 16px 0;
+    }
+  }
+
+  .hrm-error-banner {
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
+    color: var(--accent-red);
+  }
+
+  .hrm-warn-banner {
+    background: color-mix(in srgb, var(--accent-orange) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
+    color: var(--accent-orange);
+
+    .hrm-warn-hint {
+      color: var(--text-muted);
+    }
+  }
+
+  .hrm-final-url {
+    padding: 0 16px 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-family: $font-mono;
+  }
+
+  .hrm-response-body {
+    flex: 1;
+    margin: 0 16px 16px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: $radius-md;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 80px;
+  }
+
+  .hrm-body-note {
+    padding: 14px 16px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  .hrm-response-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 30px;
+    text-align: center;
+
+    p {
+      margin: 0;
+      font-size: 12px;
+      max-width: 300px;
+    }
+  }
+
+  // --- File editor ----------------------------------------------------------------
+}

@@ -1,0 +1,85 @@
+// =============================================================================
+// 停靠底板:详情头 / 请求块 / 响应 / 历史紧凑覆盖
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 1024-1099 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-requests-panel-host {
+  .hrm-detail-head {
+    padding: 3px 8px;
+    gap: 6px;
+
+    .hrm-detail-name {
+      font-size: 12px;
+    }
+
+    .hrm-detail-loc {
+      font-size: 10px;
+    }
+  }
+
+  .hrm-request-block {
+    padding: 3px 8px;
+
+    .hrm-request-line {
+      gap: 6px;
+    }
+
+    .hrm-url {
+      font-size: 12px;
+    }
+  }
+
+  .hrm-response-head {
+    padding: 2px 8px;
+    gap: 6px;
+  }
+
+  .hrm-status-pill {
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-response-meta {
+    font-size: 10px;
+  }
+
+  .hrm-headers-table {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-request-body {
+    margin: 4px 8px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-response-body {
+    margin: 0 8px 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .hrm-sent-request {
+    margin: 4px 8px;
+    padding: 5px 8px;
+  }
+
+  .hrm-history-toggle {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-history-row {
+    padding: 1px 8px;
+    font-size: 11px;
+  }
+
+  .hrm-browser-empty {
+    padding: 12px 10px;
+    gap: 6px;
+  }
+}

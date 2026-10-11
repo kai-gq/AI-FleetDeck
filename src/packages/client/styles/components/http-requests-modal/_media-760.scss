@@ -1,0 +1,30 @@
+// =============================================================================
+// ≤760px 纵向堆叠(媒体查询)
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 931-953 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+// Mobile: stack the panes.
+@media (max-width: 760px) {
+  .http-requests-building-modal,
+  .http-requests-panel-host {
+    .hrm-body {
+      flex-direction: column;
+    }
+
+    .hrm-left {
+      // !important beats the inline width from useSplitPane (desktop-only drag).
+      width: 100% !important;
+      min-width: 0;
+      max-height: 40%;
+      border-right: none;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hrm-split {
+      display: none;
+    }
+  }
+}
+

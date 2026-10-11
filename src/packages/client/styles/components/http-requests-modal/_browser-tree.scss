@@ -1,0 +1,218 @@
+// =============================================================================
+// 环境文件条与标签 / 浏览器空态 / 行家族 / 方法徽标 / 状态点 / 播放与编辑按钮
+// 由 http-requests-building-modal.scss 拆分(W4,2026-10-11):原文件第 258-465 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+
+.http-requests-building-modal,
+.http-requests-panel-host {
+  .hrm-env-files {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+
+    .hrm-env-files-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  }
+
+  .hrm-env-file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-family: $font-mono;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: var(--accent-blue);
+      border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
+    }
+
+    &.create {
+      color: var(--accent-green);
+      border-style: dashed;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-green) 60%, transparent);
+        background: color-mix(in srgb, var(--accent-green) 8%, transparent);
+      }
+    }
+  }
+
+  // --- Left: browser ---------------------------------------------------------
+  .hrm-browser {
+    padding: 6px 0;
+  }
+
+  .hrm-browser-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+
+    &.error {
+      color: var(--accent-orange);
+    }
+  }
+
+  .hrm-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-width: 0;
+
+    &:hover {
+      background: var(--bg-tertiary);
+
+      .hrm-play {
+        opacity: 1;
+      }
+    }
+  }
+
+  .hrm-file-row {
+    font-weight: 600;
+    color: var(--text-primary);
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    z-index: 1;
+
+    .hrm-file-icon {
+      display: inline-flex;
+      color: var(--accent-cyan);
+    }
+  }
+
+  .hrm-req-row {
+    padding-left: 34px;
+
+    &.selected {
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+      color: var(--text-primary);
+    }
+  }
+
+  .hrm-caret {
+    display: inline-flex;
+    color: var(--text-muted);
+    width: 12px;
+    justify-content: center;
+  }
+
+  .hrm-row-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .hrm-req-count {
+    color: var(--text-muted);
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 0 7px;
+    flex-shrink: 0;
+  }
+
+  .hrm-method {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: $font-mono;
+    letter-spacing: 0.03em;
+    width: 46px;
+    flex-shrink: 0;
+    text-align: right;
+
+    &.big {
+      font-size: 13px;
+      width: auto;
+    }
+  }
+
+  .hrm-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .hrm-play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--accent-green);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: $radius-sm;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity $transition-fast;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    }
+
+    &:disabled {
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+  }
+
+  .hrm-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: $radius-sm;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity $transition-fast;
+
+    &:hover {
+      color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+    }
+  }
+
+  .hrm-row:hover .hrm-edit-btn {
+    opacity: 1;
+  }
+
+  // --- Right: request detail ---------------------------------------------------
+}
