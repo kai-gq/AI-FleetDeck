@@ -1,0 +1,101 @@
+// =============================================================================
+// 命令区 / URL 行 / 日志区 / modal-footer
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 1391-1481 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Commands Section
+  .commands-section {
+    .command-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .command-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .command-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        min-width: 80px;
+        text-align: right;
+      }
+
+      .form-input {
+        flex: 1;
+        font-family: $font-mono;
+        font-size: 0.85rem;
+      }
+
+      .btn {
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  // URL Section
+  .url-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+
+    .url-label {
+      width: 100px;
+      flex-shrink: 0;
+    }
+
+    .url-value {
+      flex: 1;
+    }
+
+    .btn {
+      flex-shrink: 0;
+    }
+  }
+
+  // Logs Section
+  .logs-section {
+    .logs-container {
+      max-height: 200px;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.5rem;
+      font-family: $font-mono;
+      font-size: 0.75rem;
+    }
+
+    .log-entry {
+      margin: 0;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--border-color);
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text-secondary);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  // Modal Footer
+  .modal-footer {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+
+    .footer-spacer {
+      flex: 1;
+    }
+  }
+
+}

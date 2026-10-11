@@ -1,0 +1,90 @@
+// =============================================================================
+// 建筑尺寸控件(滑块行)
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 33-112 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Size control (inline in form)
+  .building-size-control {
+    .size-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+
+      .size-slider {
+        flex: 1;
+        height: 6px;
+        -webkit-appearance: none;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        outline: none;
+
+        &::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 16px;
+          height: 16px;
+          background: var(--accent-blue);
+          border-radius: 50%;
+          cursor: pointer;
+          transition: transform 0.15s;
+
+          &:hover {
+            transform: scale(1.2);
+          }
+        }
+
+        &::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          background: var(--accent-blue);
+          border-radius: 50%;
+          cursor: pointer;
+          border: none;
+        }
+      }
+
+      .size-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-family: $font-mono;
+        min-width: 50px;
+        text-align: right;
+      }
+    }
+
+    .size-presets {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+
+      .size-preset-btn {
+        flex: 1;
+        padding: 0.35rem 0.25rem;
+        font-size: 0.7rem;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: $font-mono;
+
+        &:hover {
+          border-color: var(--accent-blue);
+          color: var(--text-primary);
+        }
+
+        &.active {
+          background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+          border-color: var(--accent-blue);
+          color: var(--accent-blue);
+        }
+      }
+    }
+  }
+
+}

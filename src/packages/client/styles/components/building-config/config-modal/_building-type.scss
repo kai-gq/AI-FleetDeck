@@ -1,0 +1,52 @@
+// =============================================================================
+// 建筑类型选择器与按钮
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 175-216 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Building Type Selector
+  .building-type-selector {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .building-type-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 70px;
+    color: var(--text-primary);
+
+    &:hover {
+      border-color: var(--accent-blue);
+      background: var(--bg-tertiary);
+    }
+
+    &.active {
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    }
+
+    .building-type-icon {
+      font-size: 1.25rem;
+    }
+
+    .building-type-name {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: capitalize;
+    }
+  }
+
+}

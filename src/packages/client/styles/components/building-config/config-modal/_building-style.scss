@@ -1,0 +1,394 @@
+// =============================================================================
+// 建筑样式选择器与按钮(含 6 组预览 keyframes)
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 217-600 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Building Style Selector
+  .building-style-selector {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .building-style-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 80px;
+    color: var(--text-primary);
+
+    &:hover {
+      border-color: var(--accent-blue);
+      background: var(--bg-tertiary);
+    }
+
+    &.active {
+      border-color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+    }
+
+    .building-style-preview {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      position: relative;
+      overflow: hidden;
+
+      // Server Rack style preview
+      &[data-style="server-rack"] {
+        background: linear-gradient(180deg, #3a3a4a 0%, #2a2a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 4px;
+          top: 6px;
+          width: 4px;
+          height: 4px;
+          background: var(--accent-green);
+          border-radius: 50%;
+          box-shadow:
+            0 8px 0 var(--accent-green),
+            0 16px 0 var(--accent-green),
+            6px 0 0 var(--accent-blue),
+            6px 8px 0 var(--accent-blue),
+            6px 16px 0 var(--accent-blue);
+        }
+      }
+
+      // Tower style preview
+      &[data-style="tower"] {
+        background: linear-gradient(180deg, #2a3a4a 0%, #1a2a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 4px;
+          width: 16px;
+          height: 24px;
+          background: #3a4a5a;
+          transform: translateX(-50%);
+          border-radius: 2px 2px 0 0;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 4px;
+          width: 8px;
+          height: 8px;
+          background: var(--accent-blue);
+          transform: translateX(-50%);
+          border-radius: 50%;
+          animation: tower-blink 1.5s infinite;
+        }
+      }
+
+      // Dome style preview
+      &[data-style="dome"] {
+        background: linear-gradient(180deg, #2a2a4a 0%, #1a1a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 24px;
+          height: 14px;
+          background: rgba(74, 158, 255, 0.3);
+          transform: translateX(-50%);
+          border-radius: 14px 14px 0 0;
+          border: 2px solid rgba(74, 158, 255, 0.6);
+          border-bottom: none;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 20px;
+          height: 20px;
+          border: 2px solid var(--accent-green);
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          animation: dome-spin 3s linear infinite;
+        }
+      }
+
+      // Pyramid style preview
+      &[data-style="pyramid"] {
+        background: linear-gradient(180deg, #3a3a2a 0%, #2a2a1a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 0;
+          height: 0;
+          border-left: 12px solid transparent;
+          border-right: 12px solid transparent;
+          border-bottom: 20px solid #4a4a3a;
+          transform: translateX(-50%);
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 8px;
+          width: 6px;
+          height: 6px;
+          background: #ffaa00;
+          transform: translateX(-50%);
+          border-radius: 50%;
+          box-shadow: 0 0 6px #ffaa00;
+          animation: pyramid-glow 2s ease-in-out infinite;
+        }
+      }
+
+      // Desktop PC style preview
+      &[data-style="desktop"] {
+        background: linear-gradient(180deg, #3a3a4a 0%, #2a2a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 6px;
+          width: 22px;
+          height: 14px;
+          background: #1a1a2a;
+          transform: translateX(-50%);
+          border: 2px solid #4a4a5a;
+          border-radius: 2px;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 18px;
+          height: 6px;
+          background: #4a4a5a;
+          transform: translateX(-50%);
+          border-radius: 1px;
+          box-shadow:
+            0 -4px 0 1px #3a3a4a,
+            -12px 2px 0 0 #3a3a4a;
+        }
+      }
+
+      // Filing Cabinet style preview
+      &[data-style="filing-cabinet"] {
+        background: linear-gradient(180deg, #5a5a6a 0%, #4a4a5a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 4px;
+          width: 20px;
+          height: 28px;
+          background: #4a4a5a;
+          transform: translateX(-50%);
+          border-radius: 2px;
+          box-shadow:
+            inset 0 6px 0 #3a3a4a,
+            inset 0 13px 0 #3a3a4a,
+            inset 0 20px 0 #3a3a4a;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 8px;
+          width: 8px;
+          height: 2px;
+          background: #8a8a9a;
+          transform: translateX(-50%);
+          box-shadow:
+            0 7px 0 #8a8a9a,
+            0 14px 0 #8a8a9a,
+            0 21px 0 #8a8a9a;
+        }
+      }
+
+      // Satellite Dish style preview
+      &[data-style="satellite"] {
+        background: linear-gradient(180deg, #2a3a4a 0%, #1a2a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 4px;
+          height: 16px;
+          background: #4a4a5a;
+          transform: translateX(-50%);
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 6px;
+          width: 20px;
+          height: 10px;
+          background: transparent;
+          transform: translateX(-50%);
+          border: 3px solid #6a6a7a;
+          border-radius: 50% 50% 0 0;
+          border-bottom: none;
+        }
+      }
+
+      // Data Crystal style preview
+      &[data-style="crystal"] {
+        background: linear-gradient(180deg, #2a2a4a 0%, #1a1a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 16px;
+          height: 16px;
+          background: rgba(154, 74, 255, 0.6);
+          transform: translate(-50%, -50%) rotate(45deg);
+          animation: crystal-float 2s ease-in-out infinite;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 22px;
+          height: 22px;
+          border: 1px solid rgba(74, 158, 255, 0.5);
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          animation: crystal-orbit 3s linear infinite;
+        }
+      }
+
+      // Factory style preview
+      &[data-style="factory"] {
+        background: linear-gradient(180deg, #4a4a4a 0%, #3a3a3a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 6px;
+          bottom: 6px;
+          width: 20px;
+          height: 14px;
+          background: #5a4a4a;
+          border-radius: 2px 2px 0 0;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          right: 8px;
+          bottom: 6px;
+          width: 6px;
+          height: 22px;
+          background: #6a4a4a;
+          border-radius: 2px;
+          box-shadow:
+            0 -4px 0 2px rgba(136, 136, 136, 0.4),
+            0 -8px 0 3px rgba(136, 136, 136, 0.3),
+            0 -12px 0 4px rgba(136, 136, 136, 0.2);
+          animation: factory-smoke 1.5s ease-out infinite;
+        }
+      }
+
+      // Command Center style preview (for boss buildings)
+      &[data-style="command-center"] {
+        background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+        &::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          bottom: 6px;
+          width: 24px;
+          height: 20px;
+          background: #3a3a4a;
+          transform: translateX(-50%);
+          border-radius: 50% 50% 0 0;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 22px;
+          height: 22px;
+          border: 2px solid #ffd700;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          animation: command-center-ring 2s linear infinite;
+        }
+      }
+    }
+
+    @keyframes command-center-ring {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    .building-style-name {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      text-align: center;
+      line-height: 1.2;
+    }
+  }
+
+  @keyframes tower-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  @keyframes dome-spin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  @keyframes pyramid-glow {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px #ffaa00; }
+    50% { opacity: 0.6; box-shadow: 0 0 10px #ffaa00; }
+  }
+
+  @keyframes crystal-float {
+    0%, 100% { transform: translate(-50%, -50%) rotate(45deg) translateY(0); }
+    50% { transform: translate(-50%, -50%) rotate(45deg) translateY(-2px); }
+  }
+
+  @keyframes crystal-orbit {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  @keyframes factory-smoke {
+    0% { box-shadow:
+      0 -4px 0 2px rgba(136, 136, 136, 0.4),
+      0 -8px 0 3px rgba(136, 136, 136, 0.3),
+      0 -12px 0 4px rgba(136, 136, 136, 0.2);
+    }
+    50% { box-shadow:
+      0 -6px 0 2px rgba(136, 136, 136, 0.3),
+      0 -10px 0 3px rgba(136, 136, 136, 0.2),
+      0 -14px 0 4px rgba(136, 136, 136, 0.1);
+    }
+    100% { box-shadow:
+      0 -4px 0 2px rgba(136, 136, 136, 0.4),
+      0 -8px 0 3px rgba(136, 136, 136, 0.3),
+      0 -12px 0 4px rgba(136, 136, 136, 0.2);
+    }
+  }
+
+}

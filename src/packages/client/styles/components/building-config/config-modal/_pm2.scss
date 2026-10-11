@@ -1,0 +1,185 @@
+// =============================================================================
+// PM2:开关 / 配置 / 状态展示 / 示例 / 操作按钮
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 927-1101 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // PM2 Toggle Section
+  .pm2-toggle-section {
+    .toggle-switch {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pm2-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    // Override toggle checked color for PM2 green
+    .toggle-input:checked + .toggle-track {
+      background: rgba(#40916c, 0.2);
+      border-color: #40916c;
+
+      .toggle-thumb {
+        background: #40916c;
+      }
+    }
+  }
+
+  // PM2 Configuration Section
+  .pm2-config-section {
+    background: color-mix(in srgb, var(--accent-green) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-radius: 6px;
+    padding: 0.75rem;
+
+    .command-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .command-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        min-width: 80px;
+        text-align: right;
+      }
+
+      .form-input {
+        flex: 1;
+        font-family: $font-mono;
+        font-size: 0.85rem;
+      }
+
+      .form-select {
+        font-family: $font-family;
+      }
+    }
+  }
+
+  // PM2 Status Display
+  .pm2-status-display {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+
+    .pm2-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .pm2-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 50px;
+
+      .pm2-metric-label {
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .pm2-metric-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-family: $font-mono;
+      }
+    }
+  }
+
+  // PM2 Examples Section
+  .pm2-examples {
+    margin-top: 0.5rem;
+
+    details {
+      background: var(--bg-primary);
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+
+      summary {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+
+        &:hover {
+          color: var(--text-primary);
+          background: var(--bg-tertiary);
+        }
+
+        &::marker {
+          color: var(--accent-blue);
+        }
+      }
+    }
+
+    .pm2-examples-content {
+      padding: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .pm2-example {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border-color);
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      strong {
+        color: var(--text-primary);
+        min-width: 70px;
+        display: inline-block;
+      }
+
+      code {
+        background: var(--bg-tertiary);
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-family: $font-mono;
+        font-size: 0.7rem;
+        color: var(--accent-blue);
+      }
+    }
+  }
+
+  // PM2 Action Buttons
+  .pm2-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+}

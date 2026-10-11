@@ -1,0 +1,37 @@
+// =============================================================================
+// 壳尺寸声明 / modal-header / 状态徽标 / modal-body
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 6-32 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  width: 550px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .building-status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: var(--bg-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+}

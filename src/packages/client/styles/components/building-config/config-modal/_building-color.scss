@@ -1,0 +1,69 @@
+// =============================================================================
+// 建筑配色选择器 / 色块按钮 / 取色器
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 601-659 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Color Selector
+  .building-color-selector {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .building-color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+
+    &:hover {
+      border-color: var(--accent-blue);
+      transform: scale(1.1);
+    }
+
+    &.active {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 50%, transparent);
+    }
+
+    .color-default-icon {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  }
+
+  .building-color-picker {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 2px;
+    }
+
+    &::-webkit-color-swatch {
+      border: none;
+      border-radius: 2px;
+    }
+
+    &:hover {
+      border-color: var(--accent-blue);
+    }
+  }
+
+}

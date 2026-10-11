@@ -1,0 +1,101 @@
+// =============================================================================
+// 按钮变体 .btn
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 1482-1572 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  // Button variants
+  .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+
+    &:hover {
+      background: var(--bg-secondary);
+      border-color: var(--accent-blue);
+    }
+
+    &.btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    &.btn-primary {
+      background: var(--accent-blue);
+      color: #000;
+      border-color: var(--accent-blue);
+
+      &:hover {
+        filter: brightness(1.1);
+        border-color: var(--accent-blue);
+      }
+    }
+
+    &.btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+
+      &:hover {
+        background: var(--bg-secondary);
+      }
+    }
+
+    &.btn-danger {
+      background: var(--accent-red);
+      color: #fff;
+      border-color: var(--accent-red);
+
+      &:hover {
+        filter: brightness(1.1);
+        border-color: var(--accent-red);
+      }
+    }
+
+    &.btn-success {
+      background: var(--accent-green);
+      color: #000;
+      border-color: var(--accent-green);
+
+      &:hover {
+        filter: brightness(1.1);
+        border-color: var(--accent-green);
+      }
+    }
+
+    &.btn-warning {
+      background: var(--accent-orange);
+      color: #000;
+      border-color: var(--accent-orange);
+
+      &:hover {
+        filter: brightness(1.1);
+        border-color: var(--accent-orange);
+      }
+    }
+
+    &.btn-add {
+      background: transparent;
+      color: var(--accent-blue);
+      border: 1px dashed var(--accent-blue);
+      padding: 0.15rem 0.5rem;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}

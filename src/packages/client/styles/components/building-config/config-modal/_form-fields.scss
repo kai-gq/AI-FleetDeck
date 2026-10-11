@@ -1,0 +1,72 @@
+// =============================================================================
+// 表单分区 / 标签 / 输入 / 提示 / 文本域 / env 行
+// 由 _config-modal.scss 拆分(W4,2026-10-11):原文件第 113-174 行,逐行原样。
+// =============================================================================
+
+@use "sass:color";
+@use '../../../variables' as *;
+
+.building-config-modal {
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .form-input {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  .form-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+  }
+
+  .form-hint-inline {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 0.5rem;
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: $font-mono;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  .env-row {
+    align-items: flex-start;
+
+    .command-label {
+      padding-top: 0.5rem;
+    }
+  }
+
+}
