@@ -1,0 +1,156 @@
+// =============================================================================
+// 消息元数据提示框(含 fade-in)
+// 由 _output.scss 拆分(W4,2026-10-11):原文件第 748-896 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.msg-meta-tooltip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  min-width: 280px;
+  max-width: 400px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg-primary) 98%, white),
+    color-mix(in srgb, var(--bg-secondary) 95%, var(--bg-primary) 5%)
+  );
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 0 1px rgba(255, 255, 255, 0.1);
+  font-family: $font-mono;
+  font-size: 11px;
+  animation: msg-meta-fade-in 0.12s ease-out;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--accent-cyan);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__copy-all {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+    color: var(--accent-cyan);
+    font-size: 9px;
+    font-family: $font-mono;
+    cursor: pointer;
+    padding: 1px 5px;
+    border-radius: 3px;
+    line-height: 1.3;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    }
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  &__body {
+    padding: 6px 10px 8px;
+  }
+
+  &__row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    line-height: 1.4;
+    transition: background 0.1s ease;
+    border-radius: 2px;
+
+    &:not(:last-child) {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 25%, transparent);
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+    }
+  }
+
+  &__label {
+    flex-shrink: 0;
+    width: 56px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__value {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-all;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 2px;
+    transition: all 0.1s ease;
+    border: 1px solid transparent;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+      border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+    }
+
+    &.mono {
+      font-family: $font-mono;
+      font-size: 10px;
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+      border-color: color-mix(in srgb, var(--accent-green) 15%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+        border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+      }
+    }
+  }
+}
+
+@keyframes msg-meta-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

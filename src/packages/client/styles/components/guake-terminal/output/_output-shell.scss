@@ -1,0 +1,242 @@
+// =============================================================================
+// guake-output 主体(单块深度嵌套,整体保留)
+// 由 _output.scss 拆分(W4,2026-10-11):原文件第 7-241 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.guake-output {
+  flex: 1;
+  min-height: 0; // Allow flex shrinking below content height
+  overflow-y: auto;
+  // The virtualized list does its own scroll-position corrections when rows
+  // above the viewport measure differently than estimated; native browser
+  // scroll anchoring compensates for the same movement a frame apart, and the
+  // double adjustment reads as flicker during the post-switch warm-up walk.
+  overflow-anchor: none;
+  padding: 14px 18px;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+
+  a {
+    color: var(--accent-blue);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+    text-underline-offset: 2px;
+    transition: all $transition-fast;
+
+    &:hover {
+      color: var(--accent-cyan);
+      text-decoration-color: var(--accent-cyan);
+    }
+
+    &:visited {
+      color: var(--accent-purple);
+      text-decoration-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    }
+  }
+
+  // Ensure markdown content renders properly inside guake terminal
+  .markdown-content {
+    display: block;
+
+    h1, h2, h3, h4, h5, h6 {
+      margin: 0.6em 0 0.3em 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    // Header colors - using CSS variables for theme support
+    h1 { font-size: 1.4em; color: var(--accent-pink); }
+    h2 { font-size: 1.25em; color: var(--accent-purple); }
+    h3 { font-size: 1.15em; color: var(--accent-cyan); }
+    h4 { font-size: 1.1em; color: var(--accent-green); }
+    h5 { font-size: 1.05em; color: var(--accent-yellow); }
+    h6 { font-size: 1em; color: var(--accent-orange); }
+
+    p {
+      margin: 0.4em 0;
+
+      &:first-child { margin-top: 0; }
+      &:last-child { margin-bottom: 0; }
+    }
+
+    code {
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent-green) 12%, var(--bg-tertiary) 88%),
+        color-mix(in srgb, var(--accent-green) 8%, var(--bg-tertiary) 92%)
+      );
+      color: var(--accent-green);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-size: 0.9em;
+      border: 1px solid color-mix(in srgb, var(--accent-green) 15%, transparent);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--accent-green) 30%, transparent);
+        box-shadow: inset 0 1px 3px color-mix(in srgb, var(--accent-green) 15%, rgba(0, 0, 0, 0.2));
+      }
+    }
+
+    pre {
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--bg-secondary) 70%, var(--bg-primary) 30%),
+        color-mix(in srgb, var(--bg-primary) 95%, transparent)
+      );
+      border: 1px solid var(--border-color);
+      border-radius: $radius-md;
+      padding: 12px;
+      margin: 0.6em 0;
+      overflow-x: auto;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.15),
+        inset 0 1px 2px rgba(255, 255, 255, 0.05);
+      position: relative;
+
+      // Subtle left accent bar
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(
+          to bottom,
+          var(--accent-cyan),
+          var(--accent-blue)
+        );
+        border-radius: $radius-md 0 0 $radius-md;
+      }
+
+      code {
+        background: none;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+        color: var(--text-primary);
+        font-size: 12px;
+        line-height: 1.5;
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    ul, ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+      line-height: 1.5;
+    }
+
+    li {
+      margin: 0.2em 0;
+      padding-left: 0.3em;
+
+      &::marker {
+        color: var(--text-secondary);
+      }
+    }
+
+    blockquote {
+      border-left: 4px solid var(--accent-purple);
+      margin: 0.5em 0;
+      padding: 0.5em 1em;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--accent-purple) 12%, var(--bg-secondary) 88%),
+        color-mix(in srgb, var(--accent-purple) 6%, var(--bg-secondary) 94%)
+      );
+      border-radius: 0 $radius-sm $radius-sm 0;
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.1),
+        inset 1px 0 0 color-mix(in srgb, var(--accent-purple) 20%, transparent);
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-left-color: color-mix(in srgb, var(--accent-purple) 120%, white);
+        box-shadow:
+          0 3px 8px rgba(0, 0, 0, 0.15),
+          inset 1px 0 0 color-mix(in srgb, var(--accent-purple) 30%, transparent);
+      }
+
+      p { margin: 0; }
+    }
+
+    strong { color: var(--accent-orange); font-weight: 600; }
+    em { color: var(--accent-yellow); font-style: italic; }
+    del { color: var(--accent-red); text-decoration: line-through; }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border-color);
+      margin: 1em 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.6em 0;
+      font-size: 12px;
+      overflow: hidden;
+      border-radius: $radius-sm;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      text-align: left;
+      transition: background 0.15s ease;
+    }
+
+    th {
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent-pink) 15%, var(--bg-tertiary) 85%),
+        color-mix(in srgb, var(--accent-pink) 10%, var(--bg-tertiary) 90%)
+      );
+      font-weight: 600;
+      color: var(--accent-pink);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-size: 11px;
+    }
+
+    td {
+      background: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+      transition: background 0.15s ease;
+    }
+
+    tr {
+      &:nth-child(even) td {
+        background: linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--bg-tertiary) 35%, transparent),
+          color-mix(in srgb, var(--bg-secondary) 30%, transparent)
+        );
+      }
+
+      &:hover td {
+        background: color-mix(in srgb, var(--accent-cyan) 12%, var(--bg-secondary) 88%);
+      }
+    }
+
+    // Checklist style
+    input[type="checkbox"] {
+      margin-right: 0.5em;
+      accent-color: var(--accent-green);
+    }
+  }
+}
+

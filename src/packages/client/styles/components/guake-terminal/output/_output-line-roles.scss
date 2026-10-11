@@ -1,0 +1,149 @@
+// =============================================================================
+// 加载遮罩 / 输出行基类 / claude 与 user 角色
+// 由 _output.scss 拆分(W4,2026-10-11):原文件第 334-475 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.guake-loading-overlay {
+  position: sticky;
+  top: 40%;
+  height: 0;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+// Conceal a cold page only while its first measurements settle. Reveal it in
+// the same commit that removes the loading overlay: the former 90ms opacity
+// transition left a visible blank frame (overlay gone while content was still
+// at opacity 0), which looked like a load flicker.
+.guake-history-content.is-preparing {
+  visibility: hidden;
+}
+
+// Output line types
+.output-line {
+  padding: 2px 0;
+  word-wrap: break-word;
+  background: var(--output-line-bg);
+  transition: background 0.15s ease;
+  border-radius: 2px;
+
+  &.output-text {
+    white-space: normal;
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  // Enter fade for live tool chips / assistant is applied by ToolChipEnter.tsx
+  // (not CSS) so history rows and virtualizer remounts stay static.
+}
+
+// Claude/Assistant message styling for live output
+// Using theme-specific message colors
+.output-claude {
+  background: linear-gradient(
+    to right,
+    var(--msg-assistant-bg),
+    color-mix(in srgb, var(--msg-assistant-bg) 90%, transparent)
+  );
+  border-left: 3px solid var(--msg-assistant-border);
+  padding: 8px 12px;
+  margin: 6px 0;
+  border-radius: $radius-sm;
+  color: var(--msg-assistant-text);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Subtle accent gradient overlay
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--msg-assistant-border) 30%, transparent),
+      transparent
+    );
+  }
+
+  &:hover {
+    box-shadow:
+      0 3px 10px rgba(0, 0, 0, 0.12),
+      inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+  }
+
+  .output-role {
+    color: var(--msg-assistant-text);
+  }
+}
+
+// User prompt styling for live output
+// Using theme-specific message colors
+.output-user {
+  background: linear-gradient(
+    to right,
+    var(--msg-user-bg),
+    color-mix(in srgb, var(--msg-user-bg) 90%, transparent)
+  );
+  border-left: 3px solid var(--msg-user-border);
+  padding: 8px 12px;
+  margin: 6px 0;
+  border-radius: $radius-sm;
+  color: var(--msg-user-text);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Subtle accent gradient overlay
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--msg-user-border) 30%, transparent),
+      transparent
+    );
+  }
+
+  &:hover {
+    box-shadow:
+      0 3px 10px rgba(0, 0, 0, 0.12),
+      inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+  }
+
+  .output-role {
+    color: var(--msg-user-text);
+  }
+
+}
+
+// System message styling (for runtime/session notifications)
+//
+// Layout: icon + text align on a single baseline with a consistent gap.
+// The row itself uses flex so the timestamp, role label, icon, and message
+// text sit on one line without being at the mercy of paragraph margins from
+// the nested markdown wrapper (renderContentWithImages wraps content in a
+// <div class="markdown-content"><p>…</p></div>, and the default <p> margin
+// would otherwise push the banner taller than it needs to be).

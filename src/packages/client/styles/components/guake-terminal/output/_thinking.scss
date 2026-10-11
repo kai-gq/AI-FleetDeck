@@ -1,0 +1,261 @@
+// =============================================================================
+// 输出统计 + thinking 家族(头部/指标/内容)
+// 由 _output.scss 拆分(W4,2026-10-11):原文件第 897-1150 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.output-stats {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.output-thinking {
+  // Column card: dense header row + preview/body (no sparse flex-wrap header)
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--thinking-accent) 12%, var(--bg-secondary) 88%),
+    color-mix(in srgb, var(--status-working) 8%, var(--bg-tertiary) 92%)
+  );
+  border-left: 3px solid color-mix(in srgb, var(--thinking-accent) 70%, var(--status-working) 30%);
+  border-radius: $radius-md;
+  padding: 6px 10px;
+  margin: 4px 0;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+
+  &.is-collapsible {
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: linear-gradient(
+        120deg,
+        color-mix(in srgb, var(--thinking-accent) 16%, var(--bg-secondary) 84%),
+        color-mix(in srgb, var(--status-working) 12%, var(--bg-tertiary) 88%)
+      );
+    }
+  }
+
+  &.is-collapsed {
+    gap: 2px;
+    padding: 5px 10px;
+  }
+
+  &.output-streaming {
+    border-left-color: var(--status-working);
+  }
+}
+
+.output-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.output-thinking-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--thinking-accent);
+  background: color-mix(in srgb, var(--thinking-accent) 18%, transparent);
+}
+
+.output-thinking-agent {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-thinking-provider {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.output-thinking-label {
+  color: color-mix(in srgb, var(--thinking-accent) 55%, white);
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: $font-mono;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.output-thinking-metric {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--thinking-accent) 24%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--text-muted) 85%, var(--thinking-accent));
+  background: color-mix(in srgb, var(--thinking-accent) 7%, transparent);
+  font-family: $font-mono;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.output-thinking-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-working);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-working) 30%, transparent);
+  flex-shrink: 0;
+}
+
+.output-thinking-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.output-thinking-toggle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  // Keep caret on the right; time stays on the left
+  margin-left: auto;
+}
+
+.output-thinking-visibility {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  line-height: 1.3;
+  opacity: 0.82;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.output-thinking-content {
+  color: color-mix(in srgb, var(--text-primary) 92%, var(--thinking-accent));
+  opacity: 0.95;
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: $font-mono;
+
+  &.is-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    line-height: 1.3;
+    opacity: 0.88;
+  }
+
+  &.is-full {
+    // Plain streaming text keeps pre-wrap; markdown uses normal flow below.
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 2px 0 0;
+  }
+
+  // Markdown body inside thinking (completed / expanded).
+  &.markdown-content,
+  &.is-full.markdown-content {
+    white-space: normal;
+    font-family: inherit;
+  }
+
+  p {
+    margin: 0.3em 0;
+    line-height: 1.5;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  strong {
+    color: color-mix(in srgb, var(--accent-cyan) 70%, white);
+    font-weight: 600;
+  }
+
+  em {
+    color: color-mix(in srgb, var(--accent-purple) 75%, white);
+  }
+
+  code {
+    background: color-mix(in srgb, var(--tool-use-bg) 65%, black);
+    color: color-mix(in srgb, var(--tool-use-text) 92%, white);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 0.9em;
+  }
+
+  pre {
+    margin: 0.4em 0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--bg-primary) 80%, black);
+    font-size: 0.9em;
+
+    code {
+      background: transparent;
+      padding: 0;
+    }
+  }
+
+  ul, ol {
+    margin: 0.3em 0;
+    padding-left: 1.2em;
+
+    li {
+      margin: 0.1em 0;
+    }
+  }
+
+  h1, h2, h3, h4 {
+    margin: 0.45em 0 0.25em;
+    font-size: 1em;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--text-primary) 90%, var(--accent-purple));
+  }
+
+  a {
+    color: var(--accent-cyan);
+  }
+
+  blockquote {
+    margin: 0.35em 0;
+    padding-left: 0.75em;
+    border-left: 2px solid color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    opacity: 0.9;
+  }
+}
+
