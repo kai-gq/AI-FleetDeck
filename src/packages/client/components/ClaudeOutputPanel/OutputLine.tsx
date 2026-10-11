@@ -1,18 +1,22 @@
 /**
  * OutputLine component for rendering live streaming output
+ * 类型 / 助手与时间戳组件已拆入 ./output-line/(2026-10-11 W2 拆分);
+ * 本文件保留主组件与对外导出。
  */
 
-import React, { memo, useState, useRef, useCallback, useEffect } from 'react';
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 助手 / 时间戳组件已拆入 ./output-line/;
+// 本文件保留 OutputLine 主组件与对外导出(导出面不变)。
+// ============================================================================
+
+import { type OutputLineProps } from './output-line/types';
+import { getExtFromPath, getBasenameFromPath, getDebugHash } from './output-line/helpers';
+import { TimestampWithMeta } from './output-line/timestamp-with-meta';
+import React, { memo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHideCost, useSettings, ClaudeOutput, store, useAgentPrompts, type TestRunHandle, type HttpRunHandle } from '../../store';
+import { useHideCost, useSettings, store, useAgentPrompts } from '../../store';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
-  isCurlCommandTo,
-  bashCommandDisplaySlice,
-  getShellWriteSummary,
-  getBashRowSummary,
-  getFileToolDetail,
-} from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch, isCurlCommandTo, bashCommandDisplaySlice, getShellWriteSummary, getBashRowSummary, getFileToolDetail } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
 import { getSlashCommandInfo, slashCommandSummaryKey } from '../../utils/slashCommands';
@@ -49,8 +53,8 @@ import { parseEditReplacements } from '../shared/useFilteredOutputs';
 import { BashSummaryParam } from './BashSummaryParam';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
-import type { EditData } from './types';
-import type { ExecTask, Subagent } from '../../../shared/types';
+import { type EditData } from './types';
+import { type Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
 import { providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
@@ -63,185 +67,6 @@ import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentR
 import { parseBolbaRecommendationRequest } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { ShellCommandResultCard } from '../../plugins/shell-commands/ShellCommandResultCard';
 import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
-
-/** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
-function getExtFromPath(filePath: string): string {
-  const basename = filePath.split('/').pop() || filePath;
-  const dotIdx = basename.lastIndexOf('.');
-  if (dotIdx <= 0) return '';
-  return basename.slice(dotIdx).toLowerCase();
-}
-
-/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
-function getBasenameFromPath(filePath: string): string {
-  return filePath.split('/').pop() || filePath;
-}
-
-interface OutputLineProps {
-  output: ClaudeOutput & { _toolKeyParam?: string; _editData?: EditData; _todoInput?: string; _bashOutput?: string; _bashCommand?: string; _isRunning?: boolean };
-  agentId: string | null;
-  execTasks?: ExecTask[];
-  testRunHandles?: TestRunHandle[];
-  httpRunHandles?: HttpRunHandle[];
-  subagents?: Map<string, Subagent>;
-  onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
-  onBashClick?: (command: string, output: string) => void;
-  onViewMarkdown?: (content: string) => void;
-  /** Row is the active find match: reveal searchable content the renderer
-   *  normally hides (e.g. bash output when inline outputs are off). */
-  searchReveal?: boolean;
-}
-
-// Generate a short debug hash for an output (for debugging duplicates)
-function getDebugHash(output: ClaudeOutput): string {
-  const textKey = output.text.slice(0, 50);
-  const flags = `${output.isUserPrompt ? 'U' : ''}${output.isStreaming ? 'S' : 'F'}${output.isDelegation ? 'D' : ''}`;
-  // Simple hash from text
-  let hash = 0;
-  for (let i = 0; i < textKey.length; i++) {
-    hash = ((hash << 5) - hash) + textKey.charCodeAt(i);
-    hash |= 0;
-  }
-  return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
-}
-
-// Metadata tooltip that appears on timestamp click
-function MessageMetadataTooltip({ output, debugHash, agentId, onClose }: { output: ClaudeOutput; debugHash: string; agentId: string | null; onClose: () => void }) {
-  const { t } = useTranslation(['tools', 'common']);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
-
-  const copyField = (value: string) => {
-    navigator.clipboard.writeText(value);
-  };
-
-  const date = new Date(output.timestamp);
-  const fullTime = date.toISOString();
-
-  // Determine message type
-  let msgType = 'assistant';
-  if (output.isUserPrompt) msgType = 'user';
-  else if (output.text.startsWith('Using tool:')) msgType = 'tool_use';
-  else if (output.text.startsWith('Tool input:')) msgType = 'tool_input';
-  else if (output.text.startsWith('Tool result:')) msgType = 'tool_result';
-  else if (output.text.startsWith('Bash output:')) msgType = 'bash_output';
-  else if (output.text.startsWith('Tokens:') || output.text.startsWith('Cost:')) msgType = 'stats';
-  else if (output.text.startsWith('[thinking]')) msgType = 'thinking';
-  else if (output.skillUpdate) msgType = 'skill_update';
-
-  // Determine source - helps debug where duplicates originate
-  const source = output.uuid ? 'server' : output.isUserPrompt ? 'client (user)' : 'client/system';
-
-  // Copy all metadata as JSON for pasting into bug reports
-  const copyAll = () => {
-    const data: Record<string, unknown> = {
-      uuid: output.uuid || null,
-      hash: debugHash,
-      type: msgType,
-      timestamp: output.timestamp,
-      iso: fullTime,
-      agentId: agentId || null,
-      isStreaming: output.isStreaming,
-      source,
-      textLen: output.text.length,
-      textPreview: output.text.slice(0, 120),
-    };
-    if (output.isDelegation) data.isDelegation = true;
-    if (output.toolName) data.toolName = output.toolName;
-    if (output.toolInput) data.toolInput = output.toolInput;
-    if (output.toolOutput) data.toolOutputLen = output.toolOutput.length;
-    if (output.subagentName) data.subagentName = output.subagentName;
-    if (output.isUserPrompt) data.isUserPrompt = true;
-    if (output.skillUpdate) data.skillUpdate = output.skillUpdate;
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-  };
-
-  // Find this output's index in the store for positional debugging
-  const allOutputs = agentId ? store.getState().agentOutputs.get(agentId) : null;
-  const outputIndex = allOutputs ? allOutputs.indexOf(output) : -1;
-  const totalOutputs = allOutputs ? allOutputs.length : 0;
-
-  // Row labels are UI chrome (translated); values stay raw for bug-report
-  // fidelity — the JSON copy button exports the machine fields verbatim.
-  const rows: Array<{ label: string; value: string; mono?: boolean }> = [
-    { label: t('tools:metadata.uuid', { defaultValue: 'UUID' }), value: output.uuid || t('tools:metadata.none', { defaultValue: '(none)' }), mono: true },
-    { label: t('tools:metadata.hash', { defaultValue: 'Hash' }), value: debugHash, mono: true },
-    { label: t('tools:metadata.type'), value: msgType },
-    { label: t('tools:metadata.source'), value: source },
-    { label: t('tools:metadata.agent', { defaultValue: 'Agent' }), value: agentId || t('tools:metadata.none', { defaultValue: '(none)' }), mono: true },
-    { label: t('tools:metadata.time', { defaultValue: 'Time' }), value: fullTime, mono: true },
-    { label: t('tools:metadata.epoch', { defaultValue: 'Epoch' }), value: String(output.timestamp), mono: true },
-    { label: t('tools:metadata.index', { defaultValue: 'Index' }), value: outputIndex >= 0 ? `${outputIndex} / ${totalOutputs}` : t('tools:metadata.unknown', { defaultValue: '(unknown)' }), mono: true },
-    { label: t('tools:metadata.text', { defaultValue: 'Text' }), value: `[${t('tools:metadata.chars', { defaultValue: '{{n}} chars', n: output.text.length })}] ${output.text.slice(0, 120)}`, mono: true },
-  ];
-
-  if (output.isStreaming) rows.push({ label: t('tools:metadata.state', { defaultValue: 'State' }), value: 'streaming' });
-  if (output.isDelegation) rows.push({ label: t('tools:metadata.flag', { defaultValue: 'Flag' }), value: 'delegation' });
-  if (output.toolName) rows.push({ label: t('tools:metadata.tool', { defaultValue: 'Tool' }), value: output.toolName });
-  if (output.toolInput) rows.push({ label: t('tools:metadata.toolIn', { defaultValue: 'ToolIn' }), value: JSON.stringify(output.toolInput).slice(0, 200), mono: true });
-  if (output.toolOutput) rows.push({ label: t('tools:metadata.toolOut', { defaultValue: 'ToolOut' }), value: `[${t('tools:metadata.chars', { defaultValue: '{{n}} chars', n: output.toolOutput.length })}] ${output.toolOutput.slice(0, 120)}`, mono: true });
-  if (output.subagentName) rows.push({ label: t('tools:metadata.subagent', { defaultValue: 'Subagent' }), value: output.subagentName });
-
-  return (
-    <div className="msg-meta-tooltip" ref={tooltipRef}>
-      <div className="msg-meta-tooltip__header">
-        <span>{t('tools:metadata.messageInfo')}</span>
-        <div className="msg-meta-tooltip__actions">
-          <button className="msg-meta-tooltip__copy-all" onClick={copyAll} title={t('tools:metadata.copyAllAsJSON')}>JSON</button>
-          <button className="msg-meta-tooltip__close" onClick={onClose}>&times;</button>
-        </div>
-      </div>
-      <div className="msg-meta-tooltip__body">
-        {rows.map(({ label, value, mono }) => (
-          <div key={label} className="msg-meta-tooltip__row">
-            <span className="msg-meta-tooltip__label">{label}</span>
-            <span
-              className={`msg-meta-tooltip__value ${mono ? 'mono' : ''}`}
-              onClick={() => copyField(value)}
-              title={t('tools:metadata.clickToCopy')}
-            >
-              {value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Timestamp that opens metadata tooltip on click
-function TimestampWithMeta({ output, timeStr, debugHash, agentId }: { output: ClaudeOutput; timeStr: string; debugHash: string; agentId?: string | null }) {
-  const { t } = useTranslation(['tools']);
-  const [showMeta, setShowMeta] = useState(false);
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowMeta(prev => !prev);
-  }, []);
-  const handleClose = useCallback(() => setShowMeta(false), []);
-
-  return (
-    <span className="output-timestamp-wrapper">
-      <span
-        className="output-timestamp output-timestamp--clickable"
-        onClick={handleClick}
-        title={t('tools:metadata.clickForMessageInfo')}
-      >
-        {timeStr}
-      </span>
-      {showMeta && <MessageMetadataTooltip output={output} debugHash={debugHash} agentId={agentId || null} onClose={handleClose} />}
-    </span>
-  );
-}
 
 export const OutputLine = memo(function OutputLine({ output, agentId, execTasks = [], testRunHandles = [], httpRunHandles = [], subagents, onImageClick, onFileClick, onBashClick, onViewMarkdown, searchReveal }: OutputLineProps) {
   const { t } = useTranslation(['tools', 'common', 'terminal']);
