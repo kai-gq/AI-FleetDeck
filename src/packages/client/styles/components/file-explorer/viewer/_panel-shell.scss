@@ -1,0 +1,225 @@
+// =============================================================================
+// 查看器面板壳:面板/占位/内容容器/CodeMirror 只读块
+// 由 _viewer.scss 拆分(W4,2026-10-11):原文件第 9-226 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// IDE Style - File Viewer Panel (Right)
+.file-explorer-viewer-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.file-viewer-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  gap: 12px;
+
+  &.error {
+    color: var(--accent-red);
+  }
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.placeholder-text {
+  font-size: 14px;
+}
+
+.file-viewer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.file-viewer-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+// CodeMirror read-only viewer fills the content wrapper
+.file-viewer-cm-readonly {
+  overflow: hidden;
+  outline: none;
+
+  .cm-editor {
+    height: 100%;
+    font-size: 13px;
+    background-color: var(--bg-primary);
+
+    &.cm-focused {
+      outline: none;
+    }
+  }
+
+  .cm-scroller {
+    overflow: auto;
+  }
+
+  .cm-gutters {
+    background-color: var(--bg-primary);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  // Search panel styling
+  .cm-panels {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .cm-search.cm-panel {
+    padding: 5px 8px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    background-color: var(--bg-primary);
+    font-family: $font-mono;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+
+    // Search text input
+    .cm-textfield {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-family: $font-mono;
+      font-size: 12px;
+      padding: 4px 8px;
+      outline: none;
+      min-width: 200px;
+
+      &:focus {
+        border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 15%, transparent);
+      }
+
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.25);
+      }
+    }
+
+    // Next / Previous / All buttons
+    .cm-button {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-family: $font-mono;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      text-transform: capitalize;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      &:active {
+        background: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    // Toggle labels (match case, regexp, by word)
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: color 0.12s ease;
+
+      &:hover {
+        color: var(--text-secondary);
+
+        input[type="checkbox"]::before {
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+      }
+
+      // Style native checkbox as a mini toggle switch
+      input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        position: relative;
+        width: 28px;
+        height: 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+
+        // Thumb
+        &::before {
+          content: '';
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 10px;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.35);
+          border-radius: 50%;
+          transition: all 0.15s ease;
+        }
+
+        &:checked {
+          background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+          border-color: color-mix(in srgb, var(--accent-green) 50%, transparent);
+
+          &::before {
+            left: 14px;
+            background: var(--accent-green);
+          }
+        }
+      }
+    }
+
+    // Close button
+    button[name="close"] {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 16px;
+      padding: 0 4px;
+      cursor: pointer;
+      margin-left: auto;
+      line-height: 1;
+      transition: color 0.12s ease;
+
+      &:hover {
+        color: var(--text-primary);
+      }
+    }
+
+    br {
+      display: none;
+    }
+  }
+}
+

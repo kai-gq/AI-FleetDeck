@@ -1,0 +1,270 @@
+// =============================================================================
+// 头部与操作按钮族(渲染开关/复制 HTML/下载/编辑/定位)
+// 由 _viewer.scss 拆分(W4,2026-10-11):原文件第 227-489 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.file-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.file-viewer-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-viewer-header-right {
+  flex-shrink: 0;
+  margin-left: 16px;
+  display: flex;
+  align-items: center;
+
+  // Keep the inline Copy all / Download buttons spaced like the icon buttons
+  // that already carry their own margin-right. Scoped to direct children so the
+  // markdown viewer's gapped .file-viewer-header-buttons row is unaffected.
+  > .file-viewer-copy-html-btn,
+  > .file-viewer-download-btn {
+    margin-right: 4px;
+  }
+}
+
+.file-viewer-header-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+// Markdown render toggle button
+.file-viewer-render-toggle {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+    color: var(--accent-purple);
+  }
+}
+
+// Copy as HTML button
+.file-viewer-copy-html-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  &.copied {
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  &.error {
+    background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
+.file-viewer-filename {
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.file-viewer-meta {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.file-viewer-download-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+  }
+
+  &.large {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+}
+
+.file-viewer-edit-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+  }
+}
+
+.file-viewer-open-editor-btn,
+.file-viewer-reveal-explorer-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &.loading {
+    animation: spin 1s linear infinite;
+  }
+
+  &.success {
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  &.error {
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.file-viewer-edit-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 4px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+}
+
+.file-viewer-locate-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: $radius-sm;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  margin-right: 8px;
+
+  &:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+  }
+}
+

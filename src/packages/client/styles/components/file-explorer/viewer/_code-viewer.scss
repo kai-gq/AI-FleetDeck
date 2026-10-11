@@ -1,0 +1,131 @@
+// =============================================================================
+// 代码视图:行号槽/覆盖锚点/块光标/选区/预格式区
+// 由 _viewer.scss 拆分(W4,2026-10-11):原文件第 490-613 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.file-viewer-code-wrapper {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+// Code wrapper with line numbers
+.file-viewer-code-with-lines {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  position: relative;
+
+  // Inner layout: gutter + code side by side
+  // Using display:grid so both columns share the same row height (content-driven)
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.file-viewer-line-gutter {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  padding: 16px 0;
+  background: inherit;
+  border-right: 1px solid var(--border-color);
+  user-select: none;
+  z-index: 1;
+}
+
+.file-viewer-line-num {
+  padding: 0 12px 0 8px;
+  text-align: right;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text-muted) 50%, transparent);
+  min-width: 40px;
+
+  &.highlighted {
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
+  }
+
+  &.cursor-line {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  }
+}
+
+// Overlay anchor - wraps all overlays (cursor, selection, search) inside <pre>
+// top offset matches .file-viewer-pre padding-top so overlays align with text
+.file-viewer-overlay-anchor {
+  position: absolute;
+  top: calc(16px + 1.5em);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+// Terminal-style block cursor (vim style)
+.file-viewer-block-cursor {
+  position: absolute;
+  width: 1ch;
+  height: 1.5em; // matches line-height
+  background: color-mix(in srgb, var(--text-primary) 70%, transparent);
+  pointer-events: none;
+  z-index: 3;
+  animation: cursor-blink 1s step-end infinite;
+  mix-blend-mode: difference;
+
+  // In visual mode, cursor is solid (no blink) to show anchor clearly
+  &.visual-active {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+// Visual selection highlight (vim visual mode)
+.file-viewer-visual-selection {
+  position: absolute;
+  height: 1.5em;
+  background: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  pointer-events: none;
+  z-index: 1;
+  min-width: 0.5ch;
+}
+
+.file-viewer-pre {
+  margin: 0;
+  padding: 16px;
+  background: transparent !important;
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+
+  .file-viewer-code-with-lines & {
+    padding-left: 12px;
+    min-width: 0;
+  }
+
+  code {
+    background: transparent !important;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+}
+
+// Image viewer

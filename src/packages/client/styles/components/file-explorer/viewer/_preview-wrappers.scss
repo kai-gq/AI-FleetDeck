@@ -1,0 +1,132 @@
+// =============================================================================
+// 图片/PDF/音视频/图示/二进制预览包裹
+// 由 _viewer.scss 拆分(W4,2026-10-11):原文件第 614-738 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.file-viewer-image-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: repeating-conic-gradient(
+    rgba(255, 255, 255, 0.03) 0% 25%,
+    transparent 0% 50%
+  ) 50% / 20px 20px;
+}
+
+.file-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+// PDF viewer
+.file-viewer-pdf-wrapper {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.file-viewer-pdf {
+  flex: 1;
+  border: none;
+  background: white;
+}
+
+// Audio preview (waveform player lives in components/_file-viewer.scss)
+.file-viewer-audio-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+// Video preview (player lives in components/_file-viewer.scss)
+.file-viewer-video-wrapper {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+// PlantUML diagram viewer
+.file-viewer-diagram-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.file-viewer-diagram-image {
+  max-width: 100%;
+  height: auto;
+  background: white;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.file-viewer-diagram-error {
+  width: min(680px, 100%);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  color: var(--accent-red);
+  border-radius: $radius-md;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+// Binary file viewer (download only)
+.file-viewer-binary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  gap: 16px;
+}
+
+.file-viewer-binary-icon {
+  font-size: 64px;
+  opacity: 0.8;
+}
+
+.file-viewer-binary-name {
+  font-family: $font-mono;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.file-viewer-binary-size {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.file-viewer-binary-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+// ── Archive viewer (zip / jar / apk / tar.* / 7z / rar …) ────────────────────
+// Rendered by both FileViewerModal and the guake git-panel binary modal.
+// Self-contained layout: a fixed head (summary · toolbar · column header)
+// and a body that scrolls on its own — no sticky offset math that depends on
+// the host's geometry. If the host cannot give it a definite height, the head
+// still sticks to the top of the host scroller (position: sticky, top: 0).
+// Column layout is driven by a class on the root (cols-name-size[-stored][-mtime])
+// and adapts to the CONTAINER width (phones, the narrow guake side panel):
+// Modified drops first, then Stored, so the name column always keeps room.
