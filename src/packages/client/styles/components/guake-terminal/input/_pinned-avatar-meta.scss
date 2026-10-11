@@ -1,0 +1,99 @@
+// =============================================================================
+// 头像角标:provider 徽标 / 名称 / 取消固定 / 未读 / 工作字形
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 917-1007 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Provider badge (Claude / Codex / OpenCode / Grok / Pi) tucked into the
+// avatar's bottom-right — the only free corner, with the unread dot at
+// top-left and the unpin × at top-right. Overrides the generic
+// `.pinned-agent-av img` rule above, which would otherwise stretch it to the
+// full avatar box. Stays visible in miniature mode, where it is the only
+// on-chip hint of which CLI is behind the agent.
+//
+// Keep the selector valid for both a normal provider <img> and Pi's paired
+// <span> badge while remaining more specific than the avatar image rule.
+.pinned-agent-av .pinned-agent-provider {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  object-fit: contain;
+  background: var(--bg-primary);
+  border: 1px solid var(--bg-primary);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--text-muted) 45%, transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pinned-agent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Floating × badge at the top-right corner, revealed on hover (extension style).
+.pinned-agent-unpin {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
+  background: var(--bg-secondary);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-muted);
+  z-index: 2;
+
+  &:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
+.pinned-agent:hover .pinned-agent-unpin {
+  display: flex;
+}
+
+// Unseen-output dot at the top-LEFT corner — mirror of the × unpin badge's
+// top-right spot so the two never collide, and clear of the working avatar
+// ring. Blue matches the app's unseen language (AgentBar triangle, tracking-
+// board bubble); the bg-colored ring keeps it legible over the active outline
+// and area tints. The store has no per-agent count, hence a dot, not a number.
+.pinned-agent-notif {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-blue, #4a9eff);
+  border: 1.5px solid var(--bg-primary);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue, #4a9eff) 70%, transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pinned-agent-working-glyph {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 11px;
+  height: 11px;
+  padding: 1px;
+  border-radius: 50%;
+  color: var(--accent-green);
+  box-sizing: content-box;
+  pointer-events: none;
+  z-index: 1;
+}
+

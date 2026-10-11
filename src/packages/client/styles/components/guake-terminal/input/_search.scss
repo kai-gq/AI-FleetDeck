@@ -1,0 +1,124 @@
+// =============================================================================
+// 终端搜索 UI(触发器/计数/导航/结果开关/关闭/高亮)
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 8-123 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-search-toggle.active {
+  border-color: color-mix(in srgb, var(--accent-cyan) 34%, transparent);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--accent-cyan);
+}
+
+.guake-fullscreen-toggle.active {
+  border-color: color-mix(in srgb, var(--accent-green) 36%, transparent);
+  background: color-mix(in srgb, var(--accent-green) 14%, transparent);
+  color: var(--accent-green);
+}
+
+.guake-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  border-bottom: 1px solid var(--bg-tertiary);
+
+  input {
+    flex: 1;
+    background: var(--bg-primary);
+    border: 1px solid var(--bg-tertiary);
+    border-radius: $radius-sm;
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-family: $font-mono;
+    font-size: 12px;
+    min-width: 0;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+}
+
+.guake-search-count {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: center;
+}
+
+.guake-search-nav {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: $radius-sm;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+// Results-panel toggle: lit while the dropdown is open.
+.guake-search-results-toggle.active {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
+.guake-search-close {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-fast;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
+.search-highlight {
+  background: color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  color: var(--text-primary);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+

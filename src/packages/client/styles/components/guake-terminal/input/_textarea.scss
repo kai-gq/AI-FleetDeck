@@ -1,0 +1,83 @@
+// =============================================================================
+// 输入框(input/textarea 基样式 / 尺寸微调 / 展开态)
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 221-295 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.guake-input input,
+.guake-input textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 13px;
+  line-height: 1.5;
+  min-width: 0; // Allow shrinking
+  // Allow text selection in input/textarea (override container's user-select: none)
+  user-select: text;
+
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
+    font-size: 8px;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.guake-input textarea {
+  resize: none;
+  min-height: 20px; // Single line
+  max-height: 180px;
+  overflow-y: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  // Use 'auto' height - will be controlled via JS
+  height: auto;
+  // Reset to content-based height - important for shrinking
+  field-sizing: content;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 2px;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    }
+  }
+}
+
+// Expanded mode (multiline)
+.guake-input-expanded {
+  .guake-input-container {
+    align-items: flex-end;
+  }
+
+  .guake-attach-btn,
+  .guake-pin-btn,
+  .guake-send-btn,
+  .guake-expand-btn {
+    align-self: flex-end;
+    margin-bottom: 2px;
+  }
+}
+

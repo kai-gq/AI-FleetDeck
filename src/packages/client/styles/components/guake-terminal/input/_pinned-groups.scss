@@ -1,0 +1,112 @@
+// =============================================================================
+// 视图切换按钮 / 分组 / 分组 chip 与标签计数
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 1008-1111 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// ── the row's one control ───────────────────────────────────────────────────
+// A single button cycles the view: All → Status → Area → Active. Deliberately
+// minimal — a tiny text tab tucked into the bottom-left of the row (align-self
+// against the taller chips), not a pill competing with the agent icons. The
+// dashed underline is the only "I'm clickable" hint until hover.
+.pinned-mode-toggle {
+  flex: none;
+  align-self: center;
+  margin: 0 2px 0 0;
+  padding: 0 2px 1px;
+  border: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--text-muted) 50%, transparent);
+  background: none;
+  color: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  font-family: inherit;
+  font-size: 8px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-cyan);
+  }
+
+  // The Active mode filters the row, so it lights up — a filtered row that
+  // looked identical to an unfiltered one would read as "my pins vanished".
+  &.on {
+    color: var(--accent-green);
+    border-bottom-color: color-mix(in srgb, var(--accent-green) 65%, transparent);
+  }
+}
+
+// Keep each group label inline with its chips. The terminal is naturally wide,
+// and spending a few horizontal pixels saves an entire row of vertical space.
+// A thin left rule separates sections without adding another visual box.
+.pinned-group {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+// No leading rule on the first section (the mode button precedes it, so
+// :first-of-type would never help — anchor on the button instead).
+.pinned-mode-toggle + .pinned-group {
+  border-left: none;
+  padding-left: 0;
+}
+
+// The chips row within a group.
+.pinned-group-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pinned-group-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-left: 0;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: default;
+
+  &.has-area .pinned-group-name { color: var(--area-color); }
+  &.has-area .pinned-group-count {
+    background: color-mix(in srgb, var(--area-color) 32%, transparent);
+    color: var(--text-primary);
+  }
+}
+
+.pinned-group-name {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  color: var(--text-primary);
+  font-size: 9px;
+  line-height: 1;
+}
+

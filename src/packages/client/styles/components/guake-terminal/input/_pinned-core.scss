@@ -1,0 +1,178 @@
+// =============================================================================
+// 固定代理条:条体 / pinned-agent / 未固定态 / 分隔线 / 头像
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 747-916 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// =============================================================================
+// Pinned agents quick-select bar (below the terminal input)
+// =============================================================================
+.pinned-agents-bar {
+  display: flex;
+  // Never shrink below the chips' height — as a flex item in the height-
+  // constrained terminal column it would otherwise compress and `overflow-y:
+  // hidden` would clip the icons at the top.
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  // Keep just enough top room for the floating × badge while avoiding a tall
+  // second toolbar under the composer.
+  padding: 6px 10px 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  border-top: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);
+
+  &::-webkit-scrollbar { height: 6px; }
+  &::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-muted) 40%, transparent); border-radius: 3px; }
+}
+
+// Rounded pill chips — mirrors the browser-extension cockpit's pinned bar.
+.pinned-agent {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 150px;
+  padding: 3px 8px 3px 5px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-cyan);
+  }
+
+  &.active {
+    // Clearly-evident "currently open" indicator: a 2px accent RING drawn as an
+    // outline — no layout shift, doesn't fight the `.working` box-shadow glow, and
+    // survives the mobile overrides below (which reset border/background/box-shadow,
+    // not outline). Uses the theme accent var so it reads in light & dark. The
+    // background (area tint / default) is deliberately left untouched.
+    border-color: var(--accent-blue, #5b9dff);
+    outline: 2px solid var(--accent-blue, #5b9dff);
+    outline-offset: 1px;
+    z-index: 1; // lift the ring above adjacent chips' edges
+
+    // Soft halo, only when not also "working" (which owns the box-shadow anim).
+    &:not(.working) {
+      box-shadow: 0 0 8px -1px color-mix(in srgb, var(--accent-blue, #5b9dff) 60%, transparent);
+    }
+  }
+
+  // Area-tinted background (--area-color set inline per agent).
+  &.has-area {
+    background: color-mix(in srgb, var(--area-color) 20%, color-mix(in srgb, var(--bg-tertiary) 50%, transparent));
+  }
+
+  // Drag-to-reorder: dim the chip being dragged and draw a vertical accent caret
+  // on the edge of the chip the drop would land next to.
+  &[draggable='true'] { cursor: grab; }
+  // Keep the whole chip the single drag source: a native <img> avatar (custom
+  // class icons) is draggable by default and would otherwise hijack the drag.
+  .pinned-agent-av,
+  .pinned-agent-av img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  &.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+    animation: none; // freeze the working glow while dragging (extension parity)
+  }
+  &.drop-before::before,
+  &.drop-after::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 6px var(--accent-cyan);
+  }
+  &.drop-before::before { left: -5px; }
+  &.drop-after::after { right: -5px; }
+
+  // A static green border plus ActivityGlyph conveys working state without a
+  // card-sized glow layer.
+  &.working {
+    border-color: var(--accent-green);
+    position: relative;
+  }
+
+  // Deliberately NO opacity animation on the avatar itself — a working agent
+  // fading in and out read as "transparent/broken", not as activity. Working is
+  // signalled by the border/glow/ring channels only.
+
+  // Boss chips: constant gold identity border. Declared AFTER .working on
+  // purpose so gold keeps the border even on a busy boss — the green glow
+  // animation and avatar ring still signal activity, and the active state's
+  // blue outline is a separate channel that composes with it.
+  &.is-boss {
+    border-color: #d4af37;
+
+    &:hover { border-color: #f0cf6b; }
+  }
+}
+
+// Working / recently-active agents you have NOT pinned, appended to the row.
+// They render at full strength like every other chip — dimming them read as
+// "transparent"/broken — and only the dashed border marks them as transient
+// (click to open, right-click to pin). No × badge: there is no pin to remove.
+.pinned-agent--unpinned {
+  border-style: dashed;
+
+  &.working {
+    border-color: color-mix(in srgb, var(--accent-green) 55%, transparent);
+  }
+
+  // Preserve the roster's short layout hold, but hide departed chips without
+  // a high-refresh exit animation.
+  &.exiting {
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
+// Lane separator: one where the unpinned actives start, one where their working
+// lane starts. Same green gradient as the overview dock's
+// .aop-working-strip-divider, so both docks read identically.
+.pinned-lane-divider {
+  width: 1px;
+  height: 24px;
+  flex: none;
+  margin: 0 3px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--accent-green) 55%, var(--border-color)),
+    transparent
+  );
+}
+
+
+.pinned-agent-av {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    border-radius: 5px;
+    object-fit: cover;
+  }
+}
+

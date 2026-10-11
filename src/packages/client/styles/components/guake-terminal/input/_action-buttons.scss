@@ -1,0 +1,136 @@
+// =============================================================================
+// 固定与附件按钮 / 话筒按钮(含 mic keyframes)
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 296-423 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Pin-this-agent button - left side of input, before attach
+.guake-pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 36px;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  }
+
+  // Pinned: lit up so it's obvious the current agent is on the quick-select bar
+  &.pinned {
+    color: var(--accent-green);
+
+    &:hover {
+      color: var(--accent-green);
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+    }
+  }
+}
+
+// Attach button - left side of input
+.guake-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 36px;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  border-radius: 7px 0 0 7px;
+
+  &:hover {
+    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  }
+}
+
+// Microphone button for voice input
+.guake-mic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 36px;
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 8%, transparent);
+  }
+
+  &:active:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  // Recording state - pulsing red
+  &.recording {
+    color: var(--accent-red);
+    animation: mic-pulse 1s ease-in-out infinite;
+
+    &:hover {
+      color: var(--accent-red);
+      background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    }
+  }
+
+  // Transcribing state - spinning animation
+  &.transcribing {
+    color: var(--accent-yellow);
+    animation: mic-spin 1s linear infinite;
+  }
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes mic-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+

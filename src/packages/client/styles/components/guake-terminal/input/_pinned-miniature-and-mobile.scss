@@ -1,0 +1,115 @@
+// =============================================================================
+// 迷你模式(头像缩略)+ 移动端布局媒体查询
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 1112-1218 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Miniature mode: past the configurable threshold (default 0 — i.e. always) the
+// bar drops chip names and shows square avatar-only thumbnails, so the row stays
+// glanceable without eating horizontal space. The name stays available via the
+// chip's title/aria-label.
+.pinned-agents-bar.miniature {
+  .pinned-agent {
+    max-width: none;
+    gap: 0;
+    padding: 3px;
+  }
+  .pinned-agent-name {
+    display: none;
+  }
+  .pinned-agent-av {
+    width: 22px;
+    height: 22px;
+  }
+  // In icon-only mode this badge is the only visible runtime/model-provider
+  // cue, so keep it recognizable without growing the entire row.
+  .pinned-agent-av .pinned-agent-provider {
+    right: -3px;
+    bottom: -3px;
+    width: 11px;
+    height: 11px;
+  }
+}
+
+// On mobile (touch), pinned agents are shown icon-only and CANNOT be unpinned by
+// tapping a chip — removal is only via the input-area pin button. This keeps a tap
+// reserved for switching agents (no accidental unpin) and saves horizontal space.
+@media (max-width: 768px) {
+  // Pin strip sits in the composer stack below the input — no negative margin
+  // (that previously overlapped chat messages). Compact pill, content-width.
+  .pinned-agents-bar {
+    align-self: flex-start;
+    max-width: calc(100% - 16px);
+    gap: 6px;
+    padding: 5px 8px;
+    margin: 0 8px 4px;
+    background: color-mix(in srgb, var(--bg-tertiary) 98%, transparent);
+    border-top: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    position: relative;
+    z-index: 5;
+  }
+  // Chips are just icons sitting ON the bar — transparent, no per-chip box.
+  // !important beats the &.has-area / &.active / &.sel backgrounds + borders.
+  .pinned-agent {
+    max-width: none; gap: 0; padding: 2px;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  // Active indicator on touch: accent fill + a 2px accent ring hugging the icon.
+  // outline-offset:0 keeps the ring inside the tight bar's overflow (no clipping)
+  // while staying obvious; the base box-shadow halo is dropped by the reset above.
+  .pinned-agent.active {
+    background: color-mix(in srgb, var(--accent-blue, #5b9dff) 28%, transparent) !important;
+    outline: 2px solid var(--accent-blue, #5b9dff);
+    outline-offset: 0;
+  }
+  .pinned-agent-av { width: 20px; height: 20px; }
+  .pinned-agent-name { display: none; }
+  .pinned-agent-unpin,
+  .pinned-agent:hover .pinned-agent-unpin { display: none; }
+  // Tighter dot hugging the bare icon; -2px stays inside the pill's 4px top
+  // padding so the bar's overflow-y: hidden never clips it.
+  .pinned-agent-notif {
+    top: -2px;
+    left: -2px;
+    width: 8px;
+    height: 8px;
+  }
+  // Same reasoning for the provider badge on the opposite corner: the chip's
+  // 2px padding here is tighter than the desktop one, so -3px would poke past
+  // the pill and get clipped by its overflow.
+  .pinned-agent-av .pinned-agent-provider {
+    right: -2px;
+    bottom: -2px;
+    width: 9px;
+    height: 9px;
+  }
+  .pinned-agents-bar.miniature .pinned-agent-av .pinned-agent-provider {
+    right: -2px;
+    bottom: -2px;
+    width: 11px;
+    height: 11px;
+  }
+  // Boss identity on mobile: the chip reset above strips borders (bare icons on
+  // the pill), so the gold ring hugs the avatar instead. Distinct from the
+  // active state, which is a blue outline around the whole chip.
+  .pinned-agent.is-boss .pinned-agent-av {
+    border-radius: 6px;
+    box-shadow: 0 0 0 1.5px #d4af37;
+  }
+  .pinned-group { gap: 6px; padding-left: 6px; }
+  // Tighter separators — horizontal space is scarcest here.
+  .pinned-lane-divider { margin: 0 1px; }
+
+  // Pinned bar is no longer overlapping the chat; clearance is handled by the
+  // fixed composer-stack height reservation in _mobile.scss.
+  .guake-output.has-pinned-agents {
+    padding-bottom: 12px !important;
+  }
+}
+

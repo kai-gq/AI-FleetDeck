@@ -1,0 +1,105 @@
+// =============================================================================
+// 输入壳:wrapper / input / container / 活动字形 / completion 渐隐 keyframes
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 124-220 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// =============================================================================
+// Guake Input - Modern Chat-style Input Bar
+// =============================================================================
+
+// Wrapper for input area with floating stop button
+.guake-input-wrapper {
+  position: relative;
+}
+
+.guake-input {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 95%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
+}
+
+// Container that groups attach + input + send together
+.guake-input-container {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  // A long unbroken string makes the textarea's min-content width enormous.
+  // Without this, `min-width: auto` lets that min-content size blow the
+  // container past the viewport and pushes the send button off-screen.
+  min-width: 0;
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  border: 2px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+  border-radius: 8px;
+  transition: all $transition-fast;
+  min-height: 38px;
+  position: relative;
+  // Disable middle-click paste
+  user-select: none;
+
+  &:focus-within {
+    border-color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-purple) 12%, transparent);
+  }
+
+  // Highlight while a file is being dragged directly over the input container
+  &.file-drag-over {
+    border-color: color-mix(in srgb, var(--accent-cyan) 70%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+  }
+
+  // A static border plus the tiny SVG beside the stop timer replaces the
+  // full-input rotating conic gradient.
+  .is-working & {
+    border: 2px solid color-mix(in srgb, #0047ff 58%, var(--accent-cyan)) !important;
+    background: color-mix(in srgb, var(--bg-secondary) 64%, transparent) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-green) 10%, transparent) !important;
+  }
+
+  // Keep completion feedback static. Animating this full-width border and
+  // shadow woke the compositor at the display refresh rate after every finish.
+  .is-completed & {
+    border: 2px solid color-mix(in srgb, var(--accent-green) 80%, transparent) !important;
+    background: color-mix(in srgb, var(--bg-secondary) 70%, transparent) !important;
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-green) 40%, transparent) !important;
+  }
+}
+
+.activity-glyph.guake-stop-activity {
+  color: var(--accent-cyan);
+  border: 1px solid color-mix(in srgb, #0047ff 58%, var(--accent-cyan));
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 11, 16, 0.82),
+    0 0 0 2px color-mix(in srgb, #0047ff 22%, transparent),
+    0 0 9px color-mix(in srgb, var(--accent-cyan) 48%, transparent);
+}
+
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes completion-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+

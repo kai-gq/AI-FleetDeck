@@ -1,0 +1,87 @@
+// =============================================================================
+// 当前提示气泡(含 wrapper 状态与文本截断)
+// 由 _input.scss 拆分(W4,2026-10-11):原文件第 1219-1297 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Floating current-prompt bubble: top-center of the input container,
+// straddling its upper edge. Shows a truncated preview of the prompt the
+// agent is working on; click scrolls the conversation to that prompt.
+.guake-prompt-bubble {
+  position: absolute;
+  top: -13px;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 80%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 14px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--accent-purple));
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 35%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  z-index: 5;
+  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-purple));
+    border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+  }
+
+  // Mobile has its own compact context/status row above the input.
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+// During active/completed feedback, reserve the right side of the input's top
+// edge for its timer/badge so the last-prompt preview never overlaps it.
+.guake-input-wrapper.has-prompt-bubble.has-stop-btn {
+  .guake-stop-bar {
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+
+  .guake-prompt-bubble {
+    left: 12px;
+    transform: none;
+    max-width: min(560px, calc(100% - 190px));
+  }
+}
+
+.guake-input-wrapper.has-prompt-bubble.is-completed {
+  .guake-completion-time {
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+
+  .guake-prompt-bubble {
+    left: 12px;
+    transform: none;
+    max-width: min(560px, calc(100% - 100px));
+  }
+}
+
+.guake-prompt-bubble-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
