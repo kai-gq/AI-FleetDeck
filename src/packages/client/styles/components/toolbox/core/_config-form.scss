@@ -1,0 +1,255 @@
+// =============================================================================
+// 配置表单:分区 / 行 / 标签 / 滑块 / 开关 / 输入 / 下拉 / 后端 URL 列表 / 按钮 / 提示
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 662-908 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Config section
+.config-section {
+  padding: 0;
+  border-top: 2px solid color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  margin-top: 4px;
+
+  // Add a subtle gradient separator at the top
+  &::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--accent-blue) 30%, transparent) 50%, transparent 100%);
+  }
+}
+
+// No results message for settings search
+.config-no-results {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.config-group {
+  margin-bottom: 6px;
+
+  .config-label {
+    display: block;
+    margin-bottom: 4px;
+  }
+}
+
+.config-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.config-slider {
+  flex: 1;
+  max-width: 80px;
+  height: 3px;
+  -webkit-appearance: none;
+  background: var(--border-color);
+  border-radius: 2px;
+  outline: none;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    cursor: pointer;
+  }
+}
+
+.config-value {
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 24px;
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+// Compact toggle switch for config rows
+.config-toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.config-toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.config-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  transition: all $transition-fast;
+}
+
+.config-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: all $transition-fast;
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 30%, transparent);
+}
+
+.config-toggle-input:checked + .config-toggle-track {
+  background: color-mix(in srgb, var(--accent-green) 25%, transparent);
+  border-color: var(--accent-green);
+
+  .config-toggle-thumb {
+    left: calc(100% - 14px);
+    background: var(--accent-green);
+  }
+}
+
+.config-toggle:hover .config-toggle-track {
+  border-color: var(--text-secondary);
+}
+
+.config-input {
+  width: 60px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: $font-mono;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+  }
+
+  &.config-input-sm {
+    width: 50px;
+  }
+
+  &.config-input-full {
+    width: 100%;
+    flex: 1;
+  }
+}
+
+// Dropdown for config rows whose choice is one of a few named values, where a
+// Toggle would not do and a chip row would not fit on one line.
+.config-select {
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: $font-mono;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+  }
+}
+
+.config-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.config-input-group {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+}
+
+.backend-urls-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.backend-url-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.backend-url-priority {
+  flex: 0 0 auto;
+  min-width: 18px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border-radius: $radius-sm;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.backend-url-text {
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  border-radius: $radius-sm;
+  min-width: 0;
+}
+
+.config-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--accent-purple);
+  border: none;
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-purple) 88%, white);
+  }
+
+  &.config-btn-sm {
+    padding: 3px 6px;
+  }
+}
+
+.config-hint {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+

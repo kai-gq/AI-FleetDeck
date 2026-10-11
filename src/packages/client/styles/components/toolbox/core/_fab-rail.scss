@@ -1,0 +1,204 @@
+// =============================================================================
+// FAB 轨道容器与自动隐藏(含三档矮视口媒体查询)
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 93-288 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// ============================================================================
+// FAB rail container — single fixed-positioned flex column that hosts all
+// left-edge floating buttons. Replaces the per-button hardcoded `top: Xpx`
+// layout that used to spill off the bottom of short viewports. On short
+// viewports the `@media (max-height: ...)` rules below compress button size
+// + gap so all icons stay reachable without needing `overflow` here (which
+// would clip the view-mode and workspace popovers).
+// ============================================================================
+.fab-rail {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  bottom: 12px;
+  width: 36px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  // NOTE: Do NOT set `overflow` on this container. The view-mode and
+  // workspace popovers render as `position: absolute` children anchored
+  // with `left: calc(100% + 10px)` — any `overflow: auto/scroll/hidden`
+  // here creates a clipping box and those popovers get cut off. Short
+  // viewports are handled via the `@media (max-height: …)` rules further
+  // down the file, which compress button size + gap so all icons fit.
+
+  // Tooltip trigger wraps each button in an `<span.tide-tooltip-trigger>`
+  // (see components/shared/Tooltip.tsx) — the buttons are nested one level
+  // deep, so the neutralize-positioning rules below use descendant
+  // selectors. The wrapper itself needs to flex-shrink: 0 so the buttons
+  // stack uniformly inside the rail.
+  .tide-tooltip-trigger {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  // Neutralize the per-button `position: fixed; top: Xpx; left: 16px;` rules
+  // that live in _core.scss, _skills-panel.scss, _shortcuts-modal.scss, and
+  // commander-view/_header.scss. Inside the rail, the buttons flow naturally
+  // as a flex column so the stack height matches its content instead of the
+  // hardcoded max-top (~554px), which was the source of the overflow bug.
+  .floating-settings-btn,
+  .search-toggle-btn,
+  .commander-toggle-btn,
+  .shortcuts-toggle-btn,
+  .hotwords-toggle-btn,
+  .skills-toggle-btn,
+  .fab-spawn-btn,
+  .fab-workspace-wrapper,
+  .fab-viewmode-wrapper {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex-shrink: 0;
+  }
+
+  // The view-mode wrapper previously used `display: contents` so its
+  // individually fixed children could layout against the viewport. Inside
+  // the rail it needs to be a real flex box so the popover can anchor to
+  // it with `position: absolute`.
+  .fab-viewmode-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+  }
+
+  // Workspace wrapper's dropdown is positioned further down with viewport caps.
+}
+
+// Flat mode: slide the rail off the left edge and reveal on hover / keyboard
+// focus / an open popover. Same pattern as `.agent-bar` — a slim peek stays
+// on-screen with a hover catch zone so the rail stays discoverable. Not gated
+// on `(hover: hover)` so a tap on the peek still works on coarse pointers
+// (the rail is already `display: none` below 768px).
+.fab-rail--autohide {
+  // Flush to the viewport left so a cursor that opened the rail from the
+  // peek stays over the rail as it slides in (a 16px inset would leave the
+  // cursor in the gutter and the rail would bounce closed). 8px inner pad
+  // keeps the 36px buttons off the screen edge once revealed.
+  left: 0;
+  width: 44px;
+  padding-left: 8px;
+  box-sizing: border-box;
+  transform: translateX(calc(-100% + 4px));
+  transition: transform 220ms ease;
+  will-change: transform;
+
+  // Full-height catch zone just to the right of the peek, including the
+  // rail's 12px top/bottom inset so the whole left edge reveals it.
+  &::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    bottom: -12px;
+    left: 100%;
+    width: 20px;
+  }
+
+  // Visible tab so the hidden rail isn't just empty pixels.
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -5px;
+    width: 5px;
+    height: 48px;
+    margin-top: -24px;
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--text-primary) 35%, var(--bg-tertiary));
+    box-shadow: 1px 0 8px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 160ms ease;
+  }
+
+  &:hover,
+  &:focus-within,
+  &:has(.fab-viewmode-menu),
+  &:has(.workspace-switcher-dropdown) {
+    transform: translateX(0);
+
+    &::after {
+      opacity: 0;
+    }
+  }
+}
+
+// Compress the FAB rail on short viewports so all icons fit vertically without
+// the rail needing a scroll container, which would clip the side-anchored
+// popover menus. Width is intentionally not part of this query: tablets,
+// landscape phones in desktop-width WebViews, and split-screen windows can all
+// have tight vertical room while still rendering the rail.
+@media (max-height: 640px) {
+  .fab-rail {
+    gap: 2px;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .hotwords-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 30px;
+      height: 30px;
+    }
+  }
+}
+
+@media (max-height: 520px) {
+  .fab-rail {
+    top: 8px;
+    bottom: 8px;
+    gap: 1px;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .hotwords-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 28px;
+      height: 28px;
+    }
+  }
+}
+
+@media (max-height: 440px) {
+  .fab-rail {
+    top: 6px;
+    bottom: 6px;
+    gap: 0;
+
+    .floating-settings-btn,
+    .search-toggle-btn,
+    .commander-toggle-btn,
+    .shortcuts-toggle-btn,
+    .hotwords-toggle-btn,
+    .skills-toggle-btn,
+    .fab-spawn-btn,
+    .fab-viewmode-wrapper,
+    .workspace-switcher-trigger {
+      width: 26px;
+      height: 26px;
+    }
+  }
+}
+

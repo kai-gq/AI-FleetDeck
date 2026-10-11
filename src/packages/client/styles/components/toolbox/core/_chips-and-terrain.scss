@@ -1,0 +1,126 @@
+// =============================================================================
+// 搜索高亮 / chip 选择器 / 地形图标 / 天空配色 / 空态与旧地形开关
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 1069-1186 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Search text highlight
+.search-highlight {
+  background: color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  color: var(--text-primary);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+// Compact chip selector
+.chip-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+  font-size: 11px;
+
+  &:hover {
+    border-color: var(--border-color);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  }
+}
+
+.chip-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chip-label {
+  font-size: 10px;
+  color: var(--text-primary);
+}
+
+// Terrain icon buttons
+.terrain-icons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.terrain-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.4;
+  transition: all $transition-fast;
+
+  &:hover {
+    opacity: 0.7;
+    border-color: var(--border-color);
+  }
+
+  &.active {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  }
+}
+
+// Sky color selector
+.sky-color-selector {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sky-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: scale(1.1);
+    border-color: color-mix(in srgb, var(--text-primary) 30%, transparent);
+  }
+
+  &.active {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  }
+}
+
+.areas-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+// Legacy terrain toggles (kept for compatibility, hidden by default)
+.terrain-toggles {
+  display: none;
+}
+

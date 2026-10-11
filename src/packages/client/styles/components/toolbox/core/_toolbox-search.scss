@@ -1,0 +1,73 @@
+// =============================================================================
+// 工具箱搜索:条 / 输入框 / 清除 / 关闭按钮
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 547-611 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Toolbox search bar
+.toolbox-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--border-color);
+
+  svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+}
+
+.toolbox-search-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color $transition-fast;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    border-color: var(--accent-blue);
+  }
+}
+
+.toolbox-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.toolbox-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+

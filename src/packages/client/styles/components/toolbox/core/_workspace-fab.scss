@@ -1,0 +1,115 @@
+// =============================================================================
+// 工作区切换 FAB(左轨)+ 遮罩与淡入 keyframes
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 395-501 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// ============================================================================
+// Workspace switcher rendered as a FAB (left rail)
+// ============================================================================
+.fab-workspace-wrapper {
+  position: fixed;
+  left: 16px;
+  top: 476px;       // 434 (view-mode FAB) + 36 + 6
+  z-index: 150;
+
+  .workspace-switcher {
+    position: static;
+  }
+
+  .workspace-switcher-trigger {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    gap: 0;
+    border-radius: $radius-lg;
+    background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border: 1px solid var(--text-muted);
+    color: var(--accent-pink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+
+    &:hover {
+      border-color: var(--accent-pink);
+      color: var(--accent-pink);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
+    }
+  }
+
+  // Icon-only FAB: hide the workspace label & dropdown caret
+  .workspace-switcher-label,
+  .workspace-switcher-arrow {
+    display: none;
+  }
+
+  .workspace-switcher-icon {
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Popover: slide out to the right of the FAB instead of dropping down
+  .workspace-switcher-dropdown {
+    top: auto;
+    bottom: 0;
+    left: calc(100% + 10px);
+    min-width: 220px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border: 1px solid var(--text-muted);
+    border-radius: $radius-lg;
+    padding: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    animation: fab-menu-in 0.12s ease-out;
+  }
+
+  .workspace-switcher-option {
+    border-radius: $radius-md;
+    padding: 8px 10px;
+    font-size: 12px;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    }
+
+    &.active {
+      color: var(--accent-pink);
+      background: color-mix(in srgb, var(--accent-pink) 12%, transparent);
+    }
+  }
+
+  .workspace-switcher-divider {
+    margin: 4px 2px;
+  }
+
+  .workspace-switcher-manager {
+    min-width: 280px;
+  }
+}
+
+.toolbox-backdrop {
+  // Click-through dim overlay: signals the panel is open without trapping
+  // pointer events. Closing is still wired through the X button and Escape key.
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, #000 30%, transparent);
+  pointer-events: none;
+  z-index: 200;
+  animation: toolbox-backdrop-fade-in $transition-normal ease-out;
+
+  @media (max-width: 768px) {
+    bottom: var(--mobile-bottom-stack-height, 72px);
+  }
+}
+
+@keyframes toolbox-backdrop-fade-in {
+  from { background: rgba(0, 0, 0, 0); }
+  to   { background: color-mix(in srgb, #000 30%, transparent); }
+}
+

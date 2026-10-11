@@ -1,0 +1,168 @@
+// =============================================================================
+// 功能分组标题 / 依赖关系提示 / 折叠区(头 / 标题 / 箭头 / 内容)
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 909-1068 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// 功能分组标题(如「语音」组:语音转文字/文字转语音/语音伙伴)
+.config-group-heading {
+  margin: 10px 0 2px;
+  padding: 0 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-blue) 70%, var(--text-muted));
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+// 节内关系说明条:本页设置被哪些功能消费 + 互跳入口
+.config-relation-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 8px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 20%, transparent);
+  border-radius: $radius-sm;
+}
+
+.config-relation-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.config-relation-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-blue);
+  font-size: 9px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: color-mix(in srgb, var(--accent-blue) 80%, white);
+  }
+}
+
+// Collapsible sections
+.collapsible-section {
+  margin-bottom: 2px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 40%, transparent) 100%);
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent) 100%);
+    border-left-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  }
+
+  .collapsible-section.open & {
+    color: var(--text-primary);
+    border-left-color: var(--accent-blue);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 15%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent) 100%);
+  }
+}
+
+.collapsible-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .collapsible-section.open & {
+    &::before {
+      background: var(--accent-blue);
+      opacity: 1;
+    }
+  }
+}
+
+.collapsible-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapsible-arrow {
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform $transition-fast, opacity $transition-fast;
+
+  .collapsible-section.open & {
+    opacity: 1;
+  }
+}
+
+// Collapsible section inside toolbox-section
+.toolbox-section-collapsible {
+  padding: 0;
+  margin-bottom: 2px;
+
+  .collapsible-header {
+    padding: 10px 12px;
+  }
+
+  .collapsible-content {
+    padding: 8px 12px 12px;
+    background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+    margin-left: 3px;
+  }
+
+  .areas-list,
+  .buildings-list {
+    padding: 0;
+  }
+}
+
+.collapsible-content {
+  padding: 8px 12px 12px;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+  margin-left: 3px;
+}
+

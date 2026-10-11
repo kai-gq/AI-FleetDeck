@@ -1,0 +1,97 @@
+// =============================================================================
+// 浮动设置按钮 / 搜索切换 / FAB 生成按钮与图标(硬编码 top 布局)
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 4-92 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+// Floating settings button
+.floating-settings-btn {
+  position: fixed;
+  top: 56px;
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+
+  &:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
+  }
+}
+
+// Floating Spotlight / Global Search button (next to settings)
+.search-toggle-btn {
+  position: fixed;
+  top: 98px;      // Stacked below settings button (56 + 36 + 6)
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--accent-blue);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+
+  &:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
+  }
+}
+
+// Floating spawn buttons (stacked below skills)
+.fab-spawn-btn {
+  position: fixed;
+  left: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: $radius-lg;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  transition: all $transition-fast;
+  box-shadow: 0 2px 8px color-mix(in srgb, #000 30%, transparent);
+
+  &:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 92%, white) 0%, var(--bg-tertiary) 100%);
+  }
+}
+
+.fab-spawn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.fab-spawn-agent-btn    { top: 266px; color: var(--accent-green);  }  // 224 + 36 + 6
+.fab-spawn-boss-btn     { top: 308px; color: var(--accent-yellow); }  // 266 + 36 + 6
+.fab-spawn-building-btn { top: 350px; color: var(--accent-cyan);   }  // 308 + 36 + 6
+.fab-spawn-area-btn     { top: 392px; color: var(--accent-purple); }  // 350 + 36 + 6
+.fab-spawn-viewmode-btn { top: 434px; color: var(--accent-orange); }  // 392 + 36 + 6
+.fab-spawn-organize-btn { top: 518px; color: var(--accent-red);    }  // 476 (workspace FAB) + 36 + 6
+

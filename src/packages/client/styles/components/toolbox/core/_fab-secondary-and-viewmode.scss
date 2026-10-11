@@ -1,0 +1,114 @@
+// =============================================================================
+// 生成按钮 hover/禁用微调 + 视图模式菜单与开场 keyframes
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 289-394 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.fab-spawn-agent-btn:hover   { border-color: var(--accent-green);  color: var(--accent-green);  }
+.fab-spawn-boss-btn:hover    { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+.fab-spawn-building-btn:hover{ border-color: var(--accent-cyan);   color: var(--accent-cyan);   }
+.fab-spawn-area-btn:hover    { border-color: var(--accent-purple); color: var(--accent-purple); }
+.fab-spawn-viewmode-btn:hover{ border-color: var(--accent-orange); color: var(--accent-orange); }
+.fab-spawn-organize-btn:hover{ border-color: var(--accent-red);    color: var(--accent-red);    }
+
+.fab-spawn-organize-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fab-spawn-viewmode-btn.is-open {
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+}
+
+// Group wrapper for the view-mode FAB + popover menu. Both children are
+// position:fixed on their own, so the wrapper only exists as a DOM anchor for
+// click-outside detection — `display: contents` removes its line box so it
+// can't push flex siblings (which was adding a 21px strip at the bottom of
+// the flat view's .app flex column).
+.fab-viewmode-wrapper {
+  display: contents;
+}
+
+// Popover menu anchored to the view-mode FAB. The wrapper is
+// `position: relative` inside `.fab-rail`, so the menu lays out against the
+// wrapper rather than the viewport.
+.fab-viewmode-menu {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  min-width: 220px;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--text-muted);
+  border-radius: $radius-lg;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 151;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  animation: fab-menu-in 0.12s ease-out;
+
+  &__item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: $radius-md;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: background $transition-fast, border-color $transition-fast, color $transition-fast;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+      border-color: var(--text-muted);
+    }
+
+    &.is-active {
+      background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+      border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+      color: var(--accent-orange);
+    }
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+
+  &__label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  &__desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: -2px;
+  }
+}
+
+.fab-rail .fab-viewmode-menu {
+  top: auto;
+  bottom: 0;
+}
+
+@keyframes fab-menu-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+

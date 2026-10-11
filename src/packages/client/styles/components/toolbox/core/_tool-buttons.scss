@@ -1,0 +1,58 @@
+// =============================================================================
+// 工具分区 / 分区头 / 工具按钮网格与标签
+// 由 _core.scss 拆分(W4,2026-10-11):原文件第 612-661 行,逐行原样。
+// =============================================================================
+
+@use 'sass:color';
+@use '../../../variables' as *;
+
+.toolbox-section {
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.toolbox-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-tertiary) 80%, transparent) 0%, color-mix(in srgb, var(--bg-tertiary) 40%, transparent) 100%);
+  border-left: 3px solid var(--accent-blue);
+}
+
+.tool-buttons {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tool-btn {
+  flex: 1;
+  padding: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    border-color: var(--text-secondary);
+  }
+
+  &.active {
+    border-color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  }
+}
+
+.tool-btn-label {
+  display: none;
+}
+
