@@ -204,6 +204,20 @@
   }
 }
 
+// 语音收敛(非 home)· 用户点名:其他页面左侧的悬浮话筒删除。home 侧同类收敛见
+// FleetDeckHome.scss B-26(≥1101 语音栏在场即收起);非 home 视图没有语音栏,但顶栏话筒
+// (语音设置弹窗)仍是入口,桌面宽屏同样收起左缘悬浮钮(两处实例一并,避免叠影)。
+// ≤1100 与移动端保留:悬浮钮仍是窄屏唯一开关。仅视觉隐藏:挂载不动,聆听/播报/镜像
+// 照常(DOM 代理点击照常派发)。
+// 注意放本文件而非 FleetDeckHome.scss:后者随 home 懒加载 chunk 才注入 DOM,非 home
+// 视图下规则不存在(实测 2026-10-11);本文件由 VoiceCompanion.tsx 自 import,全视图常载。
+@media (min-width: 1101px) {
+  .app:not(.view-mode-home) .fab-rail .voice-companion-btn,
+  .app:not(.view-mode-home) .main-content > .mobile-voice-companion {
+    display: none !important;
+  }
+}
+
 @keyframes vc-blink {
   0%,
   100% {
