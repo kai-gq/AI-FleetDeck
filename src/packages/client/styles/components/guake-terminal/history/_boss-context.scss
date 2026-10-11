@@ -1,0 +1,97 @@
+// =============================================================================
+// Boss 上下文折叠区(头 / 图标 / 标签 / 开关 / 内容)
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 224-313 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Boss Context (Collapsible) - Using CSS variables for theme support
+// =============================================================================
+
+.boss-context {
+  margin-bottom: 8px;
+  border-radius: $radius-sm;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent-orange) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+
+  &.collapsed {
+    .boss-context-header {
+      border-radius: $radius-sm;
+    }
+  }
+
+  &.expanded {
+    .boss-context-header {
+      border-radius: $radius-sm $radius-sm 0 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    }
+  }
+}
+
+.boss-context-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--accent-orange) 6%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  }
+}
+
+.boss-context-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.boss-context-label {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-orange);
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+
+.boss-context-toggle {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform $transition-fast;
+}
+
+.boss-context-content {
+  padding: 10px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  max-height: 300px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--text-muted);
+    }
+  }
+}
+

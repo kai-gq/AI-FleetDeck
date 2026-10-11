@@ -1,0 +1,54 @@
+// =============================================================================
+// 消息操作按钮:容器 / 查看 markdown / 朗读
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 102-148 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Container for action buttons (view markdown, speak)
+.message-action-btns {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity $transition-fast;
+}
+
+// View markdown button for assistant responses
+.history-view-md-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  color: var(--text-muted);
+  padding: 3px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+  }
+}
+
+// Speak button for TTS
+.history-speak-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 40%, transparent);
+  color: var(--text-muted);
+  padding: 3px 6px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  }
+}
+

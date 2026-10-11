@@ -1,0 +1,156 @@
+// =============================================================================
+// 委派块:块 / 开关 / 头 / 图标 / 标题 / 置信度 / 细节 / 备选 / 代理名 / 命令与理由
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 314-462 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// ============================================================================
+// Delegation Block Styles - Using CSS variables for theme support
+// ============================================================================
+
+.delegation-block {
+  margin-top: 12px;
+  border-radius: $radius-md;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0;
+
+  &[role='button'] {
+    cursor: pointer;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--border-color) 90%, transparent);
+      border-left-color: var(--accent-blue);
+    }
+  }
+}
+
+.delegation-toggle {
+  font-size: 9px;
+  color: color-mix(in srgb, var(--accent-blue) 70%, transparent);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+
+  .delegation-block[role='button']:hover & {
+    color: var(--accent-blue);
+  }
+}
+
+.delegation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--accent-blue) 7%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+}
+
+.delegation-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.delegation-title {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+
+.delegation-confidence {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+}
+
+.delegation-details {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delegation-target,
+.delegation-task-command,
+.delegation-reasoning,
+.delegation-alternatives {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+}
+
+.delegation-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.delegation-agent-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
+}
+
+.delegation-agent-name {
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.clickable-agent-name {
+  cursor: pointer;
+  &:hover {
+    color: var(--accent-blue);
+    text-decoration: underline;
+  }
+}
+
+.delegation-command-text {
+  color: var(--accent-blue);
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  &.is-expanded {
+    max-height: 420px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+      border-radius: 3px;
+      &:hover { background: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+    }
+  }
+}
+
+.delegation-reason-text {
+  color: var(--text-primary);
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+

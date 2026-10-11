@@ -1,0 +1,154 @@
+// =============================================================================
+// 工作计划块:块 / 头 / 图标 / 标题 / 统计 / 描述 / 阶段与阶段执行
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 942-1088 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// ============================================================================
+// Work Plan Block Styles - Using CSS variables for theme support
+// ============================================================================
+
+.work-plan-block {
+  margin-top: 12px;
+  border-radius: $radius-md;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-primary) 85%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 65%, transparent) 100%);
+}
+
+.work-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent);
+}
+
+.work-plan-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.work-plan-title {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.work-plan-stats {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border-radius: $radius-sm;
+}
+
+.work-plan-description {
+  padding: 10px 14px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.work-plan-phases {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.work-plan-phase {
+  border-radius: $radius-sm;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+
+  &.expanded {
+    .work-plan-phase-header {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+    }
+  }
+}
+
+.work-plan-phase-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  }
+}
+
+.work-plan-phase-number {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.work-plan-phase-name {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.work-plan-phase-execution {
+  font-family: $font-mono;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: $radius-sm;
+
+  &.parallel {
+    color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 15%, transparent);
+  }
+
+  &.sequential {
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  }
+}
+
+.work-plan-phase-depends {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.work-plan-phase-toggle {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform $transition-fast;
+}
+
+.work-plan-tasks {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+

@@ -1,0 +1,113 @@
+// =============================================================================
+// 委派面 markdown 间距覆盖 / 备选列表 / 下属进度 / 页脚 / 自动转发
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 463-568 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Tighten markdown spacing inside delegation / task-report surfaces.
+// The shared MarkdownComponents factory sets margins via inline styles, which
+// beat class-level CSS without !important. We scope the overrides to these
+// specific surfaces so other markdown-content callers keep their default rhythm.
+.delegated-task-command.markdown-content,
+.delegated-task-message-command.markdown-content,
+.delegation-command-text.markdown-content,
+.delegation-reason-text.markdown-content,
+.task-report-summary.markdown-content,
+.task-report-detail-value.markdown-content,
+.boss-context-content.markdown-content,
+.injected-instructions-content.markdown-content {
+  p {
+    margin: 0.15em 0 !important;
+
+    &:first-child { margin-top: 0 !important; }
+    &:last-child { margin-bottom: 0 !important; }
+  }
+
+  ul, ol {
+    margin: 0.15em 0 !important;
+    padding-left: 1.25em !important;
+
+    &:first-child { margin-top: 0 !important; }
+    &:last-child { margin-bottom: 0 !important; }
+  }
+
+  // Nested lists (loose or tight) sit flush inside their parent item.
+  ul ul, ul ol, ol ul, ol ol {
+    margin: 0.05em 0 !important;
+  }
+
+  li {
+    margin: 0 !important;
+    padding-left: 0.2em !important;
+
+    // Loose lists wrap each item's content in <p>. Strip those paragraph
+    // margins so the <li>'s own rhythm is what drives spacing.
+    > p {
+      margin: 0 !important;
+    }
+
+    > *:first-child { margin-top: 0 !important; }
+    > *:last-child { margin-bottom: 0 !important; }
+
+    // Tiny gap between an item's text and its nested sub-list.
+    > p + ul,
+    > p + ol {
+      margin-top: 0.05em !important;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0.25em 0 0.1em !important;
+    line-height: 1.25 !important;
+
+    &:first-child { margin-top: 0 !important; }
+  }
+
+  pre {
+    margin: 0.25em 0 !important;
+  }
+
+  blockquote {
+    margin: 0.2em 0 !important;
+  }
+
+  hr {
+    margin: 0.3em 0 !important;
+  }
+}
+
+.delegation-alt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.delegation-alt-agent {
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border-radius: $radius-sm;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
+
+.delegation-subordinate-progress {
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+}
+
+.delegation-footer {
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.delegation-auto-forward {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--accent-green);
+  font-style: italic;
+}
+

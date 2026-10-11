@@ -1,0 +1,142 @@
+// =============================================================================
+// 任务回报头(主管端):头 / 徽标 / 图标 / 标签 / 代理图标 / ID / 开关 / 摘要
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 807-941 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// ============================================================================
+// Task Report Header (shown on boss terminal when receiving completion report)
+// ============================================================================
+
+.task-report-header {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: $radius-sm;
+  transition: all 0.15s ease;
+  min-width: 0;
+
+  &[role='button'] {
+    cursor: pointer;
+  }
+
+  &.status-completed {
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-green) 60%, transparent);
+
+    &.expanded {
+      background: color-mix(in srgb, var(--accent-green) 6%, transparent);
+      border-color: color-mix(in srgb, var(--border-color) 75%, transparent);
+      border-left-color: var(--accent-green);
+    }
+  }
+
+  &.status-failed {
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-red, #ef4444) 60%, transparent);
+
+    &.expanded {
+      background: color-mix(in srgb, var(--accent-red, #ef4444) 6%, transparent);
+      border-color: color-mix(in srgb, var(--border-color) 75%, transparent);
+      border-left-color: var(--accent-red, #ef4444);
+    }
+  }
+}
+
+.task-report-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover .task-report-toggle {
+    color: var(--text-primary);
+  }
+}
+
+.task-report-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.task-report-label {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .status-completed & {
+    strong { color: var(--accent-green); }
+  }
+
+  .status-failed & {
+    strong { color: var(--accent-red, #ef4444); }
+  }
+}
+
+.task-report-agent-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.task-report-id {
+  font-family: $font-mono;
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.task-report-toggle {
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.task-report-summary {
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+  border-radius: $radius-sm;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+
+  &.is-expanded {
+    max-height: 420px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+      border-radius: 3px;
+      &:hover { background: color-mix(in srgb, var(--text-muted) 60%, transparent); }
+    }
+  }
+
+  &.markdown-content > *:first-child { margin-top: 0; }
+  &.markdown-content > *:last-child { margin-bottom: 0; }
+}
+

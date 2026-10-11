@@ -1,0 +1,97 @@
+// =============================================================================
+// 委派任务头(下属端):头 / 徽标 / 图标 / 标签 / 开关 / 预览 / 命令
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 569-658 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// ============================================================================
+// Delegated Task Header (shown when agent receives task from boss)
+// Using CSS variables for theme support
+// ============================================================================
+
+.delegated-task-header {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent);
+  transition: all 0.15s ease;
+
+  &.compact {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &.expanded {
+    padding: 8px 10px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-purple) 15%, transparent) 0%, color-mix(in srgb, var(--accent-purple) 8%, transparent) 100%);
+    border-color: color-mix(in srgb, var(--accent-purple) 35%, transparent);
+  }
+}
+
+.delegated-task-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    .delegated-task-toggle {
+      color: var(--accent-purple);
+    }
+  }
+}
+
+.delegated-task-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.delegated-task-label {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--accent-purple) 80%, transparent);
+  letter-spacing: 0.3px;
+
+  strong {
+    color: var(--accent-purple);
+    font-weight: 600;
+  }
+}
+
+.delegated-task-toggle {
+  font-size: 8px;
+  color: color-mix(in srgb, var(--accent-purple) 50%, transparent);
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.delegated-task-preview {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text-primary) 70%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.delegated-task-command {
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 50%, transparent);
+  border-radius: $radius-sm;
+  border-left: 2px solid var(--accent-purple);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+

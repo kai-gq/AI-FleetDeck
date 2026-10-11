@@ -1,0 +1,82 @@
+// =============================================================================
+// 历史行悬停基座 / claude 输出行 / 工具调用与工具结果展示
+// 由 _history.scss 拆分(W4,2026-10-11):原文件第 149-223 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// Show buttons on hover of parent
+.history-line {
+  position: relative;
+
+  &:hover .message-action-btns,
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
+}
+
+// Also apply to output lines
+.output-line.output-claude {
+  position: relative;
+
+  &:hover .message-action-btns,
+  &:hover .history-view-md-btn {
+    opacity: 1;
+  }
+}
+
+// Tool use/result colors using theme-specific tool colors
+.history-tool-use {
+  background: var(--tool-use-bg);
+  padding: 4px 0;
+  margin: 2px 0;
+
+  .history-role {
+    color: var(--tool-use-text);
+  }
+}
+
+.history-tool-name {
+  color: var(--tool-use-name, var(--accent-pink));
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.history-tool-input {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 10px;
+  margin: 4px 0 0 20px;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  border-radius: $radius-sm;
+  border-left: 2px solid var(--tool-use-border);
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: $font-mono;
+}
+
+.history-tool-result {
+  background: var(--tool-result-bg);
+  padding: 4px 0;
+  margin: 2px 0;
+
+  .history-role {
+    color: var(--tool-result-text);
+  }
+}
+
+.history-tool-output {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 10px;
+  margin: 4px 0 0 20px;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  border-radius: $radius-sm;
+  border-left: 2px solid var(--tool-result-border);
+  font-family: $font-mono;
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
