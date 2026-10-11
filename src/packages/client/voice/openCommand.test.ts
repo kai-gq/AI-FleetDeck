@@ -20,7 +20,7 @@ import { store } from '../store';
 
 const AGENTS = [
   { id: 'a-boss', name: '主管' },
-  { id: 'a-liutao', name: '小陈' },
+  { id: 'a-xiaochen', name: '小陈' },
   { id: 'a-xiaomei', name: '小美' },
   { id: 'a-alice', name: 'Alice' },
 ];
@@ -40,7 +40,7 @@ describe('matchOpenCommand — 正例(命中)', () => {
   it('「打开小陈」命中对应 agent', () => {
     expect(matchOpenCommand('打开小陈', AGENTS)).toEqual({
       kind: 'agent',
-      agentId: 'a-liutao',
+      agentId: 'a-xiaochen',
       name: '小陈',
     });
   });
@@ -60,7 +60,7 @@ describe('matchOpenCommand — 正例(命中)', () => {
   it('容忍 ASR 空格:「打开 小陈」「打开 小美。」', () => {
     expect(matchOpenCommand('打开 小陈', AGENTS)).toEqual({
       kind: 'agent',
-      agentId: 'a-liutao',
+      agentId: 'a-xiaochen',
       name: '小陈',
     });
     expect(matchOpenCommand('打开 小美。', AGENTS)?.kind).toBe('agent');
@@ -135,8 +135,8 @@ describe('executeOpenCommand — 动作与确认语', () => {
   });
 
   it('agent:选中 + 非 flat 视图请求展开终端,确认语「已打开」', () => {
-    const ack = executeOpenCommand({ kind: 'agent', agentId: 'a-liutao', name: '小陈' });
-    expect(store.selectAgent).toHaveBeenCalledWith('a-liutao');
+    const ack = executeOpenCommand({ kind: 'agent', agentId: 'a-xiaochen', name: '小陈' });
+    expect(store.selectAgent).toHaveBeenCalledWith('a-xiaochen');
     expect(store.requestTerminalExpand).toHaveBeenCalledTimes(1);
     expect(ack).toBe('已打开');
   });

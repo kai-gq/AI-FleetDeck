@@ -57,7 +57,7 @@ node tools/ttyd-tmux/smoke.mjs     # 冒烟测试(需要 bin/ 或系统里能找
 ## 运行前提(重要)
 
 - `E:\nodejs`(或 `bin/`)必须在 PATH 里,TC 进程与 tmux server 才能解析到 `ttyd` / `tmux` / `which`;
-- `C:\Users\Administrator\.local\bin` 需在 PATH 里,`claude`(原生 exe)才可被解析
+- `%USERPROFILE%\.local\bin` 需在 PATH 里,`claude`(原生 exe)才可被解析
   —— TC 里 voice assistant 等直接 `spawn('claude')` 的路径靠它;
 - TC 的 `commandExists()` 实际执行 Unix 风格的 `which <cmd>`:Windows 没有 which,由 `which.cmd` 顶上,
   所以 which.cmd 必须能被解析到(PATH=E:\nodejs,或 cwd=仓库根)。

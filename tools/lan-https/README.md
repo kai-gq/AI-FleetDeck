@@ -14,7 +14,7 @@ HTTPS from the same process";两个监听共享同一份 agents 与 WebSocket)�
 1. **生成证书**(任意 IP 变化后重跑;CA 保持不变,手机无需重装):
    ```bash
    bash tools/lan-https/gen-certs.sh            # 自动探测本机 IPv4
-   bash tools/lan-https/gen-certs.sh 192.168.1.21   # 或显式指定
+   bash tools/lan-https/gen-certs.sh 192.168.1.100   # 或显式指定
    ```
    产物在 `~/.tide-commander/certs/`(与 `cli.ts --install-local-cert` 的目录约定一致);
    `rootCA.crt` 副本导出到 `tools/lan-https/public/`(gitignored)。

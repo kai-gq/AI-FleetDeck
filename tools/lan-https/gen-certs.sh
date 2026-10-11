@@ -12,7 +12,7 @@
 #
 # 用法:
 #   bash tools/lan-https/gen-certs.sh                 # 自动探测本机 IPv4
-#   bash tools/lan-https/gen-certs.sh 192.168.1.21    # 显式指定(可多个: IP 或主机名)
+#   bash tools/lan-https/gen-certs.sh 192.168.1.100    # 显式指定(可多个: IP 或主机名)
 #
 # 换 IP 后: 重跑本脚本(CA 不重新生成,手机无需重装 CA)——然后重启服务器窗口。
 set -euo pipefail

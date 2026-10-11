@@ -595,8 +595,8 @@ describe('encodeProjectPath — Claude projects 目录编码规则', () => {
     const { encodeProjectPath } = await import('./session-loader.js');
     // 本机实存目录(修复前编码 E:\tide-commander\tide-commander,永不命中)
     expect(encodeProjectPath('E:\\tide-commander\\tide-commander')).toBe('E--tide-commander-tide-commander');
-    expect(encodeProjectPath('C:\\Users\\Administrator\\.local\\share\\tide-commander\\voice-cwd')).toBe(
-      'C--Users-Administrator--local-share-tide-commander-voice-cwd',
+    expect(encodeProjectPath('C:\\Users\\tester\\.local\\share\\tide-commander\\voice-cwd')).toBe(
+      'C--Users-tester--local-share-tide-commander-voice-cwd',
     );
     expect(encodeProjectPath('C:\\Users\\ADMINI~1\\AppData')).toBe('C--Users-ADMINI-1-AppData');
   });

@@ -27,7 +27,7 @@ administra con `llama-profile`:
 | Campo | Valor |
 | --- | --- |
 | Endpoint local | `http://127.0.0.1:8080/v1` |
-| Endpoint LAN | `http://192.168.68.58:8080/v1` |
+| Endpoint LAN | `http://192.168.1.100:8080/v1` |
 | Bind | `0.0.0.0:8080` |
 | Alias del modelo | `qwen3.6-35b-a3b` |
 | Contexto configurado | 163,840 tokens |
@@ -816,7 +816,7 @@ Configuración del custom provider:
 
 ```text
 Protocol: OpenAI compatible
-Base URL: http://192.168.68.58:8080/v1
+Base URL: http://192.168.1.100:8080/v1
 API key: local
 Model: qwen3.6-35b-a3b
 ```

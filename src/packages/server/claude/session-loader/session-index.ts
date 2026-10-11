@@ -20,8 +20,8 @@ export function encodeProjectPath(cwd: string): string {
   // 实测依据(2026-10-07):对本机 ~/.claude/projects 全部 19 个真实目录,用其内会话
   // 首行 cwd 反推编码,该规则 19/19 吻合。例:
   //   E:\tide-commander\tide-commander -> E--tide-commander-tide-commander
-  //   C:\Users\Administrator\.local\share\tide-commander\voice-cwd
-  //     -> C--Users-Administrator--local-share-tide-commander-voice-cwd
+  //   C:\Users\tester\.local\share\tide-commander\voice-cwd
+  //     -> C--Users-tester--local-share-tide-commander-voice-cwd
   // 旧实现只替换 / 和 _,Windows 绝对路径里的 ':' '\' '.' 原样幸存 ->
   // 目录永远不存在 -> 会话文件永远 not found(面板历史/语音查产出/会话搜索全失效)。
   const normalized = cwd.replace(/[\\/]+$/, '');

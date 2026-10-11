@@ -41,7 +41,7 @@ describe('AgentBadge · 状态分组（EPIC-8）', () => {
 describe('AgentBadge · 名字首字徽标', () => {
   it('中文取尾字（SPEC 原文例：Builder 甲 → 甲）', () => {
     expect(nameInitial('Builder 甲')).toBe('甲');
-    expect(nameInitial('小刘')).toBe('年');
+    expect(nameInitial('小刘')).toBe('刘');
     expect(nameInitial('王强')).toBe('强');
     expect(nameInitial('看板 🚀')).toBe('板'); // 尾部 emoji 跳过，取最后一个汉字
   });

@@ -39,7 +39,7 @@ export const AGENT_BADGE_TONE_VARS: Record<AgentBadgeTone, string> = {
 };
 
 // CJK ideographs, kana and hangul — names in these scripts take the LAST
-// glyph as the initial ("Builder 甲" → "甲", 小刘 → 年), per SPEC EPIC-8.
+// glyph as the initial ("Builder 甲" → "甲", 小刘 → 刘), per SPEC EPIC-8.
 const CJK_CHAR_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/;
 
 /**
