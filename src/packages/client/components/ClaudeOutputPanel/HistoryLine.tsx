@@ -1,22 +1,25 @@
 /**
  * HistoryLine component for rendering conversation history messages
+ * 类型与助手已拆入 ./history-line/(2026-10-11 W2 拆分);
+ * 本文件保留主组件与对外导出。
  */
 
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 助手已拆入 ./history-line/;
+// 本文件保留 HistoryLine 主组件与对外导出(导出面不变)。
+// ============================================================================
+
+import { type HistoryLineProps } from './history-line/types';
+import { getExtFromPath, getBasenameFromPath, getHistoryDebugHash } from './history-line/helpers';
 import React, { memo, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useHideCost, useSettings, useAgentPrompts } from '../../store';
-import { store, type TestRunHandle, type HttpRunHandle } from '../../store';
+import { store } from '../../store';
 import { BOSS_CONTEXT_START } from '../../../shared/types';
 import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting';
-import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
-  isCurlCommandTo,
-  bashCommandDisplaySlice,
-  getShellWriteSummary,
-  getBashRowSummary,
-  getFileToolDetail,
-} from '../../utils/outputRendering';
+import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch, isCurlCommandTo, bashCommandDisplaySlice, getShellWriteSummary, getBashRowSummary, getFileToolDetail } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import { getSlashCommandInfo, slashCommandSummaryKey } from '../../utils/slashCommands';
@@ -53,8 +56,6 @@ import { AgentIcon } from '../AgentIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
 import { exportMarkdownElementToPdf } from '../../utils/markdown-pdf';
-import type { EnrichedHistoryMessage, EditData } from './types';
-import type { ExecTask, Subagent } from '../../../shared/types';
 import { SubagentInline } from './SubagentInline';
 import { providerLabel } from '../../utils/providerDisplay';
 import { ThinkingBlock } from './ThinkingBlock';
@@ -64,55 +65,6 @@ import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentR
 import { parseBolbaRecommendationRequest } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { ShellCommandResultCard } from '../../plugins/shell-commands/ShellCommandResultCard';
 import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
-
-/** Extract file extension (with dot) from a path, e.g. '/foo/bar.tsx' → '.tsx' */
-function getExtFromPath(filePath: string): string {
-  const basename = filePath.split('/').pop() || filePath;
-  const dotIdx = basename.lastIndexOf('.');
-  if (dotIdx <= 0) return '';
-  return basename.slice(dotIdx).toLowerCase();
-}
-
-/** Extract basename from a path, e.g. '/foo/bar.tsx' → 'bar.tsx' */
-function getBasenameFromPath(filePath: string): string {
-  return filePath.split('/').pop() || filePath;
-}
-
-interface HistoryLineProps {
-  message: EnrichedHistoryMessage;
-  agentId?: string | null;
-  simpleView?: boolean;
-  /** Row is the active find match: reveal searchable content the renderer
-   *  normally hides (e.g. bash output when inline outputs are off). */
-  searchReveal?: boolean;
-  /**
-   * Subagents map keyed by subagent id. Needed so that persisted Task/Agent
-   * tool_use rows can render the inline activity + stream panel — the live
-   * tool_use chip gets deduped against the JSONL once it flushes, leaving
-   * HistoryLine as the sole renderer of the Task chip.
-   */
-  subagents?: Map<string, Subagent>;
-  execTasks?: ExecTask[];
-  testRunHandles?: TestRunHandle[];
-  httpRunHandles?: HttpRunHandle[];
-  onImageClick?: (url: string, name: string) => void;
-  onFileClick?: (path: string, editData?: EditData | { highlightRange: { offset: number; limit: number } }) => void;
-  onBashClick?: (command: string, output: string) => void;
-  onViewMarkdown?: (content: string) => void;
-}
-
-// Generate a short debug hash for a history message (for debugging duplicates)
-function getHistoryDebugHash(message: EnrichedHistoryMessage): string {
-  const textKey = message.content.slice(0, 50);
-  const flags = `H${message.type[0].toUpperCase()}`; // H for History, then type initial
-  // Simple hash from text
-  let hash = 0;
-  for (let i = 0; i < textKey.length; i++) {
-    hash = ((hash << 5) - hash) + textKey.charCodeAt(i);
-    hash |= 0;
-  }
-  return `${flags}:${(hash >>> 0).toString(16).slice(0, 6)}`;
-}
 
 export const HistoryLine = memo(function HistoryLine({
   message,
