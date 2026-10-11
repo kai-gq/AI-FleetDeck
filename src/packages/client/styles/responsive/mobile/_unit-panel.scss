@@ -1,0 +1,95 @@
+// =============================================================================
+// 侧栏单位面板 / agent 项 / 统计
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 1639-1723 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Sidebar content on mobile
+  .unit-panel {
+    padding: 8px 12px 12px;
+  }
+
+  // Hide 3D model preview on mobile — saves ~90px vertical space
+  .unit-model-preview {
+    display: none;
+  }
+
+  // Agent header actions — drop to their own full-width row under the agent
+  // name (side-column wrapping left a tall dead-space grid next to the name).
+  .unit-panel-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .unit-header-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .unit-action-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  // Agent items in sidebar — touch-friendly
+  .agent-item {
+    padding: 10px 8px;
+    gap: 10px;
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+
+    &:active {
+      background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+    }
+  }
+
+  .agent-item-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+
+  .agent-item-name {
+    font-size: 14px;
+  }
+
+  // Unit panel stats — horizontal row layout
+  .unit-stats {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .unit-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+  }
+
+  .unit-stat-label {
+    margin-bottom: 0;
+    font-size: 10px;
+  }
+
+  .unit-stat-value {
+    font-size: 12px;
+  }
+
+  // Compact secondary info sections
+  .unit-cwd,
+  .unit-permission-mode,
+  .unit-resume-cmd {
+    margin-bottom: 6px;
+    padding: 6px;
+  }
+
+}

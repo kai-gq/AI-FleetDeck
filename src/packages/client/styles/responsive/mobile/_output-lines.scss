@@ -1,0 +1,246 @@
+// =============================================================================
+// 输出行紧凑(tool-use / thinking / 状态行 / 操作按钮)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 944-1179 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // ── Compact tool / thinking cards on mobile (density) ──────────────────
+  // Base dense header+body is in _tools.scss; tighten further on phones.
+  .output-tool-use {
+    gap: 2px 6px;
+    padding: 4px 8px;
+    margin: 2px 0;
+  }
+
+  .output-tool-name {
+    font-size: 10px;
+  }
+
+  .output-tool-icon {
+    font-size: 13px;
+  }
+
+  .output-tool-param {
+    font-size: 10px;
+  }
+
+  .output-tool-use .output-timestamp {
+    font-size: 9px;
+    opacity: 0.7;
+  }
+
+  .output-tool-use .output-agent-badge {
+    font-size: 9px;
+    max-width: 5.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .output-thinking {
+    padding: 5px 8px;
+    margin: 2px 0;
+    gap: 2px;
+
+    &.is-collapsed {
+      padding: 4px 8px;
+    }
+  }
+
+  .output-thinking-header {
+    gap: 5px;
+  }
+
+  .output-thinking-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .output-thinking-label {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+  }
+
+  .output-thinking-agent {
+    max-width: 6.5em;
+    font-size: 10px;
+  }
+
+  .output-thinking-time {
+    font-size: 9px;
+  }
+
+  .output-thinking-content {
+    font-size: 11px;
+    line-height: 1.3;
+
+    &.is-preview {
+      font-size: 10.5px;
+    }
+
+    &.is-full {
+      max-height: 200px;
+    }
+  }
+
+  .history-tool-line,
+  .output-line:not(.output-thinking) {
+    font-size: 12px;
+  }
+
+  .guake-status-line {
+    display: none;
+  }
+
+  .guake-last-input {
+    font-size: 10px;
+    max-width: 140px;
+  }
+
+  .guake-working-indicator {
+    gap: 3px;
+    padding: 2px 6px;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+    border-radius: 10px;
+  }
+
+  .guake-working-dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .guake-detached-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+
+  .guake-actions {
+    flex-shrink: 0;
+    gap: 4px;
+    display: flex;
+    align-items: center;
+  }
+
+  // Hide less important header elements on mobile
+  .guake-last-prompt,
+  .guake-task {
+    display: none !important;
+  }
+
+  // Utility class to hide elements on mobile
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  // Utility class to show elements only on mobile
+  .show-on-mobile {
+    display: flex !important;
+  }
+
+  // Mobile close button - circular style with proper tap target
+  .guake-close-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: 1px solid;
+    font-size: 12px !important;
+    font-weight: 600;
+    line-height: 1 !important;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-sizing: border-box !important;
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red) 40%, transparent);
+    color: var(--accent-red);
+
+    &:active {
+      transform: scale(0.9);
+      background: color-mix(in srgb, var(--accent-red) 30%, transparent);
+    }
+  }
+
+  // Hide these on mobile - keep desktop styles
+  .guake-context-btn,
+  .guake-search-toggle {
+    display: none !important;
+  }
+
+  // Mobile more-actions menu button
+  .guake-mobile-more {
+    display: flex !important;
+    position: relative;
+  }
+
+  .guake-mobile-more-btn {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
+  }
+
+  // Input container adjustments for mobile
+  .guake-input {
+    padding: 10px 8px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
+  }
+
+  .guake-input-container {
+    min-height: 44px;
+    border-radius: 6px;
+  }
+
+  .guake-attach-btn,
+  .guake-send-btn,
+  .guake-input button:not(.guake-attach-btn) {
+    width: 36px;
+    min-height: 36px;
+    font-size: 14px;
+  }
+
+  .guake-input textarea,
+  .guake-input input {
+    font-size: 16px; // Use 16px to prevent iOS zoom on focus
+    padding: 8px 10px;
+    // Prevent browser from trying to scroll the input into view (we handle this manually)
+    scroll-margin: 0;
+    // Ensure the input doesn't cause layout shifts
+    box-sizing: border-box;
+    // Prevent any text selection issues
+    -webkit-user-select: text;
+    user-select: text;
+    // Ensure touch actions work properly
+    touch-action: manipulation;
+  }
+
+  // On mobile, use fixed height for textarea to prevent layout shifts during typing
+  .guake-input textarea {
+    // Remove field-sizing which can cause issues on mobile
+    field-sizing: unset;
+    // Use min-height but don't auto-resize beyond a reasonable amount
+    min-height: 36px;
+    max-height: 120px;
+    // ≥16px so iOS Safari doesn't auto-zoom the page when the input focuses
+    font-size: 16px;
+  }
+
+  // Hide guake agent links on mobile - use the bottom agent bar instead
+  .guake-agent-links {
+    display: none;
+  }
+
+}

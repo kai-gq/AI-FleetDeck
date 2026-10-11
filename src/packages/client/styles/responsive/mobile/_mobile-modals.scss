@@ -1,0 +1,219 @@
+// =============================================================================
+// 查看器 / spawn / 快捷键 / spotlight / 终端弹窗
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 1724-1932 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // File viewer/explorer
+  .file-viewer,
+  .file-explorer {
+    font-size: 13px;
+  }
+
+  // Modal adjustments
+  .image-modal {
+    max-width: 95vw;
+    max-height: 95vh;
+
+    // Phone: the gallery frame fills the screen; arrows shrink so they don't
+    // cover the screenshot, and the strip gets smaller thumbs.
+    &.is-gallery {
+      width: 96vw;
+      height: 90vh;
+      max-height: 90vh;
+    }
+  }
+
+  .image-modal-nav {
+    width: 32px;
+    height: 48px;
+
+    &.is-prev {
+      left: 4px;
+    }
+
+    &.is-next {
+      right: 4px;
+    }
+  }
+
+  .image-modal-thumb {
+    width: 72px;
+    height: 46px;
+  }
+
+  // Agent response modal - reduce height to account for agent toolbar at bottom
+  .agent-response-modal {
+    max-height: 75vh;
+
+    .agent-response-raw {
+      max-height: calc(75vh - 140px);
+    }
+  }
+
+  // File viewer modal - reduce height for agent toolbar
+  .file-viewer-modal {
+    height: 75%;
+    max-height: 75vh;
+  }
+
+  .file-viewer-image-wrapper {
+    padding: 12px;
+  }
+
+  // Generic modal height reduction for mobile
+  .spawn-modal,
+  .agent-edit-modal {
+    width: 96vw;
+    max-height: 88vh;
+    max-height: 88dvh;
+
+    .modal-header {
+      padding: 12px 14px;
+      font-size: 15px;
+    }
+
+    .modal-footer {
+      padding: 12px 14px;
+    }
+  }
+
+  .spawn-modal-body {
+    padding: 12px 14px 16px;
+    gap: 12px;
+  }
+
+  .spawn-section {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  // Spawn modal mobile layout - stack rows vertically
+  .spawn-top-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .spawn-preview-compact {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .class-selector-inline {
+    max-height: 160px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .spawn-form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .spawn-field.spawn-field-wide {
+    flex: 1;
+  }
+
+  // Model buttons: single row, full width
+  .spawn-select-row {
+    flex-wrap: wrap;
+  }
+
+  .spawn-select-row--wrap {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  }
+
+  .spawn-skills-inline,
+  .skills-chips-compact {
+    max-height: 140px;
+  }
+
+  .image-modal-header {
+    padding: 10px 12px;
+  }
+
+  .image-modal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  // Shortcuts modal
+  .shortcuts-modal {
+    width: 95vw;
+    max-height: 80vh;
+  }
+
+  // Spotlight search — keyboard-aware layout on mobile.
+  // JS (visualViewport listener) sets overlay height/top to match the visible
+  // viewport so the modal is never hidden behind the software keyboard.
+  // Small padding-top instead of 10vh so it stays near the top when keyboard is open.
+  .spotlight-overlay {
+    align-items: flex-start;
+    padding-top: 8px;
+    // bottom is irrelevant once JS sets explicit height, but keep overflow hidden
+    overflow: hidden;
+  }
+
+  .spotlight-modal {
+    width: 95vw;
+    max-width: 95vw;
+    // Fill available visual-viewport height (overlay height is set by JS)
+    max-height: calc(100% - 16px);
+  }
+
+  // Hide footer hints on mobile — save vertical space above keyboard
+  .spotlight-footer {
+    display: none;
+  }
+
+  .spotlight-container {
+    width: 95vw;
+    max-width: 95vw;
+  }
+
+  // Terminal building modal — full-screen, but raised above the bottom nav
+  // stack (z-index 2100): the shell prompt sits at the bottom edge of the
+  // terminal and must never hide under the nav.
+  .modal-overlay:has(.terminal-modal-container) {
+    padding: 0 0 var(--mobile-bottom-stack-height, 72px);
+  }
+
+  .terminal-modal-container {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+  }
+
+  .terminal-modal-header {
+    padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    gap: 8px;
+  }
+
+  .terminal-modal-title {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .terminal-modal-close {
+    min-width: 38px;
+    min-height: 38px;
+    justify-content: center;
+  }
+
+}

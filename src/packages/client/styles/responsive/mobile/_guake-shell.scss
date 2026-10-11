@@ -1,0 +1,113 @@
+// =============================================================================
+// Guake 全宽布局 / 输出滚动 / 输入容器 / 手柄隐藏
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 565-667 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Guake terminal takes full width, with space for agent bar at bottom
+  .guake-terminal {
+    position: relative !important; // Override fixed positioning from base
+    top: auto !important;
+    right: 0;
+    left: 0;
+    --terminal-height: 100%;
+    height: 100%; // Fill parent container (main-content handles dvh)
+    max-height: 100%;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; // Prevent overflow
+
+    &.collapsed {
+      display: none;
+    }
+
+    &.open {
+      display: flex;
+    }
+
+    &.mobile-swipe-close-active {
+      transform: translateY(calc(var(--mobile-swipe-close-offset, 0px) * -1));
+      opacity: 1;
+      transition: transform 85ms linear, opacity 85ms linear;
+      will-change: transform, opacity;
+    }
+
+    &.mobile-swipe-close-closing {
+      transition: transform 95ms ease-out, opacity 95ms ease-out;
+      transform: translateY(-140px);
+      opacity: 0;
+    }
+  }
+
+  // Hide side panel resize handles on mobile (no drag resize on touch)
+  .guake-side-panel-resize {
+    display: none !important;
+  }
+
+  // Guake content fills available space
+  // Override .collapsed class transforms that hide content
+  .guake-content {
+    flex: 1;
+    border-bottom: none;
+    padding-bottom: 0 !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  // Ensure output area scrolls properly - this is what should scroll, not guake-content
+  .guake-output {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; // Allow shrinking so input stays visible
+    // Use momentum scrolling on iOS
+    -webkit-overflow-scrolling: touch;
+    // Prevent scroll interference with input focus
+    overscroll-behavior: contain;
+  }
+
+  // Input and related elements should never shrink
+  // Also position them at the bottom to stay stable during keyboard transitions
+  .guake-input-wrapper,
+  .guake-input,
+  .permission-bar,
+  .guake-attachments {
+    flex-shrink: 0;
+    // Ensure the input area stays in place during viewport changes
+    position: relative;
+    z-index: 5;
+  }
+
+  // Guake content layout for mobile - general rules
+  // More specific rules for terminal-only mode are in .app.mobile-view-terminal
+  .guake-content {
+    // Use min-height: 0 on the flex container to allow proper shrinking
+    min-height: 0;
+  }
+
+  // Prevent the input container from causing scroll jumps
+  .guake-input-container {
+    // Prevent any transform or transition that could cause visual glitches
+    transform: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  // Hide handle on mobile - always show terminal
+  .guake-handle {
+    display: none;
+  }
+
+  // Hide resize handle on mobile
+  .guake-resize-handle {
+    display: none;
+  }
+
+}

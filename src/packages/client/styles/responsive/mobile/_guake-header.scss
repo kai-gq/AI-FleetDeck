@@ -1,0 +1,115 @@
+// =============================================================================
+// Guake 头部紧凑化(标题/任务 chip/附件)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 839-943 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Guake header adjustments - compact mobile design
+  .guake-header {
+    display: flex !important;
+    align-items: center;
+    padding: 6px 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    height: auto;
+    min-height: 44px;
+    max-height: none;
+    background: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+    flex-grow: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-purple) 20%, transparent);
+    margin: 0;
+  }
+
+  .guake-header-left {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .guake-header-meta {
+    display: none;
+  }
+
+  .guake-title-btn,
+  .guake-title-with-provider {
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    padding: 4px 8px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+
+  .guake-agent-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .guake-title-block {
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .guake-title-main-row {
+    gap: 6px;
+  }
+
+  .guake-title {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+    min-width: 0;
+    flex: 1 1 auto;
+    background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  // Task chip competes with the name — hide on mobile
+  .guake-title-task-chip {
+    display: none;
+  }
+
+  .guake-mobile-title-context {
+    display: block;
+    font-size: 9px;
+    line-height: 1.2;
+    color: var(--text-muted);
+    margin-top: 0;
+    max-width: min(50vw, 200px);
+  }
+
+  .guake-title-accessory {
+    gap: 4px;
+
+    .guake-provider-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .guake-title-info {
+      display: none;
+    }
+
+    .guake-model-chip {
+      max-width: 88px;
+    }
+  }
+
+}

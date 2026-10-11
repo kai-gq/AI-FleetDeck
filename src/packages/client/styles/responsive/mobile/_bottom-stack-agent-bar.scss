@@ -1,0 +1,181 @@
+// =============================================================================
+// 底部固定栈 + agent 栏(条目/徽标/分组/生成按钮)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 668-838 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Single fixed bottom container — agent bar stacks on top of bottom nav naturally.
+  // Lifted above modal overlays (toolbox 250, spotlight 2000, commander) so the
+  // user can always tap a bottom-nav button to close/swap the open view.
+  .mobile-bottom-stack {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  // Collapse/expand tabs for the agent bar. On desktop they float `position:
+  // fixed` at `bottom: 72px` (the desktop bar's height), but on mobile the bar
+  // lives inside this fixed stack and is far shorter, so that offset dropped
+  // the tab on top of the composer — and the stack's z-index (2100) painted it
+  // over the send button, which the keyboard being open made unreachable.
+  // In-flow at the top of the stack instead: measured by the ResizeObserver
+  // that feeds --mobile-bottom-stack-height, so the composer sits above it.
+  .agent-bar-hide-btn,
+  .agent-bar-show-btn {
+    position: static;
+    align-self: flex-end;
+    flex: none;
+    margin-right: 16px;
+    z-index: auto;
+  }
+
+  // Agent bar inside the stack — no independent fixed positioning needed
+  .agent-bar {
+    position: static;
+    height: auto;
+    min-height: 18px;
+    padding: 1px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    scroll-padding: 0 8px;
+    transform: none;
+    // Opaque background so content behind doesn't bleed through
+    background: rgba(40, 42, 54, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    // Hide version indicator on mobile - takes up precious space
+    .agent-bar-version {
+      display: none;
+    }
+
+    // Hide scrollbar but keep scrolling functional
+    &::-webkit-scrollbar {
+      height: 0;
+      display: none;
+    }
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  // Bottom nav inside the stack — remove its own fixed positioning
+  .mobile-bottom-menu {
+    position: static;
+  }
+
+  // Agent bar list scrollable horizontally
+  .agent-bar-list {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 0 12px;
+    min-width: max-content;
+    align-items: center;
+  }
+
+  // Touch-friendly agent items on mobile (was 15x15, well below tap-target min)
+  .agent-bar-item {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .agent-bar-icon {
+    font-size: 20px;
+  }
+
+  // Status dot proportional to 36px avatar
+  .agent-bar-status {
+    width: 9px;
+    height: 9px;
+  }
+
+  // Area indicator dot proportional
+  .agent-bar-area-dot {
+    width: 8px;
+    height: 8px;
+    top: -2px;
+    left: -2px;
+  }
+
+  // Notification badge scaled to avatar (was 8/8/14 — fine for 36 but tighten offsets)
+  .agent-bar-notification-badge {
+    top: -5px;
+    right: -5px;
+    border-left-width: 6px;
+    border-right-width: 6px;
+    border-bottom-width: 11px;
+
+    &::after {
+      font-size: 9px;
+      left: -4px;
+      top: -8px;
+    }
+  }
+
+  // Folder dividers smaller than items so hierarchy reads agent-first
+  .agent-bar-folder-item {
+    width: 16px;
+    height: 16px;
+    opacity: 0.55;
+  }
+
+  // Agent groups minimal
+  .agent-bar-group {
+    padding: 2px 4px;
+    margin-top: 0;
+    flex-shrink: 0;
+    border-radius: 4px;
+  }
+
+  .agent-bar-area-label {
+    display: none;
+  }
+
+  .agent-bar-tooltip {
+    display: none;
+  }
+
+  .agent-bar-tool-bubble {
+    display: none;
+  }
+
+  // Safe-area padding is handled by .mobile-bottom-menu (bottom-most element in the stack)
+  // Override the global @supports rule that adds safe-area to .agent-bar
+  .mobile-bottom-stack .agent-bar {
+    padding-bottom: 4px;
+  }
+
+  // Spawn buttons match agent items for consistent tap targets
+  .agent-bar-spawn-btn {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    margin-right: 4px;
+    border-radius: 8px;
+    padding: 0;
+  }
+
+  .agent-bar-spawn-icon {
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .agent-bar-spawn-label {
+    display: none !important;
+  }
+
+}

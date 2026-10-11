@@ -1,0 +1,238 @@
+// =============================================================================
+// 移动端视图模式(终端 / 3D 战场切换)
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 241-468 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Mobile view mode: Terminal (default) - hide battlefield, show terminal
+  .app.mobile-view-terminal {
+    // CSS custom property for keyboard height - controlled by JavaScript
+    --keyboard-height: 0px;
+    --keyboard-visible: 0;
+
+    .battlefield-container {
+      display: none;
+    }
+
+    // Keep 2D scene mounted behind terminal to avoid reload/flicker on open/close.
+    &.view-mode-2d {
+      .battlefield-container {
+        display: flex !important;
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .guake-terminal {
+        z-index: 1;
+      }
+    }
+
+    // Fullscreen terminal on mobile: hide bottom stack and reclaim its space.
+    &:has(.guake-terminal.fullscreen.open) {
+      .mobile-bottom-stack {
+        display: none !important;
+      }
+    }
+
+    // The agent toolbar (.mobile-bottom-stack — agent bar + bottom nav)
+    // stays visible at all times on mobile, including while the keyboard is
+    // open. When the keyboard is shown we lift the stack above it so it isn't
+    // hidden behind the IME. The `MobileBottomMenu` child still hides itself
+    // via its own component logic when the keyboard opens; that is unchanged.
+    &.keyboard-visible {
+      .mobile-bottom-stack {
+        bottom: var(--keyboard-height, 0px) !important;
+      }
+    }
+
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      // Stack height set by ResizeObserver in App.tsx via --mobile-bottom-stack-height.
+      // The agent toolbar (.mobile-bottom-stack) is now always visible on mobile,
+      // so we always reserve its height — no keyboard-visibility multiplier.
+      height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+      max-height: calc(100% - var(--mobile-bottom-stack-height, 72px)) !important;
+      overflow: hidden;
+    }
+
+    .guake-terminal {
+      // Force display even when .collapsed class is present
+      display: flex !important;
+      position: relative;
+      // z-index: auto prevents creating a stacking context, so the fixed
+      // .guake-input-wrapper (z-index: 200) can properly layer above
+      // .agent-bar (z-index: 160) which lives outside the terminal.
+      z-index: auto;
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      // Ensure proper flex column layout
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    // Save vertical space when overview panel is open on mobile.
+    // Header meta is already hidden globally on mobile; just reduce padding further.
+    .guake-terminal.with-overview-panel .guake-header {
+      padding-top: 4px;
+      padding-bottom: 4px;
+      min-height: 36px;
+
+      .guake-mobile-title-context {
+        display: none;
+      }
+    }
+
+    // Ensure guake-content fills terminal and has proper flex layout
+    // Override .collapsed class transforms that hide content
+    .guake-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      // guake-output already has padding-bottom: 120px for scroll clearance above the fixed input
+      padding-bottom: 0 !important;
+      // Override collapsed state - content should always be visible in terminal view
+      transform: none !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    // Output area takes remaining space
+    .guake-output {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      // Clear the fixed composer stack (input ~70–100px + optional pin strip)
+      // and the bottom nav / keyboard. Pin clearance uses measured bar height.
+      padding-bottom: calc(
+        var(--keyboard-height, 0px)
+        + var(--mobile-bottom-stack-height, 72px)
+        + 100px
+        + var(--pinned-bar-clearance, 0px)
+      ) !important;
+    }
+
+    // Pin strip is part of the fixed composer — reserve its measured height.
+    .guake-output.has-pinned-agents {
+      --pinned-bar-clearance: calc(var(--pinned-agents-bar-height, 40px) + 8px);
+    }
+
+    // Composer stack (input + pinned) — FIXED as one unit above the bottom nav.
+    // Avoids the pin pill floating over chat (old negative-margin approach).
+    .guake-composer-stack {
+      position: fixed !important;
+      bottom: calc(
+        var(--keyboard-height, 0px)
+        + var(--mobile-bottom-stack-height, 72px)
+      ) !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 200 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      // No transform — Android WebViews break fixed positioning with containing blocks.
+    }
+
+    // The pinned/recent agents bar follows the text input in DOM order. Keep a
+    // small gap on both sides while preserving any attachment/permission/queue
+    // rows that the input area renders above the composer.
+    .guake-composer-stack .pinned-agents-bar {
+      margin: 4px 8px;
+    }
+
+    // Input lives inside the fixed stack; drop its own fixed positioning.
+    .guake-input-wrapper {
+      position: relative !important;
+      bottom: auto !important;
+      left: auto !important;
+      right: auto !important;
+      z-index: auto !important;
+      background: rgba(40, 42, 54, 0.98) !important;
+      min-height: 56px !important;
+      padding: 6px 8px !important;
+      padding-bottom: 6px !important;
+      border-top: 1px solid rgba(139, 233, 253, 0.2) !important;
+    }
+
+    &.keyboard-visible {
+      .guake-input-wrapper {
+        // Keyboard covers the bottom safe area (navigation bar), so drop its
+        // padding to prevent the input from being pushed lower than the
+        // keyboard edge.
+        padding-bottom: 8px !important;
+      }
+    }
+
+    // Ensure the input itself is fully visible
+    .guake-input {
+      display: flex !important;
+      padding: 0 !important;
+    }
+
+    .guake-input-container {
+      display: flex !important;
+      align-items: flex-end !important;
+      width: 100% !important;
+      min-height: 50px !important;
+      // Allow container to grow with textarea
+      height: auto !important;
+    }
+
+    .guake-input input {
+      height: 46px !important;
+      min-height: 46px !important;
+    }
+
+    .guake-input textarea {
+      // Allow textarea to grow dynamically
+      min-height: 46px !important;
+      max-height: 200px !important;
+      height: auto !important;
+      resize: none !important;
+      overflow-y: auto !important;
+      // Use content-based sizing for auto-grow
+      field-sizing: content !important;
+    }
+  }
+
+  // When keyboard is visible - no CSS changes needed
+  // The JavaScript handles scrolling the output to bottom
+  // The fixed input stays in place, keyboard pushes viewport
+
+  // Mobile view mode: 3D - show battlefield, hide terminal
+  .app.mobile-view-3d {
+    .main-content {
+      // Ensure main content fills available space
+      flex: 1;
+      display: flex;
+    }
+
+    .battlefield-container {
+      display: flex;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 0; // Allow flex shrinking
+    }
+
+    #battlefield {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .guake-terminal {
+      display: none !important;
+    }
+  }
+
+}

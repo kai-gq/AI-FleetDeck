@@ -1,0 +1,200 @@
+// =============================================================================
+// Boss 上下文 / 委派块 / 权限条内联
+// 由 _mobile.scss 拆分(W4,2026-10-11):原文件第 1449-1638 行,逐行原样。
+// =============================================================================
+
+@use '../../variables' as *;
+@use '../variables' as resp;
+
+@media (max-width: resp.$breakpoint-mobile) {
+  // Boss context - prevent overflow on mobile
+  .boss-context {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .boss-context-header {
+    padding: 4px 8px;
+    gap: 6px;
+  }
+
+  .boss-context-icon {
+    font-size: 12px;
+  }
+
+  .boss-context-label {
+    font-size: 10px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .boss-context-toggle {
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .boss-context-content {
+    padding: 8px 10px;
+    font-size: 10px;
+    max-height: 200px;
+    overflow-x: hidden;
+    word-break: break-word;
+
+    h2, h3, h4 {
+      font-size: 11px;
+    }
+
+    blockquote {
+      font-size: 9px;
+      padding: 3px 6px;
+    }
+
+    ul, ol {
+      padding-left: 12px;
+    }
+
+    li {
+      font-size: 10px;
+    }
+
+    p {
+      margin: 3px 0;
+    }
+  }
+
+  // Delegation block - prevent overflow on mobile
+  .delegation-block {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .delegation-header {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .delegation-icon {
+    font-size: 14px;
+  }
+
+  .delegation-title {
+    font-size: 11px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .delegation-details {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .delegation-target,
+  .delegation-task-command,
+  .delegation-reasoning,
+  .delegation-alternatives {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+  }
+
+  .delegation-label {
+    min-width: auto;
+  }
+
+  .delegation-command-text,
+  .delegation-reason-text {
+    word-break: break-word;
+  }
+
+  // Delegated task header - prevent overflow on mobile
+  .delegated-task-header {
+    max-width: 100%;
+    overflow: hidden;
+
+    &.compact {
+      flex-wrap: wrap;
+    }
+  }
+
+  .delegated-task-preview {
+    max-width: 100%;
+    font-size: 10px;
+  }
+
+  .delegated-task-command {
+    font-size: 10px;
+    word-break: break-word;
+  }
+
+  // Context stats line - simplified on mobile, just show bar, tokens and %
+  .output-context-stats {
+    gap: 6px !important;
+    font-size: 10px !important;
+    padding: 2px 0 !important;
+
+    // Hide timestamp, label, and msgs on mobile
+    .context-timestamp,
+    .context-label,
+    .context-msgs {
+      display: none !important;
+    }
+
+    // Keep icon visible
+    .context-icon {
+      font-size: 11px !important;
+    }
+
+    // Make the progress bar flexible
+    .context-bar {
+      flex: 1 !important;
+      max-width: 80px !important;
+      min-width: 40px !important;
+    }
+
+    // Keep tokens and % visible but smaller
+    .context-tokens,
+    .context-free {
+      font-size: 10px !important;
+    }
+  }
+
+  // Header text smaller
+  .guake-title {
+    font-size: 12px;
+  }
+
+  .guake-status-line {
+    font-size: 10px;
+  }
+
+  // Permission bar adjustments
+  .permission-bar {
+    padding: 8px;
+  }
+
+  .permission-inline {
+    padding: 6px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .permission-inline-target {
+    flex: 1 1 100%;
+    order: 2;
+    margin-top: 4px;
+  }
+
+  .permission-inline-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+
+    &.approve-remember {
+      width: 40px;
+    }
+  }
+
+}
