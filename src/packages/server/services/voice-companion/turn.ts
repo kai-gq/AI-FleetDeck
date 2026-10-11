@@ -188,41 +188,11 @@ export async function processVoiceInput(text: string, opts: VoiceProcessOptions 
     // W5:用户回合才武装垫话(事件回合可能 noop,不浪费一次生成)。
     if (!opts.isEvent) slowFiller.arm();
 
-    let outcome: Hop1Outcome;
-    try {
-      outcome = await runHop1(text, state, cfg, !!opts.isEvent, {
-        // W5 加固(真麦双垫教训):hop1 一动笔(思考结束、开始出文本),首句/过渡句
-        // 就在 1 秒内 —— 此刻垫话已无必要,立即作废在途垫话。这比「整句出闸才取消」
-        // 更早:query 过渡句在 SpeechGate 里缓到目标解析后才放行(实测 ~9.1s),只靠
-        // 句子取消时垫话可能已吐出(实测 8.79s) → 「垫话+过渡句」双出声。
-        // 思考过程不在 text_delta 里(callClaudeOnce 只转发 text_delta),长思考的
-        // 静默依然由垫话兜底。
-        onTextDelta: (fullText: string) => {
-          slowFiller.cancel();
-          speech.onHop1Delta(fullText);
-        },
-        signal: opts.signal,
-      });
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException & { name?: string };
-      if (e.code === 'ENOENT') {
-        disposeTurn();
-        throw err; // 服务器没装 claude —— 配置问题,交给路由 500
-      }
-      if (e.name === 'VoiceCompanionAborted') {
-        disposeTurn();
-        throw err; // 客户端已断开:交给路由静默收尾
-      }
-      const shouldDegrade = e.name === 'VoiceCompanionTimeout'
-        || e.name === 'VoiceCompanionParse'
-        || /exited with code|No response from Claude/.test(e.message ?? '');
-      if (!shouldDegrade) throw err;
-      log.error(`[VoiceCompanion] hop1 降级: ${e.message}`);
-      // 注意:超时/失败**不**重置会话。
-      state.lastUsedAt = Date.now();
-      saveCompanionState(state);
-      return finish({ action: 'general_response', response: DEGRADED_RESPONSE, degraded: true, elapsedMs: Date.now() - started });
-    }
+    const hop1Phase = await runHop1Phase({
+      text, opts, state, cfg, slowFiller, speech, disposeTurn, started,
+    });
+    if (hop1Phase.kind === 'degraded') return finish(hop1Phase.result);
+    const { outcome } = hop1Phase;
 
     recordHop1Outcome(state, cfg, outcome);
 
@@ -460,6 +430,71 @@ function recordHop1Outcome(
     log.log(
       `[VoiceCompanion] usage in=${u?.inputTokens ?? '-'} out=${u?.outputTokens ?? '-'} cacheRead=${u?.cacheReadInputTokens ?? '-'} cacheWrite=${u?.cacheCreationInputTokens ?? '-'} window=${u?.contextWindow ?? '-'} | resident=${outcome.reused ? 'reuse' : 'spawn'} | action=${outcome.contract.action}`,
     );
+  }
+}
+
+// ----------------------------------------------------------------------------
+// E3 阶段(2026-10-11):hop1 主调用(含降级/中止收尾)拆为阶段函数(行为不变)
+// ----------------------------------------------------------------------------
+
+/** hop1 阶段结果:成功给出契约判定;降级给出待收尾的兜底结果(ENOENT/中止直接重抛)。 */
+type Hop1PhaseResult =
+  | { kind: 'hop1'; outcome: Hop1Outcome }
+  | { kind: 'degraded'; result: VoiceProcessResult };
+
+/** runHop1Phase 入参:回合内人手(引用直传,与 E1 TurnCtx 同思路)。 */
+interface Hop1PhaseInput {
+  text: string;
+  opts: VoiceProcessOptions;
+  state: ReturnType<typeof loadCompanionState>;
+  cfg: ReturnType<typeof loadServerConfig>;
+  slowFiller: ReturnType<typeof createSlowFiller>;
+  speech: ReturnType<typeof createSpeechPipeline>;
+  disposeTurn: () => void;
+  started: number;
+}
+
+/**
+ * 跑 hop1(含全部收尾语义):ENOENT/中止 → disposeTurn 后重抛(路由 500 / 静默收尾);
+ * 超时/解析失败/进程异常 → 记 lastUsedAt + 落盘并返回降级话术(注意:超时/失败不重置会话);
+ * 成功 → 返回 outcome。一动笔即取消垫话并把增量喂给 SpeechGate(见 onTextDelta)。
+ */
+async function runHop1Phase(input: Hop1PhaseInput): Promise<Hop1PhaseResult> {
+  const { text, opts, state, cfg, slowFiller, speech, disposeTurn, started } = input;
+  try {
+    const outcome = await runHop1(text, state, cfg, !!opts.isEvent, {
+      // W5 加固(真麦双垫教训):hop1 一动笔(思考结束、开始出文本),首句/过渡句
+      // 就在 1 秒内 —— 此刻垫话已无必要,立即作废在途垫话。这比「整句出闸才取消」
+      // 更早:query 过渡句在 SpeechGate 里缓到目标解析后才放行(实测 ~9.1s),只靠
+      // 句子取消时垫话可能已吐出(实测 8.79s) → 「垫话+过渡句」双出声。
+      // 思考过程不在 text_delta 里(callClaudeOnce 只转发 text_delta),长思考的
+      // 静默依然由垫话兜底。
+      onTextDelta: (fullText: string) => {
+        slowFiller.cancel();
+        speech.onHop1Delta(fullText);
+      },
+      signal: opts.signal,
+    });
+    return { kind: 'hop1', outcome };
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { name?: string };
+    if (e.code === 'ENOENT') {
+      disposeTurn();
+      throw err; // 服务器没装 claude —— 配置问题,交给路由 500
+    }
+    if (e.name === 'VoiceCompanionAborted') {
+      disposeTurn();
+      throw err; // 客户端已断开:交给路由静默收尾
+    }
+    const shouldDegrade = e.name === 'VoiceCompanionTimeout'
+      || e.name === 'VoiceCompanionParse'
+      || /exited with code|No response from Claude/.test(e.message ?? '');
+    if (!shouldDegrade) throw err;
+    log.error(`[VoiceCompanion] hop1 降级: ${e.message}`);
+    // 注意:超时/失败**不**重置会话。
+    state.lastUsedAt = Date.now();
+    saveCompanionState(state);
+    return { kind: 'degraded', result: { action: 'general_response', response: DEGRADED_RESPONSE, degraded: true, elapsedMs: Date.now() - started } };
   }
 }
 
