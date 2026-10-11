@@ -307,10 +307,17 @@ export function getApiBaseUrl(): string {
   }
 
   // In dev, frontend (Vite) and backend run on different ports.
+  // Mirror buildWsUrl's dev hostname handling (websocket/connection.ts) so LAN
+  // access works: a phone opening http://<pc-ip>:5173 must reach the backend on
+  // that same host — a hardcoded 'localhost' would point the phone at itself.
   if (import.meta.env.DEV) {
     const defaultPort = typeof __SERVER_PORT__ !== 'undefined' ? __SERVER_PORT__ : 6200;
     const apiProtocol = window.location.protocol === 'https:' ? 'https' : 'http';
-    return `${apiProtocol}://localhost:${defaultPort}`;
+    const browserHost = window.location.hostname;
+    const apiHost = (browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1')
+      ? 'localhost'
+      : browserHost;
+    return `${apiProtocol}://${apiHost}:${defaultPort}`;
   }
 
   // In production, use the same host that served the UI.
