@@ -1,0 +1,440 @@
+// =============================================================================
+// Edit 工具 diff 视图 + hunk 版统一 diff
+// 由 _tools.scss 拆分(W4,2026-10-11):原文件第 1056-1488 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Edit Tool Diff View
+// =============================================================================
+
+.edit-tool-diff {
+  width: 100%;
+}
+
+.edit-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.edit-tool-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  border-radius: $radius-sm;
+  color: var(--accent-blue);
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.clickable {
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+      border-color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
+  }
+}
+
+.edit-tool-path {
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.edit-tool-badge {
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 40%, transparent);
+  border-radius: $radius-sm;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.edit-tool-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-tool-old,
+.edit-tool-new {
+  border-radius: $radius-sm;
+  overflow: hidden;
+}
+
+.edit-tool-old {
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red) 20%, transparent);
+
+  .edit-tool-label {
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+    color: var(--accent-red);
+  }
+
+  .edit-tool-code {
+    border-left: 3px solid var(--accent-red);
+  }
+}
+
+.edit-tool-new {
+  background: color-mix(in srgb, var(--accent-green) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 20%, transparent);
+
+  .edit-tool-label {
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    color: var(--accent-green);
+  }
+
+  .edit-tool-code {
+    border-left: 3px solid var(--accent-green);
+  }
+}
+
+.edit-tool-label {
+  padding: 4px 10px;
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edit-tool-code {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+// Edit tool stats (similar to diff-viewer)
+.edit-tool-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.edit-stat {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+
+  &.added {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  }
+
+  &.removed {
+    color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  }
+}
+
+// Edit tool side-by-side diff view (like FileExplorer DiffViewer)
+.edit-tool-panels {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  max-height: 250px;
+}
+
+.edit-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--border-color);
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.edit-panel-header {
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.edit-panel-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+
+  .edit-panel-original & {
+    color: var(--accent-red);
+  }
+
+  .edit-panel-modified & {
+    color: var(--accent-green);
+  }
+}
+
+.edit-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--text-muted);
+    }
+  }
+}
+
+// Edit diff lines (side-by-side view)
+.edit-line {
+  display: flex;
+  height: 18px;
+  line-height: 18px;
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: pre;
+
+  &.edit-line-unchanged {
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  &.edit-line-added {
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+
+    .edit-line-num {
+      background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+      color: var(--accent-green);
+    }
+
+    .edit-line-content {
+      color: var(--text-primary);
+    }
+  }
+
+  &.edit-line-removed {
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+
+    .edit-line-num {
+      background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+      color: var(--accent-red);
+    }
+
+    .edit-line-content {
+      color: var(--text-primary);
+    }
+  }
+
+  &.edit-line-empty {
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
+
+    .edit-empty-text {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+  }
+}
+
+.edit-line-num {
+  flex-shrink: 0;
+  width: 32px;
+  padding: 0 6px;
+  text-align: right;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-right: 1px solid var(--border-color);
+  user-select: none;
+  font-size: 10px;
+}
+
+.edit-line-content {
+  flex: 1;
+  padding: 0 8px;
+  min-width: 0;
+  // Never truncate diff content - show full lines
+  overflow-x: auto;
+  white-space: pre;
+}
+
+// =============================================================================
+// Unified Diff View (hunk-based)
+// =============================================================================
+
+.edit-tool-unified {
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  max-height: 350px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--text-muted);
+    }
+  }
+}
+
+.diff-hunk {
+  &:not(:first-child) {
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: rgba(#58a6ff, 0.08);
+  border-bottom: 1px solid rgba(#58a6ff, 0.15);
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba(#58a6ff, 0.8);
+}
+
+.diff-hunk-range {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.diff-hunk-context {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-line {
+  display: flex;
+  height: 18px;
+  line-height: 18px;
+  font-size: 11px;
+  font-family: $font-mono;
+  white-space: pre;
+
+  &.diff-line-context {
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  &.diff-line-added {
+    background: color-mix(in srgb, var(--accent-green) 10%, transparent);
+
+    .diff-line-num {
+      background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+      color: color-mix(in srgb, var(--accent-green) 70%, transparent);
+    }
+
+    .diff-line-marker {
+      color: var(--accent-green);
+    }
+  }
+
+  &.diff-line-removed {
+    background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+
+    .diff-line-num {
+      background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+      color: color-mix(in srgb, var(--accent-red) 70%, transparent);
+    }
+
+    .diff-line-marker {
+      color: var(--accent-red);
+    }
+  }
+}
+
+.diff-line-num {
+  flex-shrink: 0;
+  width: 36px;
+  padding: 0 4px;
+  text-align: right;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+  user-select: none;
+  font-size: 10px;
+
+  &.diff-line-num-old {
+    border-right: none;
+  }
+}
+
+.diff-line-marker {
+  flex-shrink: 0;
+  width: 14px;
+  padding: 0 2px;
+  text-align: center;
+  color: var(--text-muted);
+  user-select: none;
+  font-weight: 600;
+}
+
+.diff-line-content {
+  flex: 1;
+  padding: 0 8px 0 4px;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.diff-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+

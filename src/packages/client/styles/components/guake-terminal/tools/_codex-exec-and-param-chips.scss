@@ -1,0 +1,487 @@
+// =============================================================================
+// Codex 执行行 + 参数 chip + bash 搜索词
+// 由 _tools.scss 拆分(W4,2026-10-11):原文件第 312-791 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+.codex-exec-row {
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+
+  &:hover,
+  &:focus-visible,
+  &.is-expanded {
+    filter: brightness(1.08);
+    outline: none;
+  }
+}
+
+.codex-exec-chevron {
+  display: inline-flex;
+  flex: 0 0 auto !important;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.codex-exec-detail {
+  margin: -1px 0 6px;
+  padding: 8px 10px 10px 34px;
+  background: var(--tool-use-bg);
+  border-left: 3px solid var(--tool-use-border);
+  border-radius: 0 0 $radius-sm $radius-sm;
+  min-width: 0;
+
+  pre {
+    max-height: 280px;
+    margin: 4px 0 8px;
+    padding: 8px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 4px;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.45;
+    user-select: text;
+  }
+}
+
+.codex-exec-detail-label {
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.output-tool-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--tool-use-text);
+  display: inline-flex;
+  align-items: center;
+}
+
+.output-tool-name {
+  font-family: $font-mono;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--tool-use-name, var(--tool-use-text));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.output-tool-file-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+  display: inline-block;
+  position: relative;
+  top: -1px;
+}
+
+.output-tool-param {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--tool-use-text);
+  opacity: 0.9;
+  margin-left: 0;
+  min-width: 0;
+  // Collapsed body: one ellipsis line (title attribute still has full text)
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+
+  // Add a subtle separator before the param (but not when file icon is present)
+  &::before {
+    content: '›';
+    margin-right: 6px;
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  // Plain bash command (not a special notify/tracking chip)
+  &.bash-command {
+    color: var(--text-primary);
+    opacity: 1;
+  }
+
+  // Clickable file paths
+  &.clickable-path {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: var(--accent-blue);
+      opacity: 1;
+      text-decoration-style: solid;
+    }
+  }
+}
+
+// Chip-style bash params: keep inner layout horizontal, still one outer line
+.output-tool-param.bash-search-param,
+.output-tool-param.bash-notify-param,
+.output-tool-param.bash-task-label-param,
+.output-tool-param.bash-report-task-param,
+.output-tool-param.bash-tracking-param,
+.output-tool-param.bash-memory-param {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+
+  &::before {
+    flex-shrink: 0;
+  }
+}
+
+// Rich / multi-line tool bodies keep their own layout (curl cards, etc.)
+// and still take a full-width row (exempt from the one-liner param rule).
+.output-tool-param.bash-curl-param {
+  flex: 1 1 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+
+  &::before {
+    display: none;
+  }
+}
+
+// Inline structured tools (todos, plans, questions) still get a full-width
+// second row, but can grow vertically inside it.
+.output-todo-inline,
+.output-ask-question-inline,
+.output-plan-inline,
+.output-task-inline,
+.output-list-files-inline,
+.output-task-wait-inline,
+.output-toolsearch-inline,
+.output-structured-tool-inline {
+  align-items: flex-start;
+
+  > *:not(.output-timestamp):not(.output-agent-badge):not(.output-tool-icon):not(.output-tool-name) {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+
+.bash-notify-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-green);
+  background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.bash-notify-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-notify-label {
+  letter-spacing: 0.4px;
+}
+
+.bash-notify-title {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.bash-notify-message {
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-tool-param.bash-task-label-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-task-label-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.bash-task-label-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-tool-param.bash-report-task-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-report-task-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+
+  &.status-completed {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  }
+
+  &.status-failed {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 40%, transparent);
+  }
+}
+
+.bash-report-task-summary {
+  color: var(--text-primary);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Tracking status chip (curl PATCH /api/agents/<id> with trackingStatus)
+.output-tool-param.bash-tracking-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bash-tracking-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+
+  // Default (unknown status) — neutral slate
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 32%, transparent);
+
+  &.status-need-review {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-green) 40%, transparent);
+  }
+
+  &.status-blocked {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 40%, transparent);
+  }
+
+  &.status-can-clear-context {
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  }
+
+  &.status-waiting-subordinates {
+    color: var(--accent-orange, #f59e0b);
+    background: color-mix(in srgb, var(--accent-orange, #f59e0b) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-orange, #f59e0b) 40%, transparent);
+  }
+
+  &.status-working {
+    color: var(--status-working);
+    background: color-mix(in srgb, var(--status-working) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-working) 40%, transparent);
+  }
+
+  &.status-thinking {
+    color: var(--thinking-accent);
+    background: color-mix(in srgb, var(--thinking-accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--thinking-accent) 40%, transparent);
+  }
+}
+
+.bash-tracking-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.bash-tracking-status {
+  letter-spacing: 0.4px;
+}
+
+.bash-tracking-detail {
+  color: var(--text-secondary);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-tool-param.bash-memory-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.memory-op-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 1px 8px;
+  flex-shrink: 0;
+
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 28%, transparent);
+
+  &.memory-op-read {
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--text-secondary) 28%, transparent);
+  }
+
+  &.memory-op-save {
+    color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 13%, transparent);
+    border-color: color-mix(in srgb, var(--accent-green) 36%, transparent);
+  }
+
+  &.memory-op-clear {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red, #ef4444) 32%, transparent);
+  }
+
+  &.memory-op-failed {
+    color: var(--accent-red, #ef4444);
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent-red, #ef4444) 42%, transparent);
+  }
+}
+
+.memory-op-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.memory-op-label {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.memory-op-sep {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.memory-op-agent {
+  font-family: var(--font-mono, monospace);
+  opacity: 0.85;
+}
+
+.memory-op-length {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+.memory-op-error {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+}
+
+.bash-search-shell {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.bash-search-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.bash-search-term {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-orange) 35%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+

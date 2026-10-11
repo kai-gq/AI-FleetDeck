@@ -1,0 +1,635 @@
+// =============================================================================
+// AskUserQuestion 内联 + ExitPlanMode markdown 计划视图
+// 由 _tools.scss 拆分(W4,2026-10-11):原文件第 1809-2436 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// AskUserQuestion Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-ask-question-inline {
+  flex-wrap: wrap;
+
+  .ask-question-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-radius: $radius-sm;
+    overflow: hidden;
+  }
+}
+
+// =============================================================================
+// ExitPlanMode Tool Input - Inline markdown plan
+// =============================================================================
+
+.output-plan-inline {
+  flex-wrap: wrap;
+
+  .plan-tool-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-radius: $radius-sm;
+    overflow: hidden;
+  }
+}
+
+.output-toolsearch-inline {
+  // Inherits .output-tool-use flex layout — no extra wrapping or boxing.
+  // The .toolsearch-input below flows inline next to the tool icon/name.
+}
+
+.toolsearch-input {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.toolsearch-header {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.toolsearch-tools-inline {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.toolsearch-meta-pill {
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  border-radius: 4px;
+  padding: 0 5px;
+  background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+}
+
+.toolsearch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid color-mix(in srgb, var(--accent-yellow) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-yellow) 10%, transparent);
+  color: var(--accent-yellow);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-yellow) 20%, transparent);
+  }
+}
+
+.toolsearch-tool-chip {
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--accent-cyan);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  border-radius: 4px;
+  padding: 0 5px;
+  background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+
+  &.toolsearch-tool-chip--more {
+    color: var(--text-secondary);
+    border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
+  }
+}
+
+.toolsearch-query-block {
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 32%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  border-radius: $radius-sm;
+}
+
+.toolsearch-query-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.toolsearch-query-row {
+  display: grid;
+  grid-template-columns: minmax(95px, auto) 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+.toolsearch-query-key {
+  color: var(--accent-purple);
+  word-break: break-word;
+}
+
+.toolsearch-query-value {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .toolsearch-toggle-label {
+    display: none;
+  }
+}
+
+.plan-tool-input {
+  width: 100%;
+}
+
+.plan-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: $radius-sm $radius-sm 0 0;
+
+  // Push the toggle/Open buttons to the right; title stays flush-left.
+  .plan-tool-title { margin-right: auto; }
+}
+
+.plan-tool-modal-btn {
+  // Visually distinct from the Show/Hide toggle so users can spot it.
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plan-tool-title {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.plan-tool-toggle {
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  color: var(--text-secondary);
+  border-radius: $radius-sm;
+  padding: 2px 8px;
+  font-family: $font-mono;
+  font-size: 10px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+    background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  }
+}
+
+.plan-tool-collapsed-preview {
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-tool-markdown {
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+
+  h1, h2, h3, h4 {
+    margin: 6px 0 4px;
+  }
+
+  p {
+    margin: 4px 0;
+  }
+
+  ul, ol {
+    margin: 4px 0 4px 18px;
+  }
+
+  pre {
+    margin: 6px 0;
+    padding: 6px 8px;
+    border-radius: $radius-sm;
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+    overflow-x: auto;
+  }
+
+  code {
+    font-family: $font-mono;
+  }
+}
+
+.ask-question-input {
+  width: 100%;
+}
+
+.ask-question-block {
+  & + & {
+    margin-top: 6px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 6px;
+  }
+}
+
+.ask-question-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+
+.ask-question-badge {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent-purple, #a78bfa);
+  background: color-mix(in srgb, var(--accent-purple, #a78bfa) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-purple, #a78bfa) 40%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.ask-question-text {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.ask-question-multi {
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.ask-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  border-radius: 0 0 $radius-sm $radius-sm;
+}
+
+.ask-question-option {
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background $transition-fast;
+  border-left: 2px solid transparent;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  }
+
+  &.expanded {
+    background: rgba(var(--accent-purple-rgb, 167, 139, 250), 0.06);
+    border-left-color: var(--accent-purple, #a78bfa);
+  }
+
+  // User's picked option for an answered AskUserQuestion — render in green so
+  // the choice the user made stands out from the other (rejected) options.
+  &.picked {
+    background: rgba(70, 200, 130, 0.12);
+    border-left-color: #6fd49a;
+    .ask-option-number {
+      background: rgba(70, 200, 130, 0.25);
+      color: #b3f0cf;
+    }
+    .ask-option-label {
+      color: #d9ffe9;
+    }
+  }
+}
+
+.ask-option-pick-mark {
+  color: #6fd49a;
+  font-weight: 700;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.ask-question-answered-tag {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6fd49a;
+  background: rgba(70, 200, 130, 0.14);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.ask-question-block.answered {
+  // soften unpicked options when the question has been resolved
+  .ask-question-option:not(.picked) {
+    opacity: 0.55;
+  }
+}
+
+// Picked-answer row — always visible after the user has answered (history
+// mode only). Surfaces free-text "Other" answers that don't match any of the
+// listed option labels, and gives matched picks an explicit text summary
+// instead of relying solely on the green option highlight.
+.ask-question-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  background: rgba(70, 200, 130, 0.07);
+  border-left: 2px solid #6fd49a;
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+}
+
+.ask-question-picked-label {
+  color: #6fd49a;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.ask-question-picked-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: rgba(70, 200, 130, 0.15);
+  border: 1px solid rgba(70, 200, 130, 0.32);
+  border-radius: 4px;
+  color: #d9ffe9;
+  max-width: 100%;
+  overflow: hidden;
+
+  // Custom (free-text "Other") answers — different palette so they're
+  // visibly distinct from a picked-from-options answer.
+  &--custom {
+    background: rgba(120, 180, 230, 0.12);
+    border-color: rgba(120, 180, 230, 0.34);
+    color: #dbeaff;
+  }
+}
+
+.ask-question-picked-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ask-question-picked-custom-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b6d4f5;
+  background: rgba(120, 180, 230, 0.2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+// Awaiting-answer banner — gives the user an unmistakable signal that the
+// chip is interactive (vs read-only history).
+.ask-question-pending-banner {
+  background: rgba(111, 143, 255, 0.18);
+  color: #a8bbff;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+// Interactive mode — when an agent-prompt is pending, the inline tool_use
+// chip becomes the answer panel. Free-text input below each question and a
+// Submit/Decline row at the bottom.
+.ask-question-input.is-interactive {
+  .ask-question-option {
+    border: 1px solid rgba(150, 170, 200, 0.18);
+    border-radius: 6px;
+    margin: 3px 0;
+    background: rgba(40, 48, 64, 0.55);
+    &:hover {
+      background: rgba(60, 75, 105, 0.7);
+    }
+    &.picked {
+      background: rgba(70, 200, 130, 0.18);
+      border-color: rgba(70, 200, 130, 0.45);
+    }
+  }
+}
+
+.ask-question-freetext {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+
+  input {
+    flex: 1;
+    background: rgba(20, 25, 35, 0.85);
+    border: 1px solid rgba(150, 170, 200, 0.2);
+    border-radius: 5px;
+    color: inherit;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-family: $font-mono;
+    &:focus { outline: none; border-color: #6f8fff; }
+  }
+  button {
+    background: rgba(111, 143, 255, 0.18);
+    border: 1px solid rgba(111, 143, 255, 0.35);
+    color: #d8dee9;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: $font-mono;
+    &:hover:not(:disabled) { background: rgba(111, 143, 255, 0.3); }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+}
+
+.ask-question-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(120, 140, 180, 0.2);
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(20, 25, 35, 0.98) 70%, rgba(20, 25, 35, 0) 100%);
+}
+.ask-question-progress {
+  flex: 1;
+  font-size: 11px;
+  color: #9aa3b8;
+  &.complete { color: #b3f0cf; }
+}
+.ask-question-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: $font-mono;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+
+  &.approve {
+    background: rgba(70, 200, 130, 0.18);
+    border-color: rgba(70, 200, 130, 0.45);
+    color: #b3f0cf;
+    &:hover:not(:disabled) { background: rgba(70, 200, 130, 0.3); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+  &.deny {
+    background: rgba(255, 100, 100, 0.12);
+    border-color: rgba(255, 100, 100, 0.35);
+    color: #ffb3b3;
+    &:hover:not(:disabled) { background: rgba(255, 100, 100, 0.22); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+}
+
+// ExitPlanMode interactive actions (Approve / Reject)
+.plan-tool-input.is-interactive {
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(40, 30, 60, 0.4);
+
+  .plan-tool-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(192, 132, 252, 0.25);
+  }
+}
+
+.ask-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ask-option-number {
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-purple, #a78bfa);
+  background: color-mix(in srgb, var(--accent-purple, #a78bfa) 15%, transparent);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ask-option-label {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ask-option-preview-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.ask-option-desc {
+  font-family: $font-mono;
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 2px 0 0 26px;
+  line-height: 1.4;
+}
+
+.ask-option-markdown {
+  margin: 6px 0 2px 26px;
+  padding: 8px 10px;
+  font-family: $font-mono;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 2px;
+  }
+}
+

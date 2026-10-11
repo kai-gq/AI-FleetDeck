@@ -1,0 +1,391 @@
+// =============================================================================
+// 实时流工具结果 + Bash 输出终端样式
+// 由 _tools.scss 拆分(W4,2026-10-11):原文件第 2437-2820 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Tool Result in Live Streaming
+// =============================================================================
+
+.output-tool-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  background: var(--tool-result-bg);
+  border-left: 3px solid var(--tool-result-border);
+  border-radius: $radius-sm;
+
+  &.is-error {
+    background: color-mix(in srgb, var(--accent-red) 15%, var(--bg-primary));
+    border-left-color: var(--accent-red);
+
+    .output-result-icon {
+      color: var(--accent-red);
+    }
+  }
+}
+
+.output-result-icon {
+  font-size: 14px;
+  color: var(--tool-result-text);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.output-result-content {
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+// =============================================================================
+// Bash Command Output - Terminal-like Styling
+// =============================================================================
+
+.output-bash-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 6px 0;
+
+  &.is-error {
+    .bash-output-container {
+      border-color: color-mix(in srgb, var(--accent-red) 30%, transparent);
+    }
+    .bash-output-header {
+      background: color-mix(in srgb, var(--accent-red) 10%, transparent);
+    }
+    .bash-output-icon {
+      color: var(--accent-red);
+    }
+  }
+}
+
+.bash-output-container {
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  overflow: hidden;
+  flex: 1;
+}
+
+.bash-output-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bash-output-icon {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.bash-output-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.bash-output-truncated {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--accent-orange);
+  background: color-mix(in srgb, var(--accent-orange) 10%, transparent);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.bash-output-content {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+
+  // Scrollbar styling
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 3px;
+    &:hover {
+      background: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    }
+  }
+}
+
+// Clickable Bash tool line
+.output-tool-use.bash-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  }
+}
+
+.bash-output-indicator {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+
+  &--running {
+    opacity: 1;
+    display: flex;
+    align-items: center;
+  }
+}
+
+.bash-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 2px 4px;
+  border-radius: $radius-sm;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+    color: var(--accent-blue);
+  }
+
+  &.active {
+    opacity: 1;
+    color: var(--accent-blue);
+  }
+}
+
+.bash-inline-output {
+  width: 100%;
+
+  pre {
+    margin: 2px 0 8px 0;
+    padding: 6px 10px;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.45;
+    // Base tone for un-tokenized text; semantic `.sh-*` runs (see
+    // _shell-output.scss) and ANSI-colored spans paint on top of it.
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+    border-radius: 0 $radius-sm $radius-sm 0;
+  }
+}
+
+.bash-activity-glyph {
+  color: var(--accent-yellow);
+}
+
+.exec-task-output-container {
+  margin: 8px 0;
+  width: 100%;
+}
+
+.exec-task-inline {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  overflow: hidden;
+
+  &.status-running {
+    border-color: var(--accent-yellow);
+    background: color-mix(in srgb, var(--accent-yellow) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
+  }
+
+  &.status-completed {
+    border-color: var(--accent-green);
+    background: color-mix(in srgb, var(--accent-green) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
+  }
+
+  &.status-failed {
+    border-color: var(--accent-red);
+    background: color-mix(in srgb, var(--accent-red) 8%, color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
+  }
+}
+
+.exec-task-inline-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.exec-task-inline-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.exec-task-inline-cmd {
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.exec-task-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 0;
+  background: rgba(var(--accent-cyan-rgb, 0 180 220), 0.1);
+  border-bottom: 1px solid rgba(var(--accent-cyan-rgb, 0 180 220), 0.2);
+  cursor: pointer;
+  user-select: none;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--accent-cyan, #00b4dc);
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(var(--accent-cyan-rgb, 0 180 220), 0.15);
+  }
+}
+
+.exec-task-toggle-arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+  width: 10px;
+  text-align: center;
+}
+
+.exec-task-toggle-text {
+  white-space: nowrap;
+}
+
+.exec-task-inline-terminal {
+  max-height: 300px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  font-family: $font-mono;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+
+.exec-task-inline-output {
+  padding: 12px;
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+
+  > div {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.exec-task-inline-command {
+  color: var(--accent-cyan, #00b4dc);
+  font-weight: 600;
+  padding-bottom: 6px !important;
+}
+
+// Cancel button for a running inline exec — sits at the end of the `$ command` line.
+.exec-task-inline-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--accent-red, #ef4444) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-red, #ef4444) 35%, transparent);
+  border-radius: 3px;
+  color: var(--accent-red, #ef4444);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-red, #ef4444) 25%, transparent);
+  }
+}
+
+.exec-task-inline-exit {
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  font-weight: 600;
+
+  &.success {
+    color: var(--accent-green, #22c55e);
+  }
+
+  &.error {
+    color: var(--accent-red, #ef4444);
+  }
+}
+
+.exec-task-cursor {
+  // inline-block + will-change: an opacity animation on a plain inline span
+  // cannot be composited, so it ticked a main-thread style recalc every frame
+  // for the whole run of any exec task.
+  display: inline-block;
+  will-change: opacity;
+  animation: blink 1s step-end infinite;
+  color: var(--accent-cyan);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+

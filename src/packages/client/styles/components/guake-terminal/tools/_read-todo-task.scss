@@ -1,0 +1,327 @@
+// =============================================================================
+// Read / TodoWrite / TaskCreate / TaskUpdate 工具输入内联视图
+// 由 _tools.scss 拆分(W4,2026-10-11):原文件第 1489-1808 行,逐行原样。
+// =============================================================================
+
+@use '../../../variables' as *;
+
+// =============================================================================
+// Read Tool Input
+// =============================================================================
+
+.read-tool-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.read-tool-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  border-radius: $radius-sm;
+  color: var(--accent-blue);
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.clickable {
+    cursor: pointer;
+    transition: all $transition-fast;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+      border-color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
+  }
+}
+
+.read-tool-path {
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.read-tool-range {
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  border-radius: $radius-sm;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 10px;
+}
+
+// =============================================================================
+// TodoWrite Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-todo-inline {
+  flex-wrap: wrap;
+
+  .todo-tool-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+    border-radius: $radius-sm;
+    overflow: hidden;
+  }
+}
+
+// =============================================================================
+// TodoWrite Tool Input - Checklist View
+// =============================================================================
+
+.todo-tool-input {
+  width: 100%;
+}
+
+.todo-tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+
+.todo-tool-title {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.todo-tool-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.todo-stat {
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 500;
+
+  &.completed {
+    color: var(--accent-green);
+  }
+
+  &.in-progress {
+    color: var(--accent-blue);
+  }
+
+  &.pending {
+    color: var(--text-muted);
+  }
+}
+
+.todo-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  border-radius: 0 0 $radius-sm $radius-sm;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: $font-mono;
+  font-size: 11px;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  }
+
+  &.todo-completed {
+    .todo-status-icon {
+      color: var(--accent-green);
+    }
+    .todo-content {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+  }
+
+  &.todo-in_progress {
+    background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+
+    .todo-status-icon {
+      color: var(--accent-blue);
+      display: inline-block; // inline boxes cannot be composited
+      will-change: opacity;
+      animation: pulse-icon 1.5s ease-in-out infinite;
+    }
+    .todo-content {
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+  }
+
+  &.todo-pending {
+    .todo-status-icon {
+      color: var(--text-muted);
+    }
+    .todo-content {
+      color: var(--text-primary);
+    }
+  }
+}
+
+.todo-status-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.todo-content {
+  flex: 1;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// =============================================================================
+// TaskCreate / TaskUpdate Tool Input - Inline on "Using tool:" line
+// =============================================================================
+
+.output-task-inline {
+  // Allow the chip to stay on a single line. The TaskUpdate input fits next
+  // to "Dudas  TaskUpdate" rather than wrapping below as a sub-block.
+  flex-wrap: nowrap;
+
+  .task-tool-input {
+    // No flex-basis so the input flows inline next to agent badge + tool name.
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: 0;
+  }
+}
+
+.task-tool-input {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: $radius-sm;
+  color: var(--text-primary);
+  min-width: 0;
+
+  .task-tool-status-icon {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .task-tool-id {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-weight: 500;
+    opacity: 0.85;
+    font-size: 10px;
+  }
+
+  .task-tool-content {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-tool-note {
+    flex-shrink: 1;
+    color: var(--text-muted);
+    font-size: 10px;
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// TaskUpdate rows are single-line summaries; let the row breathe a tiny bit
+// more horizontally and remove the per-row background so it sits flush with
+// the parent output line.
+.task-tool-row-update {
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent !important;
+}
+
+.task-tool-row-create {
+  .task-tool-status-icon {
+    color: var(--text-muted);
+  }
+  .task-tool-content {
+    color: var(--text-primary);
+  }
+}
+
+.task-tool-row-pending {
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content    { color: var(--text-primary); }
+}
+
+.task-tool-row-in_progress {
+  background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+  .task-tool-status-icon {
+    color: var(--accent-blue);
+    display: inline-block; // inline boxes cannot be composited
+    will-change: opacity;
+    animation: pulse-icon 1.5s ease-in-out infinite;
+  }
+  .task-tool-content { color: var(--accent-blue); font-weight: 500; }
+}
+
+.task-tool-row-completed {
+  .task-tool-status-icon { color: var(--accent-green); }
+  .task-tool-content     { color: var(--text-muted); text-decoration: line-through; opacity: 0.8; }
+}
+
+.task-tool-row-cancelled {
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content     { color: var(--text-muted); text-decoration: line-through; opacity: 0.7; }
+}
+
+.task-tool-row-failed {
+  background: color-mix(in srgb, var(--accent-red) 7%, transparent);
+  .task-tool-status-icon { color: var(--accent-red); }
+  .task-tool-content     { color: var(--accent-red); font-weight: 500; }
+}
+
+.task-tool-row-unknown {
+  .task-tool-status-icon { color: var(--text-muted); }
+  .task-tool-content     { color: var(--text-primary); }
+}
+
