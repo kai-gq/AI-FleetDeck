@@ -253,6 +253,15 @@ export function loadAgents(): StoredAgent[] {
 }
 
 /**
+ * agents.json 是否落盘过。
+ * 全新数据目录＝false（从未保存过）；用户删光代理后文件仍在＝true——
+ * 供出厂默认团队种子区分「全新安装」与「用户主动清空」。
+ */
+export function hasPersistedAgents(): boolean {
+  return fs.existsSync(AGENTS_FILE);
+}
+
+/**
  * Save agents to disk
  */
 export function saveAgents(agents: Agent[]): void {

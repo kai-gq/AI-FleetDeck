@@ -27,6 +27,7 @@ import { initAutoUpdateService, shutdownAutoUpdateService } from './services/aut
 import { initAttachmentJanitor, shutdownAttachmentJanitor } from './services/attachment-janitor.js';
 import { stopAllAgentTerminals, sweepAllAgentTtyds } from './services/agent-terminal-service.js';
 import { stopAllAreaTerminals, sweepAllAreaTtyds } from './services/area-terminal-service.js';
+import { seedDefaultTeamIfEmpty } from './services/default-team.js';
 import {
   initClaudeCredentialKeepAlive,
   shutdownClaudeCredentialKeepAlive,
@@ -97,6 +98,9 @@ async function main(): Promise<void> {
   eventRetentionService.init();
 
   // Initialize services
+  // 出厂默认团队：全新数据目录（从未落盘过 agents.json）先种 6 人待岗团队，
+  // 再交给 initAgents 统一装载/广播；已有数据一律不动（TC_DEFAULT_TEAM=0 关）。
+  seedDefaultTeamIfEmpty();
   agentService.initAgents();
   agentService.initSessionHistory();
   runtimeService.init();
