@@ -333,3 +333,22 @@ export interface UseFileContentReturn {
   clearFile: () => void;
   setFile: (file: FileData | null) => void;
 }
+
+// ============================================================================
+// DIALOG STATE TYPES
+// ============================================================================
+
+export interface RenameDialogState {
+  isOpen: boolean;
+  node: TreeNode | null;
+  value: string;
+  submitting: boolean;
+}
+
+export interface CreateDialogState {
+  isOpen: boolean;
+  parentDir: string;
+  isDirectory: boolean;
+  value: string;
+  submitting: boolean;
+}

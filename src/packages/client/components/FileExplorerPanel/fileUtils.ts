@@ -142,6 +142,19 @@ export function getParentDir(path: string): string {
   return parts.join('/') || '/';
 }
 
+/**
+ * Remap a path when its prefix directory was renamed/moved (used after a
+ * rename to keep expanded folders, open tabs and the selection in sync).
+ * Paths outside the renamed subtree are returned unchanged.
+ */
+export function remapPathPrefix(value: string, oldPrefix: string, newPrefix: string): string {
+  if (value === oldPrefix) return newPrefix;
+  if (value.startsWith(`${oldPrefix}/`)) {
+    return `${newPrefix}${value.slice(oldPrefix.length)}`;
+  }
+  return value;
+}
+
 // ============================================================================
 // GIT TREE UTILITIES
 // ============================================================================

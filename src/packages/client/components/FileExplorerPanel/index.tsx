@@ -26,6 +26,8 @@ import type {
   FileTab,
   ConflictVersions,
   BranchCompareResult,
+  RenameDialogState,
+  CreateDialogState,
 } from './types';
 
 // Hooks
@@ -38,7 +40,7 @@ import { useMobileTreeResize } from './useMobileTreeResize';
 import { useGitBranches } from './useGitBranches';
 import { useGitHistory } from './useGitHistory';
 import { useToast } from '../Toast';
-import { getFilename } from './fileUtils';
+import { getFilename, remapPathPrefix } from './fileUtils';
 
 // Components
 import { TreeNodeItem } from './TreeNodeItem';
@@ -58,21 +60,6 @@ import { ConfirmModal } from '../shared/ConfirmModal';
 
 // Constants
 import { EXTENSION_TO_LANGUAGE } from './constants';
-
-interface RenameDialogState {
-  isOpen: boolean;
-  node: TreeNode | null;
-  value: string;
-  submitting: boolean;
-}
-
-interface CreateDialogState {
-  isOpen: boolean;
-  parentDir: string;
-  isDirectory: boolean;
-  value: string;
-  submitting: boolean;
-}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -953,14 +940,6 @@ export function FileExplorerPanel({
     const idx = targetPath.lastIndexOf('/');
     if (idx <= 0) return '/';
     return targetPath.slice(0, idx);
-  }, []);
-
-  const remapPathPrefix = useCallback((value: string, oldPrefix: string, newPrefix: string): string => {
-    if (value === oldPrefix) return newPrefix;
-    if (value.startsWith(`${oldPrefix}/`)) {
-      return `${newPrefix}${value.slice(oldPrefix.length)}`;
-    }
-    return value;
   }, []);
 
   const handleTreeNodeContextMenu = useCallback((event: React.MouseEvent, node: TreeNode) => {
