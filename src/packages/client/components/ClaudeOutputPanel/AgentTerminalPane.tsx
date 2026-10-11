@@ -7,49 +7,28 @@
  * agentId props for split terminal views.
  *
  * Extracted from GuakeOutputPanel to enable multi-pane layouts.
+ * 类型 / 常量 / 助手已拆入 ./agent-terminal-pane/(2026-10-11 W2 拆分);
+ * 本文件保留主组件,并再导出 AgentTerminalPaneProps / AgentTerminalPaneHandle。
  */
 
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-  memo,
-  forwardRef,
-  useImperativeHandle,
-} from 'react';
+// ============================================================================
+// 模块拆分(W2,2026-10-11):类型 / 常量 / 助手已拆入 ./agent-terminal-pane/;
+// 本文件保留主组件与对外导出(类型再导出后对外导入路径不变)。
+// ============================================================================
+
+import { type AgentTerminalPaneProps, type AgentTerminalPaneHandle } from './agent-terminal-pane/types';
+import { LIVE_RESULT_FALLBACK_DUPLICATE_WINDOW_MS, HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS, HISTORY_THINKING_OUTPUT_DUPLICATE_WINDOW_MS, HISTORY_TOOL_OUTPUT_DUPLICATE_WINDOW_MS, LIVE_TOOL_DUPLICATE_WINDOW_MS } from './agent-terminal-pane/constants';
+import { normalizeUserMessage, normalizeAssistantMessage, normalizeThinkingMessage, isToolOrSystemOutput, makeToolInvocationKey, historyToolInvocationKey } from './agent-terminal-pane/helpers';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo, forwardRef, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  useLastPrompts,
-  useAgentOutputs,
-  useAgentCompacting,
-  useReconnectCount,
-  useHistoryRefreshTrigger,
-  useExecTasks,
-  useAgentTestRunHandles,
-  useAgentHttpRunHandles,
-  useSubagentsMapForAgent,
-  usePermissionRequests,
-  useAgentPrompts,
-  usePinnedAgentIds,
-  useAgentSelectionSeq,
-  store,
-  type ClaudeOutput,
-} from '../../store';
+import { useLastPrompts, useAgentOutputs, useAgentCompacting, useReconnectCount, useHistoryRefreshTrigger, useExecTasks, useAgentTestRunHandles, useAgentHttpRunHandles, useSubagentsMapForAgent, usePermissionRequests, useAgentPrompts, usePinnedAgentIds, useAgentSelectionSeq, store } from '../../store';
 import { apiUrl, authFetch } from '../../utils/storage';
-import type { Agent, AgentPrompt } from '../../../shared/types';
-import type { AttachedFile } from '../shared/outputTypes';
-
-// Types
-import type { ViewMode, EnrichedHistoryMessage, TodoItem } from './types';
+import { type Agent, type AgentPrompt } from '../../../shared/types';
+import { type EnrichedHistoryMessage, type TodoItem } from './types';
 import { resolveTodoWriteDisplay, type MergeableTodo } from '../../utils/todoMerge';
-
-// Hooks
 import { useHistoryLoader } from './useHistoryLoader';
 import { usePinnedSwipeNavigation } from './usePinnedSwipeNavigation';
-import { useSearchHistory, type UseSearchHistoryReturn } from './useSearchHistory';
+import { useSearchHistory } from './useSearchHistory';
 import { useSearchDomHighlight } from './searchDomHighlight';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { highlightText } from './contentRendering';
@@ -57,23 +36,7 @@ import { Icon } from '../Icon';
 import { useTerminalInput } from './useTerminalInput';
 import { useMessageNavigation } from './useMessageNavigation';
 import { useFilteredOutputsWithLogging } from '../shared/useFilteredOutputs';
-import { parseBossContext, parseInjectedInstructions } from './BossContext';
-import {
-  parseBashTrackingStatusCommand,
-  parseBashTaskLabelCommand,
-  parseBashNotificationCommand,
-  parseBashReportTaskCommand,
-  parseBashMemoryCommand,
-  extractToolKeyParam,
-  isCodexExecWrapper,
-  getCodexExecCommand,
-  getCodexExecEditPaths,
-  getCodexExecPresentation,
-  getShellCommandPresentation,
-  normalizeShellCommand,
-} from '../../utils/outputRendering';
-
-// Components
+import { parseBashTrackingStatusCommand, parseBashTaskLabelCommand, parseBashNotificationCommand, parseBashReportTaskCommand, parseBashMemoryCommand, isCodexExecWrapper, getCodexExecCommand, getCodexExecEditPaths, normalizeShellCommand } from '../../utils/outputRendering';
 import { SearchBar } from './TerminalHeader';
 import { SearchResultsPanel } from './SearchResultsPanel';
 import { TerminalInputArea } from './TerminalInputArea';
@@ -81,219 +44,8 @@ import { PinnedAgentsBar } from './PinnedAgentsBar';
 import { useAgentDockPosition } from './agentDockPosition';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
 import { filterSlashCommandOutputs } from './slashCommandOutputVisibility';
-// AgentPromptCard import removed — interactive prompt UI now renders inline
-// in the matching tool_use chip via AskQuestionInput / ExitPlanModeInput
-// when a pending agent-prompt is present.
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-// The source emits stream-final and result fallback synchronously. Keeping this
-// identity fallback window tiny prevents two real, identical turns from ever
-// being mistaken for the observed uuid-bearing/uuid-less twin.
-const LIVE_RESULT_FALLBACK_DUPLICATE_WINDOW_MS = 250;
-const HISTORY_ASSISTANT_OUTPUT_DUPLICATE_WINDOW_MS = 120_000;
-/**
- * Live thinking rows vs persisted reasoning entries: uuids never match (live
- * mints grok-thinking-* / claude-stream-*; history has the entry id), so dedup
- * is content-based. Wide window — a long reasoning block can stream minutes
- * before the entry is flushed, and identical reasoning twice in 10min = same turn.
- */
-const HISTORY_THINKING_OUTPUT_DUPLICATE_WINDOW_MS = 600_000;
-/** Live tool chip vs history tool_use: Grok early uuid ≠ call id, so uuid dedup misses. */
-const HISTORY_TOOL_OUTPUT_DUPLICATE_WINDOW_MS = 180_000;
-/** Two live rows for the same tool call (early + call-* dual emit). */
-const LIVE_TOOL_DUPLICATE_WINDOW_MS = 15_000;
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function normalizeUserMessage(text: string): string {
-  const parsedBoss = parseBossContext(text);
-  const parsedInjected = parseInjectedInstructions(parsedBoss.userMessage);
-  return parsedInjected.userMessage.trim().replace(/\r\n/g, '\n');
-}
-
-function normalizeAssistantMessage(text: string): string {
-  return text.trim().replace(/\r\n/g, '\n');
-}
-
-/**
- * Dedup key for thinking rows. Live rows accumulate streamed chunks while
- * session history joins reasoning summary parts with '\n' — the same reasoning
- * can differ in internal whitespace between the two, so collapse it.
- */
-function normalizeThinkingMessage(text: string): string {
-  return text
-    .replace(/^\s*\[thinking\]\s*/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Mirrors the `[System]` notice shape OutputLine/HistoryLine render specially. */
-const SYSTEM_NOTICE_PREFIX = /^\s*[\u{1F300}-\u{1FAFF}☀-➿]?\s*\[System\]/u;
-
-function isToolOrSystemOutput(text: string): boolean {
-  return text.startsWith('Using tool:')
-    || text.startsWith('Tool input:')
-    || text.startsWith('Tool result:')
-    || text.startsWith('Bash output:')
-    || text.startsWith('Session started:')
-    || text.startsWith('[thinking]')
-    || text.startsWith('Tokens:')
-    || text.startsWith('Cost:')
-    || text.startsWith('Context (estimated from Codex turn usage):')
-    // Any `[System]` notice, with or without its leading status emoji
-    // (🔄 reattach, 📋 resume, 🛑 interrupt, ⚠ model fallback, …).
-    || SYSTEM_NOTICE_PREFIX.test(text);
-}
-
-/**
- * Stable key for a tool invocation: toolName + primary param (command, path, …).
- * Used to collapse live `grok-early-*` chips against history `call-*` rows and
- * dual live emissions of the same call.
- */
-function makeToolInvocationKey(
-  toolName: string | undefined,
-  toolInput: Record<string, unknown> | undefined,
-  textFallback?: string,
-): string | null {
-  const name = (toolName || '').trim();
-  if (!name && textFallback?.startsWith('Using tool:')) {
-    return makeToolInvocationKey(textFallback.replace('Using tool:', '').trim(), toolInput);
-  }
-  if (!name) return null;
-  if (toolInput && isCodexExecWrapper(toolInput)) {
-    const command = getCodexExecCommand(toolInput);
-    if (command) {
-      const semantic = getCodexExecPresentation(toolInput);
-      return `${semantic.toolName}::${normalizeShellCommand(command)}`;
-    }
-  }
-  if (name === 'Bash' && toolInput) {
-    const command = typeof toolInput.command === 'string'
-      ? toolInput.command
-      : typeof toolInput.cmd === 'string' ? toolInput.cmd : '';
-    if (command) {
-      const semantic = getShellCommandPresentation(command);
-      if (semantic.toolName !== 'Bash') {
-        return `${semantic.toolName}::${normalizeShellCommand(command)}`;
-      }
-    }
-  }
-  let keyParam: string | null = null;
-  if (toolInput && typeof toolInput === 'object' && Object.keys(toolInput).length > 0) {
-    try {
-      keyParam = extractToolKeyParam(name, JSON.stringify(toolInput));
-    } catch { /* ignore */ }
-  }
-  // Prefer a real param so two Reads of different files stay distinct.
-  // Empty early cards (no input yet) use name-only and dedupe carefully by time.
-  return keyParam ? `${name}::${keyParam}` : `${name}::`;
-}
-
-function historyToolInvocationKey(msg: {
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
-  content?: string;
-}): string | null {
-  let input = msg.toolInput;
-  if ((!input || Object.keys(input).length === 0) && msg.content) {
-    try {
-      const parsed = JSON.parse(msg.content);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        input = parsed as Record<string, unknown>;
-      }
-    } catch { /* ignore */ }
-  }
-  return makeToolInvocationKey(msg.toolName, input);
-}
-
-// ─── Props & Handle ─────────────────────────────────────────────────────────
-
-export interface AgentTerminalPaneProps {
-  /** The agent ID this pane displays */
-  agentId: string;
-  /** The agent object (resolved by parent) */
-  agent: Agent;
-  /** View mode (simple/chat/advanced) */
-  viewMode: ViewMode;
-  /** Whether the terminal is open/visible */
-  isOpen: boolean;
-  /** Show structured output cards produced by plugin slash commands. */
-  showSlashCommandOutputs?: boolean;
-
-  // ── Modal callbacks (parent owns modals) ──
-  onImageClick: (url: string, name: string) => void;
-  onFileClick: (path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => void;
-  onBashClick: (command: string, output: string) => void;
-  onViewMarkdown: (content: string) => void;
-  /**
-   * Fired when a Bash tool_use in dedupedHistory becomes linked to its
-   * tool_result for the first time. The parent uses this to resolve a
-   * currently-open "Running..." bash modal whose live look-ahead window
-   * has already passed by the time the tool_result lands in the JSONL.
-   */
-  onLiveBashResultLinked?: (command: string, output: string) => void;
-
-  // ── Keyboard height handler (parent owns, shared) ──
-  keyboard: {
-    handleInputFocus: () => void;
-    handleInputBlur: () => void;
-    keyboardScrollLockRef: React.MutableRefObject<boolean>;
-    cleanup: () => void;
-  };
-
-  // ── Mobile swipe close (for TerminalInputArea) ──
-  canSwipeClose?: boolean;
-  onSwipeCloseOffsetChange?: (offset: number) => void;
-  onSwipeClose?: () => void;
-
-  /** Whether any modal is open in the parent (disables message navigation) */
-  hasModalOpen?: boolean;
-}
-
-/**
- * Imperative handle exposed to parent for cross-component interactions
- * (swipe navigation, search-from-header, file drag-drop, etc.)
- */
-export interface AgentTerminalPaneHandle {
-  /** Scroll container ref — used by parent for swipe navigation */
-  outputScrollRef: React.RefObject<HTMLDivElement | null>;
-  /** Input refs — used by parent for focus management */
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  /** History loader — used by parent header for load-more button */
-  historyLoader: {
-    loadingHistory: boolean;
-    fetchingHistory: boolean;
-    historyLoadVersion: number;
-    loadingMore: boolean;
-    hasMore: boolean;
-    totalCount: number;
-    loadMoreHistory: () => Promise<void>;
-    clearHistory: () => void;
-    hasCachedHistory: (agentId: string) => boolean;
-    history: Array<{ type: string; content: string; timestamp: string }>;
-  };
-  /** Search state — used by parent header for SearchBar */
-  search: UseSearchHistoryReturn;
-  /** Terminal input — used by parent for file drag-drop */
-  terminalInput: {
-    uploadFile: (
-      file: File | Blob,
-      filename?: string,
-      onProgress?: (percentage: number) => void,
-    ) => Promise<AttachedFile | null>;
-    setAttachedFiles: (value: AttachedFile[] | ((prev: AttachedFile[]) => AttachedFile[])) => void;
-    useTextarea: boolean;
-  };
-  /** Combined deduped data — used by parent for search all items */
-  getDedupedHistory: () => EnrichedHistoryMessage[];
-  getDedupedOutputs: () => ClaudeOutput[];
-  /** Output count for header display */
-  outputsLength: number;
-}
-
-// ─── Component ──────────────────────────────────────────────────────────────
+export type { AgentTerminalPaneProps, AgentTerminalPaneHandle } from './agent-terminal-pane/types';
 
 export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentTerminalPaneProps>(function AgentTerminalPane(
   {
