@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Tide Commander",
-  "short_name": "Tide CMD",
+  "name": "FleetDeck",
+  "short_name": "FleetDeck",
   "description": "RTS-style agent orchestration platform for Claude Code AI agents",
   "start_url": "/",
   "scope": "/",
