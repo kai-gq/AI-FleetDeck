@@ -19,6 +19,16 @@ const STATUS_COLORS: Record<string, { color: string; glow: string; darkColor: st
   orphaned: { color: '#ff00ff', glow: 'rgba(255, 0, 255, 0.6)', darkColor: '#9a009a' },
 };
 
+/** 任务耗时格式化：≥1h 显示 h/m，≥1m 显示 m/s，否则显示秒。 */
+function formatElapsed(startMs: number): string {
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  if (elapsedSec < 60) return `${elapsedSec}s`;
+  const m = Math.floor(elapsedSec / 60);
+  if (m < 60) return `${m}m ${elapsedSec % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
 export class AgentRenderer extends BaseRenderer {
   private effect: EffectRenderer;
 
@@ -522,7 +532,7 @@ export class AgentRenderer extends BaseRenderer {
       this.ctx.fillText(toolContent, screenPos.x, animatedToolY);
     }
 
-    // ========== TASK LABEL BADGE ==========
+    // ========== TASK LABEL BADGE（任务名 + 实时耗时，两行） ==========
     if (showSecondaryBadges && showTaskLabels && agent.taskLabel) {
       const taskFontSize = Math.max(5, 15 * labelScale);
       this.ctx.font = `bold italic ${taskFontSize}px "Segoe UI", Arial, sans-serif`;
@@ -532,21 +542,37 @@ export class AgentRenderer extends BaseRenderer {
       const taskHeight = taskFontSize + 5 * indicatorZoomFactor;
       const taskY = barY + barHeight + 10 * indicatorZoomFactor;
 
+      // 耗时第二行：仅活动状态且有任务开始时间时显示（数据源 lastAssignedTaskTime）
+      const isActiveTask = agent.status === 'working' || agent.status === 'waiting' || agent.status === 'waiting_permission';
+      const durationText = isActiveTask && agent.taskStartedAt && agent.taskStartedAt > 0
+        ? formatElapsed(agent.taskStartedAt)
+        : null;
+
+      const badgeH = taskHeight + (durationText ? taskFontSize * 1.4 : 0);
+
       this.ctx.beginPath();
       this.roundedRectScreen(
         screenPos.x - taskWidth / 2 - taskPadding,
-        taskY - taskHeight / 2,
+        taskY - badgeH / 2,
         taskWidth + taskPadding * 2,
-        taskHeight,
+        badgeH,
         taskHeight / 2
       );
       this.ctx.fillStyle = 'rgba(60, 60, 80, 0.8)';
       this.ctx.fill();
 
+      // 第一行：任务名（有耗时行时上移）
       this.ctx.fillStyle = 'rgba(180, 195, 215, 0.95)';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(taskText, screenPos.x, taskY);
+      this.ctx.fillText(taskText, screenPos.x, taskY - (durationText ? taskFontSize * 0.55 : 0));
+
+      // 第二行：实时耗时
+      if (durationText) {
+        this.ctx.font = `bold ${Math.max(5, 11 * labelScale)}px "Segoe UI", Arial, sans-serif`;
+        this.ctx.fillStyle = 'rgba(154, 204, 255, 0.95)';
+        this.ctx.fillText(durationText, screenPos.x, taskY + taskFontSize * 0.55);
+      }
     }
 
     // ========== UNSEEN OUTPUT NOTIFICATION BADGE ==========

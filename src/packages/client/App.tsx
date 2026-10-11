@@ -562,10 +562,14 @@ function AppContent() {
     }
   }, [sceneRef, showToast]);
 
-  // Handle focus agent
+  // Handle focus agent（3D / 2D 双场景：2D 视图用全局 __tideScene2D 聚焦，home 窗格同源）
   const handleFocusAgent = useCallback((agentId: string) => {
+    if (viewMode === '2d') {
+      (window as any).__tideScene2D?.focusAgent?.(agentId);
+      return;
+    }
     sceneRef.current?.focusAgent(agentId);
-  }, [sceneRef]);
+  }, [sceneRef, viewMode]);
 
   // Handle kill agent
   const handleKillAgent = useCallback((agentId: string) => {

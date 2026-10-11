@@ -40,6 +40,8 @@ export interface Agent2DData {
   contextStats?: ContextStats;
   provider?: string;
   taskLabel?: string;
+  /** 任务开始时间（agent.lastAssignedTaskTime 同步），用于「任务+耗时」标签。 */
+  taskStartedAt?: number;
 }
 
 /**
@@ -672,6 +674,7 @@ export class Scene2D {
       contextLimit: agent.contextLimit,
       contextStats: agent.contextStats,
       provider: agent.provider,
+      taskStartedAt: agent.lastAssignedTaskTime,
     });
     this.markDirty();
   }
@@ -744,6 +747,7 @@ export class Scene2D {
     existing.contextStats = agent.contextStats;
     existing.provider = agent.provider;
     existing.taskLabel = agent.taskLabel;
+    existing.taskStartedAt = agent.lastAssignedTaskTime;
     this.markDirty();
   }
 
@@ -1258,6 +1262,47 @@ export class Scene2D {
   createMoveOrderEffect(worldPos: { x: number; z: number }): void {
     this.effects.addMoveOrderEffect(worldPos);
     this.markDirty();
+  }
+
+  /**
+   * 整理布局：把 agent 按所属区域自动分群（Boss 站区域中心，下属绕其列阵）。
+   * 无所属区域的 agent 保持原位；由用户主动触发（2D 工具栏「整理布局」），
+   * 不覆盖手动摆放习惯。
+   */
+  arrangeByAreas(): void {
+    const state = store.getState();
+    const groups = new Map<string, Agent[]>();
+
+    for (const agent of state.agents.values()) {
+      if (store.isAgentInArchivedArea(agent.id)) continue;
+      const area = store.getAreaForAgent(agent.id);
+      if (!area) continue;
+      const list = groups.get(area.id) ?? [];
+      list.push(agent);
+      groups.set(area.id, list);
+    }
+
+    for (const [areaId, members] of groups) {
+      const area = this.areas.get(areaId);
+      if (!area || members.length === 0) continue;
+
+      // Boss 排首位（站区域中心），其余成员绕其列阵
+      const boss = members.find((a) => a.isBoss || a.class === 'boss');
+      const ordered = boss ? [boss, ...members.filter((a) => a !== boss)] : members;
+      const anchor = { x: area.position.x, z: area.position.z };
+      const positions = this.calculateFormationPositions(anchor, ordered.length);
+
+      ordered.forEach((agent, i) => {
+        const target = positions[i];
+        const local2D = this.agents.get(agent.id);
+        // 持久化（store.moveAgent 会广播到服务器/其他客户端）
+        store.moveAgent(agent.id, { x: target.x, y: agent.position.y, z: target.z });
+        // 本地动画跟随
+        if (local2D) {
+          this.startAgentMovement(agent.id, local2D.position, target);
+        }
+      });
+    }
   }
 
   /**

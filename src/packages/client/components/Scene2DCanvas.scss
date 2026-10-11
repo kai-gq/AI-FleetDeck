@@ -45,6 +45,65 @@
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    text-transform: uppercase;
+  }
+
+  // 2D 快捷工具条（整理布局 / 聚焦全部）— 右上角，半透明深色，hover 提亮
+  .scene-2d-toolbar {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    background: linear-gradient(
+      135deg,
+      rgba(26, 31, 46, 0.9) 0%,
+      rgba(20, 24, 32, 0.94) 100%
+    );
+    border-radius: 8px;
+    border: 1px solid rgba(74, 158, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    .scene-2d-toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(74, 158, 255, 0.12);
+      color: #a8c8ff;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        background 0.15s ease,
+        color 0.15s ease;
+
+      &:hover {
+        background: rgba(74, 158, 255, 0.28);
+        color: #ffffff;
+      }
+
+      &:active {
+        transform: translateY(1px);
+      }
+
+      .scene-2d-toolbar-icon {
+        font-size: 12px;
+        line-height: 1;
+      }
+
+      .scene-2d-toolbar-label {
+        white-space: nowrap;
+      }
+    }
   }
 }

@@ -239,6 +239,14 @@ export function useScene2DSetup(
     sceneRef.current?.setFpsLimit(limit);
   }, []);
 
+  const arrangeByAreas = useCallback(() => {
+    sceneRef.current?.arrangeByAreas();
+  }, []);
+
+  const focusOnContent = useCallback(() => {
+    sceneRef.current?.focusOnContent();
+  }, []);
+
   return {
     scene: sceneRef,
     focusAgent,
@@ -250,5 +258,7 @@ export function useScene2DSetup(
     setGridVisible,
     setDrawingTool,
     setFpsLimit,
+    arrangeByAreas,
+    focusOnContent,
   };
 }

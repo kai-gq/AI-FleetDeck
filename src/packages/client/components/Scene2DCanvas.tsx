@@ -62,6 +62,8 @@ export function Scene2DCanvas({
     setGridVisible,
     setDrawingTool,
     setFpsLimit,
+    arrangeByAreas,
+    focusOnContent,
   } = useScene2DSetup(canvasRef, {
     onAgentClick,
     onAgentDoubleClick,
@@ -118,7 +120,27 @@ export function Scene2DCanvas({
         className="scene-2d-canvas"
       />
       <div className="scene-2d-badge">
-        2D Mode
+        2D 战场
+      </div>
+      <div className="scene-2d-toolbar">
+        <button
+          type="button"
+          className="scene-2d-toolbar-btn"
+          title="按区域自动分群布局（Boss 站区域中心，下属环绕）"
+          onClick={() => arrangeByAreas()}
+        >
+          <span className="scene-2d-toolbar-icon">⟳</span>
+          <span className="scene-2d-toolbar-label">整理布局</span>
+        </button>
+        <button
+          type="button"
+          className="scene-2d-toolbar-btn"
+          title="缩放并居中到全部成员"
+          onClick={() => focusOnContent()}
+        >
+          <span className="scene-2d-toolbar-icon">◎</span>
+          <span className="scene-2d-toolbar-label">聚焦全部</span>
+        </button>
       </div>
     </div>
   );
