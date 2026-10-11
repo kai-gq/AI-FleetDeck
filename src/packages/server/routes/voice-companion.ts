@@ -9,6 +9,10 @@
  *   POST /api/voice-companion/reset    { keepMemory? }   重置会话(默认保留记忆)
  *   GET  /api/voice-companion/memory                     读取记忆
  *   POST /api/voice-companion/memory   { ops? , clear? } 修改记忆(单条删除/清空)
+ *   GET  /api/voice-companion/hotwords                   ASR 热词快照(面板展示)
+ *   POST /api/voice-companion/hotwords/refresh           智能更新(增量读对话 → 筛选 → 合并)
+ *   POST /api/voice-companion/hotwords/add    { word }   手动添加
+ *   POST /api/voice-companion/hotwords/remove { word }   删除(= 拉黑,管家今后不再收录)
  *
  * 逻辑全部在 voice-companion-service;本文件只做参数校验与错误映射。
  */
@@ -20,9 +24,26 @@ import {
   resetCompanion,
   getCompanionMemory,
   updateCompanionMemory,
+  callClaudeForHotwordCurator,
   VoiceCompanionAbortedError,
   type VoiceMemoryOp,
 } from '../services/voice-companion-service.js';
+import {
+  AGENT_NAME_WEIGHT,
+  addManualWord,
+  buildEffectiveWords,
+  getAgentNames,
+  pickInjectionWords,
+  readHotwordsFile,
+  removeWord,
+  resolveInjectTopN,
+  writeHotwordsFile,
+  type InjectionWord,
+  type WordSource,
+} from '../voice/asr-hotwords.js';
+import { createAgentHotwordSync } from '../voice/agent-hotword-sync.js';
+import { getAllAgents, subscribe as subscribeAgents } from '../services/agent-service.js';
+import { refreshHotwords } from '../voice/hotword-curator.js';
 import { evaluateVoiceEventGate, logSuppressedVoiceEvent } from '../services/sentinel-service.js';
 import { buildReminderCancelSay, matchReminderCommand } from '../voice/reminder-parse.js';
 import {
@@ -44,7 +65,7 @@ const MAX_TEXT_LENGTH = 4_000;
 
 /**
  * 稳定错误码(P8):客户端按 code 做中文映射;error 保留英文原文兼容旧客户端。
- *   400 TEXT_REQUIRED / TEXT_TOO_LONG / OPS_NOT_ARRAY / ID_REQUIRED
+ *   400 TEXT_REQUIRED / TEXT_TOO_LONG / OPS_NOT_ARRAY / ID_REQUIRED / WORD_REQUIRED / SINCE_INVALID
  *   500 CLAUDE_NOT_FOUND / PROCESS_FAILED / INTERNAL
  */
 const ERROR_CODE = {
@@ -52,6 +73,8 @@ const ERROR_CODE = {
   TEXT_TOO_LONG: 'TEXT_TOO_LONG',
   OPS_NOT_ARRAY: 'OPS_NOT_ARRAY',
   ID_REQUIRED: 'ID_REQUIRED',
+  WORD_REQUIRED: 'WORD_REQUIRED',
+  SINCE_INVALID: 'SINCE_INVALID',
   CLAUDE_NOT_FOUND: 'CLAUDE_NOT_FOUND',
   PROCESS_FAILED: 'PROCESS_FAILED',
   INTERNAL: 'INTERNAL',
@@ -314,6 +337,170 @@ router.post('/reminders/ack', (req: Request, res: Response) => {
     }
     const acked = getVoiceReminderService().ack(id);
     res.json({ success: true, acked });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
+  }
+});
+
+// ============================================================================
+// ASR 热词(asr-hotwords / hotword-curator)
+// ============================================================================
+
+// agent 名 ↔ 热词同步:agent 新增/改名立即进有效词表(provider 实时读),
+// 改名旧名/删除名 → 退役(移出池 + 拉黑)。订阅 agent CRUD 事件,零改动 agent-service。
+createAgentHotwordSync({
+  getAll: () => getAllAgents().map((a) => ({ id: a.id, name: a.name })),
+  subscribe: (listener) => subscribeAgents((event, data) => listener(event, data)),
+  log: (msg) => logger.server.log(`[hotwords] ${msg}`),
+}).init();
+
+interface HotwordSnapshotEntry {
+  word: string;
+  weight: number;
+  count: number;
+  source: WordSource;
+  lastSeenAt: string;
+  /** 是否在当前注入窗口内(有效词表按注入优先级排序取前 injectTopN)。 */
+  injected: boolean;
+}
+
+function toEntry(w: InjectionWord, injectedKeys: ReadonlySet<string>): HotwordSnapshotEntry {
+  return {
+    word: w.word,
+    weight: w.weight,
+    count: w.count,
+    source: w.source,
+    lastSeenAt: w.lastSeenAt,
+    injected: injectedKeys.has(w.word.toLowerCase()),
+  };
+}
+
+/** 锁定词集(agent 名,忽略大小写):面板不可删改、手动添加直接判重;必进注入窗口。 */
+function lockedKeys(): Set<string> {
+  const keys = new Set<string>();
+  for (const n of getAgentNames()) keys.add(n.toLowerCase());
+  return keys;
+}
+
+/**
+ * 面板快照(分子表展示):
+ *   agentNames agent 名(锁定;实时来自 agent-service;必进注入窗口)
+ *   words      动态池(manual/agent;按注入优先级排序,可删)
+ * injected 以「有效词表 + 注入窗口」统一计算(锁定层占窗口,动态词未必全进)。
+ */
+function hotwordsSnapshot() {
+  const { file } = readHotwordsFile();
+  const topN = resolveInjectTopN();
+  const effective = buildEffectiveWords(file);
+  const order = new Map(
+    pickInjectionWords(effective, effective.length).map((w, i) => [w.toLowerCase(), i] as const),
+  );
+  const injectedKeys = new Set(
+    pickInjectionWords(effective, topN).map((w) => w.toLowerCase()),
+  );
+  const rankOf = (w: string): number => order.get(w.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+
+  const agentNames = getAgentNames().map((name) => ({
+    word: name,
+    weight: AGENT_NAME_WEIGHT,
+    count: 0,
+    source: 'agent-name' as const,
+    lastSeenAt: '',
+    injected: injectedKeys.has(name.toLowerCase()),
+  }));
+  const words = [...file.words]
+    .sort((a, b) => rankOf(a.word) - rankOf(b.word))
+    .map((e) => toEntry({ ...e, source: e.source }, injectedKeys));
+
+  return {
+    lastAnalyzedAt: file.lastAnalyzedAt,
+    blockedCount: file.blocked.length,
+    injectTopN: topN,
+    agentNames,
+    words,
+  };
+}
+
+/**
+ * GET /api/voice-companion/hotwords
+ * 热词快照(面板展示;文件缺失/损坏 → 空表)。
+ */
+router.get('/hotwords', (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, hotwords: hotwordsSnapshot() });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
+  }
+});
+
+/**
+ * POST /api/voice-companion/hotwords/refresh  { since? }
+ * 「智能更新」:增量读大脑对话 → 提示词筛选 → 硬校验 → 合并入库(同步等待 10~30s)。
+ * since(可选,ISO)覆写分析起点(面板「上次分析时间」可改选);缺省 = 节点/首次回看 7 天。
+ */
+router.post('/hotwords/refresh', async (req: Request, res: Response) => {
+  try {
+    const sinceRaw = typeof req.body?.since === 'string' ? req.body.since.trim() : '';
+    let sinceMs: number | undefined;
+    if (sinceRaw) {
+      const parsed = Date.parse(sinceRaw);
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ error: 'since must be an ISO date string', code: ERROR_CODE.SINCE_INVALID });
+      }
+      sinceMs = parsed;
+    }
+    const result = await refreshHotwords({
+      callModel: callClaudeForHotwordCurator,
+      sinceMs,
+      log: (msg) => logger.server.log(`[hotwords] ${msg}`),
+    });
+    res.json({ success: true, result, hotwords: hotwordsSnapshot() });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
+  }
+});
+
+/**
+ * POST /api/voice-companion/hotwords/add  { word }
+ * 手动添加(manual:权重免疫、淘汰最后、注入窗口内优先;命中屏蔽名单则解除)。
+ * 锁定词(内置/agent 名)已在窗口中 → added=false 且 locked=true(不落池)。
+ */
+router.post('/hotwords/add', (req: Request, res: Response) => {
+  try {
+    const word = typeof req.body?.word === 'string' ? req.body.word.trim() : '';
+    if (!word || word.length > 40 || /\s/.test(word)) {
+      return res.status(400).json({ error: 'word is required (no spaces, max 40 chars)', code: ERROR_CODE.WORD_REQUIRED });
+    }
+    if (lockedKeys().has(word.toLowerCase())) {
+      return res.json({ success: true, added: false, locked: true, hotwords: hotwordsSnapshot() });
+    }
+    const { file } = readHotwordsFile();
+    const added = addManualWord(file, word, new Date().toISOString());
+    if (added) writeHotwordsFile(file);
+    res.json({ success: true, added, hotwords: hotwordsSnapshot() });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
+  }
+});
+
+/**
+ * POST /api/voice-companion/hotwords/remove  { word }
+ * 删除 = 移出词表 + 屏蔽(管家今后提出即丢弃,不会「删了又回来」)。
+ * 锁定词(内置/agent 名)拒绝删除(removed=false 且 locked=true;也不拉黑)。
+ */
+router.post('/hotwords/remove', (req: Request, res: Response) => {
+  try {
+    const word = typeof req.body?.word === 'string' ? req.body.word.trim() : '';
+    if (!word) {
+      return res.status(400).json({ error: 'word is required', code: ERROR_CODE.WORD_REQUIRED });
+    }
+    if (lockedKeys().has(word.toLowerCase())) {
+      return res.json({ success: true, removed: false, locked: true, hotwords: hotwordsSnapshot() });
+    }
+    const { file } = readHotwordsFile();
+    const removed = removeWord(file, word);
+    if (removed) writeHotwordsFile(file);
+    res.json({ success: true, removed, hotwords: hotwordsSnapshot() });
   } catch (err) {
     res.status(500).json({ error: (err as Error)?.message, code: ERROR_CODE.INTERNAL });
   }

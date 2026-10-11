@@ -25,6 +25,7 @@ import { randomUUID } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import WebSocket from 'ws';
 import type { VolcengineEndpoint, VolcengineSttConfig } from '../services/voice-companion-service.js';
+import { pickAsrCorpus } from './asr-hotwords.js';
 import {
   buildVoiceprintRequestFields,
   createVoiceprintTracker,
@@ -443,6 +444,9 @@ export class VolcengineAsrSession {
   // --------------------------------------------------------------------------
 
   private sendFullRequestAndFlush(): void {
+    // 热词(官方 request.corpus 内联,优先于控制台词表):「热词」面板/管家写
+    // hotwords.local.json,每段话建会话时现读 —— 一段话 = 一个新会话,改词下一句生效。
+    const hotwords = pickAsrCorpus();
     // 声纹门禁(SSD 短音频声纹,「只认主人」):与热词同款 —— 每段话建会话现读配置,
     // 未启用 = 请求零变化;启用但端点不支持 → 记一行日志后照常识别。
     const voiceprintCfg = readVoiceprintConfig();
@@ -458,9 +462,11 @@ export class VolcengineAsrSession {
         enable_punc: true,
         show_utterances: true,
         result_type: 'full',
+        ...(hotwords ? { corpus: { context: hotwords.context } } : {}),
         ...voiceprint.fields,
       },
     };
+    if (hotwords) this.opts.onLog?.(`注入热词 ${hotwords.count} 个`);
     if (voiceprint.reason) this.opts.onLog?.(`声纹门禁未生效:${voiceprint.reason}`);
     else if (voiceprint.active) this.opts.onLog?.('声纹门禁已启用(ssd_mode=2,仅放行已注册声纹)');
     this.sendFrame(buildFullClientRequest(this.seq, payload));

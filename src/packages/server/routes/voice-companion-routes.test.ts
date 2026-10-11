@@ -8,8 +8,17 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
+
+// agent 名同步器在路由模块级装配(生产 init 订阅 agent-service):测试里换成
+// noop,避免 import 时读写真实热词文件/agents.json(热词用例自带沙箱环境变量)。
+vi.mock('../voice/agent-hotword-sync.js', () => ({
+  createAgentHotwordSync: () => ({ init: () => {}, currentNames: () => [] }),
+}));
 
 vi.mock('../services/voice-companion-service.js', () => {
   class VoiceCompanionAbortedError extends Error {
@@ -54,6 +63,7 @@ import * as service from '../services/voice-companion-service.js';
 import * as sentinel from '../services/sentinel-service.js';
 import * as reminderSvc from '../services/voice-reminder-service.js';
 import * as userActivity from '../services/user-activity-service.js';
+import { HOTWORDS_SOURCE_ENV, setAgentNamesProvider } from '../voice/asr-hotwords.js';
 import voiceCompanionRoutes from './voice-companion.js';
 import type { SentinelEventGateResult } from '../services/sentinel-service.js';
 import type { VoiceReminder, VoiceReminderService } from '../services/voice-reminder-service.js';
@@ -664,5 +674,105 @@ describe('W13 用户活动登记(voice-turn)', () => {
     await post({ text: '两分钟后喊我了吗' });
     expect(note).toHaveBeenCalledTimes(4);
     expect(note).toHaveBeenLastCalledWith('voice-turn');
+  });
+});
+
+// ============================================================================
+// ASR 热词(锁定守卫 + 快照 v2):走沙箱文件(TC_VOICE_HOTWORDS_SOURCE),
+// 绝不碰真实 tools/voice-companion/hotwords.local.json。
+// ============================================================================
+
+describe('ASR 热词接口(锁定守卫 + 快照)', () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-routes-hotwords-'));
+  const hotwordsPath = path.join(sandbox, 'hotwords.local.json');
+
+  async function postJson(pathname: string, body?: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
+    const res = await fetch(`${baseUrl}/api/voice-companion${pathname}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+  }
+
+  function readFile(): { blocked: string[]; words: Array<{ word: string; source: string }> } {
+    return JSON.parse(fs.readFileSync(hotwordsPath, 'utf-8')) as ReturnType<typeof readFile>;
+  }
+
+  beforeEach(() => {
+    process.env[HOTWORDS_SOURCE_ENV] = hotwordsPath;
+    fs.writeFileSync(hotwordsPath, JSON.stringify({ lastAnalyzedAt: null, blocked: [], words: [] }));
+    // 锁定层 = agent 名(同步器在测试里是 noop,这里手动注册 provider)
+    setAgentNamesProvider(() => ['主管']);
+  });
+
+  afterAll(() => {
+    setAgentNamesProvider(null);
+    delete process.env[HOTWORDS_SOURCE_ENV];
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  });
+
+  it('GET /hotwords:快照分两组(agentNames 锁定 / 动态池),注入标记与窗口在位', async () => {
+    const res = await fetch(`${baseUrl}/api/voice-companion/hotwords`);
+    expect(res.status).toBe(200);
+    const { hotwords } = (await res.json()) as { hotwords: Record<string, unknown> };
+    expect(hotwords.builtin).toBeUndefined(); // 内置清单已撤:锁定层只剩 agent 名
+    expect(hotwords.agentNames).toEqual([
+      expect.objectContaining({ word: '主管', weight: 10, source: 'agent-name', injected: true }),
+    ]);
+    expect(hotwords.words).toEqual([]);
+    expect(typeof hotwords.injectTopN).toBe('number');
+  });
+
+  it('POST /hotwords/add:锁定词(agent 名,忽略大小写)拒绝入库,不写文件', async () => {
+    setAgentNamesProvider(() => ['主管', 'Bolba']);
+    for (const word of ['主管', 'bolba']) {
+      const { status, json } = await postJson('/hotwords/add', { word });
+      expect(status).toBe(200);
+      expect(json).toMatchObject({ success: true, added: false, locked: true });
+    }
+    const file = readFile();
+    expect(file.words).toEqual([]); // 没落池
+    expect(file.blocked).toEqual([]); // 也不进屏蔽
+  });
+
+  it('POST /hotwords/add:非锁定词入库为 manual,快照回传', async () => {
+    const { json } = await postJson('/hotwords/add', { word: 'tRPC' });
+    expect(json).toMatchObject({ success: true, added: true });
+    expect(json.locked).toBeUndefined();
+    const file = readFile();
+    expect(file.words).toEqual([expect.objectContaining({ word: 'tRPC', source: 'manual' })]);
+    const snap = json.hotwords as { words: Array<{ word: string }> };
+    expect(snap.words.map((w) => w.word)).toContain('tRPC');
+  });
+
+  it('POST /hotwords/remove:锁定词拒绝删除且不拉黑', async () => {
+    const { status, json } = await postJson('/hotwords/remove', { word: '主管' });
+    expect(status).toBe(200);
+    expect(json).toMatchObject({ success: true, removed: false, locked: true });
+    expect(readFile().blocked).toEqual([]); // 关键:不得把锁定词拉黑
+  });
+
+  it('POST /hotwords/remove:池内词删除 = 移出 + 拉黑', async () => {
+    await postJson('/hotwords/add', { word: 'bolba' });
+    const { json } = await postJson('/hotwords/remove', { word: 'bolba' });
+    expect(json).toMatchObject({ success: true, removed: true });
+    const file = readFile();
+    expect(file.words).toEqual([]);
+    expect(file.blocked).toEqual(['bolba']);
+  });
+
+  it('POST /hotwords/refresh:since 非法 → 400 SINCE_INVALID(不触模型)', async () => {
+    const { status, json } = await postJson('/hotwords/refresh', { since: 'not-a-date' });
+    expect(status).toBe(400);
+    expect(json.code).toBe('SINCE_INVALID');
+  });
+
+  it('POST /hotwords/add:缺词/超长/含空格 → 400 WORD_REQUIRED', async () => {
+    for (const body of [{}, { word: '' }, { word: 'x'.repeat(41) }, { word: 'a b' }]) {
+      const { status, json } = await postJson('/hotwords/add', body);
+      expect(status).toBe(400);
+      expect(json.code).toBe('WORD_REQUIRED');
+    }
   });
 });
