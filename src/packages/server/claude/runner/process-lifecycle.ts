@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
 import type { ActiveProcess, CLIBackend, RunnerCallbacks, RunnerRequest } from '../types.js';
@@ -15,6 +15,7 @@ import {
 } from './tmux-helper.js';
 import { startGrokSessionWatcher } from '../../grok/session-watcher.js';
 import { getEffectivePid, killProcessTree } from './process-identity.js';
+import { getProcessStartGate, type ProcessStartGateLike } from './start-gate.js';
 
 const log = createLogger('Runner');
 
@@ -28,6 +29,8 @@ interface ProcessLifecycleDeps {
   stdoutPipeline: RunnerStdoutPipeline;
   recoveryStore: RunnerRecoveryStore;
   onDisableAutoRestart: () => void;
+  /** 启动闸门（测试可注入直通档）；缺省用进程内单例，见 ./start-gate.ts。 */
+  startGate?: ProcessStartGateLike;
 }
 
 export class RunnerProcessLifecycle {
@@ -40,6 +43,7 @@ export class RunnerProcessLifecycle {
   private stdoutPipeline: RunnerStdoutPipeline;
   private recoveryStore: RunnerRecoveryStore;
   private onDisableAutoRestart: () => void;
+  private startGate: ProcessStartGateLike;
 
   constructor(deps: ProcessLifecycleDeps) {
     this.backend = deps.backend;
@@ -51,6 +55,7 @@ export class RunnerProcessLifecycle {
     this.stdoutPipeline = deps.stdoutPipeline;
     this.recoveryStore = deps.recoveryStore;
     this.onDisableAutoRestart = deps.onDisableAutoRestart;
+    this.startGate = deps.startGate ?? getProcessStartGate();
   }
 
   /**
@@ -124,6 +129,16 @@ export class RunnerProcessLifecycle {
       customAgent,
     } = request;
 
+    // 启动闸门（2026-10-12 群发唤醒风暴护栏）：spawn 前先取槽位，进程产出首个
+    // stdout 数据块（启动完成）或退出/出错时释放；持有超时兜底。详见 ./start-gate.ts。
+    const startLease = await this.startGate.acquire(agentId);
+    let startLeaseReleased = false;
+    const releaseStartLease = (): void => {
+      if (startLeaseReleased) return;
+      startLeaseReleased = true;
+      startLease.release();
+    };
+
     await this.stop(agentId);
 
     const backendConfig = {
@@ -179,13 +194,20 @@ export class RunnerProcessLifecycle {
       }
 
       const closesStdinAfterPrompt = this.backend.shouldCloseStdinAfterPrompt?.() ?? false;
-      const tmuxResult = spawnInTmux(executable, args, {
-        agentId,
-        cwd: workingDir,
-        env,
-        initialStdin,
-        closeStdinAfterPrompt: closesStdinAfterPrompt,
-      });
+      let tmuxResult: ReturnType<typeof spawnInTmux>;
+      try {
+        tmuxResult = spawnInTmux(executable, args, {
+          agentId,
+          cwd: workingDir,
+          env,
+          initialStdin,
+          closeStdinAfterPrompt: closesStdinAfterPrompt,
+        });
+      } catch (err) {
+        // tmux 拉起同步失败：槽位不能泄漏，立刻归还。
+        releaseStartLease();
+        throw err;
+      }
 
       const activeProcess: ActiveProcess = {
         agentId,
@@ -228,26 +250,45 @@ export class RunnerProcessLifecycle {
           agentId,
           pid: tmuxResult.launcherProcess.pid,
         });
+        // tmux（Linux 实验档）：真实进程在会话里启动、日志走文件尾随，拿不到
+        // 「首个 stdout」钩子——拉起后短延迟即归还槽位，其余靠持有超时兜底。
+        releaseStartLease();
       }, 600);
 
       return;
     }
 
     // ---- normal pipe mode ----
-    const childProcess = spawn(executable, args, {
-      cwd: workingDir,
-      env,
-      shell: isWindows ? true : false,
-      detached: isWindows ? false : true,
-      // On Windows, shell:true launches via cmd.exe which pops a visible
-      // console window on every agent turn. windowsHide suppresses it and is
-      // a no-op on other platforms.
-      windowsHide: true,
-    });
+    // 精确类型（非宽化的 ChildProcess）：spawn 默认 stdio=pipe，stdin/stdout 必非空，
+    // 与改动前 `const childProcess = spawn(...)` 的推断保持一致。
+    let childProcess: ChildProcessWithoutNullStreams;
+    try {
+      childProcess = spawn(executable, args, {
+        cwd: workingDir,
+        env,
+        shell: isWindows ? true : false,
+        detached: isWindows ? false : true,
+        // On Windows, shell:true launches via cmd.exe which pops a visible
+        // console window on every agent turn. windowsHide suppresses it and is
+        // a no-op on other platforms.
+        windowsHide: true,
+      });
+    } catch (err) {
+      // spawn 同步抛出（参数/cwd 非法等）：槽位不能泄漏，立刻归还。
+      releaseStartLease();
+      throw err;
+    }
 
     if (!isWindows) {
       childProcess.unref();
     }
+
+    // 启动完成信号：CLI 先发 system/init，首个 stdout 数据块到达即释放槽位。
+    // 启动期就死掉的进程（2026-10-12 孙悦先例：崩前未写任何 transcript）走
+    // close/error 释放；两条都不来则由闸门持有超时兜底。
+    childProcess.stdout?.once('data', releaseStartLease);
+    childProcess.once('close', releaseStartLease);
+    childProcess.once('error', releaseStartLease);
 
     const activeProcess: ActiveProcess = {
       agentId,

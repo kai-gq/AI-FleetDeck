@@ -33,7 +33,7 @@ vi.mock('./process-identity.js', async (importOriginal) => ({
   killProcessTree: mockKillProcessTree,
 }));
 
-async function buildHarness() {
+async function buildHarness(opts: { startGate?: { acquire: (agentId: string) => Promise<{ release: () => void }> } } = {}) {
   const { RunnerProcessLifecycle } = await import('./process-lifecycle.js');
 
   const activeProcesses = new Map<string, ActiveProcess>();
@@ -69,6 +69,8 @@ async function buildHarness() {
     stdoutPipeline: stdoutPipeline as any,
     recoveryStore: { persistRunningProcesses: persistSpy } as any,
     onDisableAutoRestart: vi.fn(),
+    // 直通闸门：既有用例不经过真实单例（否则进程内的排队会跨用例残留）。
+    startGate: opts.startGate ?? { acquire: async () => ({ release: () => {} }) },
   });
 
   return { lifecycle, activeProcesses, persistCalls, persistSpy, callbacks };
@@ -209,5 +211,85 @@ describe('RunnerProcessLifecycle — adopted orphans have no stdio channel', () 
       mockSpawn.mock.invocationCallOrder[0],
     );
     expect(harness.activeProcesses.get('a1')?.process.pid).toBe(999);
+  });
+});
+
+describe('RunnerProcessLifecycle — 启动闸门接线（唤醒节流）', () => {
+  function fakeChild() {
+    return Object.assign(new EventEmitter(), {
+      pid: 777,
+      stdin: null,
+      stdout: new EventEmitter(),
+      stderr: null,
+    });
+  }
+
+  it('spawn 前先取槽位，首个 stdout 数据块到达时释放（幂等）', async () => {
+    const release = vi.fn();
+    const acquire = vi.fn(async () => ({ release }));
+    const harness = await buildHarness({ startGate: { acquire } });
+    const child = fakeChild();
+    mockSpawn.mockReturnValue(child);
+
+    await harness.lifecycle.run({ agentId: 'a1', prompt: 'hi', workingDir: '/tmp/w' });
+
+    expect(acquire).toHaveBeenCalledWith('a1');
+    // 槽位必须在 spawn 之前拿到。
+    expect(acquire.mock.invocationCallOrder[0]).toBeLessThan(mockSpawn.mock.invocationCallOrder[0]);
+    expect(release).not.toHaveBeenCalled();
+
+    child.stdout.emit('data', Buffer.from('{"type":"system"}\n'));
+    expect(release).toHaveBeenCalledTimes(1);
+
+    // 幂等：随后的 close 不二次释放。
+    child.emit('close', 0, null);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('排队中不 spawn：闸门放行前 run() 一直等待', async () => {
+    let admit!: (lease: { release: () => void }) => void;
+    const acquire = vi.fn(() => new Promise<{ release: () => void }>((resolve) => { admit = resolve; }));
+    const harness = await buildHarness({ startGate: { acquire } });
+    const child = fakeChild();
+    mockSpawn.mockReturnValue(child);
+
+    const runPromise = harness.lifecycle.run({ agentId: 'a1', prompt: 'hi', workingDir: '/tmp/w' });
+    await new Promise((r) => setImmediate(r));
+    expect(mockSpawn).not.toHaveBeenCalled();
+
+    const release = vi.fn();
+    admit({ release });
+    await runPromise;
+
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    child.stdout.emit('data', Buffer.from('x'));
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('启动期退出（close，0xC0000409 先例）释放槽位——崩溃不卡队列', async () => {
+    const release = vi.fn();
+    const harness = await buildHarness({ startGate: { acquire: async () => ({ release }) } });
+    const child = fakeChild();
+    mockSpawn.mockReturnValue(child);
+
+    await harness.lifecycle.run({ agentId: 'a1', prompt: 'hi', workingDir: '/tmp/w' });
+    expect(release).not.toHaveBeenCalled();
+
+    child.emit('close', 3221226505, null);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('spawn 同步抛出时归还槽位并上抛', async () => {
+    const release = vi.fn();
+    const harness = await buildHarness({ startGate: { acquire: async () => ({ release }) } });
+    mockSpawn.mockImplementation(() => {
+      throw new Error('spawn boom');
+    });
+
+    await expect(
+      harness.lifecycle.run({ agentId: 'a1', prompt: 'hi', workingDir: '/tmp/w' }),
+    ).rejects.toThrow('spawn boom');
+
+    expect(release).toHaveBeenCalledTimes(1);
   });
 });
