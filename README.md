@@ -23,7 +23,7 @@
 
 > **不是聊天窗口，是指挥台。** FleetDeck 把已经装好的 CLI 编码代理组织成一支有上下级的舰队：Boss 负责拆解与选人，下属真实执行，办结自动向你汇报。每一个角色都是跑在项目文件上的真实进程——真工具、真凭据、真会话历史。
 
-> **English:** **FleetDeck** is a Chinese-first community edition of [Tide Commander](https://github.com/deivid11/tide-commander) (MIT). It keeps the full multi-agent mission-control platform and adds a zh-CN localization (5,584 entries across 202 client files), a Chinese voice companion, a WeChat (ClawBot) integration, a six-agent starter fleet seeded on first launch, Boss orchestration governance, and a commercial-grade UI reskin. Licensed under **AGPL-3.0**; upstream MIT notices are preserved in [NOTICE](NOTICE).
+> **FleetDeck** 是 [Tide Commander](https://github.com/deivid11/tide-commander)（MIT）的中文优先社区版：完整保留多智能体任务指挥平台，并叠加中文界面本地化（202 个客户端文件、5,584 条文案）、中文语音伙伴、微信（ClawBot）集成、首次启动自动种下的六人待岗编队、Boss 编排治理与商用级 UI 重制；以 **AGPL-3.0** 授权发布，上游 MIT 声明保留于 [NOTICE](NOTICE)。
 
 传统工具链把工作割裂在 IDE、终端、Git 客户端、文件浏览器、自动化画布和一堆 AI 聊天窗口之间。FleetDeck 把这些表面收拢到一个甲板上：你站在舰桥上说一句需求，整支舰队开始干活，结果自动回执。
 
