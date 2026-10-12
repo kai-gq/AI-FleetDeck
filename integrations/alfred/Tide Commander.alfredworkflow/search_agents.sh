@@ -1,5 +1,5 @@
 #!/bin/bash
-# Tide Commander Alfred Script Filter
+# FleetDeck Alfred Script Filter
 # Searches agents and returns Alfred JSON format
 
 QUERY="${1:-}"
@@ -20,7 +20,7 @@ AREAS=$(echo "$AREAS_RESPONSE" | sed '$d')
 # Handle HTTP errors
 if [ "$AGENTS_HTTP_CODE" = "000" ] || [ -z "$AGENTS_HTTP_CODE" ]; then
   cat <<'EMPTY'
-{"items":[{"title":"Tide Commander not reachable","subtitle":"Check that the server is running on the configured port","valid":false,"icon":{"path":"icon.png"}}]}
+{"items":[{"title":"FleetDeck not reachable","subtitle":"Check that the server is running on the configured port","valid":false,"icon":{"path":"icon.png"}}]}
 EMPTY
   exit 0
 fi

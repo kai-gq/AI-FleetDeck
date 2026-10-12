@@ -1,7 +1,7 @@
 #!/usr/bin/env gjs
 
 /*
- * Tide Commander KRunner DBus Runner
+ * FleetDeck KRunner DBus Runner
  *
  * Exposes org.kde.krunner1 for native KRunner autocomplete and activation.
  */
@@ -163,7 +163,7 @@ function matchQuery(rawQuery) {
       sortName: toLower(agent.name || agent.id),
       props: {
         subtext: new GLib.Variant('s', subtext),
-        category: new GLib.Variant('s', 'Tide Commander Agents'),
+        category: new GLib.Variant('s', 'FleetDeck Agents'),
       },
     });
   }
@@ -179,7 +179,7 @@ function matchQuery(rawQuery) {
 
 function activateTideWindowAndFocusAgent(agentId) {
   const jsPath = '/tmp/tide-focus-kwin.js';
-  const jsCode = `var t=null;for (const w of workspace.windowList()){if((w.caption||'').indexOf('Tide Commander')!==-1||w.desktopFileName==='brave-idemibpphagihbobmgmaojhjfidlfpdl-Default'||w.resourceClass==='brave-idemibpphagihbobmgmaojhjfidlfpdl-Default'){t=w;break;}}if(t){t.minimized=false;workspace.activeWindow=t;}`;
+  const jsCode = `var t=null;for (const w of workspace.windowList()){if((w.caption||'').indexOf('FleetDeck')!==-1||(w.caption||'').indexOf('Tide Commander')!==-1||w.desktopFileName==='brave-idemibpphagihbobmgmaojhjfidlfpdl-Default'||w.resourceClass==='brave-idemibpphagihbobmgmaojhjfidlfpdl-Default'){t=w;break;}}if(t){t.minimized=false;workspace.activeWindow=t;}`;
   GLib.file_set_contents(jsPath, jsCode);
 
   const plugin = `tide_focus_${GLib.get_real_time()}`;

@@ -23,13 +23,13 @@
 		</array>
 	</dict>
 	<key>createdby</key>
-	<string>Tide Commander</string>
+	<string>FleetDeck</string>
 	<key>description</key>
-	<string>Search and focus Tide Commander agents from Alfred</string>
+	<string>Search and focus FleetDeck agents from Alfred</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
-	<string>Tide Commander</string>
+	<string>FleetDeck</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -64,9 +64,9 @@
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Search Tide Commander agents</string>
+				<string>Search FleetDeck agents</string>
 				<key>title</key>
-				<string>Tide Commander</string>
+				<string>FleetDeck</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -104,7 +104,7 @@
 		</dict>
 	</array>
 	<key>readme</key>
-	<string>Search and focus Tide Commander agents.
+	<string>Search and focus FleetDeck agents.
 
 Keywords: tide, agent
 
@@ -112,7 +112,7 @@ Usage:
   tide [query]  - Search agents by name, class, status, or area
   agent [query] - Same as above
 
-Select an agent to focus the Tide Commander window and open that agent.
+Select an agent to focus the FleetDeck window and open that agent.
 
 Configuration:
   Set TIDE_API_BASE environment variable to override the default API URL (http://localhost:5174/api).
@@ -149,7 +149,7 @@ Configuration:
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Tide Commander API base URL</string>
+			<string>FleetDeck API base URL</string>
 			<key>label</key>
 			<string>API Base URL</string>
 			<key>type</key>
@@ -182,6 +182,6 @@ Configuration:
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/riven/tide-commander</string>
+	<string>https://github.com/kai-gq/AI-FleetDeck</string>
 </dict>
 </plist>

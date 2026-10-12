@@ -75,13 +75,13 @@
 		</array>
 	</dict>
 	<key>createdby</key>
-	<string>Tide Commander</string>
+	<string>FleetDeck</string>
 	<key>description</key>
-	<string>Search and focus Tide Commander agents, areas, buildings and conversations</string>
+	<string>Search and focus FleetDeck agents, areas, buildings and conversations</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
-	<string>Tide Commander</string>
+	<string>FleetDeck</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -108,13 +108,13 @@
 				<key>queuemode</key>
 				<integer>2</integer>
 				<key>runningsubtext</key>
-				<string>Searching Tide Commander…</string>
+				<string>Searching FleetDeck…</string>
 				<key>script</key>
 				<string>q="${1:-}"
 out="$(/usr/bin/curl -sS -m 6 -G -H "X-Auth-Token: ${TC_TOKEN}" --data-urlencode "q=${q}" "${TC_HOST}/api/alfred/search" 2&gt;/dev/null)"
 case "$out" in
   *'"items"'*) printf '%s' "$out" ;;
-  *) printf '{"items":[{"title":"Tide Commander unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
+  *) printf '{"items":[{"title":"FleetDeck unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
 esac</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
@@ -123,7 +123,7 @@ esac</string>
 				<key>subtext</key>
 				<string>Agents · areas · buildings (⏎ focus in open UI · ⌘⏎ open in browser · ⌥⏎ copy id)</string>
 				<key>title</key>
-				<string>Search Tide Commander</string>
+				<string>Search FleetDeck</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -166,7 +166,7 @@ esac</string>
 out="$(/usr/bin/curl -sS -m 10 -G -H "X-Auth-Token: ${TC_TOKEN}" --data-urlencode "q=${q}" "${TC_HOST}/api/alfred/sessions" 2&gt;/dev/null)"
 case "$out" in
   *'"items"'*) printf '%s' "$out" ;;
-  *) printf '{"items":[{"title":"Tide Commander unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
+  *) printf '{"items":[{"title":"FleetDeck unreachable","subtitle":"%s - check Server URL / token in the workflow configuration","valid":false}]}' "${TC_HOST}" ;;
 esac</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
@@ -175,7 +175,7 @@ esac</string>
 				<key>subtext</key>
 				<string>Full-text search across every agent conversation (claude · grok · codex · opencode · pi)</string>
 				<key>title</key>
-				<string>Search Tide Commander conversations</string>
+				<string>Search FleetDeck conversations</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -226,7 +226,7 @@ esac</string>
 				<key>subtext</key>
 				<string>Agents · areas · buildings</string>
 				<key>text</key>
-				<string>Search Tide Commander</string>
+				<string>Search FleetDeck</string>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.trigger.fallback</string>
@@ -241,7 +241,7 @@ esac</string>
 				<key>subtext</key>
 				<string>Full-text across every agent conversation</string>
 				<key>text</key>
-				<string>Search Tide Commander conversations</string>
+				<string>Search FleetDeck conversations</string>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.trigger.fallback</string>
@@ -333,10 +333,10 @@ exec /usr/bin/osascript -e "tell application id \"com.runningwithcrayons.Alfred\
 		</dict>
 	</array>
 	<key>readme</key>
-	<string>Search Tide Commander from Alfred.
+	<string>Search FleetDeck from Alfred.
 
 Keywords:
-  tc  [query]  — agents, areas and buildings. Enter focuses the agent in any open Tide Commander UI; Cmd+Enter opens it in the browser; Alt+Enter copies the agent id. Empty query lists the most recently active agents.
+  tc  [query]  — agents, areas and buildings. Enter focuses the agent in any open FleetDeck UI; Cmd+Enter opens it in the browser; Alt+Enter copies the agent id. Empty query lists the most recently active agents.
   tcs [query]  — full-text search across every agent conversation (claude, grok, codex, opencode, pi). Enter focuses the agent that holds the conversation.
 
 Configure the Server URL and API token in the workflow configuration.</string>
@@ -414,7 +414,7 @@ Configure the Server URL and API token in the workflow configuration.</string>
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Tide Commander server URL, without a trailing slash.</string>
+			<string>FleetDeck server URL, without a trailing slash.</string>
 			<key>label</key>
 			<string>Server URL</string>
 			<key>type</key>
@@ -435,7 +435,7 @@ Configure the Server URL and API token in the workflow configuration.</string>
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>The X-Auth-Token the Tide Commander server expects.</string>
+			<string>The X-Auth-Token the FleetDeck server expects.</string>
 			<key>label</key>
 			<string>API token</string>
 			<key>type</key>

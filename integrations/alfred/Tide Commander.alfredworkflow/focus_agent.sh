@@ -1,6 +1,6 @@
 #!/bin/bash
-# Tide Commander Alfred Action
-# Focuses the Tide Commander window and selects the given agent
+# FleetDeck Alfred Action
+# Focuses the FleetDeck window and selects the given agent
 
 AGENT_ID="${1:-}"
 API_BASE="${TIDE_API_BASE:-http://localhost:5174/api}"
@@ -17,7 +17,7 @@ if [ -z "$AGENT_ID" ]; then
   exit 0
 fi
 
-# Bring Tide Commander browser tab to front.
+# Bring FleetDeck browser tab to front.
 # Try Brave first (most common), then Chrome, then Firefox, Safari.
 # Chromium-based browsers expose per-tab titles via AppleScript, so we can
 # activate the exact tab instead of just the window.
@@ -33,7 +33,7 @@ on run argv
           set tabIndex to 0
           repeat with t in every tab of w
             set tabIndex to tabIndex + 1
-            if title of t contains "Tide Commander" or URL of t contains "tide-commander" or URL of t contains "localhost:5173" or URL of t contains "localhost:5174" then
+            if title of t contains "FleetDeck" or title of t contains "Tide Commander" or URL of t contains "tide-commander" or URL of t contains "localhost:5173" or URL of t contains "localhost:5174" then
               set active tab index of w to tabIndex
               set index of w to 1
               activate
