@@ -6,14 +6,6 @@ labels: ["agent", "investigation"]
 assignees: []
 ---
 
-## ⚠️ PLEASE REPORT ON DISCORD
-
-**Report agent issues on Discord to @deivid11 instead of using GitHub issues.**
-
-This helps us diagnose and fix agent problems more quickly.
-
----
-
 ## Description
 
 A clear description of the unexpected agent behavior.

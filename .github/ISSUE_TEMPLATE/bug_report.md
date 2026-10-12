@@ -6,14 +6,6 @@ labels: ["bug"]
 assignees: []
 ---
 
-## ⚠️ PLEASE REPORT ON DISCORD
-
-**Report this issue on Discord to @deivid11 instead of using GitHub issues.**
-
-This helps us track and respond to bugs more efficiently.
-
----
-
 ## Description
 
 A clear and concise description of what the bug is.
@@ -43,7 +35,7 @@ If applicable, add screenshots or videos that help explain the problem.
 
 - **OS**: (e.g., Windows 11, macOS 14, Linux Ubuntu 22.04)
 - **Browser**: (e.g., Chrome, Firefox, Safari - if applicable)
-- **Tide Commander Version**: (e.g., 0.47.4)
+- **FleetDeck Version**: (e.g., 1.0.0)
 - **Node.js Version**: (if building from source)
 - **Deployment Method**: (Docker, source, APK, etc.)
 

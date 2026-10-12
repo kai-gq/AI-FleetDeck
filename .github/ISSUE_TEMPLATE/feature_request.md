@@ -1,17 +1,9 @@
 ---
 name: Feature Request
-about: Suggest an idea for Tide Commander
+about: Suggest an idea for FleetDeck
 title: "[FEATURE] "
 labels: ["enhancement"]
 assignees: []
----
-
-## ⚠️ PLEASE REPORT ON DISCORD
-
-**Report your feature request on Discord to @deivid11 instead of using GitHub issues.**
-
-This helps us prioritize and discuss features more effectively.
-
 ---
 
 ## Description

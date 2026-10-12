@@ -12,8 +12,7 @@ assignees: []
 
 Instead, report vulnerabilities privately:
 
-- **Discord**: Direct message `deivid11`
-- **Email**: `security@tidecommander.dev`
+- **Email**: `shengmiwanjia@outlook.com`
 
 This allows us to coordinate a fix and disclosure responsibly.
 
@@ -38,7 +37,7 @@ We aim to:
 - Ship a fix and coordinated disclosure
 - Credit you in the disclosure (if desired)
 
-Thank you for helping keep Tide Commander secure!
+Thank you for helping keep FleetDeck secure!
 
 ---
 

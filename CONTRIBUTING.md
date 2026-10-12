@@ -1,4 +1,4 @@
-# Contributing to Tide Commander
+# Contributing to FleetDeck
 
 Thanks for contributing.
 

@@ -13,8 +13,7 @@ Security fixes are applied to the latest release on the default branch.
 
 If you discover a security issue, please report it privately and do not open a public issue.
 
-- Preferred: Direct message `deivid11` on Discord
-- Email: `security@tidecommander.dev`
+- Email: `shengmiwanjia@outlook.com`
 - Include:
   - A clear description of the issue
   - Reproduction steps or proof of concept
@@ -35,7 +34,7 @@ When we receive a report, we aim to:
 
 This project can run local automation and shell commands through agent runtimes.
 
-- Treat Tide Commander as a high-trust local tool
+- Treat FleetDeck as a high-trust local tool
 - Review agent permissions before running untrusted prompts
 - Do not store plain secrets in repository files
 - Use the built-in secrets system for credential injection
