@@ -29,6 +29,16 @@
 
 你不需要住在代码里。用自然语言和可视化控件下达意图，需要深控时再打开文件、命令、diff、数据与基础设施。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/home-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/home-light.jpg">
+    <img src="https://kai-gq.github.io/fleetdeck-site/assets/shots/home-light.jpg" alt="FleetDeck 指挥台总览：团队与忙闲状态、2D 战场、任务树与语音秘书面板">
+  </picture>
+</p>
+
+<p align="center"><sub>指挥台一屏：左侧团队与忙闲、中央 2D 战场、任务树与最近委派、语音秘书面板 · 官网 <a href="https://kai-gq.github.io/fleetdeck-site/">kai-gq.github.io/fleetdeck-site</a></sub></p>
+
 ## ⚡ 30 秒跑起来
 
 ```bash
@@ -85,6 +95,58 @@ bun run dev        # npm run dev
 | **🎯 编排**<br>Boss/下属委派树、合规派活书、并发配额与排队、待岗/恢复、编制清单纪律、任务看板、团队笔记沉淀。 | **📡 可观测**<br>忙闲状态、当前任务、最近委派、工具卡、实时终端输出、后台任务轨、主动播报队列、会话恢复。 |
 | **📁 统一工作台**<br>多根文件树、内嵌编辑、Git diff/历史/分支对比、全项目搜索、测试浏览器、`@file` / `@folder` / `@agent` 上下文。 | **🧩 可扩展**<br>约 29 个内置技能、服务端/客户端插件、8 类外部触发器（Webhook / 邮件 / Slack / Jira / 定时 / WhatsApp / 微信 ClawBot / Bitbucket）、状态机工作流编辑器。 |
 | **🎙️ 语音伙伴**<br>中文语音、本地识别、流式分句、打断（barge-in）、分钟级确定性提醒（15s–24h，≤10 条）、主动播报通道、可选声纹门禁（只认主人声纹）。 | **📱 随处接手**<br>会话活在服务端，桌面、手机浏览器、Android 随时续上；另有浏览器桥驱动你已登录的真实浏览器。 |
+
+## 🖥️ 界面一览
+
+> 以下为本地演示团队的实拍界面；跟随 GitHub 明暗主题自动切换两版。
+
+### 🧭 指挥官总览
+
+智能体列表、忙闲状态与最近委派同屏呈现；点开任一角色，即进入它的会话、终端与工具卡。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/commander-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/commander-light.jpg">
+    <img src="https://kai-gq.github.io/fleetdeck-site/assets/shots/commander-light.jpg" alt="指挥官总览：智能体列表、忙闲状态与最近委派">
+  </picture>
+</p>
+
+### 🗂️ 委派详情
+
+Boss 拆解任务、按类型与负载选人、产出合规派活书；执行进度与办结回执沿同一条链路回到你面前。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/delegation-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/delegation-light.jpg">
+    <img src="https://kai-gq.github.io/fleetdeck-site/assets/shots/delegation-light.jpg" alt="委派详情：Boss 拆解、下属分配与进度回执">
+  </picture>
+</p>
+
+### 🔲 平铺视图
+
+全员卡片平铺：角色、运行时、忙闲与当前任务一览，舰队大了用它几秒定位到人。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/flat-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/flat-light.jpg">
+    <img src="https://kai-gq.github.io/fleetdeck-site/assets/shots/flat-light.jpg" alt="平铺视图：全员卡片、状态一览与快速定位">
+  </picture>
+</p>
+
+### 🗺️ 3D 战场
+
+三维空间里的舰队阵型：项目区、建筑与智能体在空间里排布，整体态势一眼可辨。
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/battlefield-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="https://kai-gq.github.io/fleetdeck-site/assets/shots/battlefield-light.jpg">
+    <img src="https://kai-gq.github.io/fleetdeck-site/assets/shots/battlefield-light.jpg" alt="3D 战场：三维阵型、舰队态势与聚焦查看">
+  </picture>
+</p>
 
 ## 🤖 支持的五种运行时
 
@@ -147,10 +209,10 @@ FleetDeck 把不同 harness 归一成同一种对话、工具、状态、上下�
 
 | 数字 | 含义 |
 |---|---|
-| **3.9s** | 语音首句出声（播完回到聆听 7.7s） |
+| **2s** | 语音首句出声（文本注入口径；播完回到聆听 7.7s） |
 | **≈8×** | 语音伙伴常驻化提速：冷启动 16.6s → 热轮 2.1s，省 87% |
 | **21.9×** | 长会话治理收益：p50 3.4s，对照退化基线 74.4s |
-| **42.7s** | 一句话到回执播报全链闭环（派活 → 执行 → 核对 → 播报） |
+| **20s** | 一句话到回执播报全链闭环（派活 → 执行 → 核对 → 播报） |
 | **2ms** | 分钟级提醒到点偏差（回执约 4s） |
 | **4461** | 全量测试用例（353 个测试文件） |
 | **5584** | 界面文案中文本地化条目（202 个客户端文件接线） |
