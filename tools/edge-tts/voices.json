@@ -1,5 +1,15 @@
 {
   "zh": "zh-CN-XiaoxiaoNeural",
   "en": "en-US-JennyNeural",
-  "es": "es-MX-DaliaNeural"
+  "es": "es-MX-DaliaNeural",
+  "engine": "edge-tts",
+  "volcano": {
+    "zh": "zh_female_shuangkuaisisi_moon_bigtts",
+    "en": "en_male_tim_uranus_bigtts",
+    "es": ""
+  },
+  "rate": 0,
+  "volume": 0,
+  "volcanoApiKey": "",
+  "volcanoResourceId": ""
 }

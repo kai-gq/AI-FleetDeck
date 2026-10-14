@@ -4,3 +4,5 @@ shim.log
 __pycache__/
 *.egg-info/
 voices.local.json
+shim-state.json
+probe-out/
