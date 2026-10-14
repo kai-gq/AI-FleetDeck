@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TTS_VOICES, describeShimState, sanitize, sanitizeTuning } from './ttsVoice';
+import { DEFAULT_TTS_VOICES, VOLCANO_FALLBACK_VALUE, VOLCANO_VOICE_GROUPS, describeShimState, sanitize, sanitizeTuning } from './ttsVoice';
 
 describe('sanitizeTuning', () => {
   it('falls back for missing / empty / non-finite values', () => {
@@ -106,6 +106,31 @@ describe('sanitize', () => {
     expect(cfg.zh).toBe(DEFAULT_TTS_VOICES.zh);
     expect(cfg.rate).toBe(100);
     expect(cfg.volume).toBe(-100);
+  });
+});
+
+describe('VOLCANO_VOICE_GROUPS(音色表完整性)', () => {
+  it('值唯一、非空、不占用回退空串;标签非空', () => {
+    for (const lang of ['zh', 'en', 'es'] as const) {
+      const values: string[] = [];
+      for (const g of VOLCANO_VOICE_GROUPS[lang]) {
+        for (const o of g.options) {
+          expect(o.value).not.toBe(VOLCANO_FALLBACK_VALUE); // 空串 = 回退项,列表里不允许
+          expect(o.value.trim()).not.toBe('');
+          expect(o.label.trim()).not.toBe('');
+          values.push(o.value);
+        }
+      }
+      expect(new Set(values).size).toBe(values.length);
+    }
+  });
+
+  it('DEFAULT_TTS_VOICES 的火山音色必须在表内(否则设置页下拉显示空白)', () => {
+    for (const lang of ['zh', 'en'] as const) {
+      const def = DEFAULT_TTS_VOICES.volcano[lang];
+      const hit = VOLCANO_VOICE_GROUPS[lang].some((g) => g.options.some((o) => o.value === def));
+      expect(hit, `${lang}: ${def} 不在候选表里`).toBe(true);
+    }
   });
 });
 

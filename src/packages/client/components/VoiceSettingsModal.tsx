@@ -21,8 +21,8 @@ import { VoiceCompanionSection } from './toolbox/VoiceCompanionSection';
 import { VoiceprintSettings } from './toolbox/VoiceprintSettings';
 import { loadWhisperCloudConfig, saveWhisperCloudConfig, loadVolcengineCredStatus, DEFAULT_WHISPER_CLOUD_CONFIG } from '../api/whisperCloud';
 import type { WhisperCloudConfig, SttEngineMode } from '../api/whisperCloud';
-import { loadTtsVoices, saveTtsVoices, sanitizeTuning, loadTtsShimState, describeShimState, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, VOLCANO_VOICE_OPTIONS, VOLCANO_FALLBACK_VALUE, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../api/ttsVoice';
-import type { TtsVoiceConfig, TtsLang, TtsEngine, TtsShimState } from '../api/ttsVoice';
+import { loadTtsVoices, saveTtsVoices, sanitizeTuning, loadTtsShimState, describeShimState, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, VOLCANO_VOICE_GROUPS, VOLCANO_FALLBACK_VALUE, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../api/ttsVoice';
+import type { TtsVoiceConfig, TtsLang, TtsEngine, TtsShimState, TtsVoiceGroup, TtsVoiceOption } from '../api/ttsVoice';
 import { apiUrl, authFetch } from '../utils/storage';
 
 /** 「上次播报」卡按 describeShimState 的 key 取文案(defaultValue-only,i18n 铁律)。 */
@@ -396,8 +396,14 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
                 </div>
                 {(['zh', 'en', 'es'] as const).map((lang) => {
                   const isVolcano = ttsVoices.engine === 'volcano';
-                  const options = isVolcano ? VOLCANO_VOICE_OPTIONS[lang] : TTS_VOICE_OPTIONS[lang];
+                  // 火山音色多(2.0 库 200+),按场景分组渲染 optgroup;edge 保持平铺
+                  const groups: readonly TtsVoiceGroup[] = isVolcano
+                    ? VOLCANO_VOICE_GROUPS[lang]
+                    : [{ group: '', options: TTS_VOICE_OPTIONS[lang] }];
                   const value = isVolcano ? ttsVoices.volcano[lang] : ttsVoices[lang];
+                  const renderOption = (opt: TtsVoiceOption) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  );
                   return (
                     <div className="config-row" key={lang}>
                       <span className="config-label">{TTS_LANG_LABELS[lang]}</span>
@@ -410,9 +416,9 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
                           {isVolcano && (
                             <option value={VOLCANO_FALLBACK_VALUE}>{t('config:tts.volcanoFallback', { defaultValue: '不用火山 · 回退 edge-tts' })}</option>
                           )}
-                          {options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
+                          {groups.map((g) => (g.group
+                            ? <optgroup key={g.group} label={g.group}>{g.options.map(renderOption)}</optgroup>
+                            : g.options.map(renderOption)))}
                         </select>
                         <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
                           {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
