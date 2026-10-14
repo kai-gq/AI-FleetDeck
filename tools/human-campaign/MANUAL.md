@@ -39,8 +39,9 @@ npx tsx tools/human-campaign/manual-ingest.ts            # 默认合并进最新
 
 ## 四、常见问题
 
-- **没声音**：先确认是 5173 leader 页（不是别的标签/窗口）；TTS 引擎见工具箱「文字转语音」
-  （换声写入 `voices.local.json`，勿动 `tts.ts`）。
+- **没声音**：先确认是 5173 leader 页（不是别的标签/窗口）；TTS 引擎见顶栏话筒弹窗「文字转语音」
+  （换声/切引擎写入 `voices.local.json`，勿动 `tts.ts`；火山失败会自动回退 edge-tts，
+  实际引擎看 `tools/edge-tts/shim-state.json`）。
 - **麦没反应**：刷新后重新授权；iOS/远程设备必须 https（6201）。
 - **⑤ 路由到别家**：先记 `fail` + 证据行，属缺陷候选，不在现场调试。
 - **播报不打断**：记 `fail`（双泵语义见 `client/voice/speechQueue.ts`）。
