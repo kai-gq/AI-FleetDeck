@@ -17,6 +17,11 @@
   venv/Scripts/python.exe tools/edge-tts/shim/volcano_probe.py --live
       # 实网矩阵(每格一句 ~17 字,按字符计费);产物 probe-out/*.mp3 可直接听
       # 可选:--endpoint chunked|sse|both(默认 both) --text "..." --es-probe
+  venv/Scripts/python.exe tools/edge-tts/shim/volcano_probe.py --voices-file cand.json
+      # 批量音色可用性验证(换账号/扩音色表时用):逐音色一句短文本,
+      # resource 走垫片同一套自动推导;55000000 时自动试另一档 resource;
+      # 结果落 probe-out/voices-result.json(ok 列表即「本账号可用音色」)
+      # 文件格式:[{"id": "...", "name": "显示名"}, ...] 或每行一个 id 的纯文本
 
 凭据与垫片同优先级(env TC_TTS_VOLCANO_API_KEY > voices.local.json 的
 volcanoApiKey > tools/voice-companion/config.json 的 stt.volcengine),
@@ -248,18 +253,104 @@ def live(args):
     return 0 if e2e_ok else 1
 
 
+# ---------------------------------------------------------------- 批量音色
+
+TEXT_ZH_SHORT = "你好，这是音色测试。"
+TEXT_EN_SHORT = "Hello, this is a voice test."
+# 55000000(音色与 resource 不匹配)时的备选档位:先按垫片推导,失败再试另一档
+RID_ALT = {"seed-tts-1.0": "volc.service_type.10029", "seed-tts-2.0": "seed-tts-1.0"}
+
+
+def is_en_voice(voice):
+    """按音色 ID 判语种喂对应语言的测试文本(语言不匹配会返回零音频,误判为不可用)。"""
+    return voice.startswith("en_") or "_en_" in voice
+
+
+def load_voice_ids(args):
+    """候选音色:--voices 逗号串,或 --voices-file(JSON 数组[{id,name}...] / 每行一个 id)。"""
+    items = []
+    if args.voices:
+        items = [{"id": v.strip(), "name": ""} for v in args.voices.split(",") if v.strip()]
+    elif args.voices_file:
+        raw = Path(args.voices_file).read_text(encoding="utf-8").strip()
+        if raw.startswith("["):
+            items = json.loads(raw)
+        else:
+            items = [{"id": ln.strip(), "name": ""} for ln in raw.splitlines() if ln.strip()]
+    seen, out = set(), []
+    for it in items:
+        vid = (it.get("id") or "").strip()
+        if vid and vid not in seen:
+            seen.add(vid)
+            out.append({"id": vid, "name": it.get("name") or ""})
+    return out
+
+
+def voices_mode(args):
+    cfg = tts_shim._read_voices(tts_shim.TOOL_DIR / "voices.local.json")
+    key, kind = tts_shim.pick_volcano_key(cfg)
+    if not key:
+        print("未找到火山凭据 → 检查 TC_TTS_VOLCANO_API_KEY / voices.local.json.volcanoApiKey /\n"
+              "  tools/voice-companion/config.json 的 stt.volcengine")
+        return 2
+    cand = load_voice_ids(args)
+    if not cand:
+        print("候选为空:传 --voices id1,id2 或 --voices-file <file>")
+        return 2
+
+    print("凭据: %s (kind=%s)\n候选 %d 个音色,逐句短文本实测(chunked 端点)\n"
+          % (mask(key), kind, len(cand)))
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    results, wins, fails = [], [], []
+    for i, it in enumerate(cand, 1):
+        vid, name = it["id"], it["name"]
+        text = TEXT_EN_SHORT if is_en_voice(vid) else TEXT_ZH_SHORT
+        rid = tts_shim.pick_resource_id(vid, {})
+        r = run_cell("chunked", vid, rid, text, key, kind)
+        note = ""
+        if not r["ok"] and r.get("code") == 55000000 and rid in RID_ALT:
+            alt = RID_ALT[rid]
+            r2 = run_cell("chunked", vid, alt, text, key, kind, tag="alt")
+            if r2["ok"]:
+                r, rid, note = r2, alt, "  (55000000→换 %s 成功)" % alt
+        label = ("%s" % name)[:8]
+        print("[%3d/%3d] %-16s %-42s rid=%-22s %s%s"
+              % (i, len(cand), label, vid, rid, describe(r), note))
+        rec = {"id": vid, "name": name, "rid": rid, "ok": r["ok"],
+               "bytes": r.get("bytes"), "usage": r.get("usage"), "ms": r.get("ms"),
+               "code": r.get("code"), "msg": r.get("msg")}
+        results.append(rec)
+        (wins if r["ok"] else fails).append(rec)
+
+    out = OUT_DIR / "voices-result.json"
+    out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("\n== SUMMARY ==\n可用 %d / %d%s" % (len(wins), len(cand),
+          ("  失败 %d 个(见下)" % len(fails)) if fails else ""))
+    for f in fails:
+        print("  FAIL %-42s code=%s msg=%s" % (f["id"], f["code"], (f["msg"] or "")[:120]))
+    print("\n可用音色 id(可直接进客户端音色表):")
+    for w in wins:
+        print("  %s" % w["id"])
+    print("\n结果已写 %s" % out)
+    return 0
+
+
 def main():
-    ap = argparse.ArgumentParser(description="火山 TTS 探针(离线夹具 / 实网矩阵)")
+    ap = argparse.ArgumentParser(description="火山 TTS 探针(离线夹具 / 实网矩阵 / 批量音色)")
     ap.add_argument("--offline", action="store_true", help="零花费:夹具断言解析器与分派纯函数")
     ap.add_argument("--live", action="store_true", help="实网矩阵(按字符计费,每格一句)")
     ap.add_argument("--endpoint", choices=["chunked", "sse", "both"], default="both")
     ap.add_argument("--text", default="这是火山引擎合成测试，一二三四五。")
     ap.add_argument("--es-probe", action="store_true", help="追加一格西语多语种探测")
+    ap.add_argument("--voices", help="批量验证:逗号分隔的音色 id")
+    ap.add_argument("--voices-file", help="批量验证:JSON 数组([{id,name}])或每行一个 id 的文件")
     args = ap.parse_args()
     if args.offline:
         return offline()
     if args.live:
         return live(args)
+    if args.voices or args.voices_file:
+        return voices_mode(args)
     ap.print_help()
     return 2
 
