@@ -46,7 +46,7 @@ Edge 浏览器的神经语音:免费、免注册、国内直连)。2026-10-14 �
 | en | `en-US-JennyNeural` |
 | es | `es-MX-DaliaNeural` |
 
-换音色:**在顶栏话筒弹窗 →「文字转语音」标签里直接选**(中文 14 个:晓晓/晓伊/云希/云扬/方言/粤语/台湾,另有英文、西语;每行带「试听」)。
+换音色:**在顶栏话筒弹窗 →「文字转语音」标签里直接选**(中文 14 个:晓晓/晓伊/云希/云扬/方言/粤语/台湾,另有英文、西语;每行带「试听」)。上表是 edge 引擎的默认;引擎选火山后,同一位置的下拉换成 278 个火山音色(按场景分组,见下节)。
 
 - 保存写入 `voices.local.json`,垫片读取优先级:`voices.local.json` > `voices.json`(删除 local 文件 = 恢复默认);
 - 「试听」= 先保存当前选择、再播放该语言样句(浏览器直接播,走完整 tts.ts → 垫片链路);
@@ -62,15 +62,21 @@ Edge 浏览器的神经语音:免费、免注册、国内直连)。2026-10-14 �
 `voices.local.json` 的 `"engine"`;**老配置无此字段 = edge-tts,行为与历史逐字一致**;
 env `TC_TTS_ENGINE=volcano` 可临时切换,排障用、不改配置)。
 
-**火山音色表**(2026-10-14 本机逐个实测全通;resource 由垫片按音色名自动推导:
-`moon/mars` → `seed-tts-1.0`,`uranus` → `seed-tts-2.0`):
+**火山音色表**(2026-10-14 拿官方 2.0 音色库 285 个候选**逐个实网实测**,284 个可用,
+已全部进设置页下拉、按场景分组渲染 `<optgroup>`;resource 由垫片按音色名自动推导:
+`moon/mars` → `seed-tts-1.0`,`uranus`(含 ICL 系 `ICL_uranus_*_tob`)→ `seed-tts-2.0`):
 
-| 语言 | 1.0 音色 | 2.0 音色 |
+| 语言 | 分组(设置页 optgroup) | 数量 |
 | --- | --- | --- |
-| zh | 爽快思思 / 高冷御姐 / 魅力女友 / 湾湾小何 / 京腔侃爷 / 北京小爷 / 阳光青年 | 温柔小雅 / Vivi / 小何 / 云舟 / 儒雅逸辰 / 甜美小源 |
-| en | — | Tim / Dacey / Stokie |
-| es | 无(设置页该行只有「不用火山 · 回退 edge-tts」) | 同左 |
+| zh | 1.0 · 音色 / 2.0 · 通用·视频配音·有声阅读·教育·客服·角色 / 角色扮演 · 中文·客服·有声阅读 | 278 |
+| en | 2.0 · 通用 / 角色扮演 · 英语 | 18 |
+| es | 无(设置页该行只有「不用火山 · 回退 edge-tts」) | 0 |
 
+- zh 下拉最前是 1.0 常用 9 个(爽快思思/高冷御姐/魅力女友/湾湾小何/京腔侃爷/北京小爷/
+  阳光青年/北京小爷·情感版/弯曲大树);尾部「角色扮演 · *」= ICL 角色音色(傲娇女友/
+  病娇姐姐/邪魅女王…共 195 个,实测全部可用,排在列表最后);
+- 唯一被排除:**清爽男大** `zh_male_qingshuangnanda_uranus_bigtts` —— 两次实测均服务端
+  持续无响应(30s 读超时,非瞬抖),入表会白等满 20s 预算才回退,故不进下拉;
 - 每行下拉第一项「不用火山 · 回退 edge-tts」= 该语言存**空串**,垫片看到空串就走 edge-tts;
 - 音色与文本语言不匹配时服务端返回**零音频**(HTTP 200 + `code=0` + `data:null`),
   垫片识别后自动回退 edge-tts(混合文本建议选多语种音色,如 Vivi);
@@ -91,6 +97,9 @@ resource 与音色不匹配(`55000000`)且未收到音频 → 自动换另一 re
 ```bash
 venv/Scripts/python.exe shim/volcano_probe.py --offline   # 零花费自检(夹具)
 venv/Scripts/python.exe shim/volcano_probe.py --live      # 实网矩阵(按字符计费,每格一句)
+# 批量重测指定音色(逐音色短句;结果写 probe-out/voices-result.json):
+venv/Scripts/python.exe shim/volcano_probe.py --voices zh_female_vv_uranus_bigtts,en_male_tim_uranus_bigtts
+venv/Scripts/python.exe shim/volcano_probe.py --voices-file list.json  # [{id,name}|每行一个 id]
 # 可选 --endpoint sse|chunked|both、--es-probe(多语种西语);产物 probe-out/*.mp3 可直接听
 ```
 
