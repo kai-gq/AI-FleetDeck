@@ -21,9 +21,18 @@ import { VoiceCompanionSection } from './toolbox/VoiceCompanionSection';
 import { VoiceprintSettings } from './toolbox/VoiceprintSettings';
 import { loadWhisperCloudConfig, saveWhisperCloudConfig, loadVolcengineCredStatus, DEFAULT_WHISPER_CLOUD_CONFIG } from '../api/whisperCloud';
 import type { WhisperCloudConfig, SttEngineMode } from '../api/whisperCloud';
-import { loadTtsVoices, saveTtsVoices, sanitizeTuning, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../api/ttsVoice';
-import type { TtsVoiceConfig, TtsLang } from '../api/ttsVoice';
+import { loadTtsVoices, saveTtsVoices, sanitizeTuning, loadTtsShimState, describeShimState, DEFAULT_TTS_VOICES, TTS_VOICE_OPTIONS, VOLCANO_VOICE_OPTIONS, VOLCANO_FALLBACK_VALUE, TTS_AUDITION_SAMPLES, TTS_LANG_LABELS } from '../api/ttsVoice';
+import type { TtsVoiceConfig, TtsLang, TtsEngine, TtsShimState } from '../api/ttsVoice';
 import { apiUrl, authFetch } from '../utils/storage';
+
+/** 「上次播报」卡按 describeShimState 的 key 取文案(defaultValue-only,i18n 铁律)。 */
+const SHIM_STATE_TEXT: Record<string, string> = {
+  lastOkVolcano: '上次播报:火山引擎 · {{voice}}(计费 {{usage}})',
+  lastOkEdge: '上次播报:edge-tts · {{voice}}',
+  lastFallbackEdge: '上次播报:火山失败,已自动回退 edge-tts({{reason}})',
+  lastFallbackPiper: '上次播报:edge-tts 也失败,已回退本地 piper({{reason}})',
+  lastNone: '还没有播报记录;试听一次后这里会显示实际使用的引擎',
+};
 
 type VoiceTab = 'stt' | 'tts' | 'companion';
 
@@ -60,6 +69,8 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
   const [ttsError, setTtsError] = useState<string | null>(null);
   const [ttsAuditioning, setTtsAuditioning] = useState<TtsLang | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  // 垫片写的「上次播报实际引擎」(shim-state.json;试听后刷新)
+  const [ttsShimState, setTtsShimState] = useState<TtsShimState | null>(null);
 
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
 
@@ -106,7 +117,7 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
     };
   }, [isOpen]);
 
-  // 打开时读取播报音色(voices.local.json 用户覆盖优先)
+  // 打开时读取播报音色(voices.local.json 用户覆盖优先)+「上次播报」状态
   useEffect(() => {
     if (!isOpen) return;
     let alive = true;
@@ -126,6 +137,9 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
       .finally(() => {
         if (alive) setTtsLoaded(true);
       });
+    loadTtsShimState().then((s) => {
+      if (alive) setTtsShimState(s);
+    });
     return () => {
       alive = false;
     };
@@ -162,6 +176,19 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
 
   const handleTtsVoiceChange = (lang: TtsLang, value: string) => {
     setTtsVoices((c) => ({ ...c, [lang]: value }));
+    setTtsDirty(true);
+    setTtsError(null);
+  };
+
+  const handleTtsEngineChange = (engine: TtsEngine) => {
+    setTtsVoices((c) => ({ ...c, engine }));
+    setTtsDirty(true);
+    setTtsError(null);
+  };
+
+  // 火山音色:空串 = 该语言回退 edge-tts(下拉里的逃生项)
+  const handleTtsVolcanoVoiceChange = (lang: TtsLang, value: string) => {
+    setTtsVoices((c) => ({ ...c, volcano: { ...c.volcano, [lang]: value } }));
     setTtsDirty(true);
     setTtsError(null);
   };
@@ -224,6 +251,10 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
       audio.onended = finish;
       audio.onerror = finish;
       await audio.play();
+      // 播完(合成已发生)再刷「上次播报」状态卡;给垫片写文件留一点余量
+      window.setTimeout(() => {
+        loadTtsShimState().then(setTtsShimState);
+      }, 600);
     } catch (err) {
       ttsAudioRef.current = null;
       setTtsAuditioning(null);
@@ -240,6 +271,8 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
         .catch(() => setVolcCreds(false));
     }
   }, []);
+
+  const ttsShimView = describeShimState(ttsShimState);
 
   if (!isOpen) return null;
 
@@ -354,23 +387,46 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
 
               <div className="voice-section">
                 <div className="voice-section-title">{t('config:tts.voicesSection', { defaultValue: '播报音色' })}</div>
-                {(['zh', 'en', 'es'] as const).map((lang) => (
-                  <div className="config-row" key={lang}>
-                    <span className="config-label">{TTS_LANG_LABELS[lang]}</span>
-                    <div className="voice-control-group">
-                      <select className="config-select" value={ttsVoices[lang]} onChange={(e) => handleTtsVoiceChange(lang, e.target.value)}>
-                        {TTS_VOICE_OPTIONS[lang].map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
-                        {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
-                      </button>
+                <div className="config-row">
+                  <span className="config-label">{t('config:tts.engine', { defaultValue: '播报引擎' })}</span>
+                  <select className="config-select" value={ttsVoices.engine} onChange={(e) => handleTtsEngineChange(e.target.value as TtsEngine)}>
+                    <option value="edge-tts">{t('config:tts.engineEdge', { defaultValue: 'edge-tts · 微软音色(免费)' })}</option>
+                    <option value="volcano">{t('config:tts.engineVolcano', { defaultValue: '火山引擎 · 豆包大模型(按字符计费)' })}</option>
+                  </select>
+                </div>
+                {(['zh', 'en', 'es'] as const).map((lang) => {
+                  const isVolcano = ttsVoices.engine === 'volcano';
+                  const options = isVolcano ? VOLCANO_VOICE_OPTIONS[lang] : TTS_VOICE_OPTIONS[lang];
+                  const value = isVolcano ? ttsVoices.volcano[lang] : ttsVoices[lang];
+                  return (
+                    <div className="config-row" key={lang}>
+                      <span className="config-label">{TTS_LANG_LABELS[lang]}</span>
+                      <div className="voice-control-group">
+                        <select
+                          className="config-select"
+                          value={value}
+                          onChange={(e) => (isVolcano ? handleTtsVolcanoVoiceChange(lang, e.target.value) : handleTtsVoiceChange(lang, e.target.value))}
+                        >
+                          {isVolcano && (
+                            <option value={VOLCANO_FALLBACK_VALUE}>{t('config:tts.volcanoFallback', { defaultValue: '不用火山 · 回退 edge-tts' })}</option>
+                          )}
+                          {options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <button className="config-btn config-btn-sm" onClick={() => handleTtsAudition(lang)} disabled={ttsAuditioning !== null || ttsSaving}>
+                          {ttsAuditioning === lang ? t('config:tts.auditioning', { defaultValue: '播放中…' }) : t('config:tts.audition', { defaultValue: '试听' })}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="config-row config-row-stacked">
-                  <span className="config-hint">{t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费)。' })}</span>
+                  <span className="config-hint">
+                    {ttsVoices.engine === 'volcano'
+                      ? t('config:tts.hintVolcano', { defaultValue: '音色由火山引擎(豆包大模型)在线合成,按字符计费(约 2-4.5 元/万字符);每行可选「不用火山 · 回退 edge-tts」;火山失败会自动回退 edge-tts,实际引擎见下方「上次播报」。' })
+                      : t('config:tts.hint', { defaultValue: '音色由微软在线语音合成(免费)。' })}
+                  </span>
                 </div>
               </div>
 
@@ -411,6 +467,29 @@ export function VoiceSettingsModal({ isOpen, onClose }: VoiceSettingsModalProps)
                       ? t('config:tts.statusCustom', { defaultValue: '已自定义音色(下一句播报立即生效)' })
                       : t('config:tts.statusDefault', { defaultValue: '当前为默认音色(尚未自定义)' })}
                   </span>
+                </div>
+              )}
+
+              {ttsLoaded && ttsVoices.engine === 'volcano' && volcCreds !== null && !ttsVoices.volcanoApiKey && (
+                <div className={`voice-status${volcCreds ? ' voice-status--ok' : ' voice-status--warn'}`}>
+                  <span className="voice-status-dot" />
+                  <span>
+                    {volcCreds
+                      ? t('config:tts.volcanoCredOk', { defaultValue: '火山凭据已复用「语音伙伴」的配置,可直接合成' })
+                      : t('config:tts.volcanoCredMissing', { defaultValue: '未找到火山凭据:去「语音伙伴」填写,或手工在 voices.local.json 里填 volcanoApiKey' })}
+                  </span>
+                  {!volcCreds && (
+                    <button type="button" className="voice-status-action" onClick={() => selectTab('companion')}>
+                      {t('config:tts.volcanoCredGo', { defaultValue: '去「语音伙伴」填写' })}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {ttsLoaded && (
+                <div className={`voice-status${ttsShimView.level === 'ok' ? ' voice-status--ok' : ttsShimView.level === 'warn' ? ' voice-status--warn' : ''}`}>
+                  <span className="voice-status-dot" />
+                  <span>{t(`config:tts.${ttsShimView.key}`, { defaultValue: SHIM_STATE_TEXT[ttsShimView.key] ?? '', ...ttsShimView.params })}</span>
                 </div>
               )}
 
