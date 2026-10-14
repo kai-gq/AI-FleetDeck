@@ -182,6 +182,6 @@ Configuration:
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/kai-gq/AI-FleetDeck</string>
+	<string>https://github.com/kai-gq/FleetDeck</string>
 </dict>
 </plist>
