@@ -66,6 +66,12 @@ Edge 浏览器的神经语音:免费、免注册、国内直连),音色即真人
 - **ffmpeg**(mp3→wav):借 `tools/whisper/ffmpeg/bin/ffmpeg.exe`,缺失时找 PATH;
 - 文本会发送到微软服务器(edge-tts 走 Edge 的语音接口,**非官方 API**,微软改动
   接口时需 `pip install -U edge-tts` 更新);要完全离线得换本地大模型 TTS。
+- **403 速查(2026-10-14 实例)**:`shim.log` 出现 `WSServerHandshakeError: 403 ...
+  speech.platform.bing.com` 而列音色端点仍正常(`edge_tts.list_voices()` 能返回 322 条)
+  → 网络没断,是**库版本太旧被微软在合成端点上卡了最低客户端版本**。升级即解(7.2.8→7.3.1 一次通):
+  `tools/edge-tts/venv/Scripts/python.exe -m pip install -U edge-tts -i https://pypi.tuna.tsinghua.edu.cn/simple`
+  。注意症状伪装:合成失败会**静默回退 piper**(本地只有一个中文声),界面上表现为
+  「所有音色听起来同一个声音」——排障第一步永远是先看 `shim.log` 有没有 `fallback -> piper_real.exe`。
 
 ## 重建(换机器 / 清理后)
 
